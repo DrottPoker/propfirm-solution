@@ -127,7 +127,7 @@ public sealed partial class TradingEngine
                 .Select(o => new OrderSnapshot(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime))
                 .ToList(),
             account.Floors.Values
-                .Select(f => new FloorSnapshot(f.Id, f.Rule, f.Level, f.HighWaterMark))
+                .Select(f => new FloorSnapshot(f.Id, f.Rule, f.Level, f.HighWaterMark, figures.Equity - f.Level))
                 .ToList());
     }
 

@@ -1,0 +1,2073 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Trading.Service | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSnapshot"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/instruments": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstrumentInfo"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/prices": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SymbolPrice"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/candles/{symbol}": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Timeframe"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Candle"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/events": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventEnvelope"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/orders": {
+      "post": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaceOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/orders/{orderId}": {
+      "delete": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/positions/{positionId}/close": {
+      "post": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/positions/{positionId}/stops": {
+      "put": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyStopsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{accountId}/floors/{floorId}": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "floorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetFloorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "floorId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/accounts/{accountId}/close": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountSnapshot": {
+        "required": [
+          "accountId",
+          "groupId",
+          "currency",
+          "status",
+          "balance",
+          "equity",
+          "usedMargin",
+          "freeMargin",
+          "marginLevelPercent",
+          "positions",
+          "orders",
+          "floors"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "usedMargin": {
+            "type": "number",
+            "format": "double"
+          },
+          "freeMargin": {
+            "type": "number",
+            "format": "double"
+          },
+          "marginLevelPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PositionSnapshot"
+            }
+          },
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderSnapshot"
+            }
+          },
+          "floors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorSnapshot"
+            }
+          }
+        },
+        "description": "Account state valued at the latest prices. Amounts are in account currency."
+      },
+      "AccountStatus": {
+        "enum": [
+          "Active",
+          "Disabled"
+        ]
+      },
+      "CancelReason": {
+        "enum": [
+          "Manual",
+          "InsufficientMargin",
+          "EquityFloor",
+          "AccountClosed"
+        ]
+      },
+      "Candle": {
+        "required": [
+          "time",
+          "open",
+          "high",
+          "low",
+          "close",
+          "tickCount"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "open": {
+            "type": "number",
+            "format": "double"
+          },
+          "high": {
+            "type": "number",
+            "format": "double"
+          },
+          "low": {
+            "type": "number",
+            "format": "double"
+          },
+          "close": {
+            "type": "number",
+            "format": "double"
+          },
+          "tickCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "Bar of bid prices. Time is the start of the bar in UTC."
+      },
+      "CloseReason": {
+        "enum": [
+          "Manual",
+          "StopLoss",
+          "TakeProfit",
+          "StopOut",
+          "EquityFloor",
+          "AccountClosed"
+        ]
+      },
+      "CommandResponse": {
+        "required": [
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventEnvelope"
+            }
+          }
+        },
+        "description": "The events a command caused, in order."
+      },
+      "CreateAccountRequest": {
+        "required": [
+          "accountId",
+          "groupId",
+          "initialBalance"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "initialBalance": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "DisableReason": {
+        "enum": [
+          "EquityFloor",
+          "Closed"
+        ]
+      },
+      "EngineEvent": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EngineEventAccountCreated"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventAccountDisabled"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventEquityFloorBreached"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventEquityFloorRemoved"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventEquityFloorSet"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventInputRejected"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventOrderCancelled"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventOrderPlaced"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventPositionClosed"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventPositionModified"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventPositionOpened"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventStopOutTriggered"
+          }
+        ],
+        "description": "Output from the engine. The timestamp is the timestamp of the input that caused it.",
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "AccountCreated": "#/components/schemas/EngineEventAccountCreated",
+            "AccountDisabled": "#/components/schemas/EngineEventAccountDisabled",
+            "EquityFloorBreached": "#/components/schemas/EngineEventEquityFloorBreached",
+            "EquityFloorRemoved": "#/components/schemas/EngineEventEquityFloorRemoved",
+            "EquityFloorSet": "#/components/schemas/EngineEventEquityFloorSet",
+            "InputRejected": "#/components/schemas/EngineEventInputRejected",
+            "OrderCancelled": "#/components/schemas/EngineEventOrderCancelled",
+            "OrderPlaced": "#/components/schemas/EngineEventOrderPlaced",
+            "PositionClosed": "#/components/schemas/EngineEventPositionClosed",
+            "PositionModified": "#/components/schemas/EngineEventPositionModified",
+            "PositionOpened": "#/components/schemas/EngineEventPositionOpened",
+            "StopOutTriggered": "#/components/schemas/EngineEventStopOutTriggered"
+          }
+        }
+      },
+      "EngineEventAccountCreated": {
+        "required": [
+          "accountId",
+          "groupId",
+          "currency",
+          "balance",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AccountCreated"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventAccountDisabled": {
+        "required": [
+          "accountId",
+          "reason",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AccountDisabled"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DisableReason"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventEquityFloorBreached": {
+        "required": [
+          "accountId",
+          "floorId",
+          "level",
+          "equity",
+          "prices",
+          "positions",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "EquityFloorBreached"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolPrice"
+            }
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PositionSnapshot"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Equity fell below a floor. Holds the evidence at the moment of the breach, before positions are closed."
+      },
+      "EngineEventEquityFloorRemoved": {
+        "required": [
+          "accountId",
+          "floorId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "EquityFloorRemoved"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventEquityFloorSet": {
+        "required": [
+          "accountId",
+          "floorId",
+          "rule",
+          "level",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "EquityFloorSet"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/EquityFloorRule"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventInputRejected": {
+        "required": [
+          "input",
+          "reason",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "InputRejected"
+            ],
+            "type": "string"
+          },
+          "input": {
+            "$ref": "#/components/schemas/EngineInput"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RejectReason"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventOrderCancelled": {
+        "required": [
+          "accountId",
+          "orderId",
+          "reason",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "OrderCancelled"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CancelReason"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventOrderPlaced": {
+        "required": [
+          "accountId",
+          "orderId",
+          "symbol",
+          "side",
+          "type",
+          "volume",
+          "price",
+          "stopLoss",
+          "takeProfit",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "OrderPlaced"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A limit or stop order was accepted and waits for its price."
+      },
+      "EngineEventPositionClosed": {
+        "required": [
+          "accountId",
+          "positionId",
+          "symbol",
+          "side",
+          "volume",
+          "openPrice",
+          "closePrice",
+          "profit",
+          "commission",
+          "reason",
+          "balanceAfter",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "PositionClosed"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "closePrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CloseReason"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A position was closed. Profit and commission are in account currency."
+      },
+      "EngineEventPositionModified": {
+        "required": [
+          "accountId",
+          "positionId",
+          "stopLoss",
+          "takeProfit",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "PositionModified"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventPositionOpened": {
+        "required": [
+          "accountId",
+          "positionId",
+          "symbol",
+          "side",
+          "volume",
+          "openPrice",
+          "stopLoss",
+          "takeProfit",
+          "commission",
+          "balanceAfter",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "PositionOpened"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A position was opened. The position id is the id of the order that opened it."
+      },
+      "EngineEventStopOutTriggered": {
+        "required": [
+          "accountId",
+          "equity",
+          "usedMargin",
+          "marginLevelPercent",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "StopOutTriggered"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "usedMargin": {
+            "type": "number",
+            "format": "double"
+          },
+          "marginLevelPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The margin level fell below the stop out level. Positions are closed, largest loss first."
+      },
+      "EngineInput": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EngineInputCancelOrder"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputCloseAccount"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputClosePosition"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputCreateAccount"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputModifyPosition"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputPlaceOrder"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputQuote"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputRemoveEquityFloor"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputSetEquityFloor"
+          }
+        ],
+        "description": "Input to the engine. The timestamp is set by the service when the input arrives\r\nand must never be earlier than the previous input.",
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "CancelOrder": "#/components/schemas/EngineInputCancelOrder",
+            "CloseAccount": "#/components/schemas/EngineInputCloseAccount",
+            "ClosePosition": "#/components/schemas/EngineInputClosePosition",
+            "CreateAccount": "#/components/schemas/EngineInputCreateAccount",
+            "ModifyPosition": "#/components/schemas/EngineInputModifyPosition",
+            "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
+            "Quote": "#/components/schemas/EngineInputQuote",
+            "RemoveEquityFloor": "#/components/schemas/EngineInputRemoveEquityFloor",
+            "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor"
+          }
+        }
+      },
+      "EngineInputCancelOrder": {
+        "required": [
+          "accountId",
+          "orderId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "CancelOrder"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineInputCloseAccount": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "CloseAccount"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Closes all positions at the latest prices, cancels all orders and disables the account."
+      },
+      "EngineInputClosePosition": {
+        "required": [
+          "accountId",
+          "positionId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ClosePosition"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineInputCreateAccount": {
+        "required": [
+          "accountId",
+          "groupId",
+          "initialBalance",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "CreateAccount"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "initialBalance": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineInputModifyPosition": {
+        "required": [
+          "accountId",
+          "positionId",
+          "stopLoss",
+          "takeProfit",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ModifyPosition"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Sets stop loss and take profit. An empty value removes it."
+      },
+      "EngineInputPlaceOrder": {
+        "required": [
+          "accountId",
+          "orderId",
+          "symbol",
+          "side",
+          "type",
+          "volume",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "PlaceOrder"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Places an order. Price is required for limit and stop orders and must be empty for market orders."
+      },
+      "EngineInputQuote": {
+        "required": [
+          "symbol",
+          "bid",
+          "ask",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "Quote"
+            ],
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Raw price from the feed, before spread markup."
+      },
+      "EngineInputRemoveEquityFloor": {
+        "required": [
+          "accountId",
+          "floorId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "RemoveEquityFloor"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineInputSetEquityFloor": {
+        "required": [
+          "accountId",
+          "floorId",
+          "rule",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "SetEquityFloor"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/EquityFloorRule"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Adds or replaces a named equity floor on the account."
+      },
+      "EquityFloorRule": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/EquityFloorRuleFixedFloor"
+          },
+          {
+            "$ref": "#/components/schemas/EquityFloorRuleTrailingFloor"
+          }
+        ],
+        "description": "Rule for an equity floor. When equity falls below the floor, all positions are closed,\r\nall pending orders are cancelled and the account is disabled.",
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "FixedFloor": "#/components/schemas/EquityFloorRuleFixedFloor",
+            "TrailingFloor": "#/components/schemas/EquityFloorRuleTrailingFloor"
+          }
+        }
+      },
+      "EquityFloorRuleFixedFloor": {
+        "required": [
+          "level"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "FixedFloor"
+            ],
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A fixed floor in account currency."
+      },
+      "EquityFloorRuleTrailingFloor": {
+        "required": [
+          "distance"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "TrailingFloor"
+            ],
+            "type": "string"
+          },
+          "distance": {
+            "type": "number",
+            "format": "double"
+          },
+          "lockLevel": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "A floor that trails the highest observed equity by Distance and stops rising at LockLevel."
+      },
+      "EventEnvelope": {
+        "required": [
+          "sequence",
+          "event"
+        ],
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "event": {
+            "$ref": "#/components/schemas/EngineEvent"
+          }
+        },
+        "description": "An engine event with a sequence number that orders all events in the service."
+      },
+      "FloorSnapshot": {
+        "required": [
+          "floorId",
+          "rule",
+          "level",
+          "highWaterMark",
+          "headroom"
+        ],
+        "type": "object",
+        "properties": {
+          "floorId": {
+            "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/EquityFloorRule"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "highWaterMark": {
+            "type": "number",
+            "format": "double"
+          },
+          "headroom": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An equity floor. Headroom is how far equity can fall before the floor is breached."
+      },
+      "InstrumentInfo": {
+        "required": [
+          "symbol",
+          "baseCurrency",
+          "quoteCurrency",
+          "contractSize",
+          "digits",
+          "volumeMin",
+          "volumeStep",
+          "volumeMax",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "quoteCurrency": {
+            "type": "string"
+          },
+          "contractSize": {
+            "type": "number",
+            "format": "double"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "volumeMin": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeStep": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeMax": {
+            "type": "number",
+            "format": "double"
+          },
+          "leverage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An instrument as one group trades it."
+      },
+      "ModifyStopsRequest": {
+        "required": [
+          "stopLoss",
+          "takeProfit"
+        ],
+        "type": "object",
+        "properties": {
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "OrderSnapshot": {
+        "required": [
+          "orderId",
+          "symbol",
+          "side",
+          "type",
+          "volume",
+          "price",
+          "stopLoss",
+          "takeProfit",
+          "placedTime"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "placedTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OrderType": {
+        "enum": [
+          "Market",
+          "Limit",
+          "Stop"
+        ]
+      },
+      "PlaceOrderRequest": {
+        "required": [
+          "orderId",
+          "symbol",
+          "side",
+          "type",
+          "volume"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "Places an order. The client creates the order id, so a retry can never place the order twice."
+      },
+      "PositionSnapshot": {
+        "required": [
+          "positionId",
+          "symbol",
+          "side",
+          "volume",
+          "openPrice",
+          "stopLoss",
+          "takeProfit",
+          "openTime",
+          "currentPrice",
+          "profit",
+          "margin"
+        ],
+        "type": "object",
+        "properties": {
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "openTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "margin": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An open position. CurrentPrice is the price it would close at now."
+      },
+      "RejectReason": {
+        "enum": [
+          "OutOfOrder",
+          "InvalidId",
+          "DuplicateId",
+          "UnknownSymbol",
+          "InvalidQuote",
+          "UnknownGroup",
+          "InvalidAmount",
+          "UnknownAccount",
+          "AccountDisabled",
+          "SymbolNotTradable",
+          "InvalidOrder",
+          "InvalidVolume",
+          "InvalidPrice",
+          "InvalidStopLoss",
+          "InvalidTakeProfit",
+          "NoPrice",
+          "StalePrice",
+          "NoConversionRate",
+          "InsufficientMargin",
+          "UnknownOrder",
+          "UnknownPosition",
+          "InvalidFloor",
+          "UnknownFloor"
+        ]
+      },
+      "SetFloorRequest": {
+        "required": [
+          "rule"
+        ],
+        "type": "object",
+        "properties": {
+          "rule": {
+            "$ref": "#/components/schemas/EquityFloorRule"
+          }
+        }
+      },
+      "Side": {
+        "enum": [
+          "Buy",
+          "Sell"
+        ]
+      },
+      "SymbolPrice": {
+        "required": [
+          "symbol",
+          "bid",
+          "ask",
+          "timestamp"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Price after the group's spread markup, with the time the raw price arrived."
+      },
+      "Timeframe": {
+        "enum": [
+          "M1",
+          "M5",
+          "M15",
+          "M30",
+          "H1",
+          "H4",
+          "D1"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Trading"
+    },
+    {
+      "name": "Admin"
+    }
+  ]
+}

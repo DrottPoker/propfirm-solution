@@ -34,6 +34,10 @@ jobs:
       - name: Build
         run: dotnet build PropfirmSolution.slnx --configuration Release --no-restore
 
+      # The build regenerates the OpenAPI document. A diff means it was not committed after an API change.
+      - name: Check that the OpenAPI document is up to date
+        run: git diff --exit-code -- trading/terminal/openapi
+
       - name: Test
         run: dotnet test --solution PropfirmSolution.slnx --configuration Release --no-build
 
@@ -56,11 +60,19 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Check that the API types are up to date
+        run: |
+          pnpm generate:api
+          git diff --exit-code -- trading/terminal/src/lib/api/schema.ts
+
       - name: Lint
         run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
 
       - name: Build
         run: pnpm build

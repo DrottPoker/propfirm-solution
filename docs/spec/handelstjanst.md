@@ -31,7 +31,7 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 
 ## REST-API
 
-Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`.
+Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument skrivs till `trading/terminal/openapi/trading-service.json` när tjänsten byggs, och terminalens typer genereras från det.
 
 ### För tradern
 
@@ -39,7 +39,7 @@ Alla vägar börjar med `/api/accounts/{accountId}`.
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET` | Kontot värderat till senaste priser. |
+| `GET` | Kontot värderat till senaste priser. Varje golv har `headroom`: hur långt equity kan falla innan golvet bryts. |
 | `GET /instruments` | Gruppens instrument med villkor: hävstång, påslag och provision. |
 | `GET /prices` | Senaste priser efter påslag. |
 | `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. |

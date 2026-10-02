@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md), [specen för handelsmotorn](docs/spec/handelsmotor.md) och [specen för handelstjänsten](docs/spec/handelstjanst.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md) och [handelsterminalen](docs/spec/handelsterminal.md).
 
 ## Struktur
 
@@ -20,7 +20,7 @@ propfirm-solution/
 │   ├── tests/
 │   │   ├── Trading.Engine.Tests/   # beteenden, uppspelning mot facit, arkitektur
 │   │   └── Trading.Service.Tests/  # tjänsten i minnet med styrda priser och klocka
-│   └── terminal/         # webbgränssnittet för traders (Next.js)
+│   └── terminal/         # webbgränssnittet för traders (Next.js), med genererade API-typer
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
 │   │   └── Prop.Api/          # regelmotor, kontots livscykel, API och webhooks
@@ -108,10 +108,30 @@ curl -X POST http://localhost:5101/api/accounts/demo/orders -H "Content-Type: ap
 
 Alla vägar finns i OpenAPI-dokumentet på http://localhost:5101/openapi/v1.json och i [specen för handelstjänsten](docs/spec/handelstjanst.md).
 
+## Prova handelsterminalen
+
+Starta handelstjänsten enligt ovan och starta sedan terminalen i en annan terminal:
+
+```bash
+pnpm dev:terminal
+```
+
+Öppna http://localhost:3001. Kontot väljs i adressen, till exempel http://localhost:3001/?account=demo.
+
+## När API:t ändras
+
+Handelstjänsten skriver OpenAPI-dokumentet till `trading/terminal/openapi/` när den byggs. Generera sedan terminalens typer:
+
+```bash
+pnpm generate:api
+```
+
+Committa båda filerna. CI stoppar ändringar där de inte är aktuella.
+
 ## Kontroller i CI
 
 Vid varje push till `main` och varje pull request körs:
 
-- **Backend:** formatering (`dotnet format`), bygge med varningar som fel, tester.
-- **Webb:** lint, typkontroll och bygge.
+- **Backend:** formatering (`dotnet format`), bygge med varningar som fel, kontroll att OpenAPI-dokumentet är aktuellt, tester.
+- **Webb:** kontroll att API-typerna är aktuella, lint, typkontroll, tester och bygge.
 - **Infrastruktur:** validering av docker compose.

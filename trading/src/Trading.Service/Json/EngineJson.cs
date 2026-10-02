@@ -30,6 +30,8 @@ internal static class EngineJson
 
     public static void Configure(JsonSerializerOptions options)
     {
+        // Numbers are JSON numbers only. The web defaults would also accept numbers written as strings.
+        options.NumberHandling = JsonNumberHandling.Strict;
         options.Converters.Add(new JsonStringEnumConverter());
         options.AllowOutOfOrderMetadataProperties = true;
         options.TypeInfoResolver = (options.TypeInfoResolver ?? new DefaultJsonTypeInfoResolver()).WithAddedModifier(AddEnginePolymorphism);

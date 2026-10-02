@@ -1,7 +1,8 @@
-export default function Home() {
-  return (
-    <main className="flex flex-1 items-center justify-center p-8">
-      <h1 className="text-2xl font-semibold">Trading terminal</h1>
-    </main>
-  );
+import { Terminal } from "@/components/Terminal";
+
+// No login yet: the account comes from the address, for example /?account=demo.
+export default async function Page({ searchParams }: PageProps<"/">) {
+  const { account } = await searchParams;
+  const accountId = typeof account === "string" && account.length > 0 ? account : "demo";
+  return <Terminal accountId={accountId} />;
 }

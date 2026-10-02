@@ -62,6 +62,17 @@ public sealed class EquityFloorTests
     }
 
     [Fact]
+    public void HeadroomIsHowFarEquityCanFallBeforeTheFloor()
+    {
+        var driver = Ready();
+        driver.SetFloor("max-loss", new FixedFloor(90_000m));
+        driver.Buy(10.00m);
+
+        // Equity 99 900.00 after the spread
+        Assert.Equal(9_900.00m, Assert.Single(driver.Account().Floors).Headroom);
+    }
+
+    [Fact]
     public void BreachNamesTheFloorThatWasBreached()
     {
         var driver = Ready();

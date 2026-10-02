@@ -12,6 +12,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0004](0004-kontrakt-mellan-produkterna.md) | Protobuf för kontraktet mellan produkterna | Föreslagen |
 | [0005](0005-deterministisk-handelsmotor.md) | Deterministisk handelsmotor | Föreslagen |
 | [0006](0006-api-mellan-terminal-och-tjanst.md) | REST och SignalR mellan terminalen och handelstjänsten | Föreslagen |
+| [0007](0007-graf-lightweight-charts.md) | TradingView Lightweight Charts för grafen | Beslutad |
 
 ## Så skriver du en ny ADR
 

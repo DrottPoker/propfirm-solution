@@ -1,3 +1,5 @@
+using System.Reflection;
+
 using Microsoft.Extensions.Options;
 
 using Trading.Service.Api;
@@ -41,7 +43,9 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(allowedOrigi
 var app = builder.Build();
 
 // There is no authentication yet, so the API is open to anyone who can reach it.
-if (!app.Environment.IsDevelopment())
+// The build-time OpenAPI generator loads the app without serving requests, so it is allowed.
+var isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider";
+if (!app.Environment.IsDevelopment() && !isOpenApiGeneration)
 {
     throw new InvalidOperationException("Trading.Service has no authentication yet and may only run in the Development environment.");
 }

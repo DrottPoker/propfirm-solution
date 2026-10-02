@@ -40,7 +40,8 @@ public sealed record OrderSnapshot(
     decimal? TakeProfit,
     DateTimeOffset PlacedTime);
 
-public sealed record FloorSnapshot(string FloorId, EquityFloorRule Rule, decimal Level, decimal HighWaterMark);
+/// <summary>An equity floor. Headroom is how far equity can fall before the floor is breached.</summary>
+public sealed record FloorSnapshot(string FloorId, EquityFloorRule Rule, decimal Level, decimal HighWaterMark, decimal Headroom);
 
 /// <summary>Price after the group's spread markup, with the time the raw price arrived.</summary>
 public sealed record SymbolPrice(string Symbol, decimal Bid, decimal Ask, DateTimeOffset Timestamp);

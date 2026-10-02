@@ -11,7 +11,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 ## Gränssnitt
 
 - `TradingEngine.Apply(EngineInput)` tar emot en indata och returnerar händelserna den orsakade, i ordning. Ogiltig indata ger händelsen `InputRejected` med en orsak. Motorn kastar aldrig undantag för ogiltig indata.
-- `TradingEngine.GetAccount(id)` returnerar kontot värderat till senaste priser.
+- `TradingEngine.GetAccount(id)` returnerar kontot värderat till senaste priser. För varje golv anges `Headroom`, alltså equity minus golvets nivå.
 - `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag.
 - Händelser och kommandon som hör till ett konto är märkta med `IAccountEvent` och `IAccountCommand`, så att tjänsten kan fördela dem per konto.
 - Motorn är inte trådsäker. Indata ska tillämpas en i taget och i tur och ordning.

@@ -8,7 +8,9 @@
   "scripts": {
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
     "build": "pnpm -r build",
+    "generate:api": "pnpm --filter @trading/terminal generate:api",
     "dev:terminal": "pnpm --filter @trading/terminal dev",
     "dev:portal": "pnpm --filter @prop/portal dev"
   }
