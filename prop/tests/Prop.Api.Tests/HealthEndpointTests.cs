@@ -2,8 +2,6 @@ using System.Net;
 
 using Microsoft.AspNetCore.Mvc.Testing;
 
-using Xunit;
-
 namespace Prop.Api.Tests;
 
 public sealed class HealthEndpointTests(WebApplicationFactory<Program> factory)

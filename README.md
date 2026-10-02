@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och [specen för handelsmotorn](docs/spec/handelsmotor.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md), [specen för handelsmotorn](docs/spec/handelsmotor.md) och [specen för handelstjänsten](docs/spec/handelstjanst.md).
 
 ## Struktur
 
@@ -16,10 +16,10 @@ propfirm-solution/
 ├── trading/              # Produkt 1: handelsplattformen
 │   ├── src/
 │   │   ├── Trading.Engine/    # deterministisk kärna, ingen I/O
-│   │   └── Trading.Service/   # tjänsten runt kärnan
+│   │   └── Trading.Service/   # motorloop, prisflöde, candles, REST och SignalR
 │   ├── tests/
 │   │   ├── Trading.Engine.Tests/   # beteenden, uppspelning mot facit, arkitektur
-│   │   └── Trading.Service.Tests/
+│   │   └── Trading.Service.Tests/  # tjänsten i minnet med styrda priser och klocka
 │   └── terminal/         # webbgränssnittet för traders (Next.js)
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
@@ -81,6 +81,32 @@ Kör tjänsterna lokalt:
 | NATS | | localhost:4222, övervakning på http://localhost:8222 |
 
 Lösenorden i `deploy/` gäller bara lokal utveckling.
+
+## Prova handelstjänsten
+
+Tjänsten startar med syntetiska priser och kontot `demo` (100 000 USD). Den har ingen inloggning än och startar därför bara i miljön Development.
+
+```bash
+dotnet run --project trading/src/Trading.Service
+```
+
+Visa kontot och priserna:
+
+```bash
+curl http://localhost:5101/api/accounts/demo
+```
+
+```bash
+curl http://localhost:5101/api/accounts/demo/prices
+```
+
+Köp 1 lot EURUSD:
+
+```bash
+curl -X POST http://localhost:5101/api/accounts/demo/orders -H "Content-Type: application/json" -d "{\"orderId\":\"o-1\",\"symbol\":\"EURUSD\",\"side\":\"Buy\",\"type\":\"Market\",\"volume\":1.00}"
+```
+
+Alla vägar finns i OpenAPI-dokumentet på http://localhost:5101/openapi/v1.json och i [specen för handelstjänsten](docs/spec/handelstjanst.md).
 
 ## Kontroller i CI
 

@@ -11,6 +11,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0003](0003-postgres-och-nats.md) | Postgres och NATS JetStream, inget Redis i början | Föreslagen |
 | [0004](0004-kontrakt-mellan-produkterna.md) | Protobuf för kontraktet mellan produkterna | Föreslagen |
 | [0005](0005-deterministisk-handelsmotor.md) | Deterministisk handelsmotor | Föreslagen |
+| [0006](0006-api-mellan-terminal-och-tjanst.md) | REST och SignalR mellan terminalen och handelstjänsten | Föreslagen |
 
 ## Så skriver du en ny ADR
 

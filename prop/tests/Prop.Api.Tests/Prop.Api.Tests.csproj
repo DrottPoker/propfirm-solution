@@ -13,4 +13,8 @@
     <ProjectReference Include="..\..\src\Prop.Api\Prop.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
 </Project>
