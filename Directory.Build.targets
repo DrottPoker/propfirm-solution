@@ -1,0 +1,28 @@
+<Project>
+
+  <!--
+    Product boundaries: a project may only reference projects in its own top-level
+    area (trading, prop) or in the shared areas (contracts, shared).
+    contracts and shared may not reference any product.
+  -->
+  <PropertyGroup>
+    <RepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)'))</RepoRoot>
+    <_RepoRelativeProjectDir>$([MSBuild]::MakeRelative('$(RepoRoot)', '$(MSBuildProjectDirectory)').Replace('\', '/'))</_RepoRelativeProjectDir>
+    <ProductArea>$(_RepoRelativeProjectDir.Split('/')[0])</ProductArea>
+  </PropertyGroup>
+
+  <Target Name="EnforceProductBoundaries" BeforeTargets="ResolveProjectReferences;CollectPackageReferences">
+    <ItemGroup Condition="'@(ProjectReference)' != ''">
+      <_ProjectReferenceArea Include="@(ProjectReference)">
+        <Area>$([MSBuild]::MakeRelative('$(RepoRoot)', '%(ProjectReference.FullPath)').Replace('\', '/').Split('/')[0])</Area>
+      </_ProjectReferenceArea>
+      <_ForbiddenProjectReference Include="@(_ProjectReferenceArea)"
+                                  Condition="'%(Area)' != '$(ProductArea)' and '%(Area)' != 'contracts' and '%(Area)' != 'shared'" />
+    </ItemGroup>
+
+    <Error Condition="'@(_ForbiddenProjectReference)' != ''"
+           Code="BOUNDARY001"
+           Text="Product boundary violation: '$(MSBuildProjectName)' in area '$(ProductArea)' references @(_ForbiddenProjectReference->'%(Identity) (area %(Area))', ', '). Products may only depend on each other through contracts." />
+  </Target>
+
+</Project>

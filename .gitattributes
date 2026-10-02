@@ -1,0 +1,11 @@
+# Normalize line endings to LF in the repository and working tree
+* text=auto eol=lf
+
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

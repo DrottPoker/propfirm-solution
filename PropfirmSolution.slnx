@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/prop/" />
+  <Folder Name="/prop/src/">
+    <Project Path="prop/src/Prop.Api/Prop.Api.csproj" />
+  </Folder>
+  <Folder Name="/prop/tests/">
+    <Project Path="prop/tests/Prop.Api.Tests/Prop.Api.Tests.csproj" />
+  </Folder>
+  <Folder Name="/trading/" />
+  <Folder Name="/trading/src/">
+    <Project Path="trading/src/Trading.Engine/Trading.Engine.csproj" />
+    <Project Path="trading/src/Trading.Service/Trading.Service.csproj" />
+  </Folder>
+  <Folder Name="/trading/tests/">
+    <Project Path="trading/tests/Trading.Service.Tests/Trading.Service.Tests.csproj" />
+  </Folder>
+</Solution>

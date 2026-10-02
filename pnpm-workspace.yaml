@@ -1,0 +1,8 @@
+packages:
+  - trading/terminal
+  - prop/portal
+
+# Native postinstall scripts are not needed by the apps today
+allowBuilds:
+  sharp: false
+  unrs-resolver: false

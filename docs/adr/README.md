@@ -1,0 +1,30 @@
+# Arkitekturbeslut (ADR)
+
+Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, beslutet och konsekvenserna, så att det går att förstå i efterhand varför något är som det är.
+
+## Beslut
+
+| Nr | Beslut | Status |
+|---|---|---|
+| [0001](0001-monorepo-med-produktgranser.md) | Monorepo med hårda gränser mellan produkterna | Beslutad |
+| [0002](0002-csharp-backend-typescript-webb.md) | C# i backend och TypeScript i webben | Beslutad |
+| [0003](0003-postgres-och-nats.md) | Postgres och NATS JetStream, inget Redis i början | Föreslagen |
+| [0004](0004-kontrakt-mellan-produkterna.md) | Protobuf för kontraktet mellan produkterna | Föreslagen |
+| [0005](0005-deterministisk-handelsmotor.md) | Deterministisk handelsmotor | Föreslagen |
+
+## Så skriver du en ny ADR
+
+1. Kopiera strukturen nedan till en ny fil med nästa lediga nummer.
+2. Sätt status till "Föreslagen". Ändra till "Beslutad" när beslutet är taget.
+3. Ändra aldrig ett beslutat ADR i efterhand. Skriv ett nytt som ersätter det och sätt det gamla till "Ersatt av NNNN".
+
+```markdown
+# NNNN. Rubrik
+
+- Status: Föreslagen | Beslutad | Ersatt av NNNN
+- Datum: ÅÅÅÅ-MM-DD
+
+## Sammanhang
+## Beslut
+## Konsekvenser
+```

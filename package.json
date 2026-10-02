@@ -1,0 +1,15 @@
+{
+  "name": "propfirm-solution",
+  "private": true,
+  "packageManager": "pnpm@12.8.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build",
+    "dev:terminal": "pnpm --filter @trading/terminal dev",
+    "dev:portal": "pnpm --filter @prop/portal dev"
+  }
+}

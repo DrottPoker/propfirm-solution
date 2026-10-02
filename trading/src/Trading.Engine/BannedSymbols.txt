@@ -1,0 +1,29 @@
+# The engine must be deterministic: the same input events always give the same output.
+# Time comes from input events, never from the system clock.
+P:System.DateTime.Now;Use the timestamp of the input event
+P:System.DateTime.UtcNow;Use the timestamp of the input event
+P:System.DateTime.Today;Use the timestamp of the input event
+P:System.DateTimeOffset.Now;Use the timestamp of the input event
+P:System.DateTimeOffset.UtcNow;Use the timestamp of the input event
+P:System.TimeProvider.System;Use the timestamp of the input event
+P:System.Environment.TickCount;Use the timestamp of the input event
+P:System.Environment.TickCount64;Use the timestamp of the input event
+T:System.Diagnostics.Stopwatch;Use the timestamp of the input event
+
+# No randomness or generated identifiers. Ids come from input commands.
+T:System.Random;The engine must be deterministic
+T:System.Security.Cryptography.RandomNumberGenerator;The engine must be deterministic
+M:System.Guid.NewGuid;Take ids from input commands
+M:System.Guid.CreateVersion7;Take ids from input commands
+
+# No I/O. The service around the engine handles files, network and threads.
+T:System.IO.File;The engine core must not do I/O
+T:System.IO.Directory;The engine core must not do I/O
+T:System.IO.FileStream;The engine core must not do I/O
+T:System.Net.Http.HttpClient;The engine core must not do I/O
+T:System.Console;The engine core must not do I/O
+T:System.Threading.Thread;The engine core is single-threaded
+T:System.Threading.Timer;Use the timestamp of the input event
+M:System.Threading.Tasks.Task.Run(System.Action);The engine core is single-threaded
+M:System.Threading.Tasks.Task.Delay(System.Int32);Use the timestamp of the input event
+M:System.Threading.Tasks.Task.Delay(System.TimeSpan);Use the timestamp of the input event
