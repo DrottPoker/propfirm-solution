@@ -12,6 +12,7 @@
     <Project Path="trading/src/Trading.Service/Trading.Service.csproj" />
   </Folder>
   <Folder Name="/trading/tests/">
+    <Project Path="trading/tests/Trading.Engine.Tests/Trading.Engine.Tests.csproj" />
     <Project Path="trading/tests/Trading.Service.Tests/Trading.Service.Tests.csproj" />
   </Folder>
 </Solution>

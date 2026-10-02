@@ -17,7 +17,9 @@ Kärnan i handelsmotorn (`trading/src/Trading.Engine`) är deterministisk: samma
 - **En tråd.** Händelserna behandlas en i taget i tur och ordning. Mer kapacitet fås genom att dela upp kontona på flera instanser.
 - **Pengar och priser som `decimal`.**
 
-Reglerna kontrolleras vid bygget med `Microsoft.CodeAnalysis.BannedApiAnalyzers` och listan i `BannedSymbols.txt`. Analysatorn fångar inte `double` i deklarationer. Därför läggs ett test till i fas 1 som kontrollerar att kärnan inte använder flyttal.
+Reglerna kontrolleras vid bygget med `Microsoft.CodeAnalysis.BannedApiAnalyzers` och listan i `BannedSymbols.txt`. Analysatorn fångar inte `double` i deklarationer. Därför kontrollerar testet `ArchitectureTests` att kärnan inte använder flyttal i fält, signaturer eller lokala variabler.
+
+Detaljerna finns i [specen för handelsmotorn](../spec/handelsmotor.md).
 
 ## Konsekvenser
 

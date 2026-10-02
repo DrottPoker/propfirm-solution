@@ -5,19 +5,21 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md) och [arkitekturbesluten](docs/adr/README.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och [specen för handelsmotorn](docs/spec/handelsmotor.md).
 
 ## Struktur
 
 ```
 propfirm-solution/
-├── docs/                 # produktplan och arkitekturbeslut (ADR)
+├── docs/                 # produktplan, arkitekturbeslut (ADR) och specar
 ├── contracts/            # kontraktet mellan produkterna, det enda de delar
 ├── trading/              # Produkt 1: handelsplattformen
 │   ├── src/
 │   │   ├── Trading.Engine/    # deterministisk kärna, ingen I/O
 │   │   └── Trading.Service/   # tjänsten runt kärnan
 │   ├── tests/
+│   │   ├── Trading.Engine.Tests/   # beteenden, uppspelning mot facit, arkitektur
+│   │   └── Trading.Service.Tests/
 │   └── terminal/         # webbgränssnittet för traders (Next.js)
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
