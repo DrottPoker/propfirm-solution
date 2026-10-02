@@ -11,7 +11,7 @@ Produktplanen nämner Postgres för data, Redis för aktuellt tillstånd och en 
 
 - **Postgres** för all beständig data. Varje produkt har egen databas och egen roll.
 - **NATS JetStream** för händelser mellan tjänsterna, till exempel affärer och kontovärde från handelsplattformen till regelmotorn. JetStream sparar händelserna, så att en tjänst som startar om kan läsa ikapp.
-- **Inget Redis i början.** Handelsmotorn håller sitt tillstånd i minnet och sparar ögonblicksbilder i Postgres. Efter en omstart läses den senaste ögonblicksbilden och händelserna efter den spelas upp igen.
+- **Inget Redis i början.** Handelsmotorn håller sitt tillstånd i minnet och sparar alla indata och ögonblicksbilder i Postgres. Efter en omstart läses den senaste ögonblicksbilden och indata efter den spelas upp igen (se ADR 0008).
 
 Lokalt startas båda med `docker compose -f deploy/docker-compose.yml up -d`.
 

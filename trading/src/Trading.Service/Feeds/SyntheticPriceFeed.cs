@@ -35,7 +35,7 @@ public sealed class SyntheticSymbolOptions
 /// Random walk prices for local development, so nothing depends on a data vendor.
 /// The same seed gives the same prices. Not a market simulation.
 /// </summary>
-internal sealed class SyntheticPriceFeed : IPriceFeed
+internal sealed class SyntheticPriceFeed : IContinuablePriceFeed
 {
     private readonly SyntheticFeedOptions _options;
     private readonly TimeProvider _time;
@@ -70,6 +70,15 @@ internal sealed class SyntheticPriceFeed : IPriceFeed
         }
     }
 
+    /// <summary>Continues each walk from the last recorded price, so a restart does not make prices jump.</summary>
+    public void ContinueFrom(IReadOnlyList<FeedQuote> lastQuotes)
+    {
+        foreach (var quote in lastQuotes)
+        {
+            _walks.Find(w => w.Symbol == quote.Symbol)?.MoveTo(quote.Bid);
+        }
+    }
+
     public async IAsyncEnumerable<FeedQuote> StreamAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var timer = new PeriodicTimer(_options.Interval, _time);
@@ -95,6 +104,10 @@ internal sealed class SyntheticPriceFeed : IPriceFeed
             _point = new decimal(1, 0, 0, false, (byte)digits);
             _bidPoints = (long)(options.StartBid / _point);
         }
+
+        public string Symbol => _options.Symbol;
+
+        public void MoveTo(decimal bid) => _bidPoints = (long)(bid / _point);
 
         public FeedQuote Next(Random random, DateTimeOffset time)
         {

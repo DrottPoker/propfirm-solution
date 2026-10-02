@@ -12,7 +12,8 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 
 - `TradingEngine.Apply(EngineInput)` tar emot en indata och returnerar händelserna den orsakade, i ordning. Ogiltig indata ger händelsen `InputRejected` med en orsak. Motorn kastar aldrig undantag för ogiltig indata.
 - `TradingEngine.GetAccount(id)` returnerar kontot värderat till senaste priser. För varje golv anges `Headroom`, alltså equity minus golvets nivå.
-- `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag.
+- `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag, och `GetLatestQuotes()` de senaste råa priserna.
+- `TradingEngine.ExportState()` och `TradingEngine.FromState(configuration, state)` exporterar och återställer hela tillståndet. En återställd motor ger exakt samma händelser som originalet för samma indata.
 - Händelser och kommandon som hör till ett konto är märkta med `IAccountEvent` och `IAccountCommand`, så att tjänsten kan fördela dem per konto.
 - Motorn är inte trådsäker. Indata ska tillämpas en i taget och i tur och ordning.
 
@@ -148,7 +149,6 @@ Konton behandlas i den ordning de skapades. För varje konto med positioner elle
 - Slippage utöver prisgap, och bredare spread vid nyheter och nattetid.
 - Delstängning av positioner, netting, giltighetstid för ordrar (alla gäller tills de tas bort) och minsta avstånd till priset för stop loss.
 - Insättningar och uttag.
-- Ögonblicksbilder, återstart och lagring. Det kommer i fas 2.
 - Kontroll av att växelkurser är färska.
 - Index per symbol. Varje pris utvärderar alla konton med positioner eller ordrar, vilket räcker för små och medelstora firmor.
 
@@ -158,6 +158,7 @@ Testerna ligger i `trading/tests/Trading.Engine.Tests`.
 
 - **Beteenden:** ett test per regel ovan, med belopp som är uträknade för hand.
 - **Determinism:** samma uppspelning körs två gånger och ska ge identiska händelser.
+- **Återställning:** uppspelningen startas om från exporterat tillstånd vid flera punkter och ska ge exakt samma resultat som utan omstart.
 - **Facit:** en uppspelning av 3 000 syntetiska EURUSD-priser jämförs med `Golden/replay-eurusd.jsonl`. Uppspelningen innehåller ordrar, stop loss, take profit, golv, brott mot golvet, stop out och stängning av konto. Varje ändring i motorns utdata syns som en diff i facitfilen.
 - **Arkitektur:** `BannedSymbols.txt` stoppar klocka, slump och I/O vid bygget, och ett test kontrollerar att kärnan aldrig använder flyttal.
 

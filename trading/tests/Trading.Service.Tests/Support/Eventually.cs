@@ -21,5 +21,19 @@ internal static class Eventually
         }
     }
 
+    public static async Task ThatAsync(Func<Task<bool>> condition, string what)
+    {
+        var elapsed = Stopwatch.StartNew();
+        while (!await condition())
+        {
+            if (elapsed.Elapsed > Timeout)
+            {
+                throw new TimeoutException($"Timed out waiting for {what}.");
+            }
+
+            await Task.Delay(5);
+        }
+    }
+
     public static Task<T> Within<T>(Task<T> task) => task.WaitAsync(Timeout);
 }

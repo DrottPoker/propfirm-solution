@@ -16,7 +16,7 @@ propfirm-solution/
 ├── trading/              # Produkt 1: handelsplattformen
 │   ├── src/
 │   │   ├── Trading.Engine/    # deterministisk kärna, ingen I/O
-│   │   └── Trading.Service/   # motorloop, prisflöde, candles, REST och SignalR
+│   │   └── Trading.Service/   # motorloop, journal i Postgres, prisflöde, candles, REST och SignalR
 │   ├── tests/
 │   │   ├── Trading.Engine.Tests/   # beteenden, uppspelning mot facit, arkitektur
 │   │   └── Trading.Service.Tests/  # tjänsten i minnet med styrda priser och klocka
@@ -39,7 +39,7 @@ En produkt får bara använda kod från sin egen mapp, `contracts/` och `shared/
 - [.NET SDK 10](https://dotnet.microsoft.com/download) (versionen styrs av `global.json`)
 - [Node.js 22](https://nodejs.org/) eller senare
 - [pnpm](https://pnpm.io/installation) (versionen styrs av `packageManager` i `package.json`)
-- [Docker](https://www.docker.com/) för Postgres och NATS
+- [Docker](https://www.docker.com/) för Postgres och NATS, och för testerna mot Postgres
 
 ## Kom igång
 
@@ -84,7 +84,9 @@ Lösenorden i `deploy/` gäller bara lokal utveckling.
 
 ## Prova handelstjänsten
 
-Tjänsten startar med syntetiska priser och kontot `demo` (100 000 USD). Den har ingen inloggning än och startar därför bara i miljön Development.
+Tjänsten sparar allt i Postgres, så starta databasen först (se Kom igång). Den startar med syntetiska priser och kontot `demo` (100 000 USD). Den har ingen inloggning än och startar därför bara i miljön Development.
+
+Konton, positioner och historik finns kvar efter en omstart. Stäng av med Ctrl+C, så sparas en ögonblicksbild och nästa start går snabbt. Börja om från noll med `docker compose -f deploy/docker-compose.yml down -v`.
 
 ```bash
 dotnet run --project trading/src/Trading.Service

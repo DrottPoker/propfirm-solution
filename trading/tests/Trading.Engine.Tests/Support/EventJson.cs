@@ -17,6 +17,8 @@ internal static class EventJson
 
     public static string Serialize(AccountSnapshot snapshot) => JsonSerializer.Serialize(snapshot, Options);
 
+    internal static JsonSerializerOptions SharedOptions => Options;
+
     private sealed class RuntimeTypeConverterFactory : JsonConverterFactory
     {
         public override bool CanConvert(Type typeToConvert) =>

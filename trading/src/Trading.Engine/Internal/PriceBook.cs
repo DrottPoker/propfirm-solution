@@ -23,6 +23,8 @@ internal sealed class PriceBook
 
     public void Update(Quote quote) => _latest[quote.Symbol] = quote;
 
+    public IEnumerable<Quote> LatestQuotes => _latest.Values;
+
     public bool TryGetLatest(string symbol, [NotNullWhen(true)] out Quote? quote) => _latest.TryGetValue(symbol, out quote);
 
     /// <summary>Rate to multiply an amount in <paramref name="from"/> with to get <paramref name="to"/>. Uses the raw mid price.</summary>

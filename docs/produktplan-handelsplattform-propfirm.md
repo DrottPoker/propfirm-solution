@@ -292,7 +292,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Backend (handelsmotor, regelmotor och API):** C# på .NET 10 med Postgres. Inbyggda decimaltal gör pengaberäkningarna exakta (ADR 0002).
 - **Inloggning:** beslutas senare. Samma e-postadress måste kunna finnas hos flera firmor.
 - **Handelsmotor och regelmotor:** egna tjänster som körs hela tiden, inte serverless, eftersom de håller öppna anslutningar och aktuellt tillstånd i minnet. Kärnan i handelsmotorn är deterministisk (ADR 0005) och beskrivs i [specen för handelsmotorn](spec/handelsmotor.md).
-- **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. NATS JetStream för händelser mellan tjänsterna. Inget Redis i början (ADR 0003).
+- **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. NATS JetStream för händelser mellan tjänsterna. Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
 - **Kontrakt mellan produkterna:** protobuf, med gRPC för kommandon och NATS för händelser (ADR 0004).
 - **Terminalen och handelstjänsten:** REST för kommandon och SignalR för realtid. Gränssnittet räknar aldrig pengar (ADR 0006, [specen för handelstjänsten](spec/handelstjanst.md)).
 - **Historik och analys:** Postgres till att börja med, TimescaleDB eller ClickHouse senare.

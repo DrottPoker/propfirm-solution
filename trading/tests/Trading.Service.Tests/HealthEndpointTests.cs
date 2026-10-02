@@ -1,15 +1,15 @@
 using System.Net;
 
-using Microsoft.AspNetCore.Mvc.Testing;
+using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
 
-public sealed class HealthEndpointTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+public sealed class HealthEndpointTests
 {
     [Fact]
-    public async Task HealthReturnsOk()
+    public async Task HealthIsOkOnceTheEngineIsReady()
     {
+        using var factory = new ServiceFactory();
         using var client = factory.CreateClient();
 
         using var response = await client.GetAsync(new Uri("/health", UriKind.Relative), TestContext.Current.CancellationToken);

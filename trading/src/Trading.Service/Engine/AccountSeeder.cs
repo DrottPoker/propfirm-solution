@@ -6,13 +6,24 @@ using Trading.Service.Configuration;
 
 namespace Trading.Service.Engine;
 
-/// <summary>Creates the configured development accounts at startup. Fails startup if one is rejected.</summary>
+/// <summary>
+/// Creates the configured development accounts at startup if they do not exist yet. Accounts restored
+/// from the journal are left as they are. Fails startup if a new account is rejected.
+/// </summary>
 internal sealed class AccountSeeder(EngineHost engine, IOptions<TradingOptions> options) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // Fails with the recovery error if the journal could not be replayed.
+        await engine.Ready.WaitAsync(cancellationToken);
+
         foreach (var seed in options.Value.SeedAccounts)
         {
+            if (await engine.QueryAsync(e => e.GetAccount(seed.AccountId) is not null, cancellationToken))
+            {
+                continue;
+            }
+
             Ensure(await engine.SendAsync(t => new CreateAccount(t, seed.AccountId, seed.GroupId, seed.InitialBalance), cancellationToken));
             foreach (var floor in seed.Floors)
             {

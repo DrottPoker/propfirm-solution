@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Options;
+
 using Trading.Service.Candles;
 using Trading.Service.Engine;
+using Trading.Service.Persistence;
 
 namespace Trading.Service.Feeds;
 
@@ -7,28 +10,29 @@ namespace Trading.Service.Feeds;
 internal sealed partial class PriceFeedPump(
     IPriceFeed feed,
     EngineHost engine,
+    IEngineJournal journal,
     CandleStore candles,
     TimeProvider time,
+    IOptions<JournalOptions> options,
     ILogger<PriceFeedPump> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // The backfill is CPU work, so let startup finish first.
-        await Task.Yield();
+        await engine.Ready.WaitAsync(stoppingToken);
 
-        var backfilled = 0;
-        foreach (var quote in feed.GetBackfill(time.GetUtcNow()))
+        var lastQuotes = await engine.QueryAsync(e => e.GetLatestQuotes(), stoppingToken);
+        if (lastQuotes.Count > 0)
         {
-            if (stoppingToken.IsCancellationRequested)
+            await RebuildCandlesFromJournalAsync(stoppingToken);
+            if (feed is IContinuablePriceFeed continuable)
             {
-                return;
+                continuable.ContinueFrom(lastQuotes.Select(q => new FeedQuote(q.Symbol, q.Bid, q.Ask, q.Timestamp)).ToList());
             }
-
-            candles.Add(quote.Symbol, quote.Bid, quote.Timestamp);
-            backfilled++;
         }
-
-        LogBackfilled(logger, backfilled);
+        else
+        {
+            FillCandlesFromFeedHistory(stoppingToken);
+        }
 
         await foreach (var quote in feed.StreamAsync(stoppingToken))
         {
@@ -38,6 +42,40 @@ internal sealed partial class PriceFeedPump(
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Filled the charts with {Count} historical prices")]
+    // Every price the engine has seen is in the journal, so the charts survive a restart.
+    private async Task RebuildCandlesFromJournalAsync(CancellationToken cancellationToken)
+    {
+        var count = 0;
+        await foreach (var quote in journal.ReadQuotesAsync(time.GetUtcNow() - options.Value.CandleHistory, cancellationToken))
+        {
+            candles.Add(quote.Symbol, quote.Bid, quote.Timestamp);
+            count++;
+        }
+
+        LogRebuilt(logger, count);
+    }
+
+    // First start: nothing recorded yet, so the feed's own history fills the charts.
+    private void FillCandlesFromFeedHistory(CancellationToken cancellationToken)
+    {
+        var count = 0;
+        foreach (var quote in feed.GetBackfill(time.GetUtcNow()))
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            candles.Add(quote.Symbol, quote.Bid, quote.Timestamp);
+            count++;
+        }
+
+        LogBackfilled(logger, count);
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Rebuilt the charts from {Count} recorded prices")]
+    private static partial void LogRebuilt(ILogger logger, int count);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Filled the charts with {Count} historical prices from the feed")]
     private static partial void LogBackfilled(ILogger logger, int count);
 }

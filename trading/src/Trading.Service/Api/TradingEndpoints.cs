@@ -5,6 +5,7 @@ using Trading.Engine.Inputs;
 using Trading.Service.Candles;
 using Trading.Service.Configuration;
 using Trading.Service.Engine;
+using Trading.Service.Persistence;
 
 namespace Trading.Service.Api;
 
@@ -81,7 +82,7 @@ internal static class TradingEndpoints
         long? after,
         int? limit,
         EngineHost engine,
-        EventLog eventLog,
+        IEngineJournal journal,
         CancellationToken cancellationToken)
     {
         if (await GroupOfAsync(engine, accountId, cancellationToken) is null)
@@ -89,7 +90,7 @@ internal static class TradingEndpoints
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Ok(eventLog.Read(accountId, after ?? 0, Math.Clamp(limit ?? DefaultEvents, 1, MaxEvents)));
+        return TypedResults.Ok(await journal.ReadEventsAsync(accountId, after ?? 0, Math.Clamp(limit ?? DefaultEvents, 1, MaxEvents), cancellationToken));
     }
 
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> PlaceOrderAsync(

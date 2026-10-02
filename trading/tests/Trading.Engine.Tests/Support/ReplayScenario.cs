@@ -6,12 +6,13 @@ namespace Trading.Engine.Tests.Support;
 /// <summary>
 /// Replays 3 000 synthetic EURUSD prices with orders, floors and closes in between.
 /// Returns every event and the final account snapshots as JSON lines.
+/// The engine can be restarted from its exported state at given ticks, which must not change the result.
 /// </summary>
 internal static class ReplayScenario
 {
     private const int TickCount = 3_000;
 
-    public static List<string> Run()
+    public static List<string> Run(params int[] restartAtTicks)
     {
         var configuration = new EngineConfiguration(
             [TestMarket.EurUsd],
@@ -37,6 +38,11 @@ internal static class ReplayScenario
         var tick = 0;
         foreach (var (bid, ask) in SyntheticTicks.EurUsd(TickCount))
         {
+            if (restartAtTicks.Contains(tick))
+            {
+                engine = TradingEngine.FromState(configuration, engine.ExportState());
+            }
+
             now = now.AddMilliseconds(250);
             Send(new Quote(now, "EURUSD", bid, ask));
 
