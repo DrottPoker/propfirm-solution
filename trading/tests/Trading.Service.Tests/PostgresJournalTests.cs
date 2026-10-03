@@ -50,7 +50,7 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         var snapshot = new JournalSnapshot(4, events.Count, "fingerprint", engine.ExportState());
 
         await journal.Value.AppendAsync(
-            new JournalBatch(inputs.Select((input, i) => new JournaledInput(i + 1, input)).ToList(), events, snapshot),
+            new JournalBatch(inputs.Select((input, i) => new JournaledInput(i + 1, input)).ToList(), [.. events.Select(e => new JournaledEvent(e, "standard"))], snapshot),
             TestContext.Current.CancellationToken);
 
         var readInputs = await ToListAsync(journal.Value.ReadInputsAsync(0, TestContext.Current.CancellationToken));
@@ -77,13 +77,58 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         var events = Enumerable.Range(1, 6)
             .Select(i => new EventEnvelope(i, new EquityFloorRemoved(T, i % 2 == 0 ? "A" : "B", $"floor-{i}")))
             .ToList();
-        await journal.Value.AppendAsync(new JournalBatch([], events, null), TestContext.Current.CancellationToken);
+        await journal.Value.AppendAsync(new JournalBatch([], [.. events.Select(e => new JournaledEvent(e, null))], null), TestContext.Current.CancellationToken);
 
         var first = await journal.Value.ReadEventsAsync("A", 0, 2, TestContext.Current.CancellationToken);
         var rest = await journal.Value.ReadEventsAsync("A", first[^1].Sequence, 10, TestContext.Current.CancellationToken);
 
         Assert.Equal([2L, 4], first.Select(e => e.Sequence));
         Assert.Equal([6L], rest.Select(e => e.Sequence));
+    }
+
+    [Fact]
+    public async Task EventsAreReadPerGroupInOrderAndInPages()
+    {
+        await using var journal = await CreateJournalAsync();
+        string?[] groups = ["g1", "g2", null, "g1", "g3", "g1"];
+        var events = groups.Select((group, i) => new JournaledEvent(new EventEnvelope(i + 1, new EquityFloorRemoved(T, $"A{i}", "daily")), group)).ToList();
+        await journal.Value.AppendAsync(new JournalBatch([], events, null), TestContext.Current.CancellationToken);
+
+        var first = await journal.Value.ReadGroupEventsAsync(["g1"], 0, 2, TestContext.Current.CancellationToken);
+        var rest = await journal.Value.ReadGroupEventsAsync(["g1"], first[^1].Sequence, 10, TestContext.Current.CancellationToken);
+        var twoGroups = await journal.Value.ReadGroupEventsAsync(["g2", "g3"], 0, 10, TestContext.Current.CancellationToken);
+
+        Assert.Equal([1L, 4], first.Select(e => e.Sequence));
+        Assert.Equal([6L], rest.Select(e => e.Sequence));
+        Assert.Equal([2L, 5], twoGroups.Select(e => e.Sequence));
+    }
+
+    // Events stored before groups were recorded get the group of their account when the database is upgraded.
+    [Fact]
+    public async Task UpgradeFillsInTheGroupOfEarlierEvents()
+    {
+        await using var journal = await CreateJournalAsync();
+        await using (var downgrade = journal.DataSource.CreateBatch())
+        {
+            foreach (var sql in new[]
+            {
+                "drop table login_links",
+                "alter table engine_events drop column group_id",
+                "delete from schema_migrations where version = '0003_integration.sql'",
+                "insert into engine_events (sequence, account_id, kind, occurred_at, payload) values (1, 'A1', 'AccountCreated', now(), '{\"groupId\": \"standard\"}')",
+                "insert into engine_events (sequence, account_id, kind, occurred_at, payload) values (2, 'A1', 'EquityFloorRemoved', now(), '{\"kind\": \"EquityFloorRemoved\", \"timestamp\": \"2026-10-05T10:00:00+00:00\", \"accountId\": \"A1\", \"floorId\": \"daily\"}')",
+            })
+            {
+                downgrade.BatchCommands.Add(new NpgsqlBatchCommand(sql));
+            }
+
+            await downgrade.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        await CreateJournal(journal.DataSource).InitializeAsync(TestContext.Current.CancellationToken);
+
+        var events = await journal.Value.ReadGroupEventsAsync(["standard"], 1, 10, TestContext.Current.CancellationToken);
+        Assert.Equal([2L], events.Select(e => e.Sequence));
     }
 
     [Fact]

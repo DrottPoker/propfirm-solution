@@ -19,7 +19,7 @@ internal sealed class InMemoryJournal : IEngineJournal
 
     private readonly Lock _lock = new();
     private readonly List<(long Sequence, string Json)> _inputs = [];
-    private readonly List<(long Sequence, string? AccountId, string Json)> _events = [];
+    private readonly List<(long Sequence, string? AccountId, string? GroupId, string Json)> _events = [];
     private readonly List<(JournalSnapshot Snapshot, string StateJson)> _snapshots = [];
     private int _appends;
 
@@ -123,7 +123,7 @@ internal sealed class InMemoryJournal : IEngineJournal
             }
 
             _inputs.AddRange(batch.Inputs.Select(i => (i.Sequence, JsonSerializer.Serialize(i.Input, Json))));
-            _events.AddRange(batch.Events.Select(e => (e.Sequence, EventLog.AccountIdOf(e.Event), JsonSerializer.Serialize(e.Event, Json))));
+            _events.AddRange(batch.Events.Select(e => (e.Envelope.Sequence, EventLog.AccountIdOf(e.Envelope.Event), e.GroupId, JsonSerializer.Serialize(e.Envelope.Event, Json))));
             if (batch.Snapshot is { } snapshot)
             {
                 _snapshots.RemoveAll(s => s.Snapshot.InputSequence == snapshot.InputSequence);
@@ -138,6 +138,19 @@ internal sealed class InMemoryJournal : IEngineJournal
         {
             IReadOnlyList<EventEnvelope> events = _events
                 .Where(e => e.AccountId == accountId && e.Sequence > afterSequence)
+                .Take(limit)
+                .Select(e => new EventEnvelope(e.Sequence, JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!))
+                .ToList();
+            return Task.FromResult(events);
+        }
+    }
+
+    public Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IReadOnlyList<EventEnvelope> events = _events
+                .Where(e => e.GroupId is { } groupId && groupIds.Contains(groupId) && e.Sequence > afterSequence)
                 .Take(limit)
                 .Select(e => new EventEnvelope(e.Sequence, JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!))
                 .ToList();

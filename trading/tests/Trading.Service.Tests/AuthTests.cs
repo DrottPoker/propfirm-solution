@@ -1,31 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 
-using Trading.Service.Tenancy;
 using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
 
 public sealed class AuthTests
 {
-    private const string OtherFirmKey = "other-admin-key";
-
-    // A second firm with its own server and group.
-    private static readonly Dictionary<string, string> TwoFirms = new()
-    {
-        ["Trading:Groups:1:Id"] = "other",
-        ["Trading:Groups:1:Currency"] = "USD",
-        ["Trading:Groups:1:StopOutLevelPercent"] = "50",
-        ["Trading:Groups:1:Symbols:0:Symbol"] = "EURUSD",
-        ["Trading:Groups:1:Symbols:0:Leverage"] = "100",
-        ["Trading:Groups:1:Symbols:0:SpreadMarkupPoints"] = "0",
-        ["Trading:Groups:1:Symbols:0:CommissionPerLotPerSide"] = "0",
-        ["Tenants:1:Id"] = "other-firm",
-        ["Tenants:1:Name"] = "Other Firm",
-        ["Tenants:1:Groups:0"] = "other",
-        ["Tenants:1:AdminApiKeySha256"] = TenantCatalog.HashApiKey(OtherFirmKey),
-    };
-
     [Fact]
     public async Task MeShowsTheTraderAndTheirAccounts()
     {
@@ -136,7 +117,7 @@ public sealed class AuthTests
         using var factory = new ServiceFactory();
         using var client = apiKey is null ? factory.CreateClient() : factory.CreateAdminClient(apiKey);
 
-        await client.PostJsonAsync("/api/admin/users", new { email = "a@test.example", password = ServiceFactory.TraderPassword }, HttpStatusCode.Unauthorized);
+        await client.PostJsonAsync("/api/admin/v1/users", new { email = "a@test.example", password = ServiceFactory.TraderPassword }, HttpStatusCode.Unauthorized);
     }
 
     [Fact]
@@ -145,38 +126,38 @@ public sealed class AuthTests
         using var factory = new ServiceFactory();
         using var admin = factory.CreateAdminClient();
 
-        await admin.PostJsonAsync("/api/admin/users", new { email = "not-an-email", password = ServiceFactory.TraderPassword }, HttpStatusCode.UnprocessableEntity);
-        await admin.PostJsonAsync("/api/admin/users", new { email = "a@test.example", password = "short" }, HttpStatusCode.UnprocessableEntity);
+        await admin.PostJsonAsync("/api/admin/v1/users", new { email = "not-an-email", password = ServiceFactory.TraderPassword }, HttpStatusCode.UnprocessableEntity);
+        await admin.PostJsonAsync("/api/admin/v1/users", new { email = "a@test.example", password = "short" }, HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]
     public async Task EmailIsUniqueWithinAFirmButNotAcrossFirms()
     {
-        using var factory = new ServiceFactory(settings: TwoFirms);
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
         using var demo = factory.CreateAdminClient();
-        using var other = factory.CreateAdminClient(OtherFirmKey);
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
         var user = new { email = "same@test.example", password = ServiceFactory.TraderPassword };
 
-        await demo.PostJsonAsync("/api/admin/users", user);
-        await demo.PostJsonAsync("/api/admin/users", user, HttpStatusCode.Conflict);
-        await other.PostJsonAsync("/api/admin/users", user);
+        await demo.PostJsonAsync("/api/admin/v1/users", user);
+        await demo.PostJsonAsync("/api/admin/v1/users", user, HttpStatusCode.Conflict);
+        await other.PostJsonAsync("/api/admin/v1/users", user);
     }
 
     [Fact]
     public async Task FirmsCannotReachEachOthersGroupsUsersOrAccounts()
     {
-        using var factory = new ServiceFactory(settings: TwoFirms);
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
         (await factory.CreateTraderClientAsync("T1")).Dispose();
-        using var other = factory.CreateAdminClient(OtherFirmKey);
-        var otherUser = await other.PostJsonAsync("/api/admin/users", new { email = "o@test.example", password = ServiceFactory.TraderPassword });
-        var demoUserId = (await factory.CreateAdminClient().PostJsonAsync("/api/admin/users", new { email = "d@test.example", password = ServiceFactory.TraderPassword })).GetProperty("userId").GetGuid();
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
+        var otherUser = await other.PostJsonAsync("/api/admin/v1/users", new { email = "o@test.example", password = ServiceFactory.TraderPassword });
+        var demoUserId = (await factory.CreateAdminClient().PostJsonAsync("/api/admin/v1/users", new { email = "d@test.example", password = ServiceFactory.TraderPassword })).GetProperty("userId").GetGuid();
 
         // The demo firm's group, and the demo firm's user
-        await other.PostJsonAsync("/api/admin/accounts", new { accountId = "X1", groupId = "standard", initialBalance = 1_000m, ownerUserId = otherUser.GetProperty("userId").GetGuid() }, HttpStatusCode.NotFound);
-        await other.PostJsonAsync("/api/admin/accounts", new { accountId = "X2", groupId = "other", initialBalance = 1_000m, ownerUserId = demoUserId }, HttpStatusCode.NotFound);
+        await other.PostJsonAsync("/api/admin/v1/accounts", new { accountId = "X1", groupId = "standard", initialBalance = 1_000m, ownerUserId = otherUser.GetProperty("userId").GetGuid() }, HttpStatusCode.NotFound);
+        await other.PostJsonAsync("/api/admin/v1/accounts", new { accountId = "X2", groupId = "other", initialBalance = 1_000m, ownerUserId = demoUserId }, HttpStatusCode.NotFound);
 
         // The demo firm's account
-        using var close = await other.PostAsync(new Uri("/api/admin/accounts/T1/close", UriKind.Relative), null, TestContext.Current.CancellationToken);
+        using var close = await other.PostAsync(new Uri("/api/admin/v1/accounts/T1/close", UriKind.Relative), null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, close.StatusCode);
     }
 
@@ -184,10 +165,10 @@ public sealed class AuthTests
     [Fact]
     public async Task TradersLogInOnTheirOwnFirmsServer()
     {
-        using var factory = new ServiceFactory(settings: TwoFirms);
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
         (await factory.CreateTraderClientAsync("T1")).Dispose();
-        using var other = factory.CreateAdminClient(OtherFirmKey);
-        await other.PostJsonAsync("/api/admin/users", new { email = ServiceFactory.EmailOf("T1"), password = "other-password" });
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
+        await other.PostJsonAsync("/api/admin/v1/users", new { email = ServiceFactory.EmailOf("T1"), password = "other-password" });
         using var client = factory.CreateClient();
 
         await client.PostJsonAsync(
@@ -203,7 +184,7 @@ public sealed class AuthTests
     [Fact]
     public async Task ServersAreListedByName()
     {
-        using var factory = new ServiceFactory(settings: TwoFirms);
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
         using var client = factory.CreateClient();
 
         var servers = await client.GetJsonAsync("/api/servers");

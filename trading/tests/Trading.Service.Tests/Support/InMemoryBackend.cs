@@ -15,8 +15,10 @@ internal sealed class InMemoryBackend
 
     public InMemoryXmlRepository Keys { get; init; } = new();
 
-    /// <summary>What a crash leaves behind: the stored journal, users and keys.</summary>
-    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys };
+    public InMemoryLoginLinkStore LoginLinks { get; init; } = new();
+
+    /// <summary>What a crash leaves behind: the stored journal, users, keys and login links.</summary>
+    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys, LoginLinks = LoginLinks };
 }
 
 internal sealed class InMemoryUserStore : IUserStore
@@ -53,6 +55,21 @@ internal sealed class InMemoryUserStore : IUserStore
         lock (_lock)
         {
             return Task.FromResult(_users.Find(u => u.Id == userId));
+        }
+    }
+
+    public Task<bool> SetPasswordHashAsync(Guid userId, string passwordHash, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var index = _users.FindIndex(u => u.Id == userId);
+            if (index < 0)
+            {
+                return Task.FromResult(false);
+            }
+
+            _users[index] = _users[index] with { PasswordHash = passwordHash };
+            return Task.FromResult(true);
         }
     }
 
@@ -112,6 +129,36 @@ internal sealed class InMemoryXmlRepository : IXmlRepository
         lock (_lock)
         {
             _elements.Add(new XElement(element));
+        }
+    }
+}
+
+internal sealed class InMemoryLoginLinkStore : ILoginLinkStore
+{
+    private readonly Lock _lock = new();
+    private readonly Dictionary<string, (Guid UserId, string? AccountId, DateTimeOffset ExpiresAt, bool Used)> _links = new(StringComparer.Ordinal);
+
+    public Task CreateAsync(byte[] tokenHash, Guid userId, string? accountId, DateTimeOffset expiresAt, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _links.Add(Convert.ToHexString(tokenHash), (userId, accountId, expiresAt, false));
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<LoginLink?> UseAsync(byte[] tokenHash, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var key = Convert.ToHexString(tokenHash);
+            if (!_links.TryGetValue(key, out var link) || link.Used || link.ExpiresAt <= now)
+            {
+                return Task.FromResult<LoginLink?>(null);
+            }
+
+            _links[key] = link with { Used = true };
+            return Task.FromResult<LoginLink?>(new LoginLink(link.UserId, link.AccountId));
         }
     }
 }

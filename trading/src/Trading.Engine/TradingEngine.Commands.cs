@@ -245,8 +245,12 @@ public sealed partial class TradingEngine
             return RejectReason.InvalidFloor;
         }
 
-        // A new or replaced floor starts trailing from the current equity.
-        var floor = new FloorState(command.FloorId, command.Rule, _valuation.Measure(account).Equity);
+        // A new or replaced floor starts trailing from the current equity, and an anchored one is measured now.
+        var equity = _valuation.Measure(account).Equity;
+        decimal? anchor = command.Rule is AnchoredFloor anchored
+            ? anchored.Anchor == FloorAnchor.Balance ? account.Balance : Math.Max(account.Balance, equity)
+            : null;
+        var floor = new FloorState(command.FloorId, command.Rule, equity, anchor);
         account.Floors[floor.Id] = floor;
         events.Add(new EquityFloorSet(command.Timestamp, account.Id, floor.Id, floor.Rule, floor.Level));
         EvaluateRisk(account, command.Timestamp, events);
@@ -339,6 +343,7 @@ public sealed partial class TradingEngine
     {
         FixedFloor fixedFloor => fixedFloor.Level >= 0m,
         TrailingFloor trailing => trailing.Distance > 0m && trailing.LockLevel is null or >= 0m,
+        AnchoredFloor anchored => anchored.Distance > 0m && Enum.IsDefined(anchored.Anchor),
         _ => false,
     };
 }

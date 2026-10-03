@@ -52,6 +52,34 @@ export function useLogin() {
   });
 }
 
+/** Logs in with a one-time link from the firm's portal. */
+export function useLinkLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const result = await api.POST("/api/auth/link", { body: { token } });
+      if (result.response.status === 401) {
+        throw new LinkLoginFailedError();
+      }
+
+      if (result.response.status === 429) {
+        throw new LoginFailedError(true);
+      }
+
+      return queryResult(result, "the login link");
+    },
+    onSuccess: (me) => queryClient.setQueryData(meKey, me),
+  });
+}
+
+/** The service refused the login link. */
+export class LinkLoginFailedError extends Error {
+  constructor() {
+    super("This link has expired or was already used. Open the terminal again from your firm's portal, or log in.");
+    this.name = "LinkLoginFailedError";
+  }
+}
+
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({

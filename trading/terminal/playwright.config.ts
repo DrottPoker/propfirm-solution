@@ -18,7 +18,7 @@ export default defineConfig({
   webServer: [
     {
       // Synthetic prices even when the developer's user secrets choose a real price feed.
-      command: `dotnet run --project ../src/Trading.Service -c Release --no-build -- --urls http://localhost:${servicePort} --Cors:AllowedOrigins:0=http://localhost:${terminalPort} --ConnectionStrings:Trading=${JSON.stringify(database)} --PriceFeed:Provider=Synthetic`,
+      command: `dotnet run --project ../src/Trading.Service -c Release --no-build -- --urls http://localhost:${servicePort} --Cors:AllowedOrigins:0=http://localhost:${terminalPort} --ConnectionStrings:Trading=${JSON.stringify(database)} --Terminal:Url=http://localhost:${terminalPort}/ --PriceFeed:Provider=Synthetic`,
       url: `http://localhost:${servicePort}/health`,
       timeout: 120_000,
     },

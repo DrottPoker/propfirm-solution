@@ -28,6 +28,9 @@ public interface IEngineJournal
     /// <summary>The account's events after the sequence number, oldest first.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadEventsAsync(string accountId, long afterSequence, int limit, CancellationToken cancellationToken);
 
+    /// <summary>Events of accounts in the groups after the sequence number, oldest first. A firm reads its own groups.</summary>
+    Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken);
+
     /// <summary>Recorded prices since the given time, in order. Used to rebuild the charts.</summary>
     IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, CancellationToken cancellationToken);
 }
@@ -41,7 +44,10 @@ public sealed record JournaledInput(long Sequence, EngineInput Input);
 /// </summary>
 public sealed record JournalSnapshot(long InputSequence, long EventSequence, string ConfigurationFingerprint, EngineState State);
 
-public sealed record JournalBatch(IReadOnlyList<JournaledInput> Inputs, IReadOnlyList<EventEnvelope> Events, JournalSnapshot? Snapshot)
+/// <summary>An event with the trading group of its account, or null when it has none.</summary>
+public sealed record JournaledEvent(EventEnvelope Envelope, string? GroupId);
+
+public sealed record JournalBatch(IReadOnlyList<JournaledInput> Inputs, IReadOnlyList<JournaledEvent> Events, JournalSnapshot? Snapshot)
 {
     public long LastInputSequence => Inputs.Count == 0 ? 0 : Inputs[^1].Sequence;
 }

@@ -13,8 +13,8 @@ internal static class HttpJson
     public static Task<JsonElement> PostJsonAsync(this HttpClient client, string url, object? body = null, HttpStatusCode expected = HttpStatusCode.OK) =>
         client.SendJsonAsync(HttpMethod.Post, url, body, expected);
 
-    public static Task<JsonElement> PutJsonAsync(this HttpClient client, string url, object body) =>
-        client.SendJsonAsync(HttpMethod.Put, url, body, HttpStatusCode.OK);
+    public static Task<JsonElement> PutJsonAsync(this HttpClient client, string url, object body, HttpStatusCode expected = HttpStatusCode.OK) =>
+        client.SendJsonAsync(HttpMethod.Put, url, body, expected);
 
     public static Task<JsonElement> DeleteJsonAsync(this HttpClient client, string url) =>
         client.SendJsonAsync(HttpMethod.Delete, url, null, HttpStatusCode.OK);

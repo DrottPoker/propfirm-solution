@@ -113,6 +113,53 @@ public sealed class EquityFloorTests
         Assert.Equal(AccountStatus.Active, driver.Account().Status);
     }
 
+    // Measured from the balance, open losses count against the level. Equity above the balance counts only when asked for.
+    [Theory]
+    [InlineData(FloorAnchor.Balance, 1.08510, 95_000)]
+    [InlineData(FloorAnchor.HigherOfBalanceAndEquity, 1.08510, 100_000)]
+    [InlineData(FloorAnchor.HigherOfBalanceAndEquity, 1.07800, 95_000)]
+    public void AnchoredFloorIsMeasuredWhenSetAndThenStaysFixed(FloorAnchor anchor, decimal bid, decimal level)
+    {
+        var driver = Ready();
+        driver.Buy(10.00m);
+        driver.Quote(bid, bid + 0.00010m);
+
+        var set = EventAssert.Single<EquityFloorSet>(driver.SetFloor("daily", new AnchoredFloor(5_000m, anchor)));
+        driver.Quote(1.09000m, 1.09010m);
+
+        Assert.Equal(level, set.Level);
+        Assert.Equal(level, FloorLevel(driver));
+    }
+
+    [Fact]
+    public void AnchoredFloorIsMeasuredAgainWhenSetAgain()
+    {
+        var driver = Ready();
+        driver.SetFloor("daily", new AnchoredFloor(5_000m, FloorAnchor.Balance));
+        var position = EventAssert.Single<PositionOpened>(driver.Buy(10.00m));
+        driver.Quote(1.08510m, 1.08520m);
+        driver.Close(position.PositionId);
+
+        // The next trading day starts from the new balance of 105 000.
+        var set = EventAssert.Single<EquityFloorSet>(driver.SetFloor("daily", new AnchoredFloor(5_000m, FloorAnchor.Balance)));
+
+        Assert.Equal(100_000m, set.Level);
+    }
+
+    [Fact]
+    public void AnchoredFloorBreachesAtOnceWhenOpenLossesAreTooLarge()
+    {
+        var driver = Ready();
+        driver.Buy(10.00m);
+        driver.Quote(1.07400m, 1.07410m);
+
+        var events = driver.SetFloor("daily", new AnchoredFloor(5_000m, FloorAnchor.Balance));
+
+        var breach = Assert.IsType<EquityFloorBreached>(events[1]);
+        Assert.Equal((95_000m, 93_900.00m), (breach.Level, breach.Equity));
+        Assert.Equal(AccountStatus.Disabled, driver.Account().Status);
+    }
+
     [Theory]
     [MemberData(nameof(InvalidRules))]
     public void InvalidFloorsAreRejected(string floorId, EquityFloorRule rule)
@@ -128,6 +175,8 @@ public sealed class EquityFloorTests
         { "max-loss", new FixedFloor(-1m) },
         { "max-loss", new TrailingFloor(0m) },
         { "max-loss", new TrailingFloor(5_000m, LockLevel: -1m) },
+        { "daily", new AnchoredFloor(0m, FloorAnchor.Balance) },
+        { "daily", new AnchoredFloor(5_000m, (FloorAnchor)7) },
     };
 
     private static decimal FloorLevel(EngineDriver driver) => Assert.Single(driver.Account().Floors).Level;

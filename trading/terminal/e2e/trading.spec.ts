@@ -16,15 +16,15 @@ async function createTrader(request: APIRequestContext, name: string) {
   const accountId = `${name}-${test.info().testId.slice(0, 8)}`;
   const email = `${accountId}@e2e.example`;
 
-  const user = await request.post(`${serviceUrl}/api/admin/users`, { headers: adminHeaders, data: { email, password } });
+  const user = await request.post(`${serviceUrl}/api/admin/v1/users`, { headers: adminHeaders, data: { email, password } });
   expect(user.ok()).toBeTruthy();
-  const account = await request.post(`${serviceUrl}/api/admin/accounts`, {
+  const account = await request.post(`${serviceUrl}/api/admin/v1/accounts`, {
     headers: adminHeaders,
     data: { accountId, groupId: "standard", initialBalance: 100_000, ownerUserId: (await user.json()).userId },
   });
   expect(account.ok()).toBeTruthy();
 
-  return { accountId, email };
+  return { accountId, email, userId: (await user.json()).userId as string };
 }
 
 async function submitLogin(page: Page, email: string, withPassword: string) {
@@ -98,4 +98,25 @@ test("a trader only sees their own account", async ({ page, request }) => {
   // An account the trader does not own is ignored, and their own is shown instead.
   await expect(page.getByText(mine.accountId, { exact: true })).toBeVisible();
   await expect(page.getByText(theirs.accountId, { exact: true })).toHaveCount(0);
+});
+
+test("a link from the firm's portal logs the trader straight in, once", async ({ page, request }) => {
+  const trader = await createTrader(request, "linked");
+  const response = await request.post(`${serviceUrl}/api/admin/v1/users/${trader.userId}/login-links`, {
+    headers: adminHeaders,
+    data: { accountId: trader.accountId },
+  });
+  expect(response.ok()).toBeTruthy();
+  const { url } = await response.json();
+
+  await page.goto(url);
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+  await expect(page.getByText(trader.accountId, { exact: true })).toBeVisible();
+  // The token is gone from the address once it is used.
+  expect(page.url()).not.toContain("token=");
+
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.goto(url);
+  // Next.js has an alert of its own for route announcements, so look inside the page.
+  await expect(page.locator("main").getByRole("alert")).toContainText("This link has expired or was already used.");
 });

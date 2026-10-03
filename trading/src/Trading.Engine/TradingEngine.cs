@@ -87,6 +87,13 @@ public sealed partial class TradingEngine
         return _accountsById.TryGetValue(accountId, out var account) ? Snapshot(account) : null;
     }
 
+    /// <summary>The account's trading group, or null if the account does not exist. Cheap, unlike <see cref="GetAccount"/>.</summary>
+    public string? GetGroupId(string accountId)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        return _accountsById.TryGetValue(accountId, out var account) ? account.Group.Id : null;
+    }
+
     /// <summary>Latest prices after the group's markup, for each of the group's symbols that has a price. Null if the group does not exist.</summary>
     public IReadOnlyList<SymbolPrice>? GetPrices(string groupId)
     {

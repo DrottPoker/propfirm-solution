@@ -23,7 +23,7 @@ public sealed partial class TradingEngine
                     a.Orders
                         .Select(o => new OrderRecord(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime))
                         .ToList(),
-                    a.Floors.Values.Select(f => new FloorRecord(f.Id, f.Rule, f.HighWaterMark)).ToList(),
+                    a.Floors.Values.Select(f => new FloorRecord(f.Id, f.Rule, f.HighWaterMark, f.Anchor)).ToList(),
                     a.UsedOrderIds.Order(StringComparer.Ordinal).ToList()))
                 .ToList());
 
@@ -74,7 +74,7 @@ public sealed partial class TradingEngine
 
             foreach (var f in record.Floors)
             {
-                account.Floors[f.FloorId] = new FloorState(f.FloorId, f.Rule, f.HighWaterMark);
+                account.Floors[f.FloorId] = new FloorState(f.FloorId, f.Rule, f.HighWaterMark, f.Anchor);
             }
 
             foreach (var orderId in record.UsedOrderIds)

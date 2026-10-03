@@ -17,7 +17,25 @@ internal sealed class EventLog
     private readonly Channel<EventEnvelope> _published =
         Channel.CreateUnbounded<EventEnvelope>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
 
+    private readonly Lock _storedLock = new();
+    private TaskCompletionSource _nextStored = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     public ChannelReader<EventEnvelope> Published => _published.Reader;
+
+    /// <summary>
+    /// Completes the next time events are stored. Take it before reading the journal, so that events stored
+    /// in between are never missed.
+    /// </summary>
+    public Task NextStored
+    {
+        get
+        {
+            lock (_storedLock)
+            {
+                return _nextStored.Task;
+            }
+        }
+    }
 
     public void Publish(IReadOnlyList<EventEnvelope> events)
     {
@@ -25,6 +43,20 @@ internal sealed class EventLog
         {
             _published.Writer.TryWrite(envelope);
         }
+
+        if (events.Count == 0)
+        {
+            return;
+        }
+
+        TaskCompletionSource stored;
+        lock (_storedLock)
+        {
+            stored = _nextStored;
+            _nextStored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        stored.TrySetResult();
     }
 
     public static string? AccountIdOf(EngineEvent engineEvent) => engineEvent switch

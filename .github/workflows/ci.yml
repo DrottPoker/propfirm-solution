@@ -36,7 +36,7 @@ jobs:
 
       # The build regenerates the OpenAPI document. A diff means it was not committed after an API change.
       - name: Check that the OpenAPI document is up to date
-        run: git diff --exit-code -- trading/terminal/openapi
+        run: git diff --exit-code -- contracts/trading
 
       - name: Test
         run: dotnet test --solution PropfirmSolution.slnx --configuration Release --no-build

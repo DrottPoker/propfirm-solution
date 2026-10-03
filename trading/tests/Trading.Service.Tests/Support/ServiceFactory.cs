@@ -70,9 +70,9 @@ internal sealed class ServiceFactory(
     public async Task<HttpClient> CreateTraderClientAsync(string accountId, decimal balance = 100_000m)
     {
         using var admin = CreateAdminClient();
-        var user = await admin.PostJsonAsync("/api/admin/users", new { email = EmailOf(accountId), password = TraderPassword });
+        var user = await admin.PostJsonAsync("/api/admin/v1/users", new { email = EmailOf(accountId), password = TraderPassword });
         await admin.PostJsonAsync(
-            "/api/admin/accounts",
+            "/api/admin/v1/accounts",
             new { accountId, groupId = "standard", initialBalance = balance, ownerUserId = user.GetProperty("userId").GetGuid() });
         return await LoginAsync(EmailOf(accountId), TraderPassword);
     }
@@ -137,6 +137,7 @@ internal sealed class ServiceFactory(
                 services.AddSingleton<IEngineJournal>(Backend.Journal);
                 services.AddSingleton<IUserStore>(Backend.Users);
                 services.AddSingleton<IXmlRepository>(Backend.Keys);
+                services.AddSingleton<ILoginLinkStore>(Backend.LoginLinks);
             }
         });
     }

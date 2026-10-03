@@ -6,7 +6,7 @@ Kör lokalt med `pnpm dev` på http://localhost:3001. Handelstjänsten måste va
 
 | Kommando | Vad det gör |
 |---|---|
-| `pnpm generate:api` | Genererar `src/lib/api/schema.ts` från `openapi/trading-service.json` |
+| `pnpm generate:api` | Genererar `src/lib/api/schema.ts` från kontraktet `contracts/trading/trading-service.json` |
 | `pnpm test` | Enhetstester med Vitest |
 | `pnpm lint`, `pnpm typecheck`, `pnpm build` | Kontroller som också körs i CI |
 

@@ -78,6 +78,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkLoginRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout": {
         parameters: {
             query?: never;
@@ -532,14 +571,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/users": {
+    "/api/admin/v1/users": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: {
+                    email?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post: {
             parameters: {
@@ -571,7 +631,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/accounts": {
+    "/api/admin/v1/users/{userId}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/users/{userId}/login-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["CreateLoginLinkRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LoginLinkResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/accounts": {
         parameters: {
             query?: never;
             header?: never;
@@ -610,7 +750,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/accounts/{accountId}/floors/{floorId}": {
+    "/api/admin/v1/accounts/{accountId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountSnapshot"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/accounts/{accountId}/floors/{floorId}": {
         parameters: {
             query?: never;
             header?: never;
@@ -674,7 +851,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/accounts/{accountId}/close": {
+    "/api/admin/v1/accounts/{accountId}/close": {
         parameters: {
             query?: never;
             header?: never;
@@ -705,6 +882,45 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    after?: number;
+                    limit?: number;
+                    wait?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmEventsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -768,6 +984,10 @@ export interface components {
             initialBalance: number;
             /** Format: uuid */
             ownerUserId: string;
+        };
+        /** @description A login link for the user. With an account id, the terminal opens that account. */
+        CreateLoginLinkRequest: {
+            accountId: null | string;
         };
         CreateUserRequest: {
             email: null | string;
@@ -1046,7 +1266,19 @@ export interface components {
          * @description Rule for an equity floor. When equity falls below the floor, all positions are closed,
          *     all pending orders are cancelled and the account is disabled.
          */
-        EquityFloorRule: components["schemas"]["EquityFloorRuleFixedFloor"] | components["schemas"]["EquityFloorRuleTrailingFloor"];
+        EquityFloorRule: components["schemas"]["EquityFloorRuleAnchoredFloor"] | components["schemas"]["EquityFloorRuleFixedFloor"] | components["schemas"]["EquityFloorRuleTrailingFloor"];
+        /**
+         * @description A floor Distance below the account as it is when the floor is set: its balance, or
+         *     the higher of balance and equity. The level then stays fixed. Setting it again at the start of every
+         *     trading day gives a daily loss limit, with the level taken in the same step as the prices.
+         */
+        EquityFloorRuleAnchoredFloor: {
+            /** @enum {string} */
+            kind?: "AnchoredFloor";
+            /** Format: double */
+            distance: number;
+            anchor: components["schemas"]["FloorAnchor"];
+        };
         /** @description A fixed floor in account currency. */
         EquityFloorRuleFixedFloor: {
             /** @enum {string} */
@@ -1069,6 +1301,17 @@ export interface components {
             sequence: number;
             event: components["schemas"]["EngineEvent"];
         };
+        /** @description The firm's events in order. Ask again with `after` set to Cursor for the next ones. */
+        FirmEventsResponse: {
+            events: components["schemas"]["EventEnvelope"][];
+            /** Format: int64 */
+            cursor: number;
+        };
+        /**
+         * @description What an AnchoredFloor is measured from when it is set.
+         * @enum {unknown}
+         */
+        FloorAnchor: "Balance" | "HigherOfBalanceAndEquity";
         /** @description An equity floor. Headroom is how far equity can fall before the floor is breached. */
         FloorSnapshot: {
             floorId: string;
@@ -1101,6 +1344,17 @@ export interface components {
             spreadMarkupPoints: number;
             /** Format: double */
             commissionPerLotPerSide: number;
+        };
+        /** @description The token from a login link. */
+        LinkLoginRequest: {
+            token: null | string;
+        };
+        /** @description Open Url once before ExpiresAt to be logged in to the terminal. */
+        LoginLinkResponse: {
+            /** Format: uri */
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
         };
         /** @description Server is the id of the firm's server, as in MetaTrader. */
         LoginRequest: {
@@ -1186,6 +1440,9 @@ export interface components {
         };
         SetFloorRequest: {
             rule: components["schemas"]["EquityFloorRule"];
+        };
+        SetPasswordRequest: {
+            password: null | string;
         };
         /** @enum {unknown} */
         Side: "Buy" | "Sell";

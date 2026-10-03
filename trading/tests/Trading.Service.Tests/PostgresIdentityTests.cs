@@ -79,6 +79,55 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
         Assert.Empty(new PostgresXmlRepository(dataSource, Schema(dataSource)).GetAllElements());
     }
 
+    [Fact]
+    public async Task APasswordCanBeReplaced()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
+        var user = (await users.CreateAsync("firm-a", "a@test.example", "old-hash", TestContext.Current.CancellationToken))!;
+
+        Assert.True(await users.SetPasswordHashAsync(user.Id, "new-hash", TestContext.Current.CancellationToken));
+        Assert.False(await users.SetPasswordHashAsync(Guid.NewGuid(), "new-hash", TestContext.Current.CancellationToken));
+        Assert.Equal("new-hash", (await users.FindByIdAsync(user.Id, TestContext.Current.CancellationToken))!.PasswordHash);
+    }
+
+    [Fact]
+    public async Task LoginLinksWorkOnceBeforeTheyExpire()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var schema = Schema(dataSource);
+        var user = (await new PostgresUserStore(dataSource, schema).CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken))!;
+        var links = new PostgresLoginLinkStore(dataSource, schema);
+        var now = new DateTimeOffset(2026, 10, 5, 10, 0, 0, TimeSpan.Zero);
+        byte[] link = [1, 2, 3];
+        byte[] expiring = [4, 5, 6];
+
+        await links.CreateAsync(link, user.Id, "A1", now.AddMinutes(2), TestContext.Current.CancellationToken);
+        await links.CreateAsync(expiring, user.Id, null, now.AddMinutes(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(new LoginLink(user.Id, "A1"), await links.UseAsync(link, now, TestContext.Current.CancellationToken));
+        Assert.Null(await links.UseAsync(link, now, TestContext.Current.CancellationToken));
+        Assert.Null(await links.UseAsync(expiring, now.AddMinutes(2), TestContext.Current.CancellationToken));
+        Assert.Null(await links.UseAsync([9, 9, 9], now, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task LinksThatExpiredLongAgoAreRemovedWhenNewOnesAreMade()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var schema = Schema(dataSource);
+        var user = (await new PostgresUserStore(dataSource, schema).CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken))!;
+        var links = new PostgresLoginLinkStore(dataSource, schema);
+        var now = new DateTimeOffset(2026, 10, 5, 10, 0, 0, TimeSpan.Zero);
+
+        await links.CreateAsync([1], user.Id, null, now.AddDays(-2), TestContext.Current.CancellationToken);
+        await links.CreateAsync([2], user.Id, null, now.AddHours(-1), TestContext.Current.CancellationToken);
+        await links.CreateAsync([3], user.Id, null, now.AddMinutes(2), TestContext.Current.CancellationToken);
+
+        await using var count = dataSource.CreateCommand("select count(*) from login_links");
+        Assert.Equal(2L, (long)(await count.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+    }
+
     private static DatabaseSchema Schema(NpgsqlDataSource dataSource) => new(dataSource, NullLogger<DatabaseSchema>.Instance);
 
     private async Task<NpgsqlDataSource> CreateDatabaseAsync() => NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());

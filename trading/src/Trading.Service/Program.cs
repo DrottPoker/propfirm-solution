@@ -33,6 +33,14 @@ builder.Services.AddOptions<TradingOptions>().Bind(builder.Configuration.GetSect
 builder.Services.AddOptions<SyntheticFeedOptions>().Bind(builder.Configuration.GetSection(SyntheticFeedOptions.SectionName));
 builder.Services.AddOptions<RealtimeOptions>().Bind(builder.Configuration.GetSection(RealtimeOptions.SectionName));
 builder.Services.AddOptions<JournalOptions>().Bind(builder.Configuration.GetSection(JournalOptions.SectionName));
+var terminalOptions = builder.Services.AddOptions<TerminalOptions>()
+    .Bind(builder.Configuration.GetSection(TerminalOptions.SectionName))
+    .Validate(o => o.Url is { IsAbsoluteUri: true }, "Terminal:Url must be the absolute address of the terminal, for login links.");
+if (!isOpenApiGeneration)
+{
+    terminalOptions.ValidateOnStart();
+}
+
 builder.Services.AddOptions<PriceFeedOptions>()
     .Bind(builder.Configuration.GetSection(PriceFeedOptions.SectionName))
     .Validate(
@@ -56,6 +64,7 @@ builder.Services.AddSingleton<DatabaseSchema>();
 builder.Services.AddSingleton<IEngineJournal, PostgresEngineJournal>();
 builder.Services.AddSingleton<IUserStore, PostgresUserStore>();
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
+builder.Services.AddSingleton<ILoginLinkStore, PostgresLoginLinkStore>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddSingleton(sp => new TenantCatalog(
     sp.GetRequiredService<IConfiguration>().GetSection(TenantOptions.SectionName).Get<List<TenantOptions>>() ?? [],

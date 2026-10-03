@@ -1,18 +1,15 @@
 # Kontrakt
 
-Det enda handelsplattformen och propfirm-plattformen delar: det interna API:t och händelserna mellan dem. Se [ADR 0004](../docs/adr/0004-kontrakt-mellan-produkterna.md).
-
-Planerad struktur:
+Det enda handelsplattformen och propfirm-plattformen delar. Se [ADR 0012](../docs/adr/0012-publikt-admin-api-som-kontrakt.md).
 
 ```
 contracts/
-└── proto/
-    └── trading/
-        └── v1/        # första versionen av kontraktet mot handelsplattformen
+└── trading/
+    └── trading-service.json   # OpenAPI för handelstjänsten, med admin-API:t under /api/admin/v1
 ```
 
 Regler:
 
+- Dokumentet genereras när handelstjänsten byggs. Ändra det aldrig för hand. CI kontrollerar att det är committat.
 - Kontraktet får inte använda kod från någon produkt.
-- Ändringar som bryter kontraktet kräver en ny version (`v2`).
-- buf läggs till i CI när den första `.proto`-filen skrivs.
+- Admin-API:t är det firmornas system och propfirm-plattformen bygger på. Ändringar som bryter mot det kräver en ny version (`/api/admin/v2`).

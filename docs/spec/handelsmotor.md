@@ -13,6 +13,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 - `TradingEngine.Apply(EngineInput)` tar emot en indata och returnerar händelserna den orsakade, i ordning. Ogiltig indata ger händelsen `InputRejected` med en orsak. Motorn kastar aldrig undantag för ogiltig indata.
 - `TradingEngine.GetAccount(id)` returnerar kontot värderat till senaste priser. För varje golv anges `Headroom`, alltså equity minus golvets nivå.
 - `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag, och `GetLatestQuotes()` de senaste råa priserna.
+- `TradingEngine.GetGroupId(accountId)` returnerar kontots grupp utan att värdera kontot.
 - `TradingEngine.ExportState()` och `TradingEngine.FromState(configuration, state)` exporterar och återställer hela tillståndet. En återställd motor ger exakt samma händelser som originalet för samma indata.
 - Händelser och kommandon som hör till ett konto är märkta med `IAccountEvent` och `IAccountCommand`, så att tjänsten kan fördela dem per konto.
 - Motorn är inte trådsäker. Indata ska tillämpas en i taget och i tur och ordning.
@@ -105,6 +106,7 @@ När marginalnivån (equity / använd marginal × 100) faller under gruppens niv
 - Ett konto kan ha flera golv med var sitt namn, till exempel `daily` och `max-loss`. Motorn känner inte till propfirm-begrepp. Regelmotorn i propfirm-plattformen sätter golven.
 - **Fast golv:** en nivå i kontovalutan.
 - **Släpande golv:** följer den högsta equity som observerats, minus ett avstånd. Golvet slutar stiga vid en valfri låsnivå och sjunker aldrig. Den högsta equityn startar från equity när golvet sätts.
+- **Förankrat golv (`AnchoredFloor`):** ett avstånd under kontot som det är när golvet sätts, antingen saldot eller det högsta av saldo och equity. Nivån ligger sedan fast. Sätts det om vid varje ny handelsdag blir det en gräns för daglig förlust, där nivån tas i samma steg som priserna. Från saldot räknas öppna förluster mot den nya nivån.
 - **Brott:** equity strikt under golvets nivå. Equity exakt på nivån är tillåten.
 - Vid brott sparas bevisen i händelsen. Därefter stängs alla positioner till senaste pris, alla ordrar tas bort och kontot stängs av. Golven kontrolleras i bokstavsordning efter namn, och det första som bryts anges.
 - Ett golv som sätts över nuvarande equity bryts direkt.

@@ -9,7 +9,7 @@
     "lint": "eslint --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "generate:api": "openapi-typescript openapi/trading-service.json --output src/lib/api/schema.ts",
+    "generate:api": "openapi-typescript ../../contracts/trading/trading-service.json --output src/lib/api/schema.ts",
     "e2e": "node e2e/prepare-database.mjs && playwright test"
   },
   "dependencies": {

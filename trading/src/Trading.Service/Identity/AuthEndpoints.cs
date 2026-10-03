@@ -21,6 +21,7 @@ internal static class AuthEndpoints
     {
         var auth = app.MapGroup("/api/auth").WithTags("Auth");
         auth.MapPost("/login", LoginAsync).RequireRateLimiting(LoginRateLimit);
+        auth.MapPost("/link", LinkLoginAsync).RequireRateLimiting(LoginRateLimit);
         auth.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)LogoutAsync);
         auth.MapGet("/me", MeAsync).RequireAuthorization();
         app.MapGet("/api/servers", GetServers).WithTags("Auth");
@@ -43,16 +44,45 @@ internal static class AuthEndpoints
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Wrong server, email or password.");
         }
 
+        await SignInAsync(context, user);
+        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
+    }
+
+    /// <summary>Logs in with a one-time link from the firm's portal, created through the admin API.</summary>
+    private static async Task<Results<Ok<MeResponse>, ProblemHttpResult>> LinkLoginAsync(
+        LinkLoginRequest request,
+        HttpContext context,
+        TenantCatalog tenants,
+        IUserStore users,
+        ILoginLinkStore links,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var link = string.IsNullOrEmpty(request.Token)
+            ? null
+            : await links.UseAsync(LoginLinkTokens.Hash(request.Token), time.GetUtcNow(), cancellationToken);
+        if (link is null
+            || await users.FindByIdAsync(link.UserId, cancellationToken) is not { } user
+            || tenants.ById(user.TenantId) is not { } tenant)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "The link has expired or was already used.");
+        }
+
+        await SignInAsync(context, user);
+        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
+    }
+
+    private static Task SignInAsync(HttpContext context, User user)
+    {
         Claim[] claims =
         [
             new(CurrentUser.UserIdClaim, user.Id.ToString()),
             new(CurrentUser.TenantIdClaim, user.TenantId),
             new(ClaimTypes.Email, user.Email),
         ];
-        await context.SignInAsync(
+        return context.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
-        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
     }
 
     private static async Task<NoContent> LogoutAsync(HttpContext context)
@@ -85,6 +115,9 @@ internal static class AuthEndpoints
 
 /// <summary>Server is the id of the firm's server, as in MetaTrader.</summary>
 public sealed record LoginRequest(string? Server, string? Email, string? Password);
+
+/// <summary>The token from a login link.</summary>
+public sealed record LinkLoginRequest(string? Token);
 
 /// <summary>A firm's server: the id traders log in with and the firm's name.</summary>
 public sealed record ServerInfo(string Id, string Name);

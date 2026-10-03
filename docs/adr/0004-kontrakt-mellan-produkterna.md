@@ -1,6 +1,6 @@
 # 0004. Protobuf för kontraktet mellan produkterna
 
-- Status: Föreslagen
+- Status: Ersatt av [0012](0012-publikt-admin-api-som-kontrakt.md)
 - Datum: 2026-10-02
 
 ## Sammanhang

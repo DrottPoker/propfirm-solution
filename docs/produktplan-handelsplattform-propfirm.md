@@ -273,7 +273,7 @@ payout.requested     tradern vill ta ut sin vinst
 
 ## Gränssnitt mellan produkterna
 
-- Handelsplattformen erbjuder ett internt API med ett fåtal funktioner: skapa och stänga konton, sätta gränser och skicka händelser om affärer och kontovärde.
+- Handelsplattformen erbjuder ett publikt admin-API som alla firmors system kan använda: skapa traders och konton, sätta golv, stänga konton, skapa inloggningslänkar och läsa firmans händelser i ordning (ADR 0012). Propfirm-plattformen använder samma API som andra kunder.
 - Propfirm-plattformen pratar med handelsplattformen genom en adapter. Samma adaptergränssnitt kan senare användas mot Match-Trader, cTrader eller DXtrade.
 - Det gör att produkterna kan byggas och testas var för sig och säljas separat.
 - Under utvecklingen kan en låtsasversion av handelsplattformen skicka påhittade händelser, så att regelmotorn kan byggas och testas fristående.
@@ -295,8 +295,8 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Backend (handelsmotor, regelmotor och API):** C# på .NET 10 med Postgres. Inbyggda decimaltal gör pengaberäkningarna exakta (ADR 0002).
 - **Inloggning:** handelsplattformen har egna användare per firma, så samma e-postadress kan finnas hos flera firmor. Tradern väljer firmans server när den loggar in (ADR 0009).
 - **Handelsmotor och regelmotor:** egna tjänster som körs hela tiden, inte serverless, eftersom de håller öppna anslutningar och aktuellt tillstånd i minnet. Kärnan i handelsmotorn är deterministisk (ADR 0005) och beskrivs i [specen för handelsmotorn](spec/handelsmotor.md).
-- **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. NATS JetStream för händelser mellan tjänsterna. Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
-- **Kontrakt mellan produkterna:** protobuf, med gRPC för kommandon och NATS för händelser (ADR 0004).
+- **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. Händelser mellan produkterna läses från handelsplattformens händelseström (ADR 0012). Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
+- **Kontrakt mellan produkterna:** handelsplattformens publika admin-API under `/api/admin/v1`. OpenAPI-dokumentet i `contracts/` är kontraktet (ADR 0012).
 - **Terminalen och handelstjänsten:** REST för kommandon och SignalR för realtid. Gränssnittet räknar aldrig pengar (ADR 0006, [specen för handelstjänsten](spec/handelstjanst.md)).
 - **Historik och analys:** Postgres till att börja med, TimescaleDB eller ClickHouse senare.
 - **Pengar:** belopp sparas som heltal eller decimaltal, aldrig som flyttal. Avgifter och utbetalningar bokförs i en huvudbok där rader bara läggs till.

@@ -103,7 +103,7 @@ public sealed class TradingApiTests
 
         // Spread and commission put equity below the starting balance, so this floor is already breached
         var response = await client.PutJsonAsync(
-            $"/api/admin/accounts/{AccountId}/floors/max-loss",
+            $"/api/admin/v1/accounts/{AccountId}/floors/max-loss",
             new { rule = new { kind = "FixedFloor", level = 100_000m } });
 
         Assert.Equal(

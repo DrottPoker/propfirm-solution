@@ -56,6 +56,35 @@
         }
       }
     },
+    "/api/auth/link": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "tags": [
@@ -459,7 +488,7 @@
         }
       }
     },
-    "/api/admin/users": {
+    "/api/admin/v1/users": {
       "post": {
         "tags": [
           "Admin"
@@ -486,9 +515,114 @@
             }
           }
         }
+      },
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/api/admin/accounts": {
+    "/api/admin/v1/users/{userId}/password": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/admin/v1/users/{userId}/login-links": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CreateLoginLinkRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts": {
       "post": {
         "tags": [
           "Admin"
@@ -517,7 +651,36 @@
         }
       }
     },
-    "/api/admin/accounts/{accountId}/floors/{floorId}": {
+    "/api/admin/v1/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountSnapshot"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts/{accountId}/floors/{floorId}": {
       "put": {
         "tags": [
           "Admin"
@@ -599,7 +762,7 @@
         }
       }
     },
-    "/api/admin/accounts/{accountId}/close": {
+    "/api/admin/v1/accounts/{accountId}/close": {
       "post": {
         "tags": [
           "Admin"
@@ -621,6 +784,54 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/events": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmEventsResponse"
                 }
               }
             }
@@ -806,6 +1017,21 @@
           }
         },
         "description": "Creates a trading account owned by a user of the same firm."
+      },
+      "CreateLoginLinkRequest": {
+        "required": [
+          "accountId"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A login link for the user. With an account id, the terminal opens that account."
       },
       "CreateUserRequest": {
         "required": [
@@ -1750,6 +1976,9 @@
         "type": "object",
         "anyOf": [
           {
+            "$ref": "#/components/schemas/EquityFloorRuleAnchoredFloor"
+          },
+          {
             "$ref": "#/components/schemas/EquityFloorRuleFixedFloor"
           },
           {
@@ -1760,10 +1989,33 @@
         "discriminator": {
           "propertyName": "kind",
           "mapping": {
+            "AnchoredFloor": "#/components/schemas/EquityFloorRuleAnchoredFloor",
             "FixedFloor": "#/components/schemas/EquityFloorRuleFixedFloor",
             "TrailingFloor": "#/components/schemas/EquityFloorRuleTrailingFloor"
           }
         }
+      },
+      "EquityFloorRuleAnchoredFloor": {
+        "required": [
+          "distance",
+          "anchor"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AnchoredFloor"
+            ],
+            "type": "string"
+          },
+          "distance": {
+            "type": "number",
+            "format": "double"
+          },
+          "anchor": {
+            "$ref": "#/components/schemas/FloorAnchor"
+          }
+        },
+        "description": "A floor Distance below the account as it is when the floor is set: its balance, or\r\nthe higher of balance and equity. The level then stays fixed. Setting it again at the start of every\r\ntrading day gives a daily loss limit, with the level taken in the same step as the prices."
       },
       "EquityFloorRuleFixedFloor": {
         "required": [
@@ -1824,6 +2076,33 @@
           }
         },
         "description": "An engine event with a sequence number that orders all events in the service."
+      },
+      "FirmEventsResponse": {
+        "required": [
+          "events",
+          "cursor"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventEnvelope"
+            }
+          },
+          "cursor": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "description": "The firm's events in order. Ask again with `after` set to Cursor for the next ones."
+      },
+      "FloorAnchor": {
+        "enum": [
+          "Balance",
+          "HigherOfBalanceAndEquity"
+        ],
+        "description": "What an AnchoredFloor is measured from when it is set."
       },
       "FloorSnapshot": {
         "required": [
@@ -1915,6 +2194,39 @@
           }
         },
         "description": "An instrument as one group trades it."
+      },
+      "LinkLoginRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The token from a login link."
+      },
+      "LoginLinkResponse": {
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Open Url once before ExpiresAt to be logged in to the terminal."
       },
       "LoginRequest": {
         "required": [
@@ -2224,6 +2536,20 @@
         "properties": {
           "rule": {
             "$ref": "#/components/schemas/EquityFloorRule"
+          }
+        }
+      },
+      "SetPasswordRequest": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },

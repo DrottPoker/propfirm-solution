@@ -12,7 +12,7 @@ Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbe
 ```
 propfirm-solution/
 ├── docs/                 # produktplan, arkitekturbeslut (ADR) och specar
-├── contracts/            # kontraktet mellan produkterna, det enda de delar
+├── contracts/            # kontraktet mellan produkterna, det enda de delar: handelstjänstens OpenAPI
 ├── trading/              # Produkt 1: handelsplattformen
 │   ├── src/
 │   │   ├── Trading.Engine/    # deterministisk kärna, ingen I/O
@@ -107,7 +107,7 @@ Lokalt finns firman `demo-firm` (servern Demo Firm) med API-nyckeln `dev-admin-k
 Skapa en egen trader med firmans nyckel:
 
 ```bash
-curl -X POST http://localhost:5101/api/admin/users -H "X-Api-Key: dev-admin-key" -H "Content-Type: application/json" -d "{\"email\":\"me@example.com\",\"password\":\"my-password-1\"}"
+curl -X POST http://localhost:5101/api/admin/v1/users -H "X-Api-Key: dev-admin-key" -H "Content-Type: application/json" -d "{\"email\":\"me@example.com\",\"password\":\"my-password-1\"}"
 ```
 
 Alla vägar finns i OpenAPI-dokumentet på http://localhost:5101/openapi/v1.json och i [specen för handelstjänsten](docs/spec/handelstjanst.md).
@@ -157,7 +157,7 @@ pnpm --filter @trading/terminal e2e
 
 ## När API:t ändras
 
-Handelstjänsten skriver OpenAPI-dokumentet till `trading/terminal/openapi/` när den byggs. Generera sedan terminalens typer:
+Handelstjänsten skriver OpenAPI-dokumentet till `contracts/trading/` när den byggs. Det är kontraktet mot firmornas system och propfirm-plattformen (ADR 0012). Generera sedan terminalens typer:
 
 ```bash
 pnpm generate:api

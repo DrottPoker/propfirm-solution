@@ -39,6 +39,15 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
     public Task<User?> FindByIdAsync(Guid userId, CancellationToken cancellationToken) =>
         FindAsync("select id, tenant_id, email, password_hash from users where id = $1", [userId], cancellationToken);
 
+    public async Task<bool> SetPasswordHashAsync(Guid userId, string passwordHash, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update users set password_hash = $2 where id = $1");
+        command.Parameters.AddWithValue(userId);
+        command.Parameters.AddWithValue(passwordHash);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
     public async Task<bool> AddAccountAsync(Guid userId, string accountId, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

@@ -154,7 +154,7 @@ public sealed class RecoveryTests
         var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         await client.PostJsonAsync($"/api/accounts/{AccountId}/orders", new { orderId = "O1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m });
-        await client.PutJsonAsync($"/api/admin/accounts/{AccountId}/floors/max-loss", new { rule = new { kind = "FixedFloor", level = 90_000m } });
+        await client.PutJsonAsync($"/api/admin/v1/accounts/{AccountId}/floors/max-loss", new { rule = new { kind = "FixedFloor", level = 90_000m } });
         return client;
     }
 }

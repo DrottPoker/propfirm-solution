@@ -25,8 +25,8 @@ Den första versionen avgjorde firman av adressen tradern gick till, med firmans
 
 ## Konsekvenser
 
-- Propfirm-plattformen skapar traders och konton via admin-API:t och visar inloggningsuppgifterna och servern i portalen. Senare behövs en engångsinloggning, så att en trader kan gå från portalen till terminalen utan att logga in igen.
+- Propfirm-plattformen skapar traders och konton via admin-API:t och visar inloggningsuppgifterna och servern i portalen. Med en engångslänk från admin-API:t går tradern från portalen till terminalen utan att logga in igen (ADR 0012).
 - Listan över servrar visar vilka firmor som använder plattformen. Det är normalt för MetaTrader och TradeLocker. Med många firmor behövs sökning i stället för en lista.
 - En trader hos flera firmor loggar in en gång per firma.
 - Tjänsten kör fortfarande bara i miljön Development. Innan den kan köras i produktion behövs HTTPS, hantering av hemligheter och ett prisflöde med licens.
-- Byte av lösenord och återställning av lösenord finns inte än.
+- Tradern kan inte själv byta eller återställa lösenordet än. Firmans system kan byta det via admin-API:t.

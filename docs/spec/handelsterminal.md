@@ -12,6 +12,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 - **Vårt eget utseende.** Terminalen är vårt varumärke och inte white label (ADR 0009). Namnet finns på ett ställe, `productName` i `src/lib/config.ts`, tills produkten har fått sitt namn.
 - **Inloggning** på `/login` med server, e-post och lösenord, som i MetaTrader och TradeLocker. Tradern får uppgifterna från firmans portal. Servrarna hämtas från `GET /api/servers` och visas med firmans namn.
+- **Inloggning med länk** på `/login/link?token=...&account=...`. Firmans portal skapar länken via admin-API:t. Länken fungerar en gång i 2 minuter, tas bort ur adressen när den har använts, och sidan skickar ingen referer.
 - **Vald server:** i första hand den i länken från firmans portal (`/login?server=nordic-prop`), sedan den som senast användes på enheten och annars den enda som finns.
 - **Spärr:** den som inte är inloggad skickas till `/login`.
 - **Konto:** terminalen visar det första kontot tradern äger, eller det som anges med `?account=` om tradern äger det.
@@ -56,7 +57,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Typer från API:t
 
-1. Handelstjänsten genererar `trading/terminal/openapi/trading-service.json` när den byggs.
+1. Handelstjänsten genererar kontraktet `contracts/trading/trading-service.json` när den byggs.
 2. `pnpm generate:api` genererar `src/lib/api/schema.ts` från dokumentet.
 3. CI kontrollerar att båda filerna är committade och aktuella. En ändring i API:t som inte når terminalen stoppas alltså i CI.
 
@@ -77,5 +78,5 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 ## Tester
 
 - Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser och vilken server som väljs (`pnpm test`).
-- Tester av hela flödet med Playwright (`pnpm e2e`): spärren och inloggningssidan med vald server, fel lösenord, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
+- Tester av hela flödet med Playwright (`pnpm e2e`): spärren och inloggningssidan med vald server, fel lösenord, inloggning med länk från portalen, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
 - Lint, typkontroll och bygge i CI.

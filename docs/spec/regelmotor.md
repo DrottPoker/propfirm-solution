@@ -104,6 +104,6 @@ Testerna ligger i `prop/tests/Prop.Rules.Tests`:
 
 ## Begränsningar
 
-- Handelsplattformen saknar än golvet som räknas från dagens startpunkt (fas 4b).
+- Tjänsten som kopplar regelmotorn till handelsplattformen byggs i fas 4c. Den gör `StartOfDayFloor` till handelsplattformens `AnchoredFloor`.
 - Ingen regel för jämna resultat, inaktivitet eller nyhetshandel än.
 - Utbetalningar och skalning av funded-konton kommer senare.

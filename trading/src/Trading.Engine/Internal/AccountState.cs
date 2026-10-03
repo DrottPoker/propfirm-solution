@@ -86,7 +86,8 @@ internal sealed class OrderState(
     public DateTimeOffset PlacedTime { get; } = placedTime;
 }
 
-internal sealed class FloorState(string id, EquityFloorRule rule, decimal highWaterMark)
+/// <summary><paramref name="anchor"/> is the starting point of an <see cref="AnchoredFloor"/>, taken when it was set.</summary>
+internal sealed class FloorState(string id, EquityFloorRule rule, decimal highWaterMark, decimal? anchor)
 {
     public string Id { get; } = id;
 
@@ -94,11 +95,14 @@ internal sealed class FloorState(string id, EquityFloorRule rule, decimal highWa
 
     public decimal HighWaterMark { get; private set; } = highWaterMark;
 
+    public decimal? Anchor { get; } = anchor;
+
     public decimal Level => Rule switch
     {
         FixedFloor fixedFloor => fixedFloor.Level,
         TrailingFloor { LockLevel: { } lockLevel } trailing => Math.Min(HighWaterMark - trailing.Distance, lockLevel),
         TrailingFloor trailing => HighWaterMark - trailing.Distance,
+        AnchoredFloor anchored => Anchor!.Value - anchored.Distance,
         _ => throw new InvalidOperationException($"Unknown floor rule {Rule.GetType().Name}."),
     };
 

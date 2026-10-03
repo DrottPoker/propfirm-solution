@@ -10,6 +10,9 @@ public interface IUserStore
 
     Task<User?> FindByIdAsync(Guid userId, CancellationToken cancellationToken);
 
+    /// <summary>Replaces the password. Returns false if the user does not exist.</summary>
+    Task<bool> SetPasswordHashAsync(Guid userId, string passwordHash, CancellationToken cancellationToken);
+
     /// <summary>Records the owner of a new account. Returns false if the account already has an owner.</summary>
     Task<bool> AddAccountAsync(Guid userId, string accountId, CancellationToken cancellationToken);
 

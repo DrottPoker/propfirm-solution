@@ -98,20 +98,14 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         if (batch.Events.Count > 0)
         {
             await using var importer = await connection.BeginBinaryImportAsync(
-                "copy engine_events (sequence, account_id, kind, occurred_at, payload) from stdin (format binary)",
+                "copy engine_events (sequence, account_id, group_id, kind, occurred_at, payload) from stdin (format binary)",
                 cancellationToken);
-            foreach (var (sequence, engineEvent) in batch.Events)
+            foreach (var ((sequence, engineEvent), groupId) in batch.Events)
             {
                 await importer.StartRowAsync(cancellationToken);
                 await importer.WriteAsync(sequence, NpgsqlDbType.Bigint, cancellationToken);
-                if (EventLog.AccountIdOf(engineEvent) is { } accountId)
-                {
-                    await importer.WriteAsync(accountId, NpgsqlDbType.Text, cancellationToken);
-                }
-                else
-                {
-                    await importer.WriteNullAsync(cancellationToken);
-                }
+                await WriteNullableTextAsync(importer, EventLog.AccountIdOf(engineEvent), cancellationToken);
+                await WriteNullableTextAsync(importer, groupId, cancellationToken);
 
                 await importer.WriteAsync(engineEvent.GetType().Name, NpgsqlDbType.Text, cancellationToken);
                 await importer.WriteAsync(engineEvent.Timestamp, NpgsqlDbType.TimestampTz, cancellationToken);
@@ -168,6 +162,24 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         return events;
     }
 
+    public async Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            "select sequence, payload from engine_events where group_id = any($1) and sequence > $2 order by sequence limit $3");
+        command.Parameters.AddWithValue(groupIds.ToArray());
+        command.Parameters.AddWithValue(afterSequence);
+        command.Parameters.AddWithValue(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var events = new List<EventEnvelope>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
+        }
+
+        return events;
+    }
+
     public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand(
@@ -184,6 +196,18 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
     {
         await using var command = dataSource.CreateCommand(sql);
         return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    private static async Task WriteNullableTextAsync(NpgsqlBinaryImporter importer, string? value, CancellationToken cancellationToken)
+    {
+        if (value is null)
+        {
+            await importer.WriteNullAsync(cancellationToken);
+        }
+        else
+        {
+            await importer.WriteAsync(value, NpgsqlDbType.Text, cancellationToken);
+        }
     }
 
     private static T Deserialize<T>(string json) =>

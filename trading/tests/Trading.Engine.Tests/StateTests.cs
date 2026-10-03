@@ -32,6 +32,7 @@ public sealed class StateTests
         engine.Apply(new CreateAccount(t, "A1", "standard", 100_000m));
         engine.Apply(new Quote(t, "EURUSD", 1.08000m, 1.08010m));
         engine.Apply(new SetEquityFloor(t, "A1", "max-loss", new TrailingFloor(5_000m, LockLevel: 100_000m)));
+        engine.Apply(new SetEquityFloor(t, "A1", "daily", new AnchoredFloor(5_000m, FloorAnchor.HigherOfBalanceAndEquity)));
         engine.Apply(new PlaceOrder(t, "A1", "O1", "EURUSD", Side.Buy, OrderType.Market, 1.00m, null, 1.07000m, null));
         engine.Apply(new PlaceOrder(t, "A1", "O2", "EURUSD", Side.Sell, OrderType.Limit, 0.50m, 1.09000m));
 

@@ -45,4 +45,5 @@ public sealed record OrderRecord(
     decimal? TakeProfit,
     DateTimeOffset PlacedTime);
 
-public sealed record FloorRecord(string FloorId, EquityFloorRule Rule, decimal HighWaterMark);
+/// <summary><paramref name="Anchor"/> is set for an <see cref="AnchoredFloor"/> only.</summary>
+public sealed record FloorRecord(string FloorId, EquityFloorRule Rule, decimal HighWaterMark, decimal? Anchor = null);

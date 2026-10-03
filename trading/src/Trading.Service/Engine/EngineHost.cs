@@ -309,14 +309,18 @@ internal sealed partial class EngineHost : BackgroundService
         var envelopes = new List<EventEnvelope>(events.Count);
         foreach (var engineEvent in events)
         {
-            envelopes.Add(new EventEnvelope(++_eventSequence, engineEvent));
+            var envelope = new EventEnvelope(++_eventSequence, engineEvent);
+            envelopes.Add(envelope);
+
+            // The group never changes, so it is taken once, here, where the engine is at hand.
+            var groupId = EventLog.AccountIdOf(engineEvent) is { } accountId ? _engine.GetGroupId(accountId) : null;
+            _pending.Events.Add(new JournaledEvent(envelope, groupId));
             if (engineEvent is InputRejected { Input: Quote quote } rejected)
             {
                 LogQuoteRejected(_logger, quote.Symbol, quote.Bid, quote.Ask, rejected.Reason);
             }
         }
 
-        _pending.Events.AddRange(envelopes);
         if (envelopes.Count > 0)
         {
             _pending.WhenStored(() => _eventLog.Publish(envelopes), static _ => { });
@@ -408,7 +412,7 @@ internal sealed partial class EngineHost : BackgroundService
 
         public List<JournaledInput> Inputs { get; } = [];
 
-        public List<EventEnvelope> Events { get; } = [];
+        public List<JournaledEvent> Events { get; } = [];
 
         public JournalSnapshot? Snapshot { get; set; }
 
