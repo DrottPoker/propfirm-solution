@@ -48,13 +48,14 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 | Candles | `GET /candles/{symbol}` | Vid byte av symbol eller tidsram. Den senaste candlen uppdateras med livepriser. |
 | Priser | SignalR `Prices` | Högst var 100:e ms |
 | Kontot | SignalR `Account` | Högst var 250:e ms |
-| Händelser | `GET /events` vid start, därefter SignalR `Events` | Direkt |
+| Händelser | De senaste 1 000 från `GET /events` vid start, därefter SignalR `Events` | Direkt |
 | Kommandon | `POST /orders`, `DELETE /orders/{id}`, `POST /positions/{id}/close`, `PUT /positions/{id}/stops` | Svaret innehåller händelserna |
 
 - **Gränssnittet räknar aldrig pengar.** Equity, vinst, marginal och avståndet till golven kommer från motorn och visas som de är.
 - **Inmatning kontrolleras innan den skickas.** Priser får inte ha fler decimaler än instrumentet, och volymen ska följa instrumentets gränser och steg. Motorn kontrollerar allt igen.
 - **Order-id skapas i webbläsaren** (UUID), så att ett anrop som skickas igen inte kan lägga ordern två gånger.
-- **Återanslutning:** SignalR återansluter automatiskt. Efter en återanslutning hämtas de händelser som missades via `GET /events?after=`. Om tjänsten inte går att nå vid start försöker terminalen igen varannan sekund.
+- **Händelser:** terminalen behåller kontots senaste 1 000 händelser. Vid start hämtas de senaste, så historiken och händelserna visar alltid det som hänt sist, också på konton med fler händelser.
+- **Återanslutning:** SignalR återansluter automatiskt. Efter en återanslutning hämtas det som missades med `GET /events?after=`, räknat från den senaste händelsen som terminalen vet att den har allt fram till. Svar på kommandon räknas inte, eftersom de kan komma före tidigare händelser i realtid. Har fler än 1 000 händelser missats hämtas de senaste 1 000 i stället för att bläddra igenom resten, eftersom terminalen ändå bara behåller så många. En hämtning som misslyckas görs om varannan sekund. Om tjänsten inte går att nå vid start försöker terminalen igen varannan sekund.
 
 ## Typer från API:t
 
@@ -78,6 +79,6 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Tester
 
-- Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser och vilken server som väljs (`pnpm test`).
+- Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser, hämtning av händelser vid start och efter återanslutning, och vilken server som väljs (`pnpm test`).
 - Tester av hela flödet med Playwright (`pnpm e2e`): spärren och inloggningssidan med vald server, fel lösenord, inloggning med länk från portalen, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
 - Lint, typkontroll och bygge i CI.

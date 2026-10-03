@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, queryResult } from "./api/client";
-import type { CommandResponse, PlaceOrderRequest, Timeframe } from "./api/types";
+import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
+import type { EventQuery } from "./eventSync";
 import { useTradingStore } from "./store";
 
 const accountPath = (accountId: string) => ({ params: { path: { accountId } } });
@@ -114,13 +115,9 @@ export function useCandles(accountId: string, symbol: string | null, timeframe: 
   });
 }
 
-/** Loads event history into the store, from after the given sequence number. */
-export async function loadEvents(accountId: string, after: number): Promise<void> {
-  const events = queryResult(
-    await api.GET("/api/accounts/{accountId}/events", { params: { path: { accountId }, query: { after, limit: 1_000 } } }),
-    "events",
-  );
-  useTradingStore.getState().addEvents(events);
+/** A page of the account's events, oldest first. Kept in the store by the realtime connection. */
+export async function fetchEvents(accountId: string, query: EventQuery): Promise<EventEnvelope[]> {
+  return queryResult(await api.GET("/api/accounts/{accountId}/events", { params: { path: { accountId }, query } }), "events");
 }
 
 // Commands add their events to the store right away. The same events also arrive in realtime and are merged.

@@ -4,7 +4,8 @@ import type { AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
 
 export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
-const maxEvents = 1_000;
+/** The latest events the store keeps. Also the most the service returns in one call, so one call can fill the store. */
+export const maxEvents = 1_000;
 
 interface TradingState {
   connection: ConnectionState;
@@ -15,7 +16,7 @@ interface TradingState {
   setConnection: (connection: ConnectionState) => void;
   setAccount: (account: AccountSnapshot) => void;
   applyPrices: (prices: SymbolPrice[]) => void;
-  addEvents: (events: EventEnvelope[]) => void;
+  addEvents: (events: readonly EventEnvelope[]) => void;
   reset: () => void;
 }
 
@@ -40,7 +41,7 @@ export const useTradingStore = create<TradingState>()((set) => ({
 }));
 
 /** Merges events from the REST API and realtime, which can overlap or arrive out of order. */
-export function mergeEvents(current: EventEnvelope[], incoming: EventEnvelope[]): EventEnvelope[] {
+export function mergeEvents(current: EventEnvelope[], incoming: readonly EventEnvelope[]): EventEnvelope[] {
   if (incoming.length === 0) {
     return current;
   }

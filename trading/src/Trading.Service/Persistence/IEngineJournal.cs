@@ -25,8 +25,11 @@ public interface IEngineJournal
     /// <summary>Stores the batch atomically: all of it or nothing.</summary>
     Task AppendAsync(JournalBatch batch, CancellationToken cancellationToken);
 
-    /// <summary>The account's events after the sequence number, oldest first.</summary>
+    /// <summary>The account's first events after the sequence number, oldest first.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadEventsAsync(string accountId, long afterSequence, int limit, CancellationToken cancellationToken);
+
+    /// <summary>The account's last events before the sequence number, oldest first.</summary>
+    Task<IReadOnlyList<EventEnvelope>> ReadEventsBeforeAsync(string accountId, long beforeSequence, int limit, CancellationToken cancellationToken);
 
     /// <summary>Events of accounts in the groups after the sequence number, oldest first. A firm reads its own groups.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken);

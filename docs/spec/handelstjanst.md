@@ -91,7 +91,7 @@ Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är 
 | `GET /instruments` | Gruppens instrument med villkor: hävstång, påslag och provision. |
 | `GET /prices` | Senaste priser efter påslag. |
 | `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. |
-| `GET /events?after={sequence}&limit=500` | Kontots händelser efter ett sekvensnummer. Högst 1 000 per anrop. |
+| `GET /events?limit=500` | Kontots senaste händelser, äldst först. Med `after={sequence}` i stället de första efter sekvensnumret, för att hämta ikapp efter en återanslutning. Med `before={sequence}` de sista före sekvensnumret, för att bläddra bakåt. `after` och `before` tillsammans svarar 422. Högst 1 000 per anrop. |
 | `POST /orders` | Lägger en order. Klienten skapar order-id:t. |
 | `DELETE /orders/{orderId}` | Tar bort en väntande order. |
 | `POST /positions/{positionId}/close` | Stänger en position. |
@@ -186,4 +186,4 @@ De flesta tester använder en journal i minnet som går via JSON som i Postgres.
 
 `AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
 
-`PostgresJournalTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.
+`PostgresJournalTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.

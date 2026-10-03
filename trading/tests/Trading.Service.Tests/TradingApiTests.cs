@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 
 using Trading.Service.Tests.Support;
 
@@ -8,6 +9,7 @@ public sealed class TradingApiTests
 {
     private const string AccountId = "T1";
     private const string Orders = $"/api/accounts/{AccountId}/orders";
+    private const string Events = $"/api/accounts/{AccountId}/events";
 
     [Fact]
     public async Task MarketOrderFillsAtTheAskTheAccountSees()
@@ -43,6 +45,39 @@ public sealed class TradingApiTests
 
         var afterFirst = await client.GetJsonAsync($"/api/accounts/{AccountId}/events?after={sequences[0]}");
         Assert.Equal(2, afterFirst.GetArrayLength());
+    }
+
+    // A terminal starts from the latest events, catches up with after and can page back with before.
+    [Fact]
+    public async Task EventsStartFromTheLatestAndPageBothWays()
+    {
+        using var factory = new ServiceFactory();
+        using var client = await factory.CreateTraderClientAsync(AccountId);
+        await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
+        await client.PostJsonAsync(Orders, MarketBuy("O1"));
+        await client.PostJsonAsync($"/api/accounts/{AccountId}/positions/O1/close");
+        await client.PostJsonAsync(Orders, MarketBuy("O2"));
+        var all = Sequences(await client.GetJsonAsync($"{Events}?after=0"));
+
+        var latest = await client.GetJsonAsync($"{Events}?limit=2");
+        var earlier = await client.GetJsonAsync($"{Events}?before={all[2]}&limit=2");
+        var next = await client.GetJsonAsync($"{Events}?after={all[0]}&limit=2");
+
+        Assert.Equal(["PositionClosed", "PositionOpened"], latest.EventKinds());
+        Assert.Equal(all[2..], Sequences(latest));
+        Assert.Equal(all[..2], Sequences(earlier));
+        Assert.Equal(all[1..3], Sequences(next));
+    }
+
+    [Fact]
+    public async Task EventsTakeOneCursorAtATime()
+    {
+        using var factory = new ServiceFactory();
+        using var client = await factory.CreateTraderClientAsync(AccountId);
+
+        var problem = await client.SendJsonAsync(HttpMethod.Get, $"{Events}?after=1&before=5", null, HttpStatusCode.UnprocessableEntity);
+
+        Assert.Equal("Use after or before, not both.", problem.GetProperty("title").GetString());
     }
 
     [Fact]
@@ -145,4 +180,7 @@ public sealed class TradingApiTests
 
     private static object MarketBuy(string orderId) =>
         new { orderId, symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m };
+
+    private static long[] Sequences(JsonElement events) =>
+        [.. events.EnumerateArray().Select(e => e.GetProperty("sequence").GetInt64())];
 }

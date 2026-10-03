@@ -89,6 +89,23 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
     }
 
     [Fact]
+    public async Task LatestEventsAreReadPerAccountInOrderAndInPagesBackwards()
+    {
+        await using var journal = await CreateJournalAsync();
+        var events = Enumerable.Range(1, 6)
+            .Select(i => new EventEnvelope(i, new EquityFloorRemoved(T, i % 2 == 0 ? "A" : "B", $"floor-{i}")))
+            .ToList();
+        await journal.Value.AppendAsync(new JournalBatch([], [.. events.Select(e => new JournaledEvent(e, null))], null), TestContext.Current.CancellationToken);
+
+        var latest = await journal.Value.ReadEventsBeforeAsync("A", long.MaxValue, 2, TestContext.Current.CancellationToken);
+        var earlier = await journal.Value.ReadEventsBeforeAsync("A", latest[0].Sequence, 10, TestContext.Current.CancellationToken);
+
+        Assert.Equal([4L, 6], latest.Select(e => e.Sequence));
+        Assert.Equal(["floor-4", "floor-6"], latest.Select(e => Assert.IsType<EquityFloorRemoved>(e.Event).FloorId));
+        Assert.Equal([2L], earlier.Select(e => e.Sequence));
+    }
+
+    [Fact]
     public async Task EventsAreReadPerGroupInOrderAndInPages()
     {
         await using var journal = await CreateJournalAsync();

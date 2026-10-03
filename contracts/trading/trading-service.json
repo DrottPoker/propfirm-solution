@@ -300,6 +300,14 @@
             }
           },
           {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {

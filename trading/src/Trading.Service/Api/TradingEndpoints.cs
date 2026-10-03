@@ -81,20 +81,33 @@ internal static class TradingEndpoints
         return TypedResults.Ok(candles.Get(symbol, timeframe, Math.Clamp(count ?? DefaultCandles, 1, MaxCandles), shift));
     }
 
-    private static async Task<Results<Ok<IReadOnlyList<EventEnvelope>>, NotFound>> GetEventsAsync(
+    /// <summary>
+    /// The account's events, oldest first. Without a cursor the latest ones. With <c>after</c> the first ones after
+    /// that sequence number, to catch up. With <c>before</c> the last ones before it, to page back.
+    /// </summary>
+    private static async Task<Results<Ok<IReadOnlyList<EventEnvelope>>, NotFound, ProblemHttpResult>> GetEventsAsync(
         string accountId,
         long? after,
+        long? before,
         int? limit,
         EngineHost engine,
         IEngineJournal journal,
         CancellationToken cancellationToken)
     {
+        if (after is not null && before is not null)
+        {
+            return TypedResults.Problem(statusCode: StatusCodes.Status422UnprocessableEntity, title: "Use after or before, not both.");
+        }
+
         if (await GroupOfAsync(engine, accountId, cancellationToken) is null)
         {
             return TypedResults.NotFound();
         }
 
-        return TypedResults.Ok(await journal.ReadEventsAsync(accountId, after ?? 0, Math.Clamp(limit ?? DefaultEvents, 1, MaxEvents), cancellationToken));
+        var count = Math.Clamp(limit ?? DefaultEvents, 1, MaxEvents);
+        return TypedResults.Ok(after is { } afterSequence
+            ? await journal.ReadEventsAsync(accountId, afterSequence, count, cancellationToken)
+            : await journal.ReadEventsBeforeAsync(accountId, before ?? long.MaxValue, count, cancellationToken));
     }
 
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> PlaceOrderAsync(

@@ -146,41 +146,35 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         await transaction.CommitAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<EventEnvelope>> ReadEventsAsync(string accountId, long afterSequence, int limit, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand(
-            "select sequence, payload from engine_events where account_id = $1 and sequence > $2 order by sequence limit $3");
-        command.Parameters.AddWithValue(accountId);
-        command.Parameters.AddWithValue(afterSequence);
-        command.Parameters.AddWithValue(limit);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+    public Task<IReadOnlyList<EventEnvelope>> ReadEventsAsync(string accountId, long afterSequence, int limit, CancellationToken cancellationToken) =>
+        ReadEnvelopesAsync(
+            "select sequence, payload from engine_events where account_id = $1 and sequence > $2 order by sequence limit $3",
+            accountId,
+            afterSequence,
+            limit,
+            cancellationToken);
 
-        var events = new List<EventEnvelope>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
-        }
+    // Walks the account index backwards from the sequence number, then returns the page oldest first.
+    public Task<IReadOnlyList<EventEnvelope>> ReadEventsBeforeAsync(string accountId, long beforeSequence, int limit, CancellationToken cancellationToken) =>
+        ReadEnvelopesAsync(
+            """
+            select sequence, payload from (
+                select sequence, payload from engine_events where account_id = $1 and sequence < $2 order by sequence desc limit $3
+            ) as latest
+            order by sequence
+            """,
+            accountId,
+            beforeSequence,
+            limit,
+            cancellationToken);
 
-        return events;
-    }
-
-    public async Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken)
-    {
-        await using var command = dataSource.CreateCommand(
-            "select sequence, payload from engine_events where group_id = any($1) and sequence > $2 order by sequence limit $3");
-        command.Parameters.AddWithValue(groupIds.ToArray());
-        command.Parameters.AddWithValue(afterSequence);
-        command.Parameters.AddWithValue(limit);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-        var events = new List<EventEnvelope>();
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
-        }
-
-        return events;
-    }
+    public Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken) =>
+        ReadEnvelopesAsync(
+            "select sequence, payload from engine_events where group_id = any($1) and sequence > $2 order by sequence limit $3",
+            groupIds.ToArray(),
+            afterSequence,
+            limit,
+            cancellationToken);
 
     public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -192,6 +186,24 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         {
             yield return new Quote(reader.GetFieldValue<DateTimeOffset>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3));
         }
+    }
+
+    // The SQL takes the account or groups, a sequence number and a limit, in that order.
+    private async Task<IReadOnlyList<EventEnvelope>> ReadEnvelopesAsync(string sql, object filter, long sequence, int limit, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(sql);
+        command.Parameters.AddWithValue(filter);
+        command.Parameters.AddWithValue(sequence);
+        command.Parameters.AddWithValue(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+
+        var events = new List<EventEnvelope>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
+        }
+
+        return events;
     }
 
     private async Task<long> ScalarAsync(string sql, CancellationToken cancellationToken)

@@ -376,6 +376,7 @@ export interface paths {
             parameters: {
                 query?: {
                     after?: number;
+                    before?: number;
                     limit?: number;
                 };
                 header?: never;
