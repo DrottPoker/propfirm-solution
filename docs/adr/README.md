@@ -23,6 +23,8 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0015](0015-utbetalningar-tar-ut-vinsten-direkt.md) | Utbetalningar tar ut vinsten direkt | Föreslagen |
 | [0016](0016-firmor-skapas-medan-handelsplattformen-kor.md) | Firmor och deras grupper skapas medan handelsplattformen kör | Föreslagen |
 | [0017](0017-firmor-registrerar-sig-sjalva.md) | Firmor registrerar sig själva och börjar i en sandlåda | Föreslagen |
+| [0018](0018-domaner-och-underdomaner.md) | Domäner och underdomäner för produkterna | Föreslagen |
+| [0019](0019-kop-i-portalen-med-firmans-betalningsleverantor.md) | Köp i portalen med firmans egen betalningsleverantör | Föreslagen |
 
 ## Så skriver du en ny ADR
 

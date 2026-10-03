@@ -87,6 +87,9 @@ internal sealed class ChallengeCatalog(NpgsqlDataSource dataSource, DatabaseSche
         return definitions;
     }
 
+    public async Task<ChallengeDefinition?> GetAsync(string firmId, string challengeId, CancellationToken cancellationToken) =>
+        (await ListAsync(firmId, cancellationToken)).FirstOrDefault(d => d.Id == challengeId);
+
     private async Task WriteAsync(string sql, string firmId, ChallengeDefinition definition, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

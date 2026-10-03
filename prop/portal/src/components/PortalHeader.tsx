@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { Me } from "@/lib/api/types";
-import { useLogout, type Role } from "@/lib/queries";
+import { useLogout, useShop, type Role } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
 
 /** The firm's name, and who is logged in. */
 export function PortalHeader({ me, role }: { me: Me; role: Role }) {
   const logout = useLogout(role);
+  const shop = useShop(role === "trader");
   const router = useRouter();
   const loginPage = role === "admin" ? "/admin/login" : "/login";
 
@@ -29,6 +30,9 @@ export function PortalHeader({ me, role }: { me: Me; role: Role }) {
             <Link href="/admin/payouts" className="hover:text-accent">
               Payouts
             </Link>
+            <Link href="/admin/orders" className="hover:text-accent">
+              Orders
+            </Link>
             <Link href="/admin/challenges" className="hover:text-accent">
               Challenges
             </Link>
@@ -40,6 +44,11 @@ export function PortalHeader({ me, role }: { me: Me; role: Role }) {
             </Link>
           </nav>
         </>
+      )}
+      {role === "trader" && shop.data?.open && (
+        <Link href="/buy" className="text-accent hover:underline">
+          Buy a challenge
+        </Link>
       )}
       <span className="ml-auto flex items-center gap-4 text-muted">
         {me.email}

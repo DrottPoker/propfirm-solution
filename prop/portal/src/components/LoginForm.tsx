@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { useLogin, type Role } from "@/lib/queries";
+import { useLogin, useShop, type Role } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
@@ -13,6 +13,7 @@ import { buttonClass, ErrorText, fieldClass } from "./ui";
 export function LoginForm({ role }: { role: Role }) {
   const router = useRouter();
   const login = useLogin(role);
+  const shop = useShop(role === "trader");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -52,7 +53,18 @@ export function LoginForm({ role }: { role: Role }) {
           {login.isPending ? "Logging in..." : "Log in"}
         </button>
 
-        {role === "trader" && <p className="text-xs text-muted">New here? Your firm emails you an invitation to choose a password.</p>}
+        {role === "trader" &&
+          (shop.data?.open ? (
+            <p className="text-xs text-muted">
+              New here?{" "}
+              <Link href="/buy" className="text-accent hover:underline">
+                Buy a challenge
+              </Link>
+              , and you get an email to choose your password.
+            </p>
+          ) : (
+            <p className="text-xs text-muted">New here? Your firm emails you an invitation to choose a password.</p>
+          ))}
         <Link href={role === "admin" ? "/login" : "/admin/login"} className="text-xs text-muted hover:text-foreground">
           {role === "admin" ? "Trader login" : "Admin login"}
         </Link>

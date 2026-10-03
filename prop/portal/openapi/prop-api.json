@@ -571,6 +571,217 @@
         }
       }
     },
+    "/api/firm/v1/prices": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengePrice"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/challenges/{challengeId}/price": {
+      "put": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengePrice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/orders": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OrderStatus"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/orders/{orderId}/mark-paid": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/orders/{orderId}/mark-refunded": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/branding": {
       "get": {
         "tags": [
@@ -672,6 +883,164 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/shop": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShopResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/orders": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedOrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerOrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/orders/{orderId}/invite": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/portal/orders/{orderId}/test-payment": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuyerOrderResponse"
                 }
               }
             }
@@ -1578,6 +1947,246 @@
         }
       }
     },
+    "/api/portal/admin/orders": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/OrderStatus"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OrderResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/orders/{orderId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/orders/{orderId}/mark-paid": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/orders/{orderId}/mark-refunded": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/prices": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengePrice"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/challenges/{challengeId}/price": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PriceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengePrice"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/payments": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/platform": {
       "get": {
         "tags": [
@@ -2085,6 +2694,88 @@
         },
         "description": "What the trading platform recorded when a floor was breached."
       },
+      "BuyerOrderResponse": {
+        "required": [
+          "id",
+          "number",
+          "status",
+          "email",
+          "challengeId",
+          "challengeName",
+          "amount",
+          "currency",
+          "provider",
+          "checkoutUrl",
+          "accountId",
+          "problem",
+          "canLogIn",
+          "inviteSentAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "email": {
+            "type": "string"
+          },
+          "challengeId": {
+            "type": "string"
+          },
+          "challengeName": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PaymentProvider"
+          },
+          "checkoutUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "accountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "canLogIn": {
+            "type": "boolean"
+          },
+          "inviteSentAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The order as its buyer sees it. CheckoutUrl is set while it waits for payment.\nCanLogIn means the trader already has a password for the portal.\nInviteSentAt is when the platform last emailed an invitation to choose one."
+      },
       "CancelAccountRequest": {
         "required": [
           "reason"
@@ -2144,6 +2835,31 @@
         },
         "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it."
       },
+      "ChallengePrice": {
+        "required": [
+          "challengeId",
+          "amount",
+          "currency",
+          "forSale"
+        ],
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "forSale": {
+            "type": "boolean"
+          }
+        },
+        "description": "What a challenge sells for in the firm's portal, and whether it is for sale there."
+      },
       "ChallengeStatus": {
         "enum": [
           "OpeningAccount",
@@ -2176,6 +2892,55 @@
           }
         },
         "description": "A ready-made challenge with its default values, to adjust and save as the firm's own."
+      },
+      "CreatedOrderResponse": {
+        "required": [
+          "orderId",
+          "number",
+          "checkoutUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "checkoutUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "description": "The new order, and where the buyer pays. The buyer comes back to the order's page afterwards."
+      },
+      "CreateOrderRequest": {
+        "required": [
+          "challengeId",
+          "email",
+          "acceptTerms"
+        ],
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptTerms": {
+            "type": "boolean"
+          }
+        },
+        "description": "Buys the challenge. A logged-in trader buys with their own email, and Email is then not\nused. AcceptTerms is needed when the firm has terms."
       },
       "DailyLossReference": {
         "enum": [
@@ -2220,7 +2985,8 @@
           "currency",
           "hasApiKey",
           "webhookUrl",
-          "sandboxMaxOpenAccounts"
+          "sandboxMaxOpenAccounts",
+          "payments"
         ],
         "type": "object",
         "properties": {
@@ -2277,9 +3043,12 @@
               "integer"
             ],
             "format": "int32"
+          },
+          "payments": {
+            "$ref": "#/components/schemas/PaymentSettingsResponse"
           }
         },
-        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in the sandbox."
+        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in\nthe sandbox. Payments is how its portal takes payment."
       },
       "FirmStatus": {
         "enum": [
@@ -2373,6 +3142,21 @@
         },
         "description": "Open Url once before ExpiresAt to be logged in to the trading terminal."
       },
+      "MarkOrderRequest": {
+        "required": [
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Reference is the firm's own, for example its payment provider's id of the payment."
+      },
       "MarkPayoutPaidRequest": {
         "required": [
           "reference"
@@ -2410,6 +3194,293 @@
           }
         },
         "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
+      },
+      "OrderDetailsResponse": {
+        "required": [
+          "order",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/OrderResponse"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrderEventResponse"
+            }
+          }
+        },
+        "description": "An order with everything that happened to it, oldest first."
+      },
+      "OrderEventResponse": {
+        "required": [
+          "type",
+          "recordedAt",
+          "source",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        },
+        "description": "Something that happened to an order. Detail is the provider's message, when there is one."
+      },
+      "OrderResponse": {
+        "required": [
+          "id",
+          "number",
+          "status",
+          "email",
+          "challengeId",
+          "amount",
+          "currency",
+          "provider",
+          "paymentReference",
+          "accountId",
+          "problem",
+          "createdAt",
+          "expiresAt",
+          "paidAt",
+          "refundedAt",
+          "disputedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "email": {
+            "type": "string"
+          },
+          "challengeId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PaymentProvider"
+          },
+          "paymentReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accountId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "refundedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "disputedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "A purchase of a challenge in the firm's portal. AccountId is the account the payment\nstarted, and Problem says why a paid order has none. RefundedAt and\nDisputedAt are set when the provider reports a refund or a dispute. The account is not\ntouched then: the firm decides whether to cancel it."
+      },
+      "OrderStatus": {
+        "enum": [
+          "Pending",
+          "Paid",
+          "Expired"
+        ],
+        "description": "Where a purchase in the portal is. A pending order past its time counts as expired, but a payment that arrives later still counts."
+      },
+      "OrderTokenRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The token from the buyer's link to the order."
+      },
+      "PaymentProvider": {
+        "enum": [
+          "Test",
+          "Stripe",
+          "External"
+        ],
+        "description": "Who takes the trader's money when a challenge is bought in the firm's portal (ADR 0019)."
+      },
+      "PaymentSettingsRequest": {
+        "required": [
+          "provider",
+          "stripeSecretKey",
+          "stripeWebhookSecret",
+          "checkoutUrl",
+          "termsUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentProvider"
+              }
+            ]
+          },
+          "stripeSecretKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stripeWebhookSecret": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkoutUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "termsUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The firm's choice of payment provider. The Stripe keys are kept when they are left empty, and are never shown\nagain. CheckoutUrl is the firm's own checkout page, for External. Empty URLs mean none."
+      },
+      "PaymentSettingsResponse": {
+        "required": [
+          "provider",
+          "active",
+          "testPaymentsAllowed",
+          "hasStripeKeys",
+          "stripeTestMode",
+          "stripeWebhookUrl",
+          "checkoutUrl",
+          "termsUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PaymentProvider"
+              }
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "testPaymentsAllowed": {
+            "type": "boolean"
+          },
+          "hasStripeKeys": {
+            "type": "boolean"
+          },
+          "stripeTestMode": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "stripeWebhookUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "checkoutUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "termsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          }
+        },
+        "description": "How the firm's portal takes payment. Provider is what the firm chose, and\nActive whether it works now: Stripe's live keys work only once the firm is live.\nStripeWebhookUrl is where the firm points Stripe's webhook."
       },
       "PayoutQuoteResponse": {
         "required": [
@@ -2669,6 +3740,30 @@
         },
         "description": "Who is logged in to the portal. Role is trader or admin."
       },
+      "PriceRequest": {
+        "required": [
+          "amount",
+          "currency",
+          "forSale"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "forSale": {
+            "type": "boolean"
+          }
+        },
+        "description": "The price of a challenge in the portal, and whether it is sold there."
+      },
       "RejectPayoutRequest": {
         "required": [
           "reason"
@@ -2682,6 +3777,57 @@
             ]
           }
         }
+      },
+      "ShopItemResponse": {
+        "required": [
+          "challenge",
+          "price",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "$ref": "#/components/schemas/ChallengeDefinition"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "ShopResponse": {
+        "required": [
+          "open",
+          "test",
+          "termsUrl",
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "boolean"
+          },
+          "test": {
+            "type": "boolean"
+          },
+          "termsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShopItemResponse"
+            }
+          }
+        },
+        "description": "What the firm's portal sells. Open is false when the firm takes no payment or sells nothing.\nTermsUrl is the firm's terms, which the buyer accepts. Test means no money is taken."
       },
       "SignupRequest": {
         "required": [

@@ -57,11 +57,12 @@ På firmans adress:
 |---|---|---|
 | `POST /admin/welcome` | Alla | `{ "token" }` från `adminUrl`. Loggar in administratören. Länken gäller en gång i 10 minuter. |
 | `POST /admin/invites/accept` | Alla | `{ "token", "password" }`. Skapar administratören från en inbjudan och loggar in. |
-| `GET /admin/firm` | Admin | Firmans id, namn, status, portalens adress, utseende, server på handelsplattformen, om en API-nyckel finns och webhookens adress. |
+| `GET /admin/firm` | Admin | Firmans id, namn, status, portalens adress, utseende, server på handelsplattformen, om en API-nyckel finns, webhookens adress och betalningarna. |
 | `PUT /admin/firm/branding` | Admin | `{ "logoUrl", "colors" }`. Loggan är en https-adress eller tom, färgerna portalens färger som `#rrggbb`. |
 | `POST /admin/firm/api-key` | Admin | En ny nyckel till firmans API. Visas bara nu, och den gamla slutar fungera. |
 | `PUT /admin/firm/webhook` | Admin | `{ "url" }`, en https-adress eller tom för ingen. Första gången skapas en hemlighet, som visas i svaret. |
 | `POST /admin/firm/webhook/secret` | Admin | En ny hemlighet för webhooks. Visas bara nu. |
+| `PUT /admin/firm/payments` | Admin | Hur portalen tar betalt för challenges. I sandlådan fungerar testbetalningar och Stripes testnycklar. Se [specen för köp i portalen](kop.md). |
 | `GET /admin/challenge-templates` | Admin | Mallarna att börja från, med standardvärden. |
 | `PUT /admin/challenges/{challengeId}` | Admin | Skapar eller ersätter en challenge, som i firmans API. Konton som redan har startat behåller sina regler. |
 | `GET /admin/admins` | Admin | Firmans administratörer. |

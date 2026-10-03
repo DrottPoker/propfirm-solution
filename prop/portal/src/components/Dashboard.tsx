@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { Account } from "@/lib/api/types";
 import { canOpenTerminal, statusLabels } from "@/lib/challenge";
-import { useMyAccount, useMyAccounts, useTerminalLink } from "@/lib/queries";
+import { useMyAccount, useMyAccounts, useShop, useTerminalLink } from "@/lib/queries";
 
 import { AccountOverview } from "./AccountOverview";
 import { PayoutTable, RequestPayout } from "./Payouts";
@@ -13,6 +13,7 @@ import { buttonClass, ErrorText, Message, Panel } from "./ui";
 /** The trader's challenge accounts, one at a time, with the way into the trading terminal and the funded account's payouts. */
 export function Dashboard({ requestedAccountId }: { requestedAccountId: string | null }) {
   const accounts = useMyAccounts();
+  const shop = useShop();
 
   if (accounts.isError) {
     return <Message text="Your accounts cannot be loaded right now. Try again shortly." />;
@@ -25,7 +26,16 @@ export function Dashboard({ requestedAccountId }: { requestedAccountId: string |
   const list = accounts.data;
   const selected = list.find((a) => a.id === requestedAccountId) ?? list.find((a) => a.status === "Active") ?? list.at(-1);
   if (!selected) {
-    return <Message text="You have no challenge yet. Your firm opens one for you when you buy it." />;
+    return shop.data?.open ? (
+      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-muted">
+        <p>You have no challenge yet.</p>
+        <Link href="/buy" className={buttonClass}>
+          Buy a challenge
+        </Link>
+      </main>
+    ) : (
+      <Message text="You have no challenge yet. Your firm opens one for you when you buy it." />
+    );
   }
 
   return (

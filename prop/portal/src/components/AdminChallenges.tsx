@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import type { ChallengeDefinition, ChallengePrice } from "@/lib/api/types";
 import {
   definitionOf,
   formOf,
@@ -12,7 +13,8 @@ import {
   type MaxLossKind,
   type StageForm,
 } from "@/lib/challengeForm";
-import { useChallenges, useChallengeTemplates, useSaveChallenge } from "@/lib/queries";
+import { priceCurrencies } from "@/lib/orders";
+import { useChallenges, useChallengeTemplates, usePrices, useSaveChallenge, useSavePrice } from "@/lib/queries";
 
 import { ChallengeSummary } from "./ChallengeSummary";
 import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
@@ -23,6 +25,7 @@ type Editing = { form: ChallengeForm; isNew: boolean } | null;
 export function AdminChallenges() {
   const challenges = useChallenges();
   const templates = useChallengeTemplates();
+  const prices = usePrices();
   const [editing, setEditing] = useState<Editing>(null);
 
   const startNew = () => {
@@ -47,13 +50,21 @@ export function AdminChallenges() {
         >
           <p className="text-sm text-muted">
             What the firm sells. A change applies to challenges started from now on. Accounts already started keep the rules they were bought with.
+            A challenge with a price that is for sale can be bought in your portal, once you take payment under Settings.
           </p>
-          <ErrorText error={challenges.error ?? templates.error} />
+          <ErrorText error={challenges.error ?? templates.error ?? prices.error} />
           {challenges.data && challenges.data.length === 0 && <p className="text-sm text-muted">No challenges yet.</p>}
           <ul className="grid gap-3 sm:grid-cols-2">
             {(challenges.data ?? []).map((challenge) => (
               <li key={challenge.id} className="flex flex-col gap-3 rounded border border-border p-4">
                 <ChallengeSummary challenge={challenge} />
+                {prices.data && (
+                  <PriceEditor
+                    key={JSON.stringify(prices.data.find((p) => p.challengeId === challenge.id) ?? null)}
+                    challenge={challenge}
+                    price={prices.data.find((p) => p.challengeId === challenge.id)}
+                  />
+                )}
                 <button type="button" onClick={() => setEditing({ form: formOf(challenge), isNew: false })} className={`${secondaryButtonClass} self-start text-sm`}>
                   Change
                 </button>
@@ -63,6 +74,58 @@ export function AdminChallenges() {
         </Panel>
       )}
     </main>
+  );
+}
+
+/** What the challenge sells for in the portal, and whether it is for sale there. */
+function PriceEditor({ challenge, price }: { challenge: ChallengeDefinition; price: ChallengePrice | undefined }) {
+  const save = useSavePrice();
+  const [amount, setAmount] = useState(price ? String(price.amount) : "");
+  const [currency, setCurrency] = useState(price?.currency ?? (priceCurrencies.some((c) => c === challenge.currency) ? challenge.currency : "USD"));
+  const [forSale, setForSale] = useState(price?.forSale ?? true);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const value = Number(amount.replace(",", "."));
+    setProblem(Number.isFinite(value) && value > 0 ? null : "Write the price as a number, for example 99 or 89.50.");
+    if (Number.isFinite(value) && value > 0) {
+      save.mutate({ challengeId: challenge.id, amount: value, currency, forSale });
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-muted">Price in the portal</span>
+          <input
+            aria-label={`${challenge.name} price`}
+            inputMode="decimal"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={`${fieldClass} w-28 text-right`}
+          />
+        </label>
+        <select aria-label={`${challenge.name} price currency`} value={currency} onChange={(e) => setCurrency(e.target.value)} className={fieldClass}>
+          {priceCurrencies.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2 py-2">
+          <input type="checkbox" checked={forSale} onChange={(e) => setForSale(e.target.checked)} />
+          For sale
+        </label>
+        <button type="submit" disabled={save.isPending} className={secondaryButtonClass}>
+          Save price
+        </button>
+      </div>
+      {save.isSuccess && <p className="text-profit">Saved.</p>}
+      <ErrorText error={problem ? new Error(problem) : save.error} />
+    </form>
   );
 }
 

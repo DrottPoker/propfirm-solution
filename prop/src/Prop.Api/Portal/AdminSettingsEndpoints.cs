@@ -11,6 +11,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Payments;
 using Prop.Rules;
 
 namespace Prop.Api.Portal;
@@ -103,15 +104,20 @@ internal static class AdminSettingsEndpoints
         }
     }
 
-    private static Ok<FirmSettingsResponse> GetFirm(HttpContext context, IOptions<SandboxOptions> sandbox) =>
-        TypedResults.Ok(FirmSettingsResponse.From(PortalFirmFilter.FirmOf(context), sandbox.Value));
+    private static Ok<FirmSettingsResponse> GetFirm(HttpContext context, OrderService orders, IOptions<SandboxOptions> sandbox, IOptions<PlatformOptions> platform)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        return TypedResults.Ok(FirmSettingsResponse.From(firm, sandbox.Value, ShopEndpoints.SettingsOf(firm, orders, platform.Value)));
+    }
 
     private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SetBrandingAsync(
         BrandingRequest request,
         HttpContext context,
         FirmStore store,
         FirmCatalog firms,
+        OrderService orders,
         IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -129,7 +135,8 @@ internal static class AdminSettingsEndpoints
 
         var firm = PortalFirmFilter.FirmOf(context);
         await store.SetBrandingAsync(firm.Id, logoUrl, colors, time.GetUtcNow(), cancellationToken);
-        return TypedResults.Ok(FirmSettingsResponse.From(await ReloadAsync(firm, store, firms, cancellationToken), sandbox.Value));
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
 
     /// <summary>A new key for the firm API. Shown only now; the old key stops working.</summary>
@@ -280,7 +287,8 @@ internal static class AdminSettingsEndpoints
             : AccountActions.Problem(StatusCodes.Status404NotFound, "The firm has no such administrator.");
     }
 
-    private static async Task<Firm> ReloadAsync(Firm firm, FirmStore store, FirmCatalog firms, CancellationToken cancellationToken)
+    /// <summary>The firm as saved, put into the catalog so every request sees the change.</summary>
+    internal static async Task<Firm> ReloadAsync(Firm firm, FirmStore store, FirmCatalog firms, CancellationToken cancellationToken)
     {
         var reloaded = await store.GetAsync(firm.Id, cancellationToken) ?? throw new InvalidOperationException($"Firm {firm.Id} disappeared.");
         firms.Put(reloaded);
@@ -293,7 +301,10 @@ internal static class AdminSettingsEndpoints
 
 public sealed record WelcomeRequest(string? Token);
 
-/// <summary>The firm's settings for its admin panel. <paramref name="SandboxMaxOpenAccounts"/> is set while the firm is in the sandbox.</summary>
+/// <summary>
+/// The firm's settings for its admin panel. <paramref name="SandboxMaxOpenAccounts"/> is set while the firm is in
+/// the sandbox. <paramref name="Payments"/> is how its portal takes payment.
+/// </summary>
 public sealed record FirmSettingsResponse(
     string Id,
     string Name,
@@ -305,9 +316,10 @@ public sealed record FirmSettingsResponse(
     string? Currency,
     bool HasApiKey,
     Uri? WebhookUrl,
-    int? SandboxMaxOpenAccounts)
+    int? SandboxMaxOpenAccounts,
+    PaymentSettingsResponse Payments)
 {
-    internal static FirmSettingsResponse From(Firm firm, SandboxOptions sandbox) =>
+    internal static FirmSettingsResponse From(Firm firm, SandboxOptions sandbox, PaymentSettingsResponse payments) =>
         new(
             firm.Id,
             firm.Name,
@@ -319,7 +331,8 @@ public sealed record FirmSettingsResponse(
             firm.Trading?.Currency,
             firm.ApiKeyHash is not null,
             firm.Webhook?.Url,
-            firm.Status == FirmStatus.Live ? null : sandbox.MaxOpenAccounts);
+            firm.Status == FirmStatus.Live ? null : sandbox.MaxOpenAccounts,
+            payments);
 }
 
 /// <summary>The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb.</summary>

@@ -9,8 +9,8 @@ using Prop.Api.Configuration;
 
 namespace Prop.Api.Email;
 
-/// <summary>An email from the platform, in plain text.</summary>
-internal sealed record EmailMessage(string To, string Subject, string Body);
+/// <summary>An email from the platform, in plain text. <paramref name="FromName"/> replaces the platform's name as sender, for example with a firm's.</summary>
+internal sealed record EmailMessage(string To, string Subject, string Body, string? FromName = null);
 
 /// <summary>Sends email from the platform. Throws <see cref="EmailNotSentException"/> when the mail server cannot take it.</summary>
 internal interface IEmailSender
@@ -25,7 +25,7 @@ internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSe
     {
         var email = options.Value;
         var mime = new MimeMessage();
-        mime.From.Add(new MailboxAddress(email.FromName, email.From));
+        mime.From.Add(new MailboxAddress(message.FromName ?? email.FromName, email.From));
         mime.To.Add(MailboxAddress.Parse(message.To));
         mime.Subject = message.Subject;
         mime.Body = new TextPart("plain") { Text = message.Body };
@@ -84,6 +84,27 @@ internal static class PlatformEmails
 
             {platform}
             """);
+
+    /// <summary>
+    /// A buyer's invitation to the firm's portal after paying for a challenge there. Sent in the firm's name, since
+    /// the trader bought from the firm.
+    /// </summary>
+    public static EmailMessage InviteBuyer(string firmName, string challengeName, string to, Uri link, TimeSpan lifetime) =>
+        new(
+            to,
+            $"Your {challengeName} with {firmName} is starting",
+            $"""
+            Hi,
+
+            Thank you for buying {challengeName} from {firmName}. Your challenge is being set up now. Open this link to choose a password for {firmName}'s portal, where you follow your challenge and open the trading terminal:
+
+            {link}
+
+            The link works once, within {lifetime.TotalDays:0} days. If you did not buy this, you can ignore this email.
+
+            {firmName}
+            """,
+            firmName);
 
     public static EmailMessage InviteAdmin(string platform, string firmName, string invitedBy, string to, Uri link, TimeSpan lifetime) =>
         new(

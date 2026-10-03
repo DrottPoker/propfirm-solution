@@ -1,12 +1,12 @@
 import type { ChallengeDefinition } from "@/lib/api/types";
 import { formatMoney } from "@/lib/format";
 
-/** A challenge's size, trading day and the rules of each stage, in a few lines. */
-export function ChallengeSummary({ challenge }: { challenge: ChallengeDefinition }) {
+/** A challenge's size, trading day and the rules of each stage, in a few lines. The id is for the firm, not for buyers. */
+export function ChallengeSummary({ challenge, showId = true }: { challenge: ChallengeDefinition; showId?: boolean }) {
   return (
     <div className="flex flex-col gap-2 text-sm">
       <span className="font-medium">
-        {challenge.name} <span className="text-muted">({challenge.id})</span>
+        {challenge.name} {showId && <span className="text-muted">({challenge.id})</span>}
       </span>
       <span>
         {formatMoney(challenge.initialBalance)} {challenge.currency} · trading days start at {challenge.tradingDay.start.slice(0, 5)}{" "}

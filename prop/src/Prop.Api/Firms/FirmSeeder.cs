@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 
 using Prop.Api.Configuration;
+using Prop.Api.Payments;
 
 namespace Prop.Api.Firms;
 
@@ -55,6 +56,25 @@ internal sealed partial class FirmSeeder(FirmStore store, FirmCatalog catalog, I
         Require(FirmRules.IsValidLogoUrl(portal.LogoUrl), $"Firm {options.Id}: the logo must be an absolute https address.");
         Require(FirmRules.ColorProblem(portal.Colors) is null, $"Firm {options.Id}: {FirmRules.ColorProblem(portal.Colors)}");
 
+        var payments = options.Payments;
+        PaymentProvider? provider = null;
+        if (payments.Provider.Length > 0)
+        {
+            Require(Enum.TryParse<PaymentProvider>(payments.Provider, out var parsed), $"Firm {options.Id}: the payment provider must be Test, Stripe or External.");
+            provider = parsed;
+        }
+
+        var hasStripeKeys = payments.StripeSecretKey.Length > 0 || payments.StripeWebhookSecret.Length > 0;
+        Require(
+            !hasStripeKeys || (StripeKeyRules.IsValidSecretKey(payments.StripeSecretKey) && StripeKeyRules.IsValidWebhookSecret(payments.StripeWebhookSecret)),
+            $"Firm {options.Id}: Stripe needs a secret key (sk_ or rk_) and a webhook signing secret (whsec_).");
+        Require(provider != PaymentProvider.Stripe || hasStripeKeys, $"Firm {options.Id}: Stripe payments need the Stripe keys.");
+        Require(
+            payments.CheckoutUrl is null || payments.CheckoutUrl is { IsAbsoluteUri: true, Scheme: "https" },
+            $"Firm {options.Id}: the checkout page must be an absolute https address.");
+        Require(provider != PaymentProvider.External || payments.CheckoutUrl is not null, $"Firm {options.Id}: External payments need the checkout page.");
+        Require(payments.TermsUrl is null || payments.TermsUrl is { IsAbsoluteUri: true, Scheme: "https" }, $"Firm {options.Id}: the terms must be an absolute https address.");
+
         var name = options.Name.Trim();
         return new Firm(
             options.Id,
@@ -63,7 +83,12 @@ internal sealed partial class FirmSeeder(FirmStore store, FirmCatalog catalog, I
             Convert.FromHexString(options.ApiKeySha256),
             new FirmTrading(options.Trading.Server, options.Trading.ApiKey, options.Trading.Group, options.Trading.Currency),
             options.Webhook.Url is { } webhook ? new FirmWebhook(webhook, options.Webhook.Secret) : null,
-            new FirmPortal(portal.Url!, [.. portal.Hosts], new Branding(name, portal.LogoUrl.Length > 0 ? portal.LogoUrl : null, portal.Colors.ToDictionary())));
+            new FirmPortal(portal.Url!, [.. portal.Hosts], new Branding(name, portal.LogoUrl.Length > 0 ? portal.LogoUrl : null, portal.Colors.ToDictionary())),
+            new FirmPayments(
+                provider,
+                hasStripeKeys ? new StripeKeys(payments.StripeSecretKey, payments.StripeWebhookSecret) : null,
+                payments.CheckoutUrl,
+                payments.TermsUrl));
     }
 
     private static void Require(bool condition, string message)

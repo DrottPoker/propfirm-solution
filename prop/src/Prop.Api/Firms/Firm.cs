@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 
+using Prop.Api.Payments;
+
 namespace Prop.Api.Firms;
 
 /// <summary>Where a firm is on its way from sign-up to live (ADR 0017).</summary>
@@ -26,7 +28,8 @@ internal sealed record Firm(
     byte[]? ApiKeyHash,
     FirmTrading? Trading,
     FirmWebhook? Webhook,
-    FirmPortal Portal);
+    FirmPortal Portal,
+    FirmPayments Payments);
 
 /// <summary>The firm's server on the trading platform, the key the prop platform uses there, and the group new accounts open in.</summary>
 internal sealed record FirmTrading(string Server, string ApiKey, string Group, string Currency);

@@ -11,6 +11,7 @@ using Microsoft.Extensions.Time.Testing;
 using Prop.Api.Challenges;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Payments;
 using Prop.Api.Trading;
 
 namespace Prop.Api.Tests.Support;
@@ -70,6 +71,8 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     public WebhookReceiver Webhooks { get; } = new();
 
     public FakeEmailSender Emails { get; private init; } = new();
+
+    public FakeStripe Stripe { get; } = new();
 
     /// <summary>Settings that give the development firm a webhook to <see cref="Webhooks"/>.</summary>
     public static Dictionary<string, string> WithWebhook() => new()
@@ -263,6 +266,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
             services.AddSingleton<ITradingPartner>(Trading);
             services.AddSingleton<IEmailSender>(Emails);
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);
+            services.AddHttpClient(StripeClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stripe);
         });
     }
 }

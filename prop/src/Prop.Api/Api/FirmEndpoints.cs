@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
+using Prop.Api.Payments;
 using Prop.Api.Portal;
 using Prop.Api.Trading;
 using Prop.Rules;
@@ -37,6 +38,7 @@ internal static class FirmEndpoints
         firm.MapPost("/payouts/{payoutId:guid}/approve", ApprovePayoutAsync);
         firm.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
         firm.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
+        firm.MapFirmOrders();
         return app;
     }
 

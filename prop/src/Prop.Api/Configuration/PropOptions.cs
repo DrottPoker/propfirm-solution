@@ -31,6 +31,12 @@ public sealed class PlatformOptions
     /// <summary>The portal address of a new firm, with {firm} for its short name, for example https://{firm}.example.com/.</summary>
     public string FirmPortalUrl { get; init; } = "";
 
+    /// <summary>
+    /// Where the internet reaches this service's firm API and payment webhooks, ending with /, for example
+    /// https://api.example.com/. Shown to firms as the address for their payment provider's webhooks.
+    /// </summary>
+    public Uri? ApiUrl { get; init; }
+
     /// <summary>The portal address of the firm with the short name.</summary>
     public Uri PortalUrlOf(string firmId) => new(FirmPortalUrl.Replace("{firm}", firmId, StringComparison.Ordinal));
 }
@@ -61,6 +67,24 @@ public sealed class SandboxOptions
 
     /// <summary>The most challenge accounts a firm in the sandbox may have open at once.</summary>
     public int MaxOpenAccounts { get; init; } = 10;
+}
+
+/// <summary>How challenges are bought in the firms' portals (ADR 0019).</summary>
+public sealed class PaymentsOptions
+{
+    public const string SectionName = "Payments";
+
+    /// <summary>
+    /// How long a buyer has to pay before the order expires. Stripe needs 30 minutes to 24 hours. A payment that
+    /// arrives later still counts.
+    /// </summary>
+    public TimeSpan OrderLifetime { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>Stripe's API, ending with /.</summary>
+    public Uri StripeApiUrl { get; init; } = new("https://api.stripe.com/");
+
+    /// <summary>Whether firms that are live may also take test payments. For development only: the sandbox always may.</summary>
+    public bool TestPaymentsForLiveFirms { get; init; }
 }
 
 /// <summary>Email from the platform, such as confirmations and invitations for administrators.</summary>
@@ -135,6 +159,8 @@ public sealed class FirmOptions
 
     public FirmPortalOptions Portal { get; init; } = new();
 
+    public FirmPaymentOptions Payments { get; init; } = new();
+
     /// <summary>Challenges created at startup, or replaced so they follow their template.</summary>
     public IReadOnlyList<SeedChallengeOptions> SeedChallenges { get; init; } = [];
 
@@ -159,6 +185,23 @@ public sealed class FirmPortalOptions
 
     /// <summary>Overrides of the portal's theme colors, as #rrggbb.</summary>
     public IReadOnlyDictionary<string, string> Colors { get; init; } = new Dictionary<string, string>();
+}
+
+/// <summary>How the configured firm's portal takes payment. The Stripe keys are secrets: keep them out of files outside development.</summary>
+public sealed class FirmPaymentOptions
+{
+    /// <summary>Test, Stripe or External. Empty for no shop in the portal.</summary>
+    public string Provider { get; init; } = "";
+
+    public string StripeSecretKey { get; init; } = "";
+
+    public string StripeWebhookSecret { get; init; } = "";
+
+    /// <summary>The firm's own checkout page, for External.</summary>
+    public Uri? CheckoutUrl { get; init; }
+
+    /// <summary>The firm's terms, which buyers accept before paying. Empty for none.</summary>
+    public Uri? TermsUrl { get; init; }
 }
 
 public sealed class SeedLoginOptions
@@ -205,4 +248,7 @@ public sealed class SeedChallengeOptions
     public decimal InitialBalance { get; init; }
 
     public string Currency { get; init; } = "USD";
+
+    /// <summary>What the challenge sells for in the portal, in its currency. Empty when it is not for sale.</summary>
+    public decimal? Price { get; init; }
 }

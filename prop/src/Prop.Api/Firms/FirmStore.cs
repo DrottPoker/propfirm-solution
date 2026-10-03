@@ -6,6 +6,8 @@ using Npgsql;
 
 using NpgsqlTypes;
 
+using Prop.Api.Payments;
+
 namespace Prop.Api.Firms;
 
 /// <summary>
@@ -18,7 +20,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
         """
         select f.id, f.name, f.status, f.api_key_sha256, f.trading_server, f.trading_api_key, f.trading_group, f.trading_currency,
                f.webhook_url, f.webhook_secret, f.portal_url, f.logo_url, f.colors,
-               coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}')
+               coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
+               f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -51,14 +54,17 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             connection,
             """
             insert into firms (id, name, status, configured, api_key_sha256, trading_server, trading_api_key, trading_group, trading_currency,
-                               webhook_url, webhook_secret, portal_url, logo_url, colors, created_at, updated_at)
-            values ($1, $2, $3, true, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14)
+                               webhook_url, webhook_secret, portal_url, logo_url, colors, created_at, updated_at,
+                               payment_provider, stripe_secret_key, stripe_webhook_secret, checkout_url, shop_terms_url)
+            values ($1, $2, $3, true, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16, $17, $18, $19)
             on conflict (id) do update set
                 name = excluded.name, status = excluded.status, api_key_sha256 = excluded.api_key_sha256,
                 trading_server = excluded.trading_server, trading_api_key = excluded.trading_api_key,
                 trading_group = excluded.trading_group, trading_currency = excluded.trading_currency,
                 webhook_url = excluded.webhook_url, webhook_secret = excluded.webhook_secret, portal_url = excluded.portal_url,
-                logo_url = excluded.logo_url, colors = excluded.colors, updated_at = excluded.updated_at
+                logo_url = excluded.logo_url, colors = excluded.colors, updated_at = excluded.updated_at,
+                payment_provider = excluded.payment_provider, stripe_secret_key = excluded.stripe_secret_key,
+                stripe_webhook_secret = excluded.stripe_webhook_secret, checkout_url = excluded.checkout_url, shop_terms_url = excluded.shop_terms_url
             where firms.configured
             """,
             [
@@ -67,6 +73,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 (object?)firm.Webhook?.Url.ToString() ?? DBNull.Value,
                 firm.Webhook is { } webhook ? secrets.Protect(webhook.Secret, WebhookSecretPurpose(firm.Id)) : DBNull.Value,
                 firm.Portal.Url.ToString(), (object?)firm.Portal.Branding.LogoUrl ?? DBNull.Value, Colors(firm.Portal.Branding.Colors), now,
+                .. PaymentValues(firm.Id, firm.Payments),
             ],
             cancellationToken);
         if (saved == 0)
@@ -137,6 +144,20 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             ],
             cancellationToken);
 
+    /// <summary>How the firm's portal takes payment. Stripe's keys are kept when <paramref name="payments"/> has none.</summary>
+    public Task SetPaymentsAsync(string firmId, FirmPayments payments, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var values = PaymentValues(firmId, payments);
+        return payments.Stripe is null
+            ? UpdateAsync("payment_provider = $2, checkout_url = $3, shop_terms_url = $4", firmId, [values[0], values[3], values[4]], now, cancellationToken)
+            : UpdateAsync(
+                "payment_provider = $2, stripe_secret_key = $3, stripe_webhook_secret = $4, checkout_url = $5, shop_terms_url = $6",
+                firmId,
+                values,
+                now,
+                cancellationToken);
+    }
+
     public Task SetBrandingAsync(string firmId, string? logoUrl, IReadOnlyDictionary<string, string> colors, DateTimeOffset now, CancellationToken cancellationToken) =>
         UpdateAsync("logo_url = $2, colors = $3", firmId, [(object?)logoUrl ?? DBNull.Value, Colors(colors)], now, cancellationToken);
 
@@ -170,6 +191,22 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
 
     private static string WebhookSecretPurpose(string firmId) => $"firm:{firmId}:webhook-secret";
 
+    private static string StripeKeyPurpose(string firmId) => $"firm:{firmId}:stripe-secret-key";
+
+    private static string StripeWebhookSecretPurpose(string firmId) => $"firm:{firmId}:stripe-webhook-secret";
+
+    // The provider, Stripe's encrypted keys, the checkout page and the terms, in the order of their columns.
+    private object[] PaymentValues(string firmId, FirmPayments payments) =>
+    [
+        Text(payments.Provider?.ToString()),
+        Text(payments.Stripe is { } stripe ? secrets.Protect(stripe.SecretKey, StripeKeyPurpose(firmId)) : null),
+        Text(payments.Stripe is { } keys ? secrets.Protect(keys.WebhookSecret, StripeWebhookSecretPurpose(firmId)) : null),
+        Text(payments.CheckoutUrl?.ToString()),
+        Text(payments.TermsUrl?.ToString()),
+    ];
+
+    private static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
+
     private static NpgsqlParameter Colors(IReadOnlyDictionary<string, string> colors) =>
         new() { Value = JsonSerializer.Serialize(colors), NpgsqlDbType = NpgsqlDbType.Jsonb };
 
@@ -196,6 +233,14 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 ? null
                 : new FirmWebhook(new Uri(reader.GetString(8)), secrets.Unprotect(reader.GetString(9), WebhookSecretPurpose(id)));
             var colors = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(12)) ?? [];
+            var stripe = reader.IsDBNull(15) || reader.IsDBNull(16)
+                ? null
+                : new StripeKeys(secrets.Unprotect(reader.GetString(15), StripeKeyPurpose(id)), secrets.Unprotect(reader.GetString(16), StripeWebhookSecretPurpose(id)));
+            var payments = new FirmPayments(
+                reader.IsDBNull(14) ? null : Enum.Parse<PaymentProvider>(reader.GetString(14)),
+                stripe,
+                reader.IsDBNull(17) ? null : new Uri(reader.GetString(17)),
+                reader.IsDBNull(18) ? null : new Uri(reader.GetString(18)));
             firms.Add(new Firm(
                 id,
                 name,
@@ -203,7 +248,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 reader.IsDBNull(3) ? null : reader.GetFieldValue<byte[]>(3),
                 trading,
                 webhook,
-                new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, reader.IsDBNull(11) ? null : reader.GetString(11), colors))));
+                new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, reader.IsDBNull(11) ? null : reader.GetString(11), colors)),
+                payments));
         }
 
         return firms;

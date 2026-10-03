@@ -627,6 +627,239 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/firm/v1/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengePrice"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/challenges/{challengeId}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PriceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengePrice"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["OrderStatus"];
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderDetailsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/orders/{orderId}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/orders/{orderId}/mark-refunded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/branding": {
         parameters: {
             query?: never;
@@ -802,6 +1035,199 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/shop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ShopResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreatedOrderResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    token?: string;
+                };
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BuyerOrderResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/orders/{orderId}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OrderTokenRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/orders/{orderId}/test-payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OrderTokenRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BuyerOrderResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1959,6 +2385,278 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["OrderStatus"];
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/orders/{orderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderDetailsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/orders/{orderId}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/orders/{orderId}/mark-refunded": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OrderResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengePrice"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/challenges/{challengeId}/price": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PriceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengePrice"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/platform": {
         parameters: {
             query?: never;
@@ -2231,6 +2929,33 @@ export interface components {
             equity: number;
             reason: components["schemas"]["FailureReason"];
         };
+        /**
+         * @description The order as its buyer sees it. CheckoutUrl is set while it waits for payment.
+         *     CanLogIn means the trader already has a password for the portal.
+         *     InviteSentAt is when the platform last emailed an invitation to choose one.
+         */
+        BuyerOrderResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            status: components["schemas"]["OrderStatus"];
+            email: string;
+            challengeId: string;
+            challengeName: string;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            provider: components["schemas"]["PaymentProvider"];
+            /** Format: uri */
+            checkoutUrl: null | string;
+            /** Format: uuid */
+            accountId: null | string;
+            problem: null | string;
+            canLogIn: boolean;
+            /** Format: date-time */
+            inviteSentAt: null | string;
+        };
         CancelAccountRequest: {
             reason: null | string;
         };
@@ -2254,6 +2979,14 @@ export interface components {
              */
             fundedStage?: number;
         };
+        /** @description What a challenge sells for in the firm's portal, and whether it is for sale there. */
+        ChallengePrice: {
+            challengeId: string;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            forSale: boolean;
+        };
         /** @enum {unknown} */
         ChallengeStatus: "OpeningAccount" | "Active" | "AwaitingFunding" | "Failed" | "Cancelled";
         /** @description A ready-made challenge with its default values, to adjust and save as the firm's own. */
@@ -2262,6 +2995,24 @@ export interface components {
             name: string;
             description: string;
             definition: components["schemas"]["ChallengeDefinition"];
+        };
+        /** @description The new order, and where the buyer pays. The buyer comes back to the order's page afterwards. */
+        CreatedOrderResponse: {
+            /** Format: uuid */
+            orderId: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: uri */
+            checkoutUrl: string;
+        };
+        /**
+         * @description Buys the challenge. A logged-in trader buys with their own email, and Email is then not
+         *     used. AcceptTerms is needed when the firm has terms.
+         */
+        CreateOrderRequest: {
+            challengeId: null | string;
+            email: null | string;
+            acceptTerms: boolean;
         };
         /**
          * @description Where the daily loss limit starts from when a trading day starts.
@@ -2276,7 +3027,10 @@ export interface components {
         };
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
-        /** @description The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in the sandbox. */
+        /**
+         * @description The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in
+         *     the sandbox. Payments is how its portal takes payment.
+         */
         FirmSettingsResponse: {
             id: string;
             name: string;
@@ -2294,6 +3048,7 @@ export interface components {
             webhookUrl: null | string;
             /** Format: int32 */
             sandboxMaxOpenAccounts: null | number;
+            payments: components["schemas"]["PaymentSettingsResponse"];
         };
         /**
          * @description Where a firm is on its way from sign-up to live (ADR 0017).
@@ -2331,6 +3086,10 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        /** @description Reference is the firm's own, for example its payment provider's id of the payment. */
+        MarkOrderRequest: {
+            reference: null | string;
+        };
         /** @description Reference is the firm's own, for example a bank transfer id. */
         MarkPayoutPaidRequest: {
             reference: null | string;
@@ -2342,6 +3101,95 @@ export interface components {
             /** Format: double */
             percent: number;
             kind: components["schemas"]["MaxLossKind"];
+        };
+        /** @description An order with everything that happened to it, oldest first. */
+        OrderDetailsResponse: {
+            order: components["schemas"]["OrderResponse"];
+            events: components["schemas"]["OrderEventResponse"][];
+        };
+        /** @description Something that happened to an order. Detail is the provider's message, when there is one. */
+        OrderEventResponse: {
+            type: string;
+            /** Format: date-time */
+            recordedAt: string;
+            source: string;
+            detail: null | components["schemas"]["JsonElement"];
+        };
+        /**
+         * @description A purchase of a challenge in the firm's portal. AccountId is the account the payment
+         *     started, and Problem says why a paid order has none. RefundedAt and
+         *     DisputedAt are set when the provider reports a refund or a dispute. The account is not
+         *     touched then: the firm decides whether to cancel it.
+         */
+        OrderResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            status: components["schemas"]["OrderStatus"];
+            email: string;
+            challengeId: string;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            provider: components["schemas"]["PaymentProvider"];
+            paymentReference: null | string;
+            /** Format: uuid */
+            accountId: null | string;
+            problem: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            paidAt: null | string;
+            /** Format: date-time */
+            refundedAt: null | string;
+            /** Format: date-time */
+            disputedAt: null | string;
+        };
+        /**
+         * @description Where a purchase in the portal is. A pending order past its time counts as expired, but a payment that arrives later still counts.
+         * @enum {unknown}
+         */
+        OrderStatus: "Pending" | "Paid" | "Expired";
+        /** @description The token from the buyer's link to the order. */
+        OrderTokenRequest: {
+            token: null | string;
+        };
+        /**
+         * @description Who takes the trader's money when a challenge is bought in the firm's portal (ADR 0019).
+         * @enum {unknown}
+         */
+        PaymentProvider: "Test" | "Stripe" | "External";
+        /**
+         * @description The firm's choice of payment provider. The Stripe keys are kept when they are left empty, and are never shown
+         *     again. CheckoutUrl is the firm's own checkout page, for External. Empty URLs mean none.
+         */
+        PaymentSettingsRequest: {
+            provider: null | components["schemas"]["PaymentProvider"];
+            stripeSecretKey: null | string;
+            stripeWebhookSecret: null | string;
+            checkoutUrl: null | string;
+            termsUrl: null | string;
+        };
+        /**
+         * @description How the firm's portal takes payment. Provider is what the firm chose, and
+         *     Active whether it works now: Stripe's live keys work only once the firm is live.
+         *     StripeWebhookUrl is where the firm points Stripe's webhook.
+         */
+        PaymentSettingsResponse: {
+            provider: null | components["schemas"]["PaymentProvider"];
+            active: boolean;
+            testPaymentsAllowed: boolean;
+            hasStripeKeys: boolean;
+            stripeTestMode: null | boolean;
+            /** Format: uri */
+            stripeWebhookUrl: string;
+            /** Format: uri */
+            checkoutUrl: null | string;
+            /** Format: uri */
+            termsUrl: null | string;
         };
         /**
          * @description What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which
@@ -2428,8 +3276,32 @@ export interface components {
             role: string;
             firmName: string;
         };
+        /** @description The price of a challenge in the portal, and whether it is sold there. */
+        PriceRequest: {
+            /** Format: double */
+            amount: number;
+            currency: null | string;
+            forSale: boolean;
+        };
         RejectPayoutRequest: {
             reason: null | string;
+        };
+        ShopItemResponse: {
+            challenge: components["schemas"]["ChallengeDefinition"];
+            /** Format: double */
+            price: number;
+            currency: string;
+        };
+        /**
+         * @description What the firm's portal sells. Open is false when the firm takes no payment or sells nothing.
+         *     TermsUrl is the firm's terms, which the buyer accepts. Test means no money is taken.
+         */
+        ShopResponse: {
+            open: boolean;
+            test: boolean;
+            /** Format: uri */
+            termsUrl: null | string;
+            items: components["schemas"]["ShopItemResponse"][];
         };
         /** @description FirmId is the short name: the portal's subdomain and the server on the trading platform. */
         SignupRequest: {

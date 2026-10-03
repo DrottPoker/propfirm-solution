@@ -1,14 +1,15 @@
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Payments;
 using Prop.Rules;
 
 namespace Prop.Api.Challenges;
 
 /// <summary>
-/// Creates or replaces each firm's configured challenges at startup, so they follow their template. Accounts
-/// already started keep the definition they were started with.
+/// Creates or replaces each firm's configured challenges at startup, so they follow their template, with the
+/// configured price in the portal. Accounts already started keep the definition they were started with.
 /// </summary>
-internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalog, IConfiguration configuration) : IHostedService
+internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalog, PriceCatalog prices, IConfiguration configuration) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -30,6 +31,19 @@ internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalo
                 }
 
                 await catalog.SaveAsync(firm.Id, definition, cancellationToken);
+                if (seed.Price is { } price)
+                {
+                    if (PriceRules.Problem(price, seed.Currency) is { } problem)
+                    {
+                        throw new InvalidOperationException($"Firm {firm.Id} seeds challenge {seed.Id} with an invalid price: {problem}");
+                    }
+
+                    await prices.SaveAsync(firm.Id, new ChallengePrice(seed.Id, price, seed.Currency, ForSale: true), cancellationToken);
+                }
+                else
+                {
+                    await prices.RemoveAsync(firm.Id, seed.Id, cancellationToken);
+                }
             }
         }
     }

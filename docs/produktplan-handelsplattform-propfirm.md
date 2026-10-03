@@ -116,7 +116,7 @@ registrera -> välj challenge-mall -> portalens logga och färger
 
 Mål: sandlådan på några minuter, live inom ett dygn.
 
-Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Kvar är betalningen till oss, kontrollen innan live och egen domän.
+Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Kvar är betalningen till oss, kontrollen innan live och egen domän.
 
 ### Krav
 

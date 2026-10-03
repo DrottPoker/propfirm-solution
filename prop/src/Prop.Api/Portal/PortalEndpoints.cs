@@ -8,6 +8,7 @@ using Prop.Api.Api;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Payments;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -37,6 +38,7 @@ internal static class PortalEndpoints
         portal.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Trader)));
         portal.MapGet("/me", MeAsync).RequireAuthorization(PortalAuth.TraderPolicy);
+        portal.MapShop();
 
         var trader = portal.MapGroup("/accounts").RequireAuthorization(PortalAuth.TraderPolicy);
         trader.MapGet("", ListMyAccountsAsync);
@@ -67,6 +69,7 @@ internal static class PortalEndpoints
         admin.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
         admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         admin.MapAdminSettings();
+        admin.MapAdminOrders();
         return app;
     }
 

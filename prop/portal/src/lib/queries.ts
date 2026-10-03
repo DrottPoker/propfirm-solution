@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, resultOf } from "./api/client";
-import type { ChallengeDefinition, ChallengeStatus, PayoutStatus } from "./api/types";
+import type { ChallengeDefinition, ChallengeStatus, OrderStatus, PaymentProvider, PayoutStatus } from "./api/types";
 
 export type Role = "trader" | "admin";
 
@@ -457,4 +457,138 @@ function signupErrorOf(error: unknown, status: number): SignupError {
     status,
     typeof problem.field === "string" ? problem.field : null,
   );
+}
+
+/** What the firm's portal sells, for anyone on it. Not asked where only administrators look. */
+export function useShop(enabled = true) {
+  return useQuery({
+    queryKey: ["shop"],
+    enabled,
+    queryFn: async () => resultOf(await api.GET("/api/portal/shop"), "the challenges for sale"),
+  });
+}
+
+/** Buys a challenge. The answer says where to pay; a logged-in trader buys with their own email. */
+export function useCreateOrder() {
+  return useMutation({
+    mutationFn: async (body: { challengeId: string; email: string | null; acceptTerms: boolean }) =>
+      resultOf(await api.POST("/api/portal/orders", { body }), "the order"),
+  });
+}
+
+/** The buyer's order, with the token from the link to it. Asked again every two seconds while it waits for the payment. */
+export function useBuyerOrder(orderId: string, token: string) {
+  return useQuery({
+    queryKey: ["buyer-order", orderId],
+    enabled: orderId.length > 0 && token.length > 0,
+    queryFn: async () =>
+      resultOf(await api.GET("/api/portal/orders/{orderId}", { params: { path: { orderId }, query: { token } } }), "the order"),
+    refetchInterval: (query) => (query.state.data?.status === "Pending" ? 2_000 : false),
+  });
+}
+
+/** Pays a test order without money. */
+export function useTestPayment(orderId: string, token: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      resultOf(await api.POST("/api/portal/orders/{orderId}/test-payment", { params: { path: { orderId } }, body: { token } }), "the payment"),
+    onSuccess: (order) => queryClient.setQueryData(["buyer-order", orderId], order),
+  });
+}
+
+/** Emails the buyer the invitation to the portal again. */
+export function useResendInvite(orderId: string, token: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/api/portal/orders/{orderId}/invite", { params: { path: { orderId } }, body: { token } });
+      if (!result.response.ok) {
+        resultOf(result, "the invitation");
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["buyer-order", orderId] }),
+  });
+}
+
+/** The firm's newest orders, all of them or only those with the status. */
+export function useFirmOrders(status: OrderStatus | null) {
+  return useQuery({
+    queryKey: ["firm-orders", status],
+    queryFn: async () =>
+      resultOf(await api.GET("/api/portal/admin/orders", { params: { query: { status: status ?? undefined, limit: 200 } } }), "the orders"),
+    refetchInterval: liveRefreshMs,
+  });
+}
+
+export type OrderDecision = { kind: "mark-paid" | "mark-refunded"; orderId: string; reference: string };
+
+/** The firm marks an order from its own checkout as paid, or a paid order as refunded. */
+export function useOrderDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: OrderDecision) => {
+      const request = { params: { path: { orderId: decision.orderId } }, body: { reference: decision.reference || null } };
+      return decision.kind === "mark-paid"
+        ? resultOf(await api.POST("/api/portal/admin/orders/{orderId}/mark-paid", request), "the payment")
+        : resultOf(await api.POST("/api/portal/admin/orders/{orderId}/mark-refunded", request), "the refund");
+    },
+    onSettled: () =>
+      Promise.all([queryClient.invalidateQueries({ queryKey: ["firm-orders"] }), queryClient.invalidateQueries({ queryKey: ["firm-accounts"] })]),
+  });
+}
+
+/** What the firm's challenges sell for in the portal. */
+export function usePrices() {
+  return useQuery({
+    queryKey: ["prices"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/prices"), "the prices"),
+  });
+}
+
+export function useSavePrice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (price: { challengeId: string; amount: number; currency: string; forSale: boolean }) =>
+      resultOf(
+        await api.PUT("/api/portal/admin/challenges/{challengeId}/price", {
+          params: { path: { challengeId: price.challengeId } },
+          body: { amount: price.amount, currency: price.currency, forSale: price.forSale },
+        }),
+        "the price",
+      ),
+    onSuccess: () => Promise.all([queryClient.invalidateQueries({ queryKey: ["prices"] }), queryClient.invalidateQueries({ queryKey: ["shop"] })]),
+  });
+}
+
+export type PaymentSettingsForm = {
+  provider: PaymentProvider | null;
+  stripeSecretKey: string;
+  stripeWebhookSecret: string;
+  checkoutUrl: string;
+  termsUrl: string;
+};
+
+/** How the portal takes payment. Empty Stripe keys keep the saved ones. */
+export function useSavePayments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (form: PaymentSettingsForm) =>
+      resultOf(
+        await api.PUT("/api/portal/admin/firm/payments", {
+          body: {
+            provider: form.provider,
+            stripeSecretKey: form.stripeSecretKey.trim() || null,
+            stripeWebhookSecret: form.stripeWebhookSecret.trim() || null,
+            checkoutUrl: form.checkoutUrl.trim() || null,
+            termsUrl: form.termsUrl.trim() || null,
+          },
+        }),
+        "the payment settings",
+      ),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(["firm-settings"], settings);
+      return queryClient.invalidateQueries({ queryKey: ["shop"] });
+    },
+  });
 }

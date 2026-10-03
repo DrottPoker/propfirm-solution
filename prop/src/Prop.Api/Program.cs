@@ -18,6 +18,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Json;
+using Prop.Api.Payments;
 using Prop.Api.Persistence;
 using Prop.Api.Portal;
 using Prop.Api.Signup;
@@ -44,7 +45,10 @@ var platform = builder.Services.AddOptions<PlatformOptions>()
         o => o.FirmPortalUrl.Contains("{firm}", StringComparison.Ordinal)
             && Uri.TryCreate(o.FirmPortalUrl.Replace("{firm}", "firm", StringComparison.Ordinal), UriKind.Absolute, out var portal)
             && portal.AbsolutePath.EndsWith('/'),
-        "Platform:FirmPortalUrl must be an absolute address with {firm} for the short name, ending with /.");
+        "Platform:FirmPortalUrl must be an absolute address with {firm} for the short name, ending with /.")
+    .Validate(
+        o => o.ApiUrl is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/'),
+        "Platform:ApiUrl must be the absolute address where the internet reaches this service, ending with /.");
 var email = builder.Services.AddOptions<EmailOptions>()
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
     .Validate(
@@ -56,6 +60,12 @@ builder.Services.AddOptions<SandboxOptions>()
     .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
+builder.Services.AddOptions<PaymentsOptions>()
+    .Bind(builder.Configuration.GetSection(PaymentsOptions.SectionName))
+    .Validate(
+        o => o.OrderLifetime >= TimeSpan.FromMinutes(30) && o.OrderLifetime <= TimeSpan.FromHours(23) && o.StripeApiUrl.IsAbsoluteUri && o.StripeApiUrl.AbsolutePath.EndsWith('/'),
+        "Payments:OrderLifetime must be 30 minutes to 23 hours, as Stripe allows, and Payments:StripeApiUrl an absolute address ending with /.")
+    .ValidateOnStart();
 if (!isOpenApiGeneration)
 {
     tradingPlatform.ValidateOnStart();
@@ -82,6 +92,10 @@ builder.Services.AddSingleton<ChallengeCatalog>();
 builder.Services.AddSingleton<ChallengeService>();
 builder.Services.AddSingleton<ChallengeQueries>();
 builder.Services.AddSingleton<PayoutQueries>();
+builder.Services.AddSingleton<PriceCatalog>();
+builder.Services.AddSingleton<OrderStore>();
+builder.Services.AddSingleton<OrderService>();
+builder.Services.AddSingleton<StripeClient>();
 builder.Services.AddSingleton<PortalUsers>();
 builder.Services.AddSingleton<IPasswordHasher<PortalUser>, PasswordHasher<PortalUser>>();
 
@@ -122,6 +136,11 @@ builder.Services.AddHttpClient(TradingPlatformClient.HttpClientName, (sp, client
 builder.Services.AddSingleton<ITradingPlatform, TradingPlatformClient>();
 builder.Services.AddSingleton<ITradingPartner, TradingPartnerClient>();
 builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient(StripeClient.HttpClientName, (sp, client) =>
+{
+    client.BaseAddress = sp.GetRequiredService<IOptions<PaymentsOptions>>().Value.StripeApiUrl;
+    client.Timeout = TimeSpan.FromSeconds(20);
+});
 
 if (!isOpenApiGeneration)
 {
@@ -162,5 +181,6 @@ app.MapHealthChecks("/health");
 app.MapFirmApi();
 app.MapPortalApi();
 app.MapSignupApi();
+app.MapPaymentWebhooks();
 
 app.Run();

@@ -63,14 +63,34 @@ internal sealed class ChallengeService(
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var result = await StartAsync(connection, firm, email, definitionId, reference, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        if (result.Created)
+        {
+            Notify(firm);
+        }
 
+        return result;
+    }
+
+    /// <summary>
+    /// Starts an account inside the caller's transaction, for example together with the order that paid for
+    /// it. The caller notifies the workers after committing.
+    /// </summary>
+    public async Task<StartResult> StartAsync(
+        NpgsqlConnection connection,
+        Firm firm,
+        string email,
+        string definitionId,
+        string? reference,
+        CancellationToken cancellationToken)
+    {
         if (reference is not null)
         {
             // Requests that repeat a reference wait for each other, so only the first starts an account.
             await ExecuteAsync(connection, "select pg_advisory_xact_lock(hashtextextended($1 || ':' || $2, 0))", [firm.Id, reference], cancellationToken);
             if (await FindAsync(connection, "a.firm_id = $1 and a.reference = $2", [firm.Id, reference], forUpdate: false, cancellationToken) is { } existing)
             {
-                await transaction.CommitAsync(cancellationToken);
                 return new StartResult(existing, Created: false);
             }
         }
@@ -113,10 +133,20 @@ internal sealed class ChallengeService(
         var input = new JsonObject { [PropJson.KindProperty] = "ChallengeStarted", ["definitionId"] = definitionId, ["reference"] = reference };
         await RecordStepAsync(connection, account, 0, now, input.ToJsonString(), started.Outputs, null, cancellationToken);
         await QueueAsync(connection, firm, account, started.Outputs, now, cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-        Notify(firm);
         return new StartResult(account, Created: true);
+    }
+
+    /// <summary>Whether a firm in the sandbox has room for another open account. A live firm always has.</summary>
+    public async Task<bool> HasRoomAsync(Firm firm, CancellationToken cancellationToken)
+    {
+        if (firm.Status == FirmStatus.Live)
+        {
+            return true;
+        }
+
+        await schema.EnsureAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        return await CountOpenAsync(connection, firm.Id, cancellationToken) < sandbox.Value.MaxOpenAccounts;
     }
 
     private static async Task<long> CountOpenAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
@@ -332,42 +362,22 @@ internal sealed class ChallengeService(
             [firm.Id, account.Id, Jsonb(JsonSerializer.Serialize(command, PropJson.Options)), now],
             cancellationToken);
 
-    private static async Task QueueWebhookAsync(
+    private static Task QueueWebhookAsync(
         NpgsqlConnection connection,
         Firm firm,
         ChallengeAccount account,
         string eventType,
         ChallengeOutput output,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
-    {
-        if (firm.Webhook is null)
-        {
-            return;
-        }
-
-        var id = Guid.CreateVersion7(now);
-        var payload = new JsonObject
-        {
-            ["id"] = id,
-            ["type"] = eventType,
-            ["createdAt"] = now,
-            ["account"] = new JsonObject
-            {
-                ["id"] = account.Id,
-                ["number"] = account.Number,
-                ["email"] = account.Email,
-                ["challengeId"] = account.DefinitionId,
-                ["reference"] = account.Reference,
-            },
-            ["data"] = JsonSerializer.SerializeToNode(output, PropJson.Options),
-        };
-        await ExecuteAsync(
+        CancellationToken cancellationToken) =>
+        WebhookOutbox.AddAsync(
             connection,
-            "insert into webhook_deliveries (id, firm_id, event_type, payload, created_at, next_attempt_at) values ($1, $2, $3, $4, $5, $5)",
-            [id, firm.Id, eventType, Jsonb(payload.ToJsonString()), now],
+            firm,
+            eventType,
+            WebhookOutbox.Account(account.Id, account.Number, account.Email, account.DefinitionId, account.Reference),
+            JsonSerializer.SerializeToNode(output, PropJson.Options),
+            now,
             cancellationToken);
-    }
 
     private static async Task<ChallengeAccount?> FindAsync(
         NpgsqlConnection connection,

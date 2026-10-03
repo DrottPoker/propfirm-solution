@@ -181,6 +181,17 @@ En firma kan registrera sig själv och prova allt i en sandlåda. Starta handels
 
 Lokalt behöver e-postadressen inte bekräftas. Vill du prova bekräftelsen, sätt `Signup:RequireEmailVerification` till `true` i propfirm-tjänstens `appsettings.Development.json`, så kommer länken i Mailpit. Webbläsare skickar alla adresser som slutar på `.localhost` till den egna datorn, så inga DNS-inställningar behövs. Se [specen för registreringen](docs/spec/registrering.md).
 
+## Prova köp i portalen
+
+`demo-firm` säljer `two-step-100k` för 499 USD och `quick-test-100k` för 9 USD med testbetalningar, så inga riktiga pengar dras. Starta handelstjänsten, propfirm-tjänsten och portalen enligt ovan, och gärna Mailpit med docker compose.
+
+1. Öppna http://localhost:3002/buy, välj en challenge, ange en e-postadress och klicka på Pay.
+2. Klicka på Pay på testsidan. Ordern blir betald och challengen startar.
+3. Inbjudan att välja lösenord kommer till Mailpit på http://localhost:8025. Är du redan inloggad som trader köper du i stället med din egen e-post och går direkt till kontot.
+4. Under Orders i adminpanelen syns ordern, och under Challenges och Settings ändrar du priser och hur portalen tar betalt.
+
+Vill du prova Stripe, välj Stripe under Settings hos en firma du har registrerat och klistra in dina testnycklar. Stripe når inte din dator, så skicka webhooks med Stripe CLI: `stripe listen --forward-to http://localhost:5201/api/payments/v1/stripe/FIRMA` ger signeringshemligheten att klistra in. Se [specen för köp i portalen](docs/spec/kop.md).
+
 ## Prova utbetalningar
 
 Challengen `quick-test-100k` finns bara lokalt. Den har vinstmål på 0,1 % (100 USD) och inga krav på antal handelsdagar, så hela vägen till en utbetalning tar några minuter. Starta handelstjänsten, propfirm-tjänsten, portalen och terminalen enligt ovan.
