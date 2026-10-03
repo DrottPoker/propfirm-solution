@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, resultOf } from "./api/client";
-import type { ChallengeStatus } from "./api/types";
+import type { ChallengeStatus, PayoutStatus } from "./api/types";
 
 export type Role = "trader" | "admin";
 
@@ -107,6 +107,19 @@ export function useMyAccount(accountId: string | null) {
   });
 }
 
+/** The trader asks for a payout of the funded account's profit. The service answers with the reason when it cannot. */
+export function useRequestPayout(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/accounts/{accountId}/payouts", accountPath(accountId)), "the payout"),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["my-account", accountId] }),
+        queryClient.invalidateQueries({ queryKey: ["my-accounts"] }),
+      ]),
+  });
+}
+
 /** A one-time link that logs the trader in to the trading terminal on the account. */
 export function useTerminalLink() {
   return useMutation({
@@ -180,6 +193,51 @@ export function useAccountCommand(accountId: string) {
         queryClient.invalidateQueries({ queryKey: ["firm-account", accountId] }),
         queryClient.invalidateQueries({ queryKey: ["history", accountId] }),
         queryClient.invalidateQueries({ queryKey: ["firm-accounts"] }),
+      ]),
+  });
+}
+
+/** The firm's newest payouts, all of them or only those with the statuses. */
+export function useFirmPayouts(statuses: PayoutStatus[]) {
+  return useQuery({
+    queryKey: ["firm-payouts", statuses],
+    queryFn: async () =>
+      resultOf(await api.GET("/api/portal/admin/payouts", { params: { query: { status: statuses, limit: 200 } } }), "the payouts"),
+    refetchInterval: liveRefreshMs,
+  });
+}
+
+export type PayoutDecision =
+  | { kind: "approve"; payoutId: string }
+  | { kind: "mark-paid"; payoutId: string; reference: string }
+  | { kind: "reject"; payoutId: string; reason: string };
+
+/** The firm approves a payout, marks it as paid or rejects it. Each answers with the payout as it is afterwards. */
+export function usePayoutDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: PayoutDecision) => {
+      const path = { params: { path: { payoutId: decision.payoutId } } };
+      switch (decision.kind) {
+        case "approve":
+          return resultOf(await api.POST("/api/portal/admin/payouts/{payoutId}/approve", path), "the approval");
+        case "mark-paid":
+          return resultOf(
+            await api.POST("/api/portal/admin/payouts/{payoutId}/mark-paid", { ...path, body: { reference: decision.reference || null } }),
+            "the payment",
+          );
+        case "reject":
+          return resultOf(
+            await api.POST("/api/portal/admin/payouts/{payoutId}/reject", { ...path, body: { reason: decision.reason || null } }),
+            "the rejection",
+          );
+      }
+    },
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["firm-payouts"] }),
+        queryClient.invalidateQueries({ queryKey: ["firm-account"] }),
+        queryClient.invalidateQueries({ queryKey: ["history"] }),
       ]),
   });
 }

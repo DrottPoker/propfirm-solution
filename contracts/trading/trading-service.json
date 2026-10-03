@@ -791,6 +791,45 @@
         }
       }
     },
+    "/api/admin/v1/accounts/{accountId}/balance-operations": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BalanceOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/v1/events": {
       "get": {
         "tags": [
@@ -920,6 +959,33 @@
           "Active",
           "Disabled"
         ]
+      },
+      "BalanceOperationRequest": {
+        "required": [
+          "operationId",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "minBalance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "Deposits a positive Amount or withdraws a negative one. The caller chooses\nOperationId, unique per account, so a retry is answered 409 instead of being applied\ntwice. A withdrawal must leave at least MinBalance."
       },
       "CancelReason": {
         "enum": [
@@ -1073,6 +1139,9 @@
             "$ref": "#/components/schemas/EngineEventAccountDisabled"
           },
           {
+            "$ref": "#/components/schemas/EngineEventBalanceAdjusted"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventEquityFloorBreached"
           },
           {
@@ -1109,6 +1178,7 @@
           "mapping": {
             "AccountCreated": "#/components/schemas/EngineEventAccountCreated",
             "AccountDisabled": "#/components/schemas/EngineEventAccountDisabled",
+            "BalanceAdjusted": "#/components/schemas/EngineEventBalanceAdjusted",
             "EquityFloorBreached": "#/components/schemas/EngineEventEquityFloorBreached",
             "EquityFloorRemoved": "#/components/schemas/EngineEventEquityFloorRemoved",
             "EquityFloorSet": "#/components/schemas/EngineEventEquityFloorSet",
@@ -1180,6 +1250,42 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineEventBalanceAdjusted": {
+        "required": [
+          "accountId",
+          "operationId",
+          "amount",
+          "balanceAfter",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "BalanceAdjusted"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Money was deposited (positive amount) or withdrawn (negative amount). Not a trading result."
       },
       "EngineEventEquityFloorBreached": {
         "required": [
@@ -1631,6 +1737,9 @@
         "type": "object",
         "anyOf": [
           {
+            "$ref": "#/components/schemas/EngineInputAdjustBalance"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputCancelOrder"
           },
           {
@@ -1662,6 +1771,7 @@
         "discriminator": {
           "propertyName": "kind",
           "mapping": {
+            "AdjustBalance": "#/components/schemas/EngineInputAdjustBalance",
             "CancelOrder": "#/components/schemas/EngineInputCancelOrder",
             "CloseAccount": "#/components/schemas/EngineInputCloseAccount",
             "ClosePosition": "#/components/schemas/EngineInputClosePosition",
@@ -1673,6 +1783,44 @@
             "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor"
           }
         }
+      },
+      "EngineInputAdjustBalance": {
+        "required": [
+          "accountId",
+          "operationId",
+          "amount",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AdjustBalance"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "minBalance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Deposits a positive Amount or withdraws a negative one. The caller chooses\nOperationId, which is never reused on the account, so a retry cannot apply it twice.\nA withdrawal must leave the balance at or above MinBalance, fit in the free margin\nand keep equity above every floor."
       },
       "EngineInputCancelOrder": {
         "required": [
@@ -2509,7 +2657,8 @@
           "UnknownOrder",
           "UnknownPosition",
           "InvalidFloor",
-          "UnknownFloor"
+          "UnknownFloor",
+          "InsufficientFunds"
         ]
       },
       "ServerInfo": {

@@ -42,6 +42,7 @@ internal static class PortalEndpoints
         trader.MapGet("", ListMyAccountsAsync);
         trader.MapGet("/{accountId:guid}", GetMyAccountAsync);
         trader.MapPost("/{accountId:guid}/terminal-link", CreateTerminalLinkAsync);
+        trader.MapPost("/{accountId:guid}/payouts", RequestPayoutAsync);
 
         portal.MapPost(
                 "/admin/login",
@@ -60,6 +61,10 @@ internal static class PortalEndpoints
         admin.MapPost("/accounts/{accountId:guid}/approve-funding", ApproveFundingAsync);
         admin.MapPost("/accounts/{accountId:guid}/cancel", CancelAsync);
         admin.MapPost("/accounts/{accountId:guid}/invite", InviteAsync);
+        admin.MapGet("/payouts", ListPayoutsAsync);
+        admin.MapPost("/payouts/{payoutId:guid}/approve", ApprovePayoutAsync);
+        admin.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
+        admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         return app;
     }
 
@@ -151,9 +156,31 @@ internal static class PortalEndpoints
         ClaimsPrincipal principal,
         HttpContext context,
         ChallengeQueries queries,
+        PayoutQueries payouts,
         ITradingPlatform trading,
         CancellationToken cancellationToken) =>
-        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, trading, cancellationToken);
+        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, payouts, trading, cancellationToken);
+
+    /// <summary>The trader asks for a payout of the funded account's profit. 409 with the reason when one cannot be had now.</summary>
+    private static Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
+        Guid accountId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeService challenges,
+        ChallengeQueries accounts,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.RequestAsync(
+            PortalFirmFilter.FirmOf(context),
+            accountId,
+            PortalAuth.UserIdOf(principal),
+            _ => $"/api/portal/accounts/{accountId}",
+            challenges,
+            accounts,
+            payouts,
+            time,
+            cancellationToken);
 
     private static Task<Results<Ok<LoginLinkResponse>, ProblemHttpResult>> CreateTerminalLinkAsync(
         Guid accountId,
@@ -200,9 +227,10 @@ internal static class PortalEndpoints
         Guid accountId,
         HttpContext context,
         ChallengeQueries queries,
+        PayoutQueries payouts,
         ITradingPlatform trading,
         CancellationToken cancellationToken) =>
-        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, null, queries, trading, cancellationToken);
+        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, null, queries, payouts, trading, cancellationToken);
 
     private static Task<Results<Ok<List<StepResponse>>, ProblemHttpResult>> GetHistoryAsync(
         Guid accountId,
@@ -229,6 +257,44 @@ internal static class PortalEndpoints
         TimeProvider time,
         CancellationToken cancellationToken) =>
         AccountActions.ApplyAsync(PortalFirmFilter.FirmOf(context), accountId, FirmEndpoints.Cancel(request, time), challenges, queries, cancellationToken);
+
+    /// <summary>The firm's newest payouts, optionally only those with the given statuses.</summary>
+    private static Task<Results<Ok<List<PayoutResponse>>, ProblemHttpResult>> ListPayoutsAsync(
+        HttpContext context,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken,
+        PayoutStatus[]? status = null,
+        int limit = 100) =>
+        PayoutActions.ListAsync(PortalFirmFilter.FirmOf(context), status, limit, payouts, cancellationToken);
+
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> ApprovePayoutAsync(
+        Guid payoutId,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(PortalFirmFilter.FirmOf(context), payoutId, PayoutActions.Approve(time), challenges, payouts, cancellationToken);
+
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> MarkPayoutPaidAsync(
+        Guid payoutId,
+        MarkPayoutPaidRequest request,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(PortalFirmFilter.FirmOf(context), payoutId, PayoutActions.MarkPaid(request, time), challenges, payouts, cancellationToken);
+
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> RejectPayoutAsync(
+        Guid payoutId,
+        RejectPayoutRequest request,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(PortalFirmFilter.FirmOf(context), payoutId, PayoutActions.Reject(request, time), challenges, payouts, cancellationToken);
 
     private static Task<Results<Ok<InviteResponse>, ProblemHttpResult>> InviteAsync(
         Guid accountId,

@@ -30,14 +30,16 @@ public sealed record MaxLossRule(decimal Percent, MaxLossKind Kind);
 /// <summary>
 /// Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
 /// target with no open positions after at least <paramref name="MinTradingDays"/> trading days.
-/// The funded stage has no profit target.
+/// The funded stage has no profit target. Its trader gets <paramref name="ProfitSplitPercent"/> of the
+/// profit as a payout, after at least <paramref name="MinTradingDays"/> trading days since the last one.
 /// </summary>
 public sealed record StageRules(
     string Name,
     decimal? ProfitTargetPercent,
     int MinTradingDays,
     DailyLossRule DailyLoss,
-    MaxLossRule MaxLoss);
+    MaxLossRule MaxLoss,
+    decimal? ProfitSplitPercent = null);
 
 /// <summary>When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days.</summary>
 public sealed record TradingDayDefinition(string TimeZone, TimeOnly Start);
@@ -79,10 +81,12 @@ public sealed partial record ChallengeDefinition(
         foreach (var (stage, index) in Evaluation.Select((s, i) => (s, i + 1)))
         {
             Require(stage.ProfitTargetPercent is > 0 and <= 100, $"Evaluation stage {index} needs a profit target above 0 and at most 100 percent.");
+            Require(stage.ProfitSplitPercent is null, $"Evaluation stage {index} has no profit split. Only the funded stage pays out.");
             ValidateStage(stage, $"Evaluation stage {index}");
         }
 
         Require(Funded.ProfitTargetPercent is null, "The funded stage has no profit target.");
+        Require(Funded.ProfitSplitPercent is > 0 and <= 100, "The funded stage needs a profit split above 0 and at most 100 percent.");
         ValidateStage(Funded, "The funded stage");
         return errors;
 
@@ -114,7 +118,8 @@ public static class ChallengeTemplates
     /// <summary>
     /// The common two-step challenge: profit targets of 10 and 5 percent, 5 percent daily loss from the
     /// balance at the start of the day, 10 percent fixed max loss and at least 4 trading days per
-    /// evaluation stage. Trading days start at midnight Swedish time.
+    /// evaluation stage. The funded trader gets 80 percent of the profit, with at least 5 trading days
+    /// between payouts. Trading days start at midnight Swedish time.
     /// </summary>
     public static ChallengeDefinition TwoStep(string id, decimal initialBalance, string currency = "USD")
     {
@@ -130,6 +135,6 @@ public static class ChallengeTemplates
                 new StageRules("Phase 1", 10, 4, dailyLoss, maxLoss),
                 new StageRules("Phase 2", 5, 4, dailyLoss, maxLoss),
             ],
-            new StageRules("Funded", null, 0, dailyLoss, maxLoss));
+            new StageRules("Funded", null, 5, dailyLoss, maxLoss, ProfitSplitPercent: 80));
     }
 }

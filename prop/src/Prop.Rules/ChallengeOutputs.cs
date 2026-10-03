@@ -43,7 +43,31 @@ public sealed record ChallengeFailed(
 
 public sealed record ChallengeCancelled(DateTimeOffset Time, string Reason) : ChallengeOutput(Time);
 
-/// <summary>An input from the service or the firm that does not fit the challenge's state. Facts are never reported here.</summary>
+/// <summary>The trader asked for a payout. Its profit is withdrawn next.</summary>
+public sealed record PayoutRequested(DateTimeOffset Time, Payout Payout) : ChallengeOutput(Time);
+
+/// <summary>
+/// Withdraw <paramref name="Amount"/> from the account, with <paramref name="OperationId"/> so it happens
+/// once, but only if at least <paramref name="MinBalance"/> is left. The trading platform refuses it if the
+/// balance fell since the payout was requested.
+/// </summary>
+public sealed record WithdrawalRequested(DateTimeOffset Time, string AccountId, string OperationId, decimal Amount, decimal MinBalance)
+    : ChallengeOutput(Time);
+
+/// <summary>The profit is off the trading account, which starts a new payout period. The firm should approve the payout.</summary>
+public sealed record PayoutWithdrawn(DateTimeOffset Time, Payout Payout, decimal BalanceAfter) : ChallengeOutput(Time);
+
+public sealed record PayoutApproved(DateTimeOffset Time, Payout Payout) : ChallengeOutput(Time);
+
+public sealed record PayoutPaid(DateTimeOffset Time, Payout Payout, string? Reference) : ChallengeOutput(Time);
+
+/// <summary>The firm refused the payout. The withdrawn profit stays off the account.</summary>
+public sealed record PayoutRejected(DateTimeOffset Time, Payout Payout, string Reason) : ChallengeOutput(Time);
+
+/// <summary>The withdrawal was refused, so the payout did not happen and the account is as it was.</summary>
+public sealed record PayoutFailed(DateTimeOffset Time, Payout Payout, string Reason) : ChallengeOutput(Time);
+
+/// <summary>An input from the service, the firm or the trader that does not fit the challenge's state. Facts are never reported here.</summary>
 public sealed record InputIgnored(DateTimeOffset Time, string Input, string Reason) : ChallengeOutput(Time);
 
 /// <summary>The floor names the rule engine uses on the trading platform.</summary>

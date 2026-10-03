@@ -1,19 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { terminalUrl, tradingPort } from "../playwright.config";
-
-// The development firm and its administrator, from Prop.Api's appsettings.Development.json.
-const firmName = "Demo Firm";
-const admin = { email: "admin@test.com", password: "admin" };
-
-const traderPassword = "e2e-trader-password";
-
-async function logIn(page: Page, path: "/login" | "/admin/login", email: string, password: string) {
-  await page.goto(path);
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-}
+import { acceptInvitation, admin, firmName, logIn } from "./support";
 
 test("visitors who are not logged in are sent to the login page of the firm", async ({ page }) => {
   await page.goto("/");
@@ -56,12 +44,8 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
   // The trader chooses a password with the invitation, in the same browser. Traders and administrators have
   // separate sessions, so the administrator stays logged in.
   const trader = await context.newPage();
-  await trader.goto(invitation);
-  await trader.getByLabel("Password", { exact: true }).fill(traderPassword);
-  await trader.getByLabel("Repeat password").fill(traderPassword);
-  await trader.getByRole("button", { name: "Save password and continue" }).click();
+  await acceptInvitation(trader, invitation);
 
-  await expect(trader).toHaveURL(/\/$/);
   await expect(trader.getByText("100,000.00 USD")).toBeVisible();
   await expect(trader.getByRole("cell", { name: "Daily loss limit" })).toBeVisible();
   await expect(trader.getByText("Valued at the latest prices.")).toBeVisible();

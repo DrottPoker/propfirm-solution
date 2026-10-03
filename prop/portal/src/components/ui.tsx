@@ -22,6 +22,16 @@ export function ErrorText({ error }: { error: Error | null }) {
   );
 }
 
+/** A labelled figure, such as a balance, in a <dl>. */
+export function Figure({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-sm text-muted">{label}</dt>
+      <dd className="font-mono text-lg tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
 export function Panel({ title, actions, children }: { title?: string; actions?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-4 rounded-lg border border-border bg-panel p-5">

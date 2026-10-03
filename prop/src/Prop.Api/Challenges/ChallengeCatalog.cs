@@ -43,14 +43,6 @@ internal sealed class ChallengeCatalog(NpgsqlDataSource dataSource, DatabaseSche
             definition,
             cancellationToken);
 
-    /// <summary>Creates the challenge unless the firm already has one with the id.</summary>
-    public Task AddIfMissingAsync(string firmId, ChallengeDefinition definition, CancellationToken cancellationToken) =>
-        WriteAsync(
-            "insert into challenge_definitions (firm_id, id, definition, updated_at) values ($1, $2, $3, $4) on conflict (firm_id, id) do nothing",
-            firmId,
-            definition,
-            cancellationToken);
-
     public async Task<IReadOnlyList<ChallengeDefinition>> ListAsync(string firmId, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

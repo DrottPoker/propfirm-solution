@@ -327,6 +327,250 @@
         }
       }
     },
+    "/api/firm/v1/accounts/{accountId}/payouts": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/payouts": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PayoutStatus"
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/payouts/{payoutId}": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/payouts/{payoutId}/approve": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/payouts/{payoutId}/mark-paid": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPayoutPaidRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/payouts/{payoutId}/reject": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/branding": {
       "get": {
         "tags": [
@@ -551,6 +795,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LoginLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/accounts/{accountId}/payouts": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
                 }
               }
             }
@@ -845,6 +1119,159 @@
           }
         }
       }
+    },
+    "/api/portal/admin/payouts": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PayoutStatus"
+              }
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PayoutResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/payouts/{payoutId}/approve": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/payouts/{payoutId}/mark-paid": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkPayoutPaidRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/payouts/{payoutId}/reject": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "payoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -874,7 +1301,8 @@
         "required": [
           "account",
           "live",
-          "breach"
+          "breach",
+          "payouts"
         ],
         "type": "object",
         "properties": {
@@ -900,9 +1328,15 @@
                 "$ref": "#/components/schemas/BreachEvidence"
               }
             ]
+          },
+          "payouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PayoutResponse"
+            }
           }
         },
-        "description": "An account with its trading account right now, and the evidence if it failed."
+        "description": "An account with its trading account right now, the evidence if it failed and its payouts, newest first."
       },
       "AccountResponse": {
         "required": [
@@ -925,7 +1359,8 @@
           "openPositions",
           "dailyFloor",
           "maxLossFloor",
-          "createdAt"
+          "createdAt",
+          "nextPayout"
         ],
         "type": "object",
         "properties": {
@@ -1018,6 +1453,16 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "nextPayout": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PayoutQuoteResponse"
+              }
+            ]
           }
         },
         "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\nfor the current stage, which starts at InitialBalance. The figures are what the trading\nplatform last reported."
@@ -1262,6 +1707,21 @@
         },
         "description": "Open Url once before ExpiresAt to be logged in to the trading terminal."
       },
+      "MarkPayoutPaidRequest": {
+        "required": [
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Reference is the firm's own, for example a bank transfer id."
+      },
       "MaxLossKind": {
         "enum": [
           "Fixed",
@@ -1284,6 +1744,173 @@
           }
         },
         "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
+      },
+      "PayoutQuoteResponse": {
+        "required": [
+          "canRequest",
+          "refusal",
+          "profit",
+          "profitSplitPercent",
+          "amount",
+          "tradingDays",
+          "minTradingDays"
+        ],
+        "type": "object",
+        "properties": {
+          "canRequest": {
+            "type": "boolean"
+          },
+          "refusal": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "profitSplitPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "tradingDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minTradingDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which\nis all withdrawn from the trading account. When CanRequest is false,\nRefusal says why. Only for funded accounts."
+      },
+      "PayoutResponse": {
+        "required": [
+          "id",
+          "accountId",
+          "accountNumber",
+          "email",
+          "tradingAccountId",
+          "status",
+          "profit",
+          "profitSplitPercent",
+          "amount",
+          "currency",
+          "requestedAt",
+          "withdrawnAt",
+          "approvedAt",
+          "paidAt",
+          "rejectedAt",
+          "failedAt",
+          "reason",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountNumber": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "tradingAccountId": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutStatus"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "profitSplitPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawnAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "rejectedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "failedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A funded trader's payout. Profit was withdrawn from TradingAccountId,\nand the trader gets Amount. The firm approves it, sends the money itself and marks it as paid."
+      },
+      "PayoutStatus": {
+        "enum": [
+          "Withdrawing",
+          "Pending",
+          "Approved",
+          "Paid",
+          "Rejected",
+          "Failed"
+        ]
       },
       "PortalLoginRequest": {
         "required": [
@@ -1331,6 +1958,20 @@
         },
         "description": "Who is logged in to the portal. Role is trader or admin."
       },
+      "RejectPayoutRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "StageRules": {
         "required": [
           "name",
@@ -1360,9 +2001,16 @@
           },
           "maxLoss": {
             "$ref": "#/components/schemas/MaxLossRule"
+          },
+          "profitSplitPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days.\nThe funded stage has no profit target."
+        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days.\nThe funded stage has no profit target. Its trader gets ProfitSplitPercent of the\nprofit as a payout, after at least MinTradingDays trading days since the last one."
       },
       "StartAccountRequest": {
         "required": [

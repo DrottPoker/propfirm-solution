@@ -9,9 +9,10 @@ import { formatDateTime } from "@/lib/format";
 import { useAccountCommand, useFirmAccount, useHistory, useInvite } from "@/lib/queries";
 
 import { AccountOverview } from "./AccountOverview";
+import { PayoutTable } from "./Payouts";
 import { buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
 
-/** One of the firm's accounts: its figures, what the firm can do with it and its full history. */
+/** One of the firm's accounts: its figures, what the firm can do with it, its payouts and its full history. */
 export function AdminAccount({ accountId }: { accountId: string }) {
   const details = useFirmAccount(accountId);
 
@@ -34,6 +35,11 @@ export function AdminAccount({ accountId }: { accountId: string }) {
         <TraderAccess account={account} />
         <AccountCommands account={account} />
       </div>
+      {details.data.payouts.length > 0 && (
+        <Panel title="Payouts">
+          <PayoutTable payouts={details.data.payouts} decisions />
+        </Panel>
+      )}
       <History accountId={accountId} />
     </main>
   );

@@ -375,6 +375,258 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/firm/v1/accounts/{accountId}/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["PayoutStatus"][];
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/payouts/{payoutId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/payouts/{payoutId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/payouts/{payoutId}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkPayoutPaidRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/firm/v1/payouts/{payoutId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RejectPayoutRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/branding": {
         parameters: {
             query?: never;
@@ -737,6 +989,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/accounts/{accountId}/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/me": {
         parameters: {
             query?: never;
@@ -1067,6 +1356,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["PayoutStatus"][];
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/payouts/{payoutId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/payouts/{payoutId}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkPayoutPaidRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/payouts/{payoutId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    payoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RejectPayoutRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1075,11 +1521,12 @@ export interface components {
             token: null | string;
             password: null | string;
         };
-        /** @description An account with its trading account right now, and the evidence if it failed. */
+        /** @description An account with its trading account right now, the evidence if it failed and its payouts, newest first. */
         AccountDetailsResponse: {
             account: components["schemas"]["AccountResponse"];
             live: null | components["schemas"]["LiveFigures"];
             breach: null | components["schemas"]["BreachEvidence"];
+            payouts: components["schemas"]["PayoutResponse"][];
         };
         /**
          * @description A trader's challenge account. TradingAccountId is the account on the trading platform
@@ -1119,6 +1566,7 @@ export interface components {
             maxLossFloor: null | number;
             /** Format: date-time */
             createdAt: string;
+            nextPayout: null | components["schemas"]["PayoutQuoteResponse"];
         };
         /** @description What the portal needs to look like the firm's own. */
         Branding: {
@@ -1208,6 +1656,10 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
         };
+        /** @description Reference is the firm's own, for example a bank transfer id. */
+        MarkPayoutPaidRequest: {
+            reference: null | string;
+        };
         /** @enum {unknown} */
         MaxLossKind: "Fixed" | "Trailing";
         /** @description Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing. */
@@ -1216,6 +1668,63 @@ export interface components {
             percent: number;
             kind: components["schemas"]["MaxLossKind"];
         };
+        /**
+         * @description What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which
+         *     is all withdrawn from the trading account. When CanRequest is false,
+         *     Refusal says why. Only for funded accounts.
+         */
+        PayoutQuoteResponse: {
+            canRequest: boolean;
+            refusal: null | string;
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            profitSplitPercent: number;
+            /** Format: double */
+            amount: number;
+            /** Format: int32 */
+            tradingDays: number;
+            /** Format: int32 */
+            minTradingDays: number;
+        };
+        /**
+         * @description A funded trader's payout. Profit was withdrawn from TradingAccountId,
+         *     and the trader gets Amount. The firm approves it, sends the money itself and marks it as paid.
+         */
+        PayoutResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            accountId: string;
+            /** Format: int64 */
+            accountNumber: number;
+            email: string;
+            tradingAccountId: string;
+            status: components["schemas"]["PayoutStatus"];
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            profitSplitPercent: number;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            withdrawnAt: null | string;
+            /** Format: date-time */
+            approvedAt: null | string;
+            /** Format: date-time */
+            paidAt: null | string;
+            /** Format: date-time */
+            rejectedAt: null | string;
+            /** Format: date-time */
+            failedAt: null | string;
+            reason: null | string;
+            reference: null | string;
+        };
+        /** @enum {unknown} */
+        PayoutStatus: "Withdrawing" | "Pending" | "Approved" | "Paid" | "Rejected" | "Failed";
         PortalLoginRequest: {
             email: null | string;
             password: null | string;
@@ -1228,10 +1737,14 @@ export interface components {
             role: string;
             firmName: string;
         };
+        RejectPayoutRequest: {
+            reason: null | string;
+        };
         /**
          * @description Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
          *     target with no open positions after at least MinTradingDays trading days.
-         *     The funded stage has no profit target.
+         *     The funded stage has no profit target. Its trader gets ProfitSplitPercent of the
+         *     profit as a payout, after at least MinTradingDays trading days since the last one.
          */
         StageRules: {
             name: string;
@@ -1241,6 +1754,8 @@ export interface components {
             minTradingDays: number;
             dailyLoss: components["schemas"]["DailyLossRule"];
             maxLoss: components["schemas"]["MaxLossRule"];
+            /** Format: double */
+            profitSplitPercent?: null | number;
         };
         /**
          * @description Starts a challenge for the trader with the email. Reference is the firm's own id, for

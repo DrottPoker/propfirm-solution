@@ -20,6 +20,9 @@ internal sealed class AccountState(string id, GroupState group, decimal balance)
     // Order ids used by this account. Ids are never reused.
     public HashSet<string> UsedOrderIds { get; } = new(StringComparer.Ordinal);
 
+    // Balance operation ids applied to this account, so a retried operation is never applied twice.
+    public HashSet<string> UsedOperationIds { get; } = new(StringComparer.Ordinal);
+
     public bool HasExposure => Positions.Count > 0 || Orders.Count > 0;
 }
 
@@ -95,14 +98,20 @@ internal sealed class FloorState(string id, EquityFloorRule rule, decimal highWa
 
     public decimal HighWaterMark { get; private set; } = highWaterMark;
 
-    public decimal? Anchor { get; } = anchor;
+    public decimal? Anchor { get; private set; } = anchor;
 
-    public decimal Level => Rule switch
+    public decimal Level => LevelShiftedBy(0m);
+
+    /// <summary>
+    /// The level after <see cref="Shift"/> by <paramref name="amount"/>. Levels measured from the account move
+    /// with it; a fixed level and a trailing floor's lock level stay where they are.
+    /// </summary>
+    public decimal LevelShiftedBy(decimal amount) => Rule switch
     {
         FixedFloor fixedFloor => fixedFloor.Level,
-        TrailingFloor { LockLevel: { } lockLevel } trailing => Math.Min(HighWaterMark - trailing.Distance, lockLevel),
-        TrailingFloor trailing => HighWaterMark - trailing.Distance,
-        AnchoredFloor anchored => Anchor!.Value - anchored.Distance,
+        TrailingFloor { LockLevel: { } lockLevel } trailing => Math.Min(HighWaterMark + amount - trailing.Distance, lockLevel),
+        TrailingFloor trailing => HighWaterMark + amount - trailing.Distance,
+        AnchoredFloor anchored => Anchor!.Value + amount - anchored.Distance,
         _ => throw new InvalidOperationException($"Unknown floor rule {Rule.GetType().Name}."),
     };
 
@@ -111,6 +120,16 @@ internal sealed class FloorState(string id, EquityFloorRule rule, decimal highWa
         if (equity > HighWaterMark)
         {
             HighWaterMark = equity;
+        }
+    }
+
+    /// <summary>A deposit or withdrawal is not a trading result, so the highest equity and the anchor move with the balance.</summary>
+    public void Shift(decimal amount)
+    {
+        HighWaterMark += amount;
+        if (Anchor is { } anchor)
+        {
+            Anchor = anchor + amount;
         }
     }
 }

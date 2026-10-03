@@ -4,7 +4,7 @@ using Trading.Engine.Inputs;
 namespace Trading.Engine.Tests.Support;
 
 /// <summary>
-/// Replays 3 000 synthetic EURUSD prices with orders, floors and closes in between.
+/// Replays 3 000 synthetic EURUSD prices with orders, floors, balance operations and closes in between.
 /// Returns every event and the final account snapshots as JSON lines.
 /// The engine can be restarted from its exported state at given ticks, which must not change the result.
 /// </summary>
@@ -67,6 +67,10 @@ internal static class ReplayScenario
                 case 700:
                     Send(new PlaceOrder(now, "A", "A-4", "EURUSD", Side.Sell, OrderType.Market, 2.00m));
                     break;
+                case 1_000:
+                    // The trailing floor moves up with a deposit
+                    Send(new AdjustBalance(now, "A", "A-deposit", 2_000m));
+                    break;
                 case 1_200:
                     // New trading day: the daily floor moves to 5 000 below current equity
                     var equity = engine.GetAccount("A")!.Equity;
@@ -78,6 +82,13 @@ internal static class ReplayScenario
                         Send(new ClosePosition(now, "A", position.PositionId));
                     }
 
+                    break;
+                case 2_200:
+                    Send(new AdjustBalance(now, "A", "A-withdrawal", -1_000m, MinBalance: 50_000m));
+                    break;
+                case 2_300:
+                    // A retry of the same withdrawal is refused, also after a restart in between
+                    Send(new AdjustBalance(now, "A", "A-withdrawal", -1_000m, MinBalance: 50_000m));
                     break;
                 case 2_500:
                     Send(new CloseAccount(now, "A"));

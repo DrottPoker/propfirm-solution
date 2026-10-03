@@ -14,6 +14,7 @@ public sealed record EngineState(
     IReadOnlyList<Quote> LatestQuotes,
     IReadOnlyList<AccountRecord> Accounts);
 
+/// <param name="UsedOperationIds">Missing in snapshots taken before balance operations existed.</param>
 public sealed record AccountRecord(
     string AccountId,
     string GroupId,
@@ -22,7 +23,8 @@ public sealed record AccountRecord(
     IReadOnlyList<PositionRecord> Positions,
     IReadOnlyList<OrderRecord> Orders,
     IReadOnlyList<FloorRecord> Floors,
-    IReadOnlyList<string> UsedOrderIds);
+    IReadOnlyList<string> UsedOrderIds,
+    IReadOnlyList<string>? UsedOperationIds = null);
 
 public sealed record PositionRecord(
     string PositionId,

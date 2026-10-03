@@ -1,6 +1,6 @@
 # Spec: propfirm-tjänsten
 
-- Fas: 4c, portalens del i 4d
+- Fas: 4c, portalens del i 4d, utbetalningar i 5
 - Status: Implementerad i `prop/src/Prop.Api`
 - Datum: 2026-10-03
 
@@ -14,13 +14,14 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 |---|---|
 | `FirmCatalog`, `FirmApiKeyFilter` | Firmorna: id, namn, nyckel för firmans API, server och nyckel på handelsplattformen, webhook och portal. |
 | `AccountActions` | Det som går att göra med ett konto, gemensamt för firmans API och portalen. |
+| `PayoutActions`, `PayoutQueries` | Utbetalningar: begäran, firmans beslut och listor, gemensamt för firmans API och portalen. |
 | `PortalEndpoints`, `PortalAuth`, `PortalFirmFilter` | Portalens API, sessioner och att firman känns igen på värdnamnet. |
 | `PortalUsers`, `PortalSeeder` | Traders och administratörer i portalen, inbjudningar, och de administratörer och traders som konfigurerats för utveckling. |
 | `ChallengeCatalog` | Challenges per firma. Kontrolleras av regelmotorn och mot kända tidszoner. |
 | `ChallengeService` | Kör regelmotorn med kontot låst. Steget, tillståndet, kommandona och webhooks sparas i samma transaktion. |
 | `ITradingPlatform`, `TradingPlatformClient` | Handelsplattformens admin-API v1, även kontot värderat just nu för portalen. Fler plattformar kan få egna adaptrar. |
 | `TradingEventConsumer` | Läser firmans händelseström och gör om händelser till fakta. Löpnumret sparas i samma transaktion som besluten. |
-| `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. |
+| `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. Ett nekat uttag rapporteras till regelmotorn i samma transaktion, så att utbetalningen blir `Failed`. |
 | `TradingDayScheduler` | Startar handelsdagen för varje öppet konto när dagen börjar, och kommer ikapp efter en omstart. |
 | `WebhookWorker` | Skickar signerade webhooks till firman och försöker igen tills de tas emot. |
 | `ChallengeSeeder` | Skapar firmans konfigurerade challenges vid start. |
@@ -35,6 +36,8 @@ tradern handlar -> PositionOpened och PositionClosed i strömmen -> handelsdagar
 -> fasen klar -> kommandon: stäng kontot, öppna nästa -> webhook account.passed
 midnatt i challengens tidszon -> regelmotorn: ny handelsdag -> kommando: lägg om det dagliga golvet
 golvet bryts -> EquityFloorBreached i strömmen -> underkänd, med händelsen som bevis -> webhook account.breached
+tradern begär utbetalning -> kommando: ta ut vinsten -> BalanceAdjusted i strömmen -> väntar på firman -> webhook payout.requested
+firman godkänner -> webhook payout.approved -> firman betalar själv och markerar som betald -> webhook payout.paid
 ```
 
 ## Från handelsplattformen till regelmotorn
@@ -47,8 +50,9 @@ golvet bryts -> EquityFloorBreached i strömmen -> underkänd, med händelsen so
 | `EquityFloorBreached` | `FloorBreached`. Hela händelsen sparas som bevis i steget. |
 | `AccountDisabled` | `AccountDisabled`. |
 | `EquityFloorSet` | Bara golvets nivå, för visning. |
+| `BalanceAdjusted` | `BalanceAdjusted` med operationens id, beloppet och saldot efteråt. Hela händelsen sparas i steget. |
 
-Händelser om konton som tjänsten inte har öppnat, och andra händelser, flyttar bara läspositionen framåt.
+Händelser om konton som tjänsten inte har öppnat åt firman, och andra händelser, flyttar bara läspositionen framåt.
 
 ## Handelsdagar
 
@@ -74,6 +78,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `trading_cursors` | Hur långt varje firmas händelseström är läst. |
 | `trading_commands` | Kommandon till handelsplattformen, i ordning per firma. |
 | `webhook_deliveries` | Webhooks till firman, med försök och svar. |
+| `payouts` | Utbetalningar med status, vinst, vinstandel, belopp, tider, orsak och firmans referens. Regelmotorns steg är revisionsloggen, tabellen är för att hitta utbetalningar. |
 | `firm_counters` | Nästa kontonummer per firma. |
 
 ## Firmans API
@@ -92,6 +97,15 @@ Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-A
 | `POST /accounts/{id}/cancel` | Avbryter med `{ "reason" }` och stänger kontot på handelsplattformen. |
 | `POST /accounts/{id}/login-link` | En engångslänk som loggar in tradern i terminalen på fasens konto. |
 | `POST /accounts/{id}/invite` | En inbjudningslänk till portalen, för firman att skicka till tradern. Gäller en gång i 7 dagar och ersätter traderns äldre oanvända. |
+| `POST /accounts/{id}/payouts` | Begär en utbetalning åt tradern, för firmor vars egen webbplats låter tradern begära. Svarar 201 med utbetalningen, eller 409 med orsaken när den inte kan begäras nu. |
+| `GET /accounts/{id}/payouts` | Kontots utbetalningar, nyaste först. |
+| `GET /payouts?status=&limit=` | Firmans nyaste utbetalningar, högst 500. `status` kan anges flera gånger, till exempel `status=Pending&status=Approved` för de som väntar på firman. |
+| `GET /payouts/{payoutId}` | En utbetalning. |
+| `POST /payouts/{payoutId}/approve` | Firman har gjort sina kontroller, till exempel KYC, och skickar pengarna. 409 om utbetalningen inte väntar på godkännande. |
+| `POST /payouts/{payoutId}/mark-paid` | Firman har betalat, med en valfri egen `{ "reference" }`. 409 om utbetalningen inte är godkänd. |
+| `POST /payouts/{payoutId}/reject` | Nekar en utbetalning som väntar eller är godkänd, med `{ "reason" }` som visas för tradern. Vinsten återförs inte till kontot. |
+
+`AccountResponse` har `nextPayout` för funded-konton: vinsten, vinstandelen, traderns belopp, handelsdagar sedan förra utbetalningen och om en utbetalning kan begäras nu, annars varför inte. Se [specen för regelmotorn](regelmotor.md).
 
 Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `prop/portal/openapi/prop-api.json` när tjänsten byggs, och CI kontrollerar att det är committat.
 
@@ -104,8 +118,12 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `account.funding_awaited` | Alla faser är klara, och firman ska godkänna funded-kontot. |
 | `account.breached` | Ett golv bröts. Innehåller orsaken, nivån och equity. |
 | `account.cancelled` | Kontot avbröts. |
+| `payout.requested` | Tradern har begärt en utbetalning och vinsten är uttagen från kontot. Firman ska godkänna. |
+| `payout.approved` | Firman godkände utbetalningen. |
+| `payout.paid` | Firman markerade utbetalningen som betald. |
+| `payout.rejected` | Firman nekade utbetalningen. Innehåller orsaken. |
 
-- Kroppen är `{ "id", "type", "createdAt", "account": { "id", "number", "email", "challengeId", "reference" }, "data": { ... } }`, där `data` är regelmotorns beslut.
+- Kroppen är `{ "id", "type", "createdAt", "account": { "id", "number", "email", "challengeId", "reference" }, "data": { ... } }`, där `data` är regelmotorns beslut. För utbetalningar har `data.payout` utbetalningens id, vinst, vinstandel, belopp och status.
 - Headrarna `Prop-Webhook-Id` och `Prop-Webhook-Event` anger vilken leverans och händelse det är. `Prop-Signature` är `t={unix-sekunder},v1={hex}`, där `hex` är HMAC-SHA256 med firmans hemlighet av `{t}.{kropp}`.
 - Svar 2xx räknas som mottaget. Annars görs ett nytt försök efter 30 sekunder, med dubbel väntan varje gång och högst 6 timmar, i 16 försök (ungefär ett och ett halvt dygn). Samma leverans kan komma mer än en gång och känns igen på sitt id.
 
@@ -116,17 +134,18 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `ConnectionStrings:Prop` | Propfirm-plattformens databas. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `TradingPlatform` | `Url` till handelstjänsten (slutar med `/`), hur länge ett anrop väntar på nya händelser och hur många som läses åt gången. |
 | `Firms` | Firmorna: `Id`, `Name`, `ApiKeySha256`, `Trading` (`Server`, `ApiKey`, `Group`), `Webhook` (`Url`, `Secret` på minst 32 tecken), `Portal` (se [specen för portalen](portal.md)), `SeedChallenges`, `SeedAdmins` och `SeedTraders`. |
+| `Firms:N:SeedChallenges` | Challenges som skapas eller ersätts vid varje start, med `Template`, `Id`, `InitialBalance` och `Currency`. Mallen `TwoStep` är standardmallen. `QuickTest` är samma mall med 0,1 % vinstmål och utan minsta antal handelsdagar, så att hela vägen till en utbetalning kan provas på några minuter. Den är bara för utveckling. Konton som redan har startat behåller sina regler. |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
-I utveckling finns firman `demo-firm` med nyckeln `dev-prop-key`. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengen `two-step-100k`, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
+I utveckling finns firman `demo-firm` med nyckeln `dev-prop-key`. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 
 - Tjänsten startar bara i miljön Development. Före produktion behövs HTTPS och hantering av hemligheter, till exempel för handelsplattformens nyckel och webhook-hemligheten.
 - Tjänsten körs som en instans. Läsningen av händelseströmmen och kommandona har ännu inga lås mellan instanser.
 - Firmor konfigureras. Registrering kommer med självbetjäningen.
-- Utbetalningar saknas.
-- Ett kommando som handelsplattformen avvisar läggs åt sidan som misslyckat och syns bara i databasen och loggen.
+- Ett kommando som handelsplattformen avvisar läggs åt sidan som misslyckat och syns bara i databasen och loggen. Ett nekat uttag gör dessutom utbetalningen `Failed`.
+- Utbetalningar som firman har godkänt betalas av firman själv. Tjänsten hanterar aldrig pengar.
 
 ## Tester
 
@@ -134,7 +153,8 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 
 - `FirmApiTests`: nyckeln, challenges och deras kontroll, start av konto med golven i rätt ordning, firmans referens, felaktiga starter, att firmor inte ser varandras konton, inloggningslänken och inbjudan till portalen.
 - `PortalApiTests`: portalens API, se [specen för portalen](portal.md).
+- `PayoutFlowTests`: en utbetalning från begäran via uttaget på handelsplattformen till godkänd och betald, med webhooks, orsaker att neka, ett nekat uttag som gör utbetalningen `Failed` och ett nytt försök som lyckas, nej från firman, traderns begäran och administratörens beslut i portalen, att andra firmor inte når utbetalningarna och gränserna för listor.
 - `ChallengeFlowTests`: dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa, brott med bevis, godkänd finansiering, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
-- `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, att regelmotorns golv blir plattformens regler och att ett konto värderas med sina golv.
+- `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv och att ett uttag bara dras en gång och bär plattformens orsak vid nej.
 - `TradingContractTests`: varje väg och fält som klienten använder finns i `contracts/trading/trading-service.json`.
 - `TradingDaysTests`: handelsdagar i olika tidszoner, vid klockslag på kvällen och vid sommartid och vintertid.

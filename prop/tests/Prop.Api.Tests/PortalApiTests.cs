@@ -11,7 +11,7 @@ namespace Prop.Api.Tests;
 /// <summary>The firm's white label portal: its look, logins, the trader's own accounts and the admin panel.</summary>
 public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private const string Password = "a-good-password";
+    private const string Password = PropFactory.TraderPassword;
 
     private const string Phase1 = "demo-firm-1001-1";
 
@@ -102,7 +102,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         await factory.StartActiveAccountAsync("bert@test.example");
-        using var anna = await LogInAsTraderAsync(factory, await StartAsync(factory));
+        using var anna = await factory.LogInAsTraderAsync(await StartAsync(factory));
         using var portal = factory.CreatePortalClient();
 
         using var wrong = await portal.PostAsJsonAsync(Url("login"), new { email = "anna@test.example", password = "wrong-password" }, TestContext.Current.CancellationToken);
@@ -145,7 +145,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         var anna = await StartAsync(factory);
         var bert = await StartAsync(factory, "bert@test.example");
-        using var portal = await LogInAsTraderAsync(factory, anna);
+        using var portal = await factory.LogInAsTraderAsync(anna);
 
         var accounts = await portal.GetFromJsonAsync<JsonElement>(Url("accounts"), TestContext.Current.CancellationToken);
         using var bertsAccount = await portal.GetAsync(Url($"accounts/{bert}"), TestContext.Current.CancellationToken);
@@ -163,7 +163,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         var id = await StartAsync(factory);
-        using var portal = await LogInAsTraderAsync(factory, id);
+        using var portal = await factory.LogInAsTraderAsync(id);
         factory.Trading.SetEquity(Phase1, 98_500m);
 
         var active = await portal.GetFromJsonAsync<JsonElement>(Url($"accounts/{id}"), TestContext.Current.CancellationToken);
@@ -189,7 +189,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     public async Task ASessionAndAnInvitationWorkOnlyOnTheirOwnFirmsPortal()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), PropFactory.WithOtherFirm());
-        using var portal = await LogInAsTraderAsync(factory, await StartAsync(factory));
+        using var portal = await factory.LogInAsTraderAsync(await StartAsync(factory));
         var bert = await StartAsync(factory, "bert@test.example");
         var token = await factory.InviteAsync(bert);
 
@@ -210,8 +210,8 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var anonymous = factory.CreatePortalClient();
-        using var trader = await LogInAsTraderAsync(factory, await StartAsync(factory));
-        using var admin = await LogInAsAdminAsync(factory);
+        using var trader = await factory.LogInAsTraderAsync(await StartAsync(factory));
+        using var admin = await factory.LogInAsAdminAsync();
 
         using var asAnonymous = await anonymous.GetAsync(Url("admin/accounts"), TestContext.Current.CancellationToken);
         using var asTrader = await trader.GetAsync(Url("admin/accounts"), TestContext.Current.CancellationToken);
@@ -230,7 +230,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         var token = await factory.InviteAsync(await StartAsync(factory));
-        using var browser = await LogInAsAdminAsync(factory);
+        using var browser = await factory.LogInAsAdminAsync();
 
         using var accepted = await browser.PostAsJsonAsync(Url("invites/accept"), new { token, password = Password }, TestContext.Current.CancellationToken);
         var trader = await browser.GetFromJsonAsync<JsonElement>(Url("me"), TestContext.Current.CancellationToken);
@@ -289,7 +289,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
     public async Task AnAdministratorRunsTheFirmsAccounts()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LogInAsAdminAsync(factory);
+        using var admin = await factory.LogInAsAdminAsync();
 
         var challenges = await admin.GetFromJsonAsync<JsonElement>(Url("admin/challenges"), TestContext.Current.CancellationToken);
         using var started = await admin.PostAsJsonAsync(Url("admin/accounts"), new { email = "anna@test.example", challengeId = "two-step-100k" }, TestContext.Current.CancellationToken);
@@ -307,7 +307,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         using var invite = await admin.PostAsync(Url($"admin/accounts/{id}/invite"), null, TestContext.Current.CancellationToken);
         using var cancel = await admin.PostAsJsonAsync(Url($"admin/accounts/{id}/cancel"), new { reason = "Refunded." }, TestContext.Current.CancellationToken);
 
-        Assert.Equal("two-step-100k", Assert.Single(challenges.EnumerateArray()).GetProperty("id").GetString());
+        Assert.Equal(["quick-test-100k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
         Assert.Equal(HttpStatusCode.Created, started.StatusCode);
         Assert.Equal($"/api/portal/admin/accounts/{id}", started.Headers.Location?.OriginalString);
         Assert.Equal(["bert@test.example", "anna@test.example"], all.EnumerateArray().Select(a => a.GetProperty("email").GetString()));
@@ -361,22 +361,4 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
 
     private static async Task<Guid> StartAsync(PropFactory factory, string email = "anna@test.example") =>
         (await factory.StartActiveAccountAsync(email)).GetProperty("id").GetGuid();
-
-    /// <summary>The account's trader accepts an invitation. Returns the trader's browser.</summary>
-    private static async Task<HttpClient> LogInAsTraderAsync(PropFactory factory, Guid accountId)
-    {
-        var token = await factory.InviteAsync(accountId);
-        var portal = factory.CreatePortalClient();
-        using var accepted = await portal.PostAsJsonAsync(Url("invites/accept"), new { token, password = Password });
-        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
-        return portal;
-    }
-
-    private static async Task<HttpClient> LogInAsAdminAsync(PropFactory factory)
-    {
-        var portal = factory.CreatePortalClient();
-        using var login = await portal.PostAsJsonAsync(Url("admin/login"), new { email = PropFactory.AdminEmail, password = PropFactory.AdminPassword });
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        return portal;
-    }
 }

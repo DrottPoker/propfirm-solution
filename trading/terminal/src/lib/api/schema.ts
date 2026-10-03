@@ -888,6 +888,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/balance-operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BalanceOperationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/events": {
         parameters: {
             query?: never;
@@ -953,6 +994,18 @@ export interface components {
         };
         /** @enum {unknown} */
         AccountStatus: "Active" | "Disabled";
+        /**
+         * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
+         *     OperationId, unique per account, so a retry is answered 409 instead of being applied
+         *     twice. A withdrawal must leave at least MinBalance.
+         */
+        BalanceOperationRequest: {
+            operationId: null | string;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            minBalance?: null | number;
+        };
         /** @enum {unknown} */
         CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
@@ -996,7 +1049,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1013,6 +1066,19 @@ export interface components {
             kind?: "AccountDisabled";
             accountId: string;
             reason: components["schemas"]["DisableReason"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description Money was deposited (positive amount) or withdrawn (negative amount). Not a trading result. */
+        EngineEventBalanceAdjusted: {
+            /** @enum {string} */
+            kind?: "BalanceAdjusted";
+            accountId: string;
+            operationId: string;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            balanceAfter: number;
             /** Format: date-time */
             timestamp: string;
         };
@@ -1164,7 +1230,25 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputSetEquityFloor"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputSetEquityFloor"];
+        /**
+         * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
+         *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
+         *     A withdrawal must leave the balance at or above MinBalance, fit in the free margin
+         *     and keep equity above every floor.
+         */
+        EngineInputAdjustBalance: {
+            /** @enum {string} */
+            kind?: "AdjustBalance";
+            accountId: string;
+            operationId: string;
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            minBalance?: null | number;
+            /** Format: date-time */
+            timestamp: string;
+        };
         EngineInputCancelOrder: {
             /** @enum {string} */
             kind?: "CancelOrder";
@@ -1432,7 +1516,7 @@ export interface components {
             margin: number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
         /** @description A firm's server: the id traders log in with and the firm's name. */
         ServerInfo: {
             id: string;

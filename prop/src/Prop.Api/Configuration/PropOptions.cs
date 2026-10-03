@@ -47,7 +47,7 @@ public sealed class FirmOptions
 
     public FirmPortalOptions Portal { get; init; } = new();
 
-    /// <summary>Challenges created at startup if the firm does not have them yet.</summary>
+    /// <summary>Challenges created at startup, or replaced so they follow their template.</summary>
     public IReadOnlyList<SeedChallengeOptions> SeedChallenges { get; init; } = [];
 
     /// <summary>Administrators created at startup, or given the configured password. For development, until firms sign up themselves.</summary>
@@ -103,6 +103,9 @@ public sealed class FirmWebhookOptions
 public sealed class SeedChallengeOptions
 {
     public const string TwoStepTemplate = "TwoStep";
+
+    /// <summary>Tiny targets and no minimum trading days, to try the whole flow quickly. For development only.</summary>
+    public const string QuickTestTemplate = "QuickTest";
 
     public string Template { get; init; } = TwoStepTemplate;
 

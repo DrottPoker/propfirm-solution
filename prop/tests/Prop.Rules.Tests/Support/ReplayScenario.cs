@@ -6,7 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 namespace Prop.Rules.Tests.Support;
 
 /// <summary>
-/// A whole challenge from purchase to a breach on the funded account, with repeated and late facts.
+/// A whole challenge from purchase through a payout to a breach on the funded account, with repeated and late facts.
 /// Every input becomes one JSON line with what the rule engine decided.
 /// </summary>
 internal static class ReplayScenario
@@ -62,12 +62,34 @@ internal static class ReplayScenario
 
         Apply(new AccountUpdated(At(7, 16), "C1-1", ++sequence, 105_250.40m, 0));
 
-        // The firm approves funding, and the funded account breaches its daily floor.
+        // The firm approves funding, and the funded trader trades on five days.
         Apply(new ApproveFunding(At(8, 9)));
         Apply(new AccountOpened(At(8, 10), "C1-2", ++sequence, day.AddDays(8)));
-        Apply(new PositionOpened(At(8, 11), "C1-2", ++sequence, day.AddDays(8)));
-        Apply(new FloorBreached(At(8, 12), "C1-2", ++sequence, FloorIds.Daily, 95_000m, 94_987.15m));
-        Apply(new CancelChallenge(At(8, 13), "Too late"));
+        for (var d = 8; d < 13; d++)
+        {
+            if (d > 8)
+            {
+                Apply(new TradingDayStarted(At(d, 0), day.AddDays(d)));
+            }
+
+            Apply(new PositionOpened(At(d, 11), "C1-2", ++sequence, day.AddDays(d)));
+            Apply(new AccountUpdated(At(d, 15), "C1-2", ++sequence, 100_000m + ((d - 7) * 1_500.25m), d < 12 ? 0 : 1));
+        }
+
+        // A payout is refused while a position is open. Once it is closed, the profit is withdrawn and the firm pays.
+        Apply(new RequestPayout(At(12, 16), "P1"));
+        Apply(new AccountUpdated(At(12, 17), "C1-2", ++sequence, 107_501.25m, 0));
+        Apply(new RequestPayout(At(12, 18), "P1"));
+        Apply(new BalanceAdjusted(At(12, 18), "C1-2", ++sequence, "P1", -7_501.25m, 100_000m));
+        Apply(new TradingDayStarted(At(13, 0), day.AddDays(13)));
+        Apply(new ApprovePayout(At(13, 9), "P1"));
+        Apply(new MarkPayoutPaid(At(13, 10), "P1", "wire-17"));
+        Apply(new RequestPayout(At(13, 11), "P2"));
+
+        // The funded account then breaches its daily floor.
+        Apply(new PositionOpened(At(13, 12), "C1-2", ++sequence, day.AddDays(13)));
+        Apply(new FloorBreached(At(13, 13), "C1-2", ++sequence, FloorIds.Daily, 95_000m, 94_987.15m));
+        Apply(new CancelChallenge(At(13, 14), "Too late"));
         return lines;
     }
 

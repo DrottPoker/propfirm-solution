@@ -133,7 +133,7 @@ Propfirm-tjänsten använder handelsplattformen, så starta handelstjänsten fö
 dotnet run --project prop/src/Prop.Api
 ```
 
-Lokalt finns firman `demo-firm` med nyckeln `dev-prop-key` och challengen `two-step-100k`. Starta en challenge åt en trader. Tjänsten öppnar kontot på handelsplattformen och sätter golven:
+Lokalt finns firman `demo-firm` med nyckeln `dev-prop-key` och challengerna `two-step-100k` och `quick-test-100k` (se Prova utbetalningar). Starta en challenge åt en trader. Tjänsten öppnar kontot på handelsplattformen och sätter golven:
 
 ```bash
 curl -X POST http://localhost:5201/api/firm/v1/accounts -H "X-Api-Key: dev-prop-key" -H "Content-Type: application/json" -d "{\"email\":\"anna@example.com\",\"challengeId\":\"two-step-100k\"}"
@@ -168,6 +168,18 @@ pnpm dev:portal
 Lokalt finns inga krav på lösenordens längd, ingen gräns för antalet inloggningar och sessionerna gäller i 30 dagar (`Login` i `appsettings.Development.json` för båda tjänsterna). Vill du vara inloggad som två traders samtidigt, använd http://localhost:3002 för den ena och http://127.0.0.1:3002 för den andra. Webbläsaren håller isär inloggningarna per värdnamn.
 
 Portalen ser ut som firman vars adress den öppnas på. Lokalt hör `localhost` och `127.0.0.1` till `demo-firm`. Allt detta gäller bara lokal utveckling. Se [specen för portalen](docs/spec/portal.md).
+
+## Prova utbetalningar
+
+Challengen `quick-test-100k` finns bara lokalt. Den har vinstmål på 0,1 % (100 USD) och inga krav på antal handelsdagar, så hela vägen till en utbetalning tar några minuter. Starta handelstjänsten, propfirm-tjänsten, portalen och terminalen enligt ovan.
+
+1. Logga in som administratör och starta challengen Quick test åt `anna@test.com`.
+2. Logga in som `anna@test.com` i en ny flik och klicka på Open terminal. Handla tills en stängd affär ger minst 100 USD i vinst, till exempel 10 lot EURUSD som stängs efter ett par pips uppgång. Gör om det i fas 2.
+3. Godkänn funded-kontot på kontots sida i adminpanelen.
+4. Gör en vinst på funded-kontot och stäng alla positioner. Klicka sedan på Request payout i portalen. Hela vinsten tas från handelskontot direkt, och tradern får 80 % av den.
+5. Godkänn utbetalningen under Payouts i adminpanelen, och markera den som betald.
+
+Challenges i `SeedChallenges` skapas eller ersätts vid varje start. Konton som startades innan har kvar sina regler, och ett funded-konto utan vinstandel kan inte få utbetalningar. Börja om från noll med `docker compose -f deploy/docker-compose.yml down -v` om du vill. Se [specen för regelmotorn](docs/spec/regelmotor.md) och [ADR 0015](docs/adr/0015-utbetalningar-tar-ut-vinsten-direkt.md).
 
 ## Riktiga priser från Tiingo
 

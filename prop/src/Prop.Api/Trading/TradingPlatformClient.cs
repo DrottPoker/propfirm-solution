@@ -79,6 +79,19 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
     }
 
+    public async Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm,
+            HttpMethod.Post,
+            $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/balance-operations",
+            new { operationId, amount = -amount, minBalance },
+            cancellationToken);
+
+        // A retry after the withdrawal went through: the operation id is already used on the account.
+        await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "DuplicateId");
+    }
+
     public async Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}", null, cancellationToken);
@@ -142,6 +155,14 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                 e.GetProperty("level").GetDecimal(),
                 e.GetProperty("equity").GetDecimal()),
             "AccountDisabled" => new TradingAccountDisabled(sequence, time, accountId, raw),
+            "BalanceAdjusted" => new TradingBalanceAdjusted(
+                sequence,
+                time,
+                accountId,
+                raw,
+                e.GetProperty("operationId").GetString()!,
+                e.GetProperty("amount").GetDecimal(),
+                e.GetProperty("balanceAfter").GetDecimal()),
             _ => new TradingOtherEvent(sequence, time, accountId, raw),
         };
     }
@@ -209,12 +230,15 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
             throw new TradingPlatformUnavailableException($"The trading platform answered {(int)response.StatusCode}: {body}");
         }
 
-        if (toleratedReason is not null && ReasonOf(body) == toleratedReason)
+        var reason = ReasonOf(body);
+        if (toleratedReason is not null && reason == toleratedReason)
         {
             return;
         }
 
-        throw new TradingPlatformRejectedException($"The trading platform refused {response.RequestMessage?.Method} {response.RequestMessage?.RequestUri}: {(int)response.StatusCode} {body}");
+        throw new TradingPlatformRejectedException(
+            $"The trading platform refused {response.RequestMessage?.Method} {response.RequestMessage?.RequestUri}: {(int)response.StatusCode} {body}",
+            reason);
     }
 
     private static string? ReasonOf(string problem)

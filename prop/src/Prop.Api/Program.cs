@@ -51,6 +51,7 @@ builder.Services.AddSingleton<WorkSignals>();
 builder.Services.AddSingleton<ChallengeCatalog>();
 builder.Services.AddSingleton<ChallengeService>();
 builder.Services.AddSingleton<ChallengeQueries>();
+builder.Services.AddSingleton<PayoutQueries>();
 builder.Services.AddSingleton<PortalUsers>();
 builder.Services.AddSingleton<IPasswordHasher<PortalUser>, PasswordHasher<PortalUser>>();
 

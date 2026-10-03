@@ -13,3 +13,6 @@ export type ChallengeStatus = Schemas["ChallengeStatus"];
 export type FailureReason = Schemas["FailureReason"];
 export type Me = Schemas["PortalMeResponse"];
 export type Step = Schemas["StepResponse"];
+export type Payout = Schemas["PayoutResponse"];
+export type PayoutQuote = Schemas["PayoutQuoteResponse"];
+export type PayoutStatus = Schemas["PayoutStatus"];

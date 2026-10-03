@@ -29,11 +29,18 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
       return `Stop out at margin level ${formatPercent(event.marginLevelPercent)}`;
     case "AccountDisabled":
       return `Account disabled (${event.reason})`;
+    case "BalanceAdjusted":
+      return `${balanceOperationName(event.amount)} of ${formatMoney(Math.abs(event.amount))}, balance ${formatMoney(event.balanceAfter)}`;
     case "InputRejected":
       return `Rejected ${event.input.kind ?? "input"}: ${event.reason}`;
     default:
       return "Unknown event";
   }
+}
+
+/** Money added to or taken from the account, for example a payout. Not a trading result. */
+export function balanceOperationName(amount: number): "Deposit" | "Withdrawal" {
+  return amount >= 0 ? "Deposit" : "Withdrawal";
 }
 
 /** Events that need the trader's attention. */

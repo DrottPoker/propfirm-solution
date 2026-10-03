@@ -21,6 +21,12 @@ internal interface ITradingPlatform
     /// <summary>Closes the account. Done if it is already disabled.</summary>
     Task CloseAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Withdraws <paramref name="amount"/> (a positive number), keeping at least <paramref name="minBalance"/>.
+    /// Done if the operation was already applied, so a retry is safe. Refused if too little is left.
+    /// </summary>
+    Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken);
+
     /// <summary>The account valued at the latest prices, as the trader sees it. Null if the firm has no such account.</summary>
     Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
@@ -61,6 +67,10 @@ internal sealed record TradingFloorBreached(long Sequence, DateTimeOffset Time, 
 internal sealed record TradingAccountDisabled(long Sequence, DateTimeOffset Time, string AccountId, string Raw)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
+/// <summary>A deposit (positive amount) or withdrawal (negative amount), for example a payout's.</summary>
+internal sealed record TradingBalanceAdjusted(long Sequence, DateTimeOffset Time, string AccountId, string Raw, string OperationId, decimal Amount, decimal BalanceAfter)
+    : TradingEvent(Sequence, Time, AccountId, Raw);
+
 /// <summary>An event the prop platform does not act on. It only moves the cursor.</summary>
 internal sealed record TradingOtherEvent(long Sequence, DateTimeOffset Time, string AccountId, string Raw)
     : TradingEvent(Sequence, Time, AccountId, Raw);
@@ -99,4 +109,13 @@ internal sealed class TradingPlatformRejectedException : Exception
         : base(message, innerException)
     {
     }
+
+    public TradingPlatformRejectedException(string message, string? reason)
+        : base(message)
+    {
+        Reason = reason;
+    }
+
+    /// <summary>The platform's reason, such as InsufficientFunds, when it gave one.</summary>
+    public string? Reason { get; }
 }

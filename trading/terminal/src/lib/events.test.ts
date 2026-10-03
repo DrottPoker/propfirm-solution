@@ -43,6 +43,20 @@ describe("describeEvent", () => {
     expect(isWarning(event)).toBe(true);
   });
 
+  it("describes a withdrawal with its amount and the balance after", () => {
+    const event: EngineEvent = {
+      kind: "BalanceAdjusted",
+      accountId: "demo",
+      operationId: "payout-1",
+      amount: -8_000,
+      balanceAfter: 100_000,
+      timestamp,
+    };
+
+    expect(describeEvent(event, digitsOf)).toBe("Withdrawal of 8,000.00, balance 100,000.00");
+    expect(isWarning(event)).toBe(false);
+  });
+
   it("names the rejected input and the reason", () => {
     const event: EngineEvent = {
       kind: "InputRejected",

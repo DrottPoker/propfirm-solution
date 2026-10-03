@@ -4,7 +4,10 @@ using Prop.Rules;
 
 namespace Prop.Api.Challenges;
 
-/// <summary>Creates each firm's configured challenges at startup, unless the firm already has them.</summary>
+/// <summary>
+/// Creates or replaces each firm's configured challenges at startup, so they follow their template. Accounts
+/// already started keep the definition they were started with.
+/// </summary>
 internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalog, IConfiguration configuration) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
@@ -15,18 +18,36 @@ internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalo
             var firm = firms.ById(firmOptions.Id)!;
             foreach (var seed in firmOptions.SeedChallenges)
             {
-                var definition = seed.Template == SeedChallengeOptions.TwoStepTemplate
-                    ? ChallengeTemplates.TwoStep(seed.Id, seed.InitialBalance, seed.Currency)
-                    : throw new InvalidOperationException($"Firm {firm.Id} seeds challenge {seed.Id} from unknown template {seed.Template}.");
+                var definition = seed.Template switch
+                {
+                    SeedChallengeOptions.TwoStepTemplate => ChallengeTemplates.TwoStep(seed.Id, seed.InitialBalance, seed.Currency),
+                    SeedChallengeOptions.QuickTestTemplate => QuickTest(seed),
+                    _ => throw new InvalidOperationException($"Firm {firm.Id} seeds challenge {seed.Id} from unknown template {seed.Template}."),
+                };
                 if (ChallengeCatalog.Validate(definition) is { Count: > 0 } errors)
                 {
                     throw new InvalidOperationException($"Firm {firm.Id} seeds an invalid challenge {seed.Id}: {string.Join(" ", errors)}");
                 }
 
-                await catalog.AddIfMissingAsync(firm.Id, definition, cancellationToken);
+                await catalog.SaveAsync(firm.Id, definition, cancellationToken);
             }
         }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>
+    /// The two-step challenge with 0.1 % profit targets and no minimum trading days, so the whole way to a
+    /// payout can be tried in minutes. For development only.
+    /// </summary>
+    internal static ChallengeDefinition QuickTest(SeedChallengeOptions seed)
+    {
+        var template = ChallengeTemplates.TwoStep(seed.Id, seed.InitialBalance, seed.Currency);
+        return template with
+        {
+            Name = FormattableString.Invariant($"Quick test {seed.InitialBalance:0.##} {seed.Currency}"),
+            Evaluation = [.. template.Evaluation.Select(s => s with { ProfitTargetPercent = 0.1m, MinTradingDays = 0 })],
+            Funded = template.Funded with { MinTradingDays = 0 },
+        };
+    }
 }

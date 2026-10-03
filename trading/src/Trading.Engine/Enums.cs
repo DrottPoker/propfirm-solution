@@ -69,4 +69,7 @@ public enum RejectReason
     UnknownPosition,
     InvalidFloor,
     UnknownFloor,
+
+    /// <summary>A withdrawal would go below the minimum balance, exceed the free margin or breach a floor.</summary>
+    InsufficientFunds,
 }

@@ -1,6 +1,6 @@
 # Spec: handelsterminalen
 
-- Fas: 3a och 3b
+- Fas: 3a och 3b, insättningar och uttag i historiken i 5
 - Status: Implementerad i `trading/terminal`
 - Datum: 2026-10-02
 
@@ -37,6 +37,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 - **Kontoraden** visar firmans namn bredvid kontot och golven och hur mycket equity kan falla innan varje golv bryts. Värdet kommer från motorn (`headroom`).
 - **Orderpanelen** visar gruppens villkor för symbolen: hävstång, påslag på spreaden, provision och kontraktsstorlek. Det är en del av öppenheten mot traders.
+- **Historik** listar stängda positioner och insättningar och uttag, till exempel en utbetalning, med det nyaste först. Ett uttag syns som en rad med beloppet i vinstkolumnen.
 - **Händelser** listar allt som hänt kontot. Avvisningar, brott mot golv och stop out markeras i gult. Vid brott mot ett golv visas priserna från beviset.
 
 ## Dataflöde

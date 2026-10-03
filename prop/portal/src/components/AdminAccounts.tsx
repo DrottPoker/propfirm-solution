@@ -174,7 +174,9 @@ function Challenges() {
                 <li key={stage.name}>
                   {stage.name}: {stage.profitTargetPercent === null ? "no target" : `${stage.profitTargetPercent}% target`},{" "}
                   {stage.dailyLoss.percent}% daily loss, {stage.maxLoss.percent}% max loss ({stage.maxLoss.kind.toLowerCase()})
-                  {stage.minTradingDays > 0 && `, at least ${stage.minTradingDays} trading days`}
+                  {stage.minTradingDays > 0 &&
+                    `, at least ${stage.minTradingDays} trading days${stage.profitSplitPercent == null ? "" : " between payouts"}`}
+                  {stage.profitSplitPercent != null && `, ${stage.profitSplitPercent}% of the profit to the trader`}
                 </li>
               ))}
             </ul>

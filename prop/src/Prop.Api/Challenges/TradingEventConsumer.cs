@@ -91,8 +91,8 @@ internal sealed partial class TradingEventConsumer(
 
     private async Task HandleAsync(NpgsqlConnection connection, Firm firm, TradingEvent tradingEvent, CancellationToken cancellationToken)
     {
-        // Accounts the prop platform did not open, for example the firm's own, are none of its business.
-        if (await ChallengeAccountOfAsync(connection, tradingEvent.AccountId, cancellationToken) is not { } accountId)
+        // Accounts the prop platform did not open for this firm, for example the firm's own, are none of its business.
+        if (await ChallengeAccountOfAsync(connection, firm, tradingEvent.AccountId, cancellationToken) is not { } accountId)
         {
             return;
         }
@@ -133,15 +133,32 @@ internal sealed partial class TradingEventConsumer(
                 await UpdateAsync(connection, "disabled = true", account, null, cancellationToken);
                 await challenges.ApplyAsync(connection, firm, accountId, _ => new AccountDisabled(time, account, sequence), null, cancellationToken);
                 break;
+            case TradingBalanceAdjusted adjusted:
+                await UpdateAsync(connection, "balance = $2", account, adjusted.BalanceAfter, cancellationToken);
+                await challenges.ApplyAsync(
+                    connection,
+                    firm,
+                    accountId,
+                    _ => new BalanceAdjusted(time, account, sequence, adjusted.OperationId, adjusted.Amount, adjusted.BalanceAfter),
+                    adjusted.Raw,
+                    cancellationToken);
+                break;
             default:
                 break;
         }
     }
 
-    private static async Task<Guid?> ChallengeAccountOfAsync(NpgsqlConnection connection, string tradingAccountId, CancellationToken cancellationToken)
+    private static async Task<Guid?> ChallengeAccountOfAsync(NpgsqlConnection connection, Firm firm, string tradingAccountId, CancellationToken cancellationToken)
     {
-        await using var command = new NpgsqlCommand("select challenge_account_id from trading_accounts where account_id = $1", connection);
+        await using var command = new NpgsqlCommand(
+            """
+            select ta.challenge_account_id
+            from trading_accounts ta join challenge_accounts a on a.id = ta.challenge_account_id
+            where ta.account_id = $1 and a.firm_id = $2
+            """,
+            connection);
         command.Parameters.AddWithValue(tradingAccountId);
+        command.Parameters.AddWithValue(firm.Id);
         return await command.ExecuteScalarAsync(cancellationToken) as Guid?;
     }
 

@@ -23,7 +23,8 @@ public sealed record AccountFigures(decimal Balance, int OpenPositions);
 /// <summary>
 /// Where a challenge stands. Created by <see cref="ChallengeRules.Start"/> and changed only by
 /// <see cref="ChallengeRules.Apply"/>. <paramref name="Stage"/> counts the evaluation stages from 0,
-/// followed by the funded stage.
+/// followed by the funded stage. On the funded stage, <paramref name="TradingDays"/> are those since the
+/// last payout. <paramref name="Payout"/> is the payout in progress, until it is paid, rejected or failed.
 /// </summary>
 public sealed record ChallengeState(
     string ChallengeId,
@@ -34,9 +35,12 @@ public sealed record ChallengeState(
     DateOnly? CurrentDay,
     ImmutableSortedSet<DateOnly> TradingDays,
     AccountFigures? Account,
-    long LastSequence)
+    long LastSequence,
+    Payout? Payout = null)
 {
     public bool HasEnded => Status is ChallengeStatus.Failed or ChallengeStatus.Cancelled;
+
+    public bool IsFunded => Stage == Definition.FundedStage;
 
     public StageRules Rules => Definition.Stage(Stage);
 }

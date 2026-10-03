@@ -64,6 +64,21 @@ internal sealed class ChallengeDriver
         return Update(balance);
     }
 
+    /// <summary>Passes both evaluation stages and opens the funded account "A3" on the third Monday.</summary>
+    public void Fund()
+    {
+        PassStage("A1", Monday, 110_000m);
+        PassStage("A2", Monday.AddDays(7), 105_000m);
+        Apply(new ApproveFunding(NextTime()));
+        OpenAccount("A3", Monday.AddDays(14));
+    }
+
+    public IReadOnlyList<ChallengeOutput> RequestPayout(string payoutId = "P1") => Apply(new RequestPayout(NextTime(), payoutId));
+
+    /// <summary>The trading platform reports a deposit (positive) or withdrawal (negative) on the current account.</summary>
+    public IReadOnlyList<ChallengeOutput> BalanceAdjusted(string operationId, decimal amount, decimal balance) =>
+        Apply(new BalanceAdjusted(NextTime(), State.AccountId!, NextSequence(), operationId, amount, balance));
+
     /// <summary>The outputs without their times, to compare with expected outputs created with a default time.</summary>
     public static ChallengeOutput[] WithoutTime(IEnumerable<ChallengeOutput> outputs) => [.. outputs.Select(o => o with { Time = default })];
 }

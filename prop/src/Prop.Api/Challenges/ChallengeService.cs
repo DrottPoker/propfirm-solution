@@ -216,12 +216,75 @@ internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSche
                 case ChallengeCancelled:
                     await QueueWebhookAsync(connection, firm, account, "account.cancelled", output, now, cancellationToken);
                     break;
+                case PayoutRequested requested:
+                    await InsertPayoutAsync(connection, firm, account, requested.Payout, cancellationToken);
+                    break;
+                case WithdrawalRequested withdrawal:
+                    await QueueCommandAsync(
+                        connection,
+                        firm,
+                        account,
+                        new WithdrawFromTradingAccount(withdrawal.AccountId, withdrawal.OperationId, withdrawal.Amount, withdrawal.MinBalance),
+                        now,
+                        cancellationToken);
+                    break;
+                case PayoutWithdrawn withdrawn:
+                    await UpdatePayoutAsync(connection, withdrawn.Payout, "withdrawn_at", withdrawn.Time, cancellationToken);
+                    await QueueWebhookAsync(connection, firm, account, "payout.requested", output, now, cancellationToken);
+                    break;
+                case PayoutApproved approved:
+                    await UpdatePayoutAsync(connection, approved.Payout, "approved_at", approved.Time, cancellationToken);
+                    await QueueWebhookAsync(connection, firm, account, "payout.approved", output, now, cancellationToken);
+                    break;
+                case PayoutPaid paid:
+                    await UpdatePayoutAsync(connection, paid.Payout, "paid_at", paid.Time, cancellationToken, reference: paid.Reference);
+                    await QueueWebhookAsync(connection, firm, account, "payout.paid", output, now, cancellationToken);
+                    break;
+                case PayoutRejected rejected:
+                    await UpdatePayoutAsync(connection, rejected.Payout, "rejected_at", rejected.Time, cancellationToken, reason: rejected.Reason);
+                    await QueueWebhookAsync(connection, firm, account, "payout.rejected", output, now, cancellationToken);
+                    break;
+                case PayoutFailed failed:
+                    // Nothing happened on the account, so the firm has nothing to act on.
+                    await UpdatePayoutAsync(connection, failed.Payout, "failed_at", failed.Time, cancellationToken, reason: failed.Reason);
+                    break;
                 default:
                     // Progress and ignored inputs are kept in the steps only.
                     break;
             }
         }
     }
+
+    private static Task InsertPayoutAsync(NpgsqlConnection connection, Firm firm, ChallengeAccount account, Payout payout, CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            connection,
+            """
+            insert into payouts
+                (id, firm_id, challenge_account_id, trading_account_id, status, profit, profit_split_percent, amount, currency, requested_at)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            """,
+            [
+                Guid.Parse(payout.Id), firm.Id, account.Id, payout.AccountId, payout.Status.ToString(), payout.Profit, payout.ProfitSplitPercent, payout.Amount,
+                account.State.Definition.Currency, payout.RequestedAt,
+            ],
+            cancellationToken);
+
+    /// <summary>The payout's new status, when it changed, and the firm's reference or the reason when there is one.</summary>
+    private static Task UpdatePayoutAsync(
+        NpgsqlConnection connection,
+        Payout payout,
+        string timeColumn,
+        DateTimeOffset time,
+        CancellationToken cancellationToken,
+        string? reference = null,
+        string? reason = null) =>
+        ExecuteAsync(
+            connection,
+            $"update payouts set status = $2, {timeColumn} = $3, reference = coalesce($4, reference), reason = coalesce($5, reason) where id = $1",
+            [Guid.Parse(payout.Id), payout.Status.ToString(), time, Text(reference), Text(reason)],
+            cancellationToken);
+
+    private static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
 
     private static Task QueueCommandAsync(
         NpgsqlConnection connection,

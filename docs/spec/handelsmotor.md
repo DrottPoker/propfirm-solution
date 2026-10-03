@@ -1,6 +1,6 @@
 # Spec: handelsmotorns kärna
 
-- Fas: 1
+- Fas: 1, insättningar och uttag i 5
 - Status: Implementerad i `trading/src/Trading.Engine`
 - Datum: 2026-10-02
 
@@ -31,6 +31,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `SetEquityFloor` | Lägger till eller ersätter ett namngivet golv för equity. |
 | `RemoveEquityFloor` | Tar bort ett golv. |
 | `CloseAccount` | Stänger alla positioner, tar bort alla ordrar och stänger av kontot. |
+| `AdjustBalance` | Sätter in ett positivt belopp eller tar ut ett negativt, med ett id för operationen och ett valfritt minsta saldo. |
 
 ### Händelser
 
@@ -46,6 +47,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `EquityFloorBreached` | Equity föll under ett golv. Innehåller bevisen: golvets nivå, equity, priser och öppna positioner innan de stängdes. |
 | `StopOutTriggered` | Marginalnivån föll under gränsen för stop out. |
 | `AccountDisabled` | Kontot stängdes av efter brott mot golvet eller på begäran. |
+| `BalanceAdjusted` | Pengar sattes in eller togs ut. Innehåller operationens id, beloppet och saldot efteråt. |
 | `InputRejected` | Indata avvisades. Innehåller indatan och orsaken. |
 
 ## Beslut
@@ -110,6 +112,7 @@ När marginalnivån (equity / använd marginal × 100) faller under gruppens niv
 - **Brott:** equity strikt under golvets nivå. Equity exakt på nivån är tillåten.
 - Vid brott sparas bevisen i händelsen. Därefter stängs alla positioner till senaste pris, alla ordrar tas bort och kontot stängs av. Golven kontrolleras i bokstavsordning efter namn, och det första som bryts anges.
 - Ett golv som sätts över nuvarande equity bryts direkt.
+- En insättning eller ett uttag är inget handelsresultat. Golv som mäts från kontot följer därför med: ett förankrat golvs startpunkt och ett släpande golvs högsta equity flyttas lika mycket som saldot. Ett fast golv och ett släpande golvs låsnivå ligger kvar.
 - Golven kontrolleras vid varje pris och efter varje kommando som ändrar equity, i samma steg som priset behandlas. Ingen fördröjning finns mellan priset och beslutet.
 
 ### Valutaomräkning
@@ -121,6 +124,14 @@ När marginalnivån (equity / använd marginal × 100) faller under gruppens niv
 ### Avrundning
 
 Belopp i kontovalutan avrundas till valutans decimaler med `MidpointRounding.AwayFromZero`. Standard är 2 decimaler, och JPY har 0. Avrundningen sker per position och per bokföring: provision, realiserad vinst, flytande vinst och marginal. Equity är saldot plus summan av de avrundade flytande vinsterna. Startsaldot måste redan vara avrundat.
+
+### Insättningar och uttag
+
+- `AdjustBalance` sätter in ett positivt belopp eller tar ut ett negativt. Beloppet får inte vara noll och ska vara avrundat till kontovalutans decimaler.
+- Den som skickar operationen väljer dess id. Ett id kan bara användas en gång per konto, så ett nytt försök efter ett avbrott avvisas med `DuplicateId` i stället för att dras två gånger. Ett id som avvisades av en annan orsak kan användas igen.
+- Ett uttag avvisas med `InsufficientFunds` om saldot efteråt blir lägre än `MinBalance` (eller 0), om beloppet är större än den fria marginalen, eller om equity efteråt skulle hamna under något golv.
+- Avstängda konton tar inte emot operationer.
+- Propfirm-plattformen tar ut en funded traders vinst så här när tradern begär en utbetalning (se [ADR 0015](../adr/0015-utbetalningar-tar-ut-vinsten-direkt.md)).
 
 ### Provision
 
@@ -150,7 +161,6 @@ Konton behandlas i den ordning de skapades. För varje konto med positioner elle
 - Swap och rollover.
 - Slippage utöver prisgap, och bredare spread vid nyheter och nattetid.
 - Delstängning av positioner, netting, giltighetstid för ordrar (alla gäller tills de tas bort) och minsta avstånd till priset för stop loss.
-- Insättningar och uttag.
 - Kontroll av att växelkurser är färska.
 - Index per symbol. Varje pris utvärderar alla konton med positioner eller ordrar, vilket räcker för små och medelstora firmor.
 
@@ -161,7 +171,7 @@ Testerna ligger i `trading/tests/Trading.Engine.Tests`.
 - **Beteenden:** ett test per regel ovan, med belopp som är uträknade för hand.
 - **Determinism:** samma uppspelning körs två gånger och ska ge identiska händelser.
 - **Återställning:** uppspelningen startas om från exporterat tillstånd vid flera punkter och ska ge exakt samma resultat som utan omstart.
-- **Facit:** en uppspelning av 3 000 syntetiska EURUSD-priser jämförs med `Golden/replay-eurusd.jsonl`. Uppspelningen innehåller ordrar, stop loss, take profit, golv, brott mot golvet, stop out och stängning av konto. Varje ändring i motorns utdata syns som en diff i facitfilen.
+- **Facit:** en uppspelning av 3 000 syntetiska EURUSD-priser jämförs med `Golden/replay-eurusd.jsonl`. Uppspelningen innehåller ordrar, stop loss, take profit, golv, en insättning, ett uttag och ett upprepat uttag, brott mot golvet, stop out och stängning av konto. Varje ändring i motorns utdata syns som en diff i facitfilen.
 - **Arkitektur:** `BannedSymbols.txt` stoppar klocka, slump och I/O vid bygget, och ett test kontrollerar att kärnan aldrig använder flyttal.
 
 Facit uppdateras efter en avsiktlig ändring med:

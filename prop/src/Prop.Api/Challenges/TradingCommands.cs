@@ -11,3 +11,9 @@ internal sealed record OpenTradingAccount(string AccountId, decimal InitialBalan
 internal sealed record SetTradingFloor(string AccountId, string FloorId, FloorSpec Floor) : TradingCommand;
 
 internal sealed record CloseTradingAccount(string AccountId) : TradingCommand;
+
+/// <summary>
+/// Withdraws <paramref name="Amount"/> (a positive number) once, keeping at least <paramref name="MinBalance"/>.
+/// A refusal fails the payout <paramref name="OperationId"/>.
+/// </summary>
+internal sealed record WithdrawFromTradingAccount(string AccountId, string OperationId, decimal Amount, decimal MinBalance) : TradingCommand;

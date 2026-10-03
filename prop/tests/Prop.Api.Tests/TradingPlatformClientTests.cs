@@ -60,6 +60,37 @@ public sealed class TradingPlatformClientTests
     }
 
     [Fact]
+    public async Task AWithdrawalIsANegativeBalanceOperationKeepingTheMinimumBalance()
+    {
+        var platform = new StubPlatform((HttpStatusCode.OK, """{"events":[]}"""));
+
+        await Client(platform).WithdrawAsync(Firm, "A1", "payout-1", 8_000m, 100_000m, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["POST api/admin/v1/accounts/A1/balance-operations"], platform.Requests);
+        Assert.Equal("""{"operationId":"payout-1","amount":-8000,"minBalance":100000}""", platform.Bodies[0]);
+    }
+
+    // The first try went through, but its answer was lost.
+    [Fact]
+    public async Task AWithdrawalAlreadyAppliedIsDone()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Conflict, """{"status":409,"reason":"DuplicateId"}"""));
+
+        await Client(platform).WithdrawAsync(Firm, "A1", "payout-1", 8_000m, 100_000m, TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ARefusedWithdrawalCarriesThePlatformsReason()
+    {
+        var platform = new StubPlatform((HttpStatusCode.UnprocessableEntity, """{"status":422,"reason":"InsufficientFunds"}"""));
+
+        var refused = await Assert.ThrowsAsync<TradingPlatformRejectedException>(
+            () => Client(platform).WithdrawAsync(Firm, "A1", "payout-1", 8_000m, 100_000m, TestContext.Current.CancellationToken));
+
+        Assert.Equal("InsufficientFunds", refused.Reason);
+    }
+
+    [Fact]
     public async Task AUserIsFoundOrCreated()
     {
         var id = Guid.NewGuid();
@@ -97,20 +128,22 @@ public sealed class TradingPlatformClientTests
             {"events":[
               {"sequence":7,"event":{"kind":"AccountCreated","accountId":"A1","groupId":"standard","currency":"USD","balance":100000,"timestamp":"2026-10-05T08:00:00+00:00"}},
               {"sequence":9,"event":{"kind":"OrderPlaced","accountId":"A1","timestamp":"2026-10-05T08:01:00+00:00"}},
-              {"sequence":12,"event":{"kind":"EquityFloorBreached","accountId":"A1","floorId":"daily","level":95000,"equity":94980.5,"prices":[],"positions":[],"timestamp":"2026-10-05T09:00:00+00:00"}}
-            ],"cursor":12}
+              {"sequence":12,"event":{"kind":"EquityFloorBreached","accountId":"A1","floorId":"daily","level":95000,"equity":94980.5,"prices":[],"positions":[],"timestamp":"2026-10-05T09:00:00+00:00"}},
+              {"sequence":13,"event":{"kind":"BalanceAdjusted","accountId":"A1","operationId":"payout-1","amount":-8000,"balanceAfter":100000,"timestamp":"2026-10-05T10:00:00+00:00"}}
+            ],"cursor":13}
             """;
         var platform = new StubPlatform((HttpStatusCode.OK, page));
 
         var read = await Client(platform).ReadEventsAsync(Firm, 6, 500, 30, TestContext.Current.CancellationToken);
 
         Assert.Equal("GET api/admin/v1/events?after=6&limit=500&wait=30", platform.Requests[0]);
-        Assert.Equal(12, read.Cursor);
+        Assert.Equal(13, read.Cursor);
         Assert.Collection(
             read.Events,
             e => Assert.Equal(100_000m, Assert.IsType<TradingAccountCreated>(e).Balance),
             e => Assert.IsType<TradingOtherEvent>(e),
-            e => Assert.Equal(("daily", 95_000m, 94_980.5m), (Assert.IsType<TradingFloorBreached>(e).FloorId, ((TradingFloorBreached)e).Level, ((TradingFloorBreached)e).Equity)));
+            e => Assert.Equal(("daily", 95_000m, 94_980.5m), (Assert.IsType<TradingFloorBreached>(e).FloorId, ((TradingFloorBreached)e).Level, ((TradingFloorBreached)e).Equity)),
+            e => Assert.Equal(("payout-1", -8_000m, 100_000m), (Assert.IsType<TradingBalanceAdjusted>(e).OperationId, ((TradingBalanceAdjusted)e).Amount, ((TradingBalanceAdjusted)e).BalanceAfter)));
         Assert.Contains("\"positions\"", read.Events[2].Raw, StringComparison.Ordinal);
     }
 
@@ -142,12 +175,15 @@ public sealed class TradingPlatformClientTests
 
         public List<string?> ApiKeys { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        public List<string?> Bodies { get; } = [];
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add($"{request.Method} {request.RequestUri!.PathAndQuery.TrimStart('/')}");
             ApiKeys.Add(request.Headers.GetValues("X-Api-Key").SingleOrDefault());
+            Bodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
             var (status, body) = answers[_next++];
-            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+            return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
         }
     }
 }
@@ -168,6 +204,7 @@ public sealed class TradingContractTests
     [InlineData("/api/admin/v1/accounts/{accountId}", "get")]
     [InlineData("/api/admin/v1/accounts/{accountId}/floors/{floorId}", "put")]
     [InlineData("/api/admin/v1/accounts/{accountId}/close", "post")]
+    [InlineData("/api/admin/v1/accounts/{accountId}/balance-operations", "post")]
     [InlineData("/api/admin/v1/events", "get")]
     public void EveryPathTheClientUsesIsInTheContract(string path, string method)
     {
@@ -202,6 +239,12 @@ public sealed class TradingContractTests
     [InlineData("EquityFloorRuleAnchoredFloor", "distance")]
     [InlineData("EquityFloorRuleAnchoredFloor", "anchor")]
     [InlineData("EquityFloorRuleTrailingFloor", "lockLevel")]
+    [InlineData("BalanceOperationRequest", "operationId")]
+    [InlineData("BalanceOperationRequest", "amount")]
+    [InlineData("BalanceOperationRequest", "minBalance")]
+    [InlineData("BalanceAdjusted", "operationId")]
+    [InlineData("BalanceAdjusted", "amount")]
+    [InlineData("BalanceAdjusted", "balanceAfter")]
     public void EveryFieldTheClientUsesIsInTheContract(string schema, string property)
     {
         var schemas = Contract["components"]!["schemas"]!.AsObject();

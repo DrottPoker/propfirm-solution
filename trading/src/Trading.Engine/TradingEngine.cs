@@ -69,6 +69,7 @@ public sealed partial class TradingEngine
             SetEquityFloor command => ApplySetEquityFloor(command, events),
             RemoveEquityFloor command => ApplyRemoveEquityFloor(command, events),
             CloseAccount command => ApplyCloseAccount(command, events),
+            AdjustBalance command => ApplyAdjustBalance(command, events),
             _ => throw new ArgumentException($"Unknown input type {input.GetType().Name}.", nameof(input)),
         };
 

@@ -19,6 +19,25 @@ public sealed record ApproveFunding(DateTimeOffset Time) : ChallengeInput(Time);
 /// <summary>The firm ends the challenge.</summary>
 public sealed record CancelChallenge(DateTimeOffset Time, string Reason) : ChallengeInput(Time);
 
+/// <summary>The funded trader asks for a payout of the profit. The service chooses the payout's id.</summary>
+public sealed record RequestPayout(DateTimeOffset Time, string PayoutId) : ChallengeInput(Time);
+
+/// <summary>The firm approves the payout after its own checks, for example KYC.</summary>
+public sealed record ApprovePayout(DateTimeOffset Time, string PayoutId) : ChallengeInput(Time);
+
+/// <summary>The firm has sent the money. <paramref name="Reference"/> is the firm's own, for example a bank transfer id.</summary>
+public sealed record MarkPayoutPaid(DateTimeOffset Time, string PayoutId, string? Reference) : ChallengeInput(Time);
+
+/// <summary>The firm refuses the payout.</summary>
+public sealed record RejectPayout(DateTimeOffset Time, string PayoutId, string Reason) : ChallengeInput(Time);
+
+/// <summary>
+/// The trading platform refused a withdrawal the rule engine asked for, for example because the balance
+/// fell after the payout was requested. Reported by the service, which sees every refusal, also those that
+/// never reach the trading engine.
+/// </summary>
+public sealed record WithdrawalRejected(DateTimeOffset Time, string OperationId, string Reason) : ChallengeInput(Time);
+
 /// <summary>
 /// A fact from the trading platform about an account. <paramref name="Sequence"/> is the platform's
 /// sequence number. Facts can arrive more than once and late: a fact is only applied if it is about the
@@ -43,4 +62,11 @@ public sealed record FloorBreached(DateTimeOffset Time, string AccountId, long S
 
 /// <summary>The account was disabled on the trading platform for another reason, for example by the firm.</summary>
 public sealed record AccountDisabled(DateTimeOffset Time, string AccountId, long Sequence)
+    : AccountFact(Time, AccountId, Sequence);
+
+/// <summary>
+/// Money was deposited (positive <paramref name="Amount"/>) or withdrawn (negative), for example a
+/// payout's profit with the payout's id as <paramref name="OperationId"/>. Not a trading result.
+/// </summary>
+public sealed record BalanceAdjusted(DateTimeOffset Time, string AccountId, long Sequence, string OperationId, decimal Amount, decimal Balance)
     : AccountFact(Time, AccountId, Sequence);

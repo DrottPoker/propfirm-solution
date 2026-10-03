@@ -2,7 +2,7 @@ import type { AccountDetails, ChallengeStatus } from "@/lib/api/types";
 import { failureLabels, floorLabel, floorsOf, statusLabels, targetProgress } from "@/lib/challenge";
 import { formatDateTime, formatMoney } from "@/lib/format";
 
-import { Panel } from "./ui";
+import { Figure, Panel } from "./ui";
 
 const statusStyles: Record<ChallengeStatus, string> = {
   OpeningAccount: "bg-warning/20 text-warning",
@@ -127,14 +127,5 @@ function Notice({ tone, children }: { tone: string; children: React.ReactNode })
     <p role="status" className={`rounded border border-border bg-background px-3 py-2 text-sm ${tone}`}>
       {children}
     </p>
-  );
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className="font-mono text-lg tabular-nums">{value}</dd>
-    </div>
   );
 }

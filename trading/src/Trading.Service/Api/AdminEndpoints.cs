@@ -38,6 +38,7 @@ internal static class AdminEndpoints
         admin.MapPut("/accounts/{accountId}/floors/{floorId}", SetFloorAsync);
         admin.MapDelete("/accounts/{accountId}/floors/{floorId}", RemoveFloorAsync);
         admin.MapPost("/accounts/{accountId}/close", CloseAccountAsync);
+        admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
         admin.MapGet("/events", GetEventsAsync);
         return app;
     }
@@ -212,6 +213,19 @@ internal static class AdminEndpoints
         CancellationToken cancellationToken) =>
         await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
             ? CommandResults.From(await engine.SendAsync(t => new CloseAccount(t, accountId), cancellationToken))
+            : UnknownAccount();
+
+    /// <summary>A deposit or withdrawal, for example a trader's payout. Floors measured from the account move with the balance.</summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> AdjustBalanceAsync(
+        string accountId,
+        BalanceOperationRequest request,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
+            ? CommandResults.From(await engine.SendAsync(
+                t => new AdjustBalance(t, accountId, request.OperationId ?? "", request.Amount, request.MinBalance),
+                cancellationToken))
             : UnknownAccount();
 
     /// <summary>

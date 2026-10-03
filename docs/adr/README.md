@@ -20,6 +20,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0012](0012-publikt-admin-api-som-kontrakt.md) | Handelsplattformens publika admin-API är kontraktet mellan produkterna | Föreslagen |
 | [0013](0013-journal-och-utkorg-i-propfirm-tjansten.md) | Journal och utkorg i propfirm-tjänsten | Föreslagen |
 | [0014](0014-vitmarkt-portal-pa-firmans-adress.md) | Vitmärkt portal på firmans adress med sessioner i propfirm-tjänsten | Föreslagen |
+| [0015](0015-utbetalningar-tar-ut-vinsten-direkt.md) | Utbetalningar tar ut vinsten direkt | Föreslagen |
 
 ## Så skriver du en ny ADR
 

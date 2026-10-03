@@ -30,9 +30,10 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
 
         var challenges = await firm.GetFromJsonAsync<JsonElement>(new Uri("/api/firm/v1/challenges", UriKind.Relative), TestContext.Current.CancellationToken);
 
-        var challenge = Assert.Single(challenges.EnumerateArray());
-        Assert.Equal("two-step-100k", challenge.GetProperty("id").GetString());
-        Assert.Equal(100_000m, challenge.GetProperty("initialBalance").GetDecimal());
+        Assert.Equal(["quick-test-100k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
+        var twoStep = challenges[1];
+        Assert.Equal(100_000m, twoStep.GetProperty("initialBalance").GetDecimal());
+        Assert.Equal(80m, twoStep.GetProperty("funded").GetProperty("profitSplitPercent").GetDecimal());
     }
 
     [Fact]
@@ -46,7 +47,7 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
         var challenges = await firm.GetFromJsonAsync<JsonElement>(new Uri("/api/firm/v1/challenges", UriKind.Relative), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-        Assert.Equal(["one-step-50k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
+        Assert.Equal(["one-step-50k", "quick-test-100k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
     }
 
     [Theory]
@@ -190,7 +191,7 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
             initialBalance,
             tradingDay = new { timeZone, start = "17:00:00" },
             evaluation = new[] { new { name = "Evaluation", profitTargetPercent = (decimal?)8m, minTradingDays = 3, stage.dailyLoss, stage.maxLoss } },
-            funded = new { name = "Funded", profitTargetPercent = (decimal?)null, minTradingDays = 0, stage.dailyLoss, stage.maxLoss },
+            funded = new { name = "Funded", profitTargetPercent = (decimal?)null, minTradingDays = 0, stage.dailyLoss, stage.maxLoss, profitSplitPercent = 90m },
         };
     }
 }

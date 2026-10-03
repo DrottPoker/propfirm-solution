@@ -7,9 +7,10 @@ import { canOpenTerminal, statusLabels } from "@/lib/challenge";
 import { useMyAccount, useMyAccounts, useTerminalLink } from "@/lib/queries";
 
 import { AccountOverview } from "./AccountOverview";
-import { buttonClass, ErrorText, Message } from "./ui";
+import { PayoutTable, RequestPayout } from "./Payouts";
+import { buttonClass, ErrorText, Message, Panel } from "./ui";
 
-/** The trader's challenge accounts, one at a time, with the way into the trading terminal. */
+/** The trader's challenge accounts, one at a time, with the way into the trading terminal and the funded account's payouts. */
 export function Dashboard({ requestedAccountId }: { requestedAccountId: string | null }) {
   const accounts = useMyAccounts();
 
@@ -63,7 +64,18 @@ function AccountView({ accountId }: { accountId: string }) {
     return <p className="text-muted">Loading...</p>;
   }
 
-  return <AccountOverview details={details.data} actions={<OpenTerminalButton account={details.data.account} />} />;
+  const { account, payouts } = details.data;
+  return (
+    <>
+      <AccountOverview details={details.data} actions={<OpenTerminalButton account={account} />} />
+      <RequestPayout account={account} />
+      {payouts.length > 0 && (
+        <Panel title="Payouts">
+          <PayoutTable payouts={payouts} />
+        </Panel>
+      )}
+    </>
+  );
 }
 
 /** Logs the trader in to the trading terminal with a one-time link. The trading password is never shown. */

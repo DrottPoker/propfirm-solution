@@ -19,7 +19,19 @@ export function PortalHeader({ me, role }: { me: Me; role: Role }) {
       <Link href={role === "admin" ? "/admin" : "/"}>
         <FirmName />
       </Link>
-      {role === "admin" && <span className="rounded bg-accent/20 px-2 py-0.5 text-accent">Admin</span>}
+      {role === "admin" && (
+        <>
+          <span className="rounded bg-accent/20 px-2 py-0.5 text-accent">Admin</span>
+          <nav aria-label="Admin" className="flex gap-4">
+            <Link href="/admin" className="hover:text-accent">
+              Accounts
+            </Link>
+            <Link href="/admin/payouts" className="hover:text-accent">
+              Payouts
+            </Link>
+          </nav>
+        </>
+      )}
       <span className="ml-auto flex items-center gap-4 text-muted">
         {me.email}
         <button

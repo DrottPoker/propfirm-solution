@@ -58,3 +58,12 @@ public sealed record RemoveEquityFloor(DateTimeOffset Timestamp, string AccountI
 /// <summary>Closes all positions at the latest prices, cancels all orders and disables the account.</summary>
 public sealed record CloseAccount(DateTimeOffset Timestamp, string AccountId)
     : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
+/// Deposits a positive <paramref name="Amount"/> or withdraws a negative one. The caller chooses
+/// <paramref name="OperationId"/>, which is never reused on the account, so a retry cannot apply it twice.
+/// A withdrawal must leave the balance at or above <paramref name="MinBalance"/>, fit in the free margin
+/// and keep equity above every floor.
+/// </summary>
+public sealed record AdjustBalance(DateTimeOffset Timestamp, string AccountId, string OperationId, decimal Amount, decimal? MinBalance = null)
+    : EngineInput(Timestamp), IAccountCommand;

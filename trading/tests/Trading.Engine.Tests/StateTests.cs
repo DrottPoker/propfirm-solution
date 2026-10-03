@@ -11,6 +11,7 @@ public sealed class StateTests
     [InlineData(45)]
     [InlineData(200)]
     [InlineData(1_201)]
+    [InlineData(2_250)]
     [InlineData(2_999)]
     public void RestoredEngineContinuesExactlyLikeTheOriginal(int restartAtTick)
     {

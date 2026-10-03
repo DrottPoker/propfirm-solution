@@ -36,6 +36,9 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     public const string AdminPassword = "admin";
 
+    /// <summary>The password traders choose when they accept an invitation in the tests.</summary>
+    public const string TraderPassword = "a-good-password";
+
     /// <summary>A Monday, 10:00 in Stockholm.</summary>
     public static readonly DateTimeOffset Start = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
@@ -114,6 +117,25 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var url = new Uri((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("url").GetString()!);
         return System.Web.HttpUtility.ParseQueryString(url.Query)["token"]!;
+    }
+
+    /// <summary>The account's trader accepts an invitation to the portal. Returns the trader's browser.</summary>
+    public async Task<HttpClient> LogInAsTraderAsync(Guid accountId)
+    {
+        var token = await InviteAsync(accountId);
+        var portal = CreatePortalClient();
+        using var accepted = await portal.PostAsJsonAsync(new Uri("/api/portal/invites/accept", UriKind.Relative), new { token, password = TraderPassword });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        return portal;
+    }
+
+    /// <summary>The development firm's administrator logs in to the portal. Returns the administrator's browser.</summary>
+    public async Task<HttpClient> LogInAsAdminAsync()
+    {
+        var portal = CreatePortalClient();
+        using var login = await portal.PostAsJsonAsync(new Uri("/api/portal/admin/login", UriKind.Relative), new { email = AdminEmail, password = AdminPassword });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        return portal;
     }
 
     /// <summary>Starts the challenge for the email and waits until its first trading account is open.</summary>

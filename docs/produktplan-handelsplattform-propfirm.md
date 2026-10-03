@@ -246,16 +246,18 @@ Vi hanterar aldrig själva pengarna. Att förmedla pengar åt andra kräver till
 |---|---|
 | Tradern begär utbetalning i portalen | Vi (portalen) |
 | Kontrollera villkoren: minsta antal dagar, jämna resultat, inga regelbrott | Vi |
-| Räkna ut beloppet: vinst gånger vinstandel, minus tidigare uttag | Vi |
+| Räkna ut beloppet, vinst gånger vinstandel, och ta ut hela vinsten från kontot | Vi |
 | KYC-kontroll | Firmans KYC-leverantör |
 | Godkänna | Firman, i adminpanelen |
 | Skicka pengarna | Firman, via egen bank, utbetalningstjänst eller krypto |
-| Markera som betald, ta bort uttagen vinst från kontot, spara historik | Vi |
+| Markera som betald och spara historiken | Vi |
 
 ```
-tradern begär -> vi kontrollerar och räknar ut -> firman godkänner
--> firman betalar -> firman markerar som betald -> vi uppdaterar kontot och sparar historiken
+tradern begär -> vi kontrollerar, räknar ut och tar ut vinsten från kontot -> firman godkänner
+-> firman betalar -> firman markerar som betald -> vi sparar historiken
 ```
+
+Vinsten tas ut direkt, så att tradern inte kan förlora pengar som ska betalas ut medan firman kontrollerar. Kontot börjar om från startsaldot. Hur det fungerar beskrivs i [specen för regelmotorn](spec/regelmotor.md) och [ADR 0015](adr/0015-utbetalningar-tar-ut-vinsten-direkt.md). Regeln om jämna resultat finns inte än.
 
 ### API och webhooks
 
@@ -268,7 +270,7 @@ POST /api/firm/v1/accounts   { "email": "...", "challengeId": "two-step-100k", "
 Webhooks till firman:
 account.passed       tradern klarade fasen
 account.breached     tradern bröt en regel
-payout.requested     tradern vill ta ut sin vinst (senare)
+payout.requested     tradern vill ta ut sin vinst, som är uttagen från kontot
 ```
 
 API:t och webhooks som finns beskrivs i [specen för propfirm-tjänsten](spec/propfirm-tjanst.md).

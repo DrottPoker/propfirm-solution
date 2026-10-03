@@ -285,6 +285,53 @@ public sealed partial class TradingEngine
         return null;
     }
 
+    private RejectReason? ApplyAdjustBalance(AdjustBalance command, List<EngineEvent> events)
+    {
+        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        {
+            return accountRejection;
+        }
+
+        if (string.IsNullOrEmpty(command.OperationId))
+        {
+            return RejectReason.InvalidId;
+        }
+
+        if (account.UsedOperationIds.Contains(command.OperationId))
+        {
+            return RejectReason.DuplicateId;
+        }
+
+        var currency = account.Group.Currency;
+        if (command.Amount == 0m || !_valuation.IsRounded(command.Amount, currency)
+            || (command.MinBalance is { } min && (min < 0m || !_valuation.IsRounded(min, currency))))
+        {
+            return RejectReason.InvalidAmount;
+        }
+
+        // A withdrawal may not leave too little, cause a stop out or breach a floor.
+        var figures = _valuation.Measure(account);
+        var balanceAfter = account.Balance + command.Amount;
+        if (command.Amount < 0m
+            && (balanceAfter < (command.MinBalance ?? 0m)
+                || -command.Amount > figures.FreeMargin
+                || account.Floors.Values.Any(f => figures.Equity + command.Amount < f.LevelShiftedBy(command.Amount))))
+        {
+            return RejectReason.InsufficientFunds;
+        }
+
+        account.Balance = balanceAfter;
+        account.UsedOperationIds.Add(command.OperationId);
+        foreach (var floor in account.Floors.Values)
+        {
+            floor.Shift(command.Amount);
+        }
+
+        events.Add(new BalanceAdjusted(command.Timestamp, account.Id, command.OperationId, command.Amount, account.Balance));
+        EvaluateRisk(account, command.Timestamp, events);
+        return null;
+    }
+
     private RejectReason? GetFreshPrice(Instrument instrument, SymbolConditions conditions, DateTimeOffset now, out ClientPrice price)
     {
         if (!_prices.TryGetLatest(instrument.Symbol, out var quote))

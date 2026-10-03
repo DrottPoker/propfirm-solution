@@ -12,6 +12,7 @@ public sealed class ChallengeDefinitionTests
         Assert.Equal(2, TwoStep.FundedStage);
         Assert.Same(TwoStep.Funded, TwoStep.Stage(TwoStep.FundedStage));
         Assert.Equal(new TradingDayDefinition("Europe/Stockholm", TimeOnly.MinValue), TwoStep.TradingDay);
+        Assert.Equal((80m, 5), (TwoStep.Funded.ProfitSplitPercent, TwoStep.Funded.MinTradingDays));
     }
 
     [Theory]
@@ -23,6 +24,9 @@ public sealed class ChallengeDefinitionTests
     [InlineData("lowercase currency", "three capital letters")]
     [InlineData("fractions of cents", "in whole cents")]
     [InlineData("no time zone", "needs a time zone")]
+    [InlineData("no profit split", "needs a profit split")]
+    [InlineData("profit split above 100", "needs a profit split")]
+    [InlineData("profit split on evaluation stage", "has no profit split")]
     public void InvalidDefinitionsAreRefused(string problem, string error)
     {
         var phase1 = TwoStep.Evaluation[0];
@@ -36,6 +40,9 @@ public sealed class ChallengeDefinitionTests
             "lowercase currency" => TwoStep with { Currency = "usd" },
             "fractions of cents" => TwoStep with { InitialBalance = 100_000.001m },
             "no time zone" => TwoStep with { TradingDay = TwoStep.TradingDay with { TimeZone = " " } },
+            "no profit split" => TwoStep with { Funded = TwoStep.Funded with { ProfitSplitPercent = null } },
+            "profit split above 100" => TwoStep with { Funded = TwoStep.Funded with { ProfitSplitPercent = 100.5m } },
+            "profit split on evaluation stage" => TwoStep with { Evaluation = [phase1 with { ProfitSplitPercent = 80 }] },
             _ => throw new ArgumentOutOfRangeException(nameof(problem)),
         };
 

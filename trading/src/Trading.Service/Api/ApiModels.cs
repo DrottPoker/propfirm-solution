@@ -25,6 +25,13 @@ public sealed record UserResponse(Guid UserId, string Email);
 
 public sealed record SetFloorRequest(EquityFloorRule Rule);
 
+/// <summary>
+/// Deposits a positive <paramref name="Amount"/> or withdraws a negative one. The caller chooses
+/// <paramref name="OperationId"/>, unique per account, so a retry is answered 409 instead of being applied
+/// twice. A withdrawal must leave at least <paramref name="MinBalance"/>.
+/// </summary>
+public sealed record BalanceOperationRequest(string? OperationId, decimal Amount, decimal? MinBalance = null);
+
 public sealed record SetPasswordRequest(string? Password);
 
 /// <summary>A login link for the user. With an account id, the terminal opens that account.</summary>

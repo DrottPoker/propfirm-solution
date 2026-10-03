@@ -92,6 +92,31 @@ public sealed class IntegrationApiTests
         Assert.Equal(("EquityFloorSet", 95_000m), (set.GetProperty("kind").GetString(), set.GetProperty("level").GetDecimal()));
     }
 
+    // The prop platform withdraws a trader's profit like this when the trader asks for a payout.
+    [Fact]
+    public async Task TheFirmWithdrawsFromAnAccountOnceAndSeesItInTheEvents()
+    {
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using var admin = factory.CreateAdminClient();
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
+        var cursor = (await admin.GetJsonAsync("/api/admin/v1/events?limit=1000")).GetProperty("cursor").GetInt64();
+        const string url = "/api/admin/v1/accounts/T1/balance-operations";
+        var withdrawal = new { operationId = "payout-1", amount = -5_000m, minBalance = 90_000m };
+
+        var response = await admin.PostJsonAsync(url, withdrawal);
+        var retry = await admin.PostJsonAsync(url, withdrawal, HttpStatusCode.Conflict);
+        var tooMuch = await admin.PostJsonAsync(url, new { operationId = "payout-2", amount = -5_000.01m, minBalance = 90_000m }, HttpStatusCode.UnprocessableEntity);
+        await other.PostJsonAsync(url, new { operationId = "payout-3", amount = 1_000m }, HttpStatusCode.NotFound);
+
+        var adjusted = response.GetProperty("events")[0].GetProperty("event");
+        Assert.Equal(("BalanceAdjusted", -5_000m, 95_000m), (adjusted.GetProperty("kind").GetString(), adjusted.GetProperty("amount").GetDecimal(), adjusted.GetProperty("balanceAfter").GetDecimal()));
+        Assert.Equal(("DuplicateId", "InsufficientFunds"), (retry.GetProperty("reason").GetString(), tooMuch.GetProperty("reason").GetString()));
+        Assert.Equal(95_000m, (await admin.GetJsonAsync("/api/admin/v1/accounts/T1")).GetProperty("balance").GetDecimal());
+        var events = (await admin.GetJsonAsync($"/api/admin/v1/events?after={cursor}")).GetProperty("events");
+        Assert.Equal(["BalanceAdjusted", "InputRejected", "InputRejected"], events.EventKinds());
+    }
+
     [Fact]
     public async Task EachFirmReadsOnlyItsOwnEventsInOrder()
     {

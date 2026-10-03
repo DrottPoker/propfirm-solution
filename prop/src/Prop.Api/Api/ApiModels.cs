@@ -38,7 +38,8 @@ public sealed record AccountResponse(
     int OpenPositions,
     decimal? DailyFloor,
     decimal? MaxLossFloor,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset CreatedAt,
+    PayoutQuoteResponse? NextPayout)
 {
     internal static AccountResponse From(AccountView view)
     {
@@ -66,9 +67,79 @@ public sealed record AccountResponse(
             trading?.OpenPositions ?? 0,
             trading?.DailyFloor,
             trading?.MaxLossFloor,
-            account.CreatedAt);
+            account.CreatedAt,
+            state.IsFunded ? PayoutQuoteResponse.From(ChallengeRules.QuotePayout(state)) : null);
     }
 }
+
+/// <summary>
+/// What a payout asked for now would pay the trader: <paramref name="ProfitSplitPercent"/> of the profit, which
+/// is all withdrawn from the trading account. When <paramref name="CanRequest"/> is false,
+/// <paramref name="Refusal"/> says why. Only for funded accounts.
+/// </summary>
+public sealed record PayoutQuoteResponse(
+    bool CanRequest,
+    string? Refusal,
+    decimal Profit,
+    decimal ProfitSplitPercent,
+    decimal Amount,
+    int TradingDays,
+    int MinTradingDays)
+{
+    internal static PayoutQuoteResponse From(PayoutQuote quote) =>
+        new(quote.CanRequest, quote.Refusal, quote.Profit, quote.ProfitSplitPercent, quote.Amount, quote.TradingDays, quote.MinTradingDays);
+}
+
+/// <summary>
+/// A funded trader's payout. <paramref name="Profit"/> was withdrawn from <paramref name="TradingAccountId"/>,
+/// and the trader gets <paramref name="Amount"/>. The firm approves it, sends the money itself and marks it as paid.
+/// </summary>
+public sealed record PayoutResponse(
+    Guid Id,
+    Guid AccountId,
+    long AccountNumber,
+    string Email,
+    string TradingAccountId,
+    PayoutStatus Status,
+    decimal Profit,
+    decimal ProfitSplitPercent,
+    decimal Amount,
+    string Currency,
+    DateTimeOffset RequestedAt,
+    DateTimeOffset? WithdrawnAt,
+    DateTimeOffset? ApprovedAt,
+    DateTimeOffset? PaidAt,
+    DateTimeOffset? RejectedAt,
+    DateTimeOffset? FailedAt,
+    string? Reason,
+    string? Reference)
+{
+    internal static PayoutResponse From(PayoutView view) =>
+        new(
+            view.Id,
+            view.ChallengeAccountId,
+            view.AccountNumber,
+            view.Email,
+            view.TradingAccountId,
+            view.Status,
+            view.Profit,
+            view.ProfitSplitPercent,
+            view.Amount,
+            view.Currency,
+            view.RequestedAt,
+            view.WithdrawnAt,
+            view.ApprovedAt,
+            view.PaidAt,
+            view.RejectedAt,
+            view.FailedAt,
+            view.Reason,
+            view.Reference);
+}
+
+public sealed record RejectPayoutRequest(string? Reason);
+
+/// <summary><paramref name="Reference"/> is the firm's own, for example a bank transfer id.</summary>
+public sealed record MarkPayoutPaidRequest(string? Reference);
 
 /// <summary>One input to the account and what the rule engine decided, with the trading platform's event behind it.</summary>
 public sealed record StepResponse(int Step, DateTimeOffset RecordedAt, JsonElement Input, JsonElement Outputs, JsonElement? SourceEvent);
@@ -76,8 +147,8 @@ public sealed record StepResponse(int Step, DateTimeOffset RecordedAt, JsonEleme
 /// <summary>Open <paramref name="Url"/> once before <paramref name="ExpiresAt"/> to be logged in to the trading terminal.</summary>
 public sealed record LoginLinkResponse(Uri Url, DateTimeOffset ExpiresAt);
 
-/// <summary>An account with its trading account right now, and the evidence if it failed.</summary>
-public sealed record AccountDetailsResponse(AccountResponse Account, LiveFigures? Live, BreachEvidence? Breach);
+/// <summary>An account with its trading account right now, the evidence if it failed and its payouts, newest first.</summary>
+public sealed record AccountDetailsResponse(AccountResponse Account, LiveFigures? Live, BreachEvidence? Breach, IReadOnlyList<PayoutResponse> Payouts);
 
 /// <summary>The trading account valued at the latest prices. Missing when the trading platform cannot be reached.</summary>
 public sealed record LiveFigures(decimal Balance, decimal Equity, IReadOnlyList<FloorFigure> Floors);

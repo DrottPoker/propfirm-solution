@@ -30,6 +30,13 @@ internal static class FirmEndpoints
         firm.MapPost("/accounts/{accountId:guid}/cancel", CancelAsync);
         firm.MapPost("/accounts/{accountId:guid}/login-link", CreateLoginLinkAsync);
         firm.MapPost("/accounts/{accountId:guid}/invite", CreateInviteAsync);
+        firm.MapPost("/accounts/{accountId:guid}/payouts", RequestPayoutAsync);
+        firm.MapGet("/accounts/{accountId:guid}/payouts", ListAccountPayoutsAsync);
+        firm.MapGet("/payouts", ListPayoutsAsync);
+        firm.MapGet("/payouts/{payoutId:guid}", GetPayoutAsync);
+        firm.MapPost("/payouts/{payoutId:guid}/approve", ApprovePayoutAsync);
+        firm.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
+        firm.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         return app;
     }
 
@@ -138,6 +145,82 @@ internal static class FirmEndpoints
         TimeProvider time,
         CancellationToken cancellationToken) =>
         AccountActions.InviteAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, users, time, cancellationToken);
+
+    /// <summary>A payout for the trader, for firms whose own site lets traders ask for one. The portal does the same.</summary>
+    private static Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
+        Guid accountId,
+        HttpContext context,
+        ChallengeService challenges,
+        ChallengeQueries accounts,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.RequestAsync(
+            FirmApiKeyFilter.FirmOf(context), accountId, null, id => $"/api/firm/v1/payouts/{id}", challenges, accounts, payouts, time, cancellationToken);
+
+    private static async Task<Results<Ok<List<PayoutResponse>>, ProblemHttpResult>> ListAccountPayoutsAsync(
+        Guid accountId,
+        HttpContext context,
+        ChallengeQueries accounts,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken)
+    {
+        var firm = FirmApiKeyFilter.FirmOf(context);
+        if (await accounts.GetAsync(firm.Id, accountId, cancellationToken) is null)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        return TypedResults.Ok((await payouts.ListByAccountAsync(firm.Id, accountId, cancellationToken)).Select(PayoutResponse.From).ToList());
+    }
+
+    /// <summary>The firm's newest payouts, optionally only those with the given statuses, for example Pending to find those waiting for approval.</summary>
+    private static Task<Results<Ok<List<PayoutResponse>>, ProblemHttpResult>> ListPayoutsAsync(
+        HttpContext context,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken,
+        PayoutStatus[]? status = null,
+        int limit = 100) =>
+        PayoutActions.ListAsync(FirmApiKeyFilter.FirmOf(context), status, limit, payouts, cancellationToken);
+
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> GetPayoutAsync(
+        Guid payoutId,
+        HttpContext context,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken) =>
+        PayoutActions.GetAsync(FirmApiKeyFilter.FirmOf(context), payoutId, payouts, cancellationToken);
+
+    /// <summary>The firm has done its checks, for example KYC, and will send the money. 409 unless the payout is waiting for approval.</summary>
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> ApprovePayoutAsync(
+        Guid payoutId,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(FirmApiKeyFilter.FirmOf(context), payoutId, PayoutActions.Approve(time), challenges, payouts, cancellationToken);
+
+    /// <summary>The firm has sent the money. 409 unless the payout is approved.</summary>
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> MarkPayoutPaidAsync(
+        Guid payoutId,
+        MarkPayoutPaidRequest request,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(FirmApiKeyFilter.FirmOf(context), payoutId, PayoutActions.MarkPaid(request, time), challenges, payouts, cancellationToken);
+
+    /// <summary>Refuses a payout waiting for approval or payment. The withdrawn profit is not returned to the account.</summary>
+    private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> RejectPayoutAsync(
+        Guid payoutId,
+        RejectPayoutRequest request,
+        HttpContext context,
+        ChallengeService challenges,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        PayoutActions.DecideAsync(FirmApiKeyFilter.FirmOf(context), payoutId, PayoutActions.Reject(request, time), challenges, payouts, cancellationToken);
 
     internal static CancelChallenge Cancel(CancelAccountRequest request, TimeProvider time) =>
         new(time.GetUtcNow(), string.IsNullOrWhiteSpace(request.Reason) ? "Cancelled by the firm." : request.Reason);

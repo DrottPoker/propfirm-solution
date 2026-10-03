@@ -5,8 +5,8 @@ namespace Prop.Rules;
 /// <summary>
 /// The rules of a challenge as pure functions: the same state and input always give the same result.
 /// The trading platform is the authority on equity and enforces the loss limits as floors on every price.
-/// The rule engine sets those floors, resets the daily floor every trading day, counts trading days and
-/// decides when a stage is passed.
+/// The rule engine sets those floors, resets the daily floor every trading day, counts trading days,
+/// decides when a stage is passed and takes the funded trader's payouts through to paid.
 /// </summary>
 public static class ChallengeRules
 {
@@ -39,6 +39,14 @@ public static class ChallengeRules
         TradingDayStarted day => OnTradingDayStarted(state, day),
         ApproveFunding approve => OnApproveFunding(state, approve),
         CancelChallenge cancel => OnCancel(state, cancel),
+        RequestPayout request => OnRequestPayout(state, request),
+        ApprovePayout approve => OnApprovePayout(state, approve),
+        MarkPayoutPaid paid => OnMarkPayoutPaid(state, paid),
+        RejectPayout reject => OnRejectPayout(state, reject),
+        WithdrawalRejected rejected => OnWithdrawalRejected(state, rejected),
+
+        // The payout's withdrawal counts even if the challenge ended after it was requested.
+        BalanceAdjusted adjusted when IsPayoutWithdrawal(state, adjusted) => OnPayoutWithdrawn(state, adjusted),
 
         // Repeated, late and other accounts' facts change nothing.
         AccountFact fact when !IsNewFactForCurrentAccount(state, fact) => Unchanged(state),
@@ -46,8 +54,57 @@ public static class ChallengeRules
         PositionOpened opened => OnPositionOpened(state with { LastSequence = opened.Sequence }, opened),
         FloorBreached breached => OnFloorBreached(state with { LastSequence = breached.Sequence }, breached),
         AccountDisabled disabled => OnAccountDisabled(state with { LastSequence = disabled.Sequence }, disabled),
+
+        // Deposits and other withdrawals are not trading results: only the balance changes.
+        BalanceAdjusted adjusted => Unchanged(state with
+        {
+            LastSequence = adjusted.Sequence,
+            Account = state.Account! with { Balance = adjusted.Balance },
+        }),
         _ => throw new ArgumentException($"Unknown input {input.GetType().Name}.", nameof(input)),
     };
+
+    /// <summary>
+    /// What a payout requested now would pay, or why the trader cannot request one: the account must be an
+    /// active funded account with a profit, no open positions, enough trading days since the last payout and
+    /// no other payout in progress. Measured on the balance the trading platform last reported.
+    /// </summary>
+    public static PayoutQuote QuotePayout(ChallengeState state)
+    {
+        var rules = state.Rules;
+        var split = rules.ProfitSplitPercent ?? 0m;
+        var profit = state.Account is { } account ? account.Balance - state.Definition.InitialBalance : 0m;
+        var amount = profit > 0m ? decimal.Round(profit * split / 100m, 2, MidpointRounding.ToZero) : 0m;
+        var tradingDays = state.TradingDays.Count;
+
+        string? refusal = null;
+        if (!state.IsFunded || state.Status != ChallengeStatus.Active)
+        {
+            refusal = "Payouts are only for an active funded account.";
+        }
+        else if (rules.ProfitSplitPercent is null)
+        {
+            refusal = "The challenge has no profit split, so it has no payouts.";
+        }
+        else if (state.Payout is not null)
+        {
+            refusal = "A payout is already in progress.";
+        }
+        else if (amount <= 0m)
+        {
+            refusal = "There is no profit to pay out.";
+        }
+        else if (state.Account!.OpenPositions > 0)
+        {
+            refusal = "Close every position before asking for a payout.";
+        }
+        else if (tradingDays < rules.MinTradingDays)
+        {
+            refusal = $"A payout needs {rules.MinTradingDays} trading days since the last one. So far: {tradingDays}.";
+        }
+
+        return new PayoutQuote(Math.Max(profit, 0m), split, amount, tradingDays, rules.MinTradingDays, refusal);
+    }
 
     private static ChallengeStep OnAccountOpened(ChallengeState state, AccountOpened input)
     {
@@ -122,20 +179,105 @@ public static class ChallengeRules
         return new ChallengeStep(state with { Status = ChallengeStatus.Cancelled }, outputs);
     }
 
+    // The whole profit is withdrawn at once, so the trader cannot keep trading on money that is being paid out.
+    private static ChallengeStep OnRequestPayout(ChallengeState state, RequestPayout input)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(input.PayoutId);
+        var quote = QuotePayout(state);
+        if (quote.Refusal is { } refusal)
+        {
+            return Ignored(state, input, refusal);
+        }
+
+        var accountId = state.AccountId!;
+        var payout = new Payout(input.PayoutId, accountId, quote.Profit, quote.ProfitSplitPercent, quote.Amount, PayoutStatus.Withdrawing, input.Time);
+        return new ChallengeStep(
+            state with { Payout = payout },
+            [
+                new PayoutRequested(input.Time, payout),
+                new WithdrawalRequested(input.Time, accountId, payout.Id, quote.Profit, state.Definition.InitialBalance),
+            ]);
+    }
+
+    // A new payout period starts on the account, with the trading days counted from now.
+    private static ChallengeStep OnPayoutWithdrawn(ChallengeState state, BalanceAdjusted input)
+    {
+        var payout = state.Payout! with { Status = PayoutStatus.Pending };
+        var next = state is { Status: ChallengeStatus.Active } && state.AccountId == input.AccountId && input.Sequence > state.LastSequence
+            ? state with
+            {
+                Payout = payout,
+                TradingDays = ImmutableSortedSet<DateOnly>.Empty,
+                Account = state.Account! with { Balance = input.Balance },
+                LastSequence = input.Sequence,
+            }
+            : state with { Payout = payout };
+        return new ChallengeStep(next, [new PayoutWithdrawn(input.Time, payout, input.Balance)]);
+    }
+
+    private static ChallengeStep OnWithdrawalRejected(ChallengeState state, WithdrawalRejected input)
+    {
+        if (state.Payout is not { Status: PayoutStatus.Withdrawing } payout || payout.Id != input.OperationId)
+        {
+            return Unchanged(state);
+        }
+
+        var failed = payout with { Status = PayoutStatus.Failed };
+        return new ChallengeStep(state with { Payout = null }, [new PayoutFailed(input.Time, failed, input.Reason)]);
+    }
+
+    private static ChallengeStep OnApprovePayout(ChallengeState state, ApprovePayout input)
+    {
+        if (state.Payout is not { Status: PayoutStatus.Pending } payout || payout.Id != input.PayoutId)
+        {
+            return Ignored(state, input, "The payout is not waiting for approval.");
+        }
+
+        var approved = payout with { Status = PayoutStatus.Approved };
+        return new ChallengeStep(state with { Payout = approved }, [new PayoutApproved(input.Time, approved)]);
+    }
+
+    private static ChallengeStep OnMarkPayoutPaid(ChallengeState state, MarkPayoutPaid input)
+    {
+        if (state.Payout is not { Status: PayoutStatus.Approved } payout || payout.Id != input.PayoutId)
+        {
+            return Ignored(state, input, "Only an approved payout can be marked as paid.");
+        }
+
+        var paid = payout with { Status = PayoutStatus.Paid };
+        return new ChallengeStep(state with { Payout = null }, [new PayoutPaid(input.Time, paid, input.Reference)]);
+    }
+
+    private static ChallengeStep OnRejectPayout(ChallengeState state, RejectPayout input)
+    {
+        if (state.Payout is not { Status: PayoutStatus.Pending or PayoutStatus.Approved } payout || payout.Id != input.PayoutId)
+        {
+            return Ignored(state, input, "The payout is not waiting for the firm.");
+        }
+
+        var rejected = payout with { Status = PayoutStatus.Rejected };
+        return new ChallengeStep(state with { Payout = null }, [new PayoutRejected(input.Time, rejected, input.Reason)]);
+    }
+
+    private static bool IsPayoutWithdrawal(ChallengeState state, BalanceAdjusted input) =>
+        state.Payout is { Status: PayoutStatus.Withdrawing } payout && payout.Id == input.OperationId && payout.AccountId == input.AccountId;
+
     private static ChallengeStep OnAccountUpdated(ChallengeState state, AccountUpdated input)
     {
         var updated = state with { Account = new AccountFigures(input.Balance, input.OpenPositions) };
         return IsTargetReached(updated) ? Pass(updated, input.Time) : Unchanged(updated);
     }
 
+    // The open position counts until the platform reports the positions left after a close.
     private static ChallengeStep OnPositionOpened(ChallengeState state, PositionOpened input)
     {
-        if (state.TradingDays.Contains(input.Day))
+        var opened = state with { Account = state.Account! with { OpenPositions = state.Account.OpenPositions + 1 } };
+        if (opened.TradingDays.Contains(input.Day))
         {
-            return Unchanged(state);
+            return Unchanged(opened);
         }
 
-        var counted = state with { TradingDays = state.TradingDays.Add(input.Day) };
+        var counted = opened with { TradingDays = opened.TradingDays.Add(input.Day) };
         return new ChallengeStep(counted, [new TradingDayCounted(input.Time, counted.Stage, input.Day, counted.TradingDays.Count)]);
     }
 

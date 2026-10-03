@@ -24,6 +24,7 @@ const account: Account = {
   dailyFloor: 97_000,
   maxLossFloor: 90_000,
   createdAt: "2026-10-05T08:00:00Z",
+  nextPayout: null,
 };
 
 describe("targetProgress", () => {
@@ -51,13 +52,14 @@ describe("floorsOf", () => {
       account,
       live: { balance: 102_500, equity: 101_000, floors: [{ floorId: "daily", level: 97_000, headroom: 4_000 }] },
       breach: null,
+      payouts: [],
     };
 
     expect(floorsOf(details)).toEqual([{ floorId: "daily", level: 97_000, headroom: 4_000 }]);
   });
 
   it("falls back to the last reported levels, without headroom", () => {
-    expect(floorsOf({ account, live: null, breach: null })).toEqual([
+    expect(floorsOf({ account, live: null, breach: null, payouts: [] })).toEqual([
       { floorId: "daily", level: 97_000, headroom: null },
       { floorId: "max-loss", level: 90_000, headroom: null },
     ]);

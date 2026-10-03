@@ -9,15 +9,15 @@ namespace Prop.Api.Tests.Support;
 
 /// <summary>
 /// A trading platform in memory that behaves like ours for the prop platform: opening an account, setting a
-/// floor and closing an account become events in the firm's stream, in order. Tests trade on it, breach
-/// floors and make it unreachable.
+/// floor, closing an account and withdrawing become events in the stream of the firm whose group the account
+/// is in, in order. Tests trade on it, breach floors and make it unreachable.
 /// </summary>
 internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
 {
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Guid> _users = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Account> _accounts = new(StringComparer.Ordinal);
-    private readonly List<TradingEvent> _events = [];
+    private readonly List<(string Group, TradingEvent Event)> _events = [];
     private TaskCompletionSource _newEvents = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _sequence;
     private int _failures;
@@ -89,7 +89,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
 
     public async Task OpenAccountAsync(FirmTrading firm, string accountId, decimal initialBalance, Guid ownerUserId, CancellationToken cancellationToken)
     {
-        var created = await Call($"open {accountId}", () => _accounts.TryAdd(accountId, new Account(initialBalance, ownerUserId)));
+        var created = await Call($"open {accountId}", () => _accounts.TryAdd(accountId, new Account(initialBalance, ownerUserId, firm.Group)));
         if (created)
         {
             Publish(accountId, "AccountCreated", a => new JsonObject { ["balance"] = a.Balance }, (s, t, id, raw, a) => new TradingAccountCreated(s, t, id, raw, a.Balance));
@@ -129,6 +129,45 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
         }
     }
 
+    /// <summary>Like ours: applied once per operation id, and refused for a disabled account or when too little would be left.</summary>
+    public async Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken)
+    {
+        var withdrawn = await Call($"withdraw {accountId} {amount.ToString(CultureInfo.InvariantCulture)}", () =>
+        {
+            var account = _accounts[accountId];
+            if (!account.Operations.Add(operationId))
+            {
+                return false;
+            }
+
+            if (account.Disabled || account.Balance - amount < minBalance)
+            {
+                account.Operations.Remove(operationId);
+                throw new TradingPlatformRejectedException("The fake trading platform refused the withdrawal.", account.Disabled ? "AccountDisabled" : "InsufficientFunds");
+            }
+
+            account.Balance -= amount;
+            return true;
+        });
+        if (withdrawn)
+        {
+            Publish(
+                accountId,
+                "BalanceAdjusted",
+                a => new JsonObject { ["operationId"] = operationId, ["amount"] = -amount, ["balanceAfter"] = a.Balance },
+                (s, t, id, raw, a) => new TradingBalanceAdjusted(s, t, id, raw, operationId, -amount, a.Balance));
+        }
+    }
+
+    /// <summary>The balance changes on the platform without an event yet, as when a position closes just before a withdrawal.</summary>
+    public void ChangeBalanceQuietly(string accountId, decimal change)
+    {
+        lock (_lock)
+        {
+            _accounts[accountId].Balance += change;
+        }
+    }
+
     public async Task<TradingEventPage> ReadEventsAsync(FirmTrading firm, long after, int limit, int waitSeconds, CancellationToken cancellationToken)
     {
         while (true)
@@ -136,7 +175,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
             Task newEvents;
             lock (_lock)
             {
-                var events = _events.Where(e => e.Sequence > after).Take(limit).ToList();
+                var events = _events.Where(e => e.Group == firm.Group && e.Event.Sequence > after).Select(e => e.Event).Take(limit).ToList();
                 if (events.Count > 0)
                 {
                     return new TradingEventPage(events, events[^1].Sequence);
@@ -220,22 +259,27 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
             raw["kind"] = kind;
             raw["accountId"] = accountId;
             raw["timestamp"] = now.ToString("O", CultureInfo.InvariantCulture);
-            _events.Add(create(++_sequence, now, accountId, raw.ToJsonString(), account));
+            _events.Add((account.Group, create(++_sequence, now, accountId, raw.ToJsonString(), account)));
             _newEvents.TrySetResult();
             _newEvents = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 
-    internal sealed class Account(decimal balance, Guid ownerUserId)
+    internal sealed class Account(decimal balance, Guid ownerUserId, string group)
     {
         public decimal Balance { get; set; } = balance;
 
         public Guid OwnerUserId { get; } = ownerUserId;
+
+        /// <summary>The firm's group the account is in. Only that firm reads its events.</summary>
+        public string Group { get; } = group;
 
         public decimal? Equity { get; set; }
 
         public bool Disabled { get; set; }
 
         public Dictionary<string, decimal> Floors { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> Operations { get; } = new(StringComparer.Ordinal);
     }
 }

@@ -66,12 +66,13 @@ internal static class AccountActions
         return TypedResults.Ok(AccountResponse.From((await queries.GetAsync(firm.Id, accountId, cancellationToken))!));
     }
 
-    /// <summary>The account with its trading account valued right now, and the evidence if a floor was breached.</summary>
+    /// <summary>The account with its trading account valued right now, the evidence if a floor was breached and its payouts.</summary>
     public static async Task<Results<Ok<AccountDetailsResponse>, ProblemHttpResult>> DetailsAsync(
         Firm firm,
         Guid accountId,
         Guid? traderId,
         ChallengeQueries queries,
+        PayoutQueries payouts,
         ITradingPlatform trading,
         CancellationToken cancellationToken)
     {
@@ -97,7 +98,8 @@ internal static class AccountActions
         }
 
         var breach = view.Account.State.Status == ChallengeStatus.Failed ? await queries.LastBreachAsync(firm.Id, accountId, cancellationToken) : null;
-        return TypedResults.Ok(new AccountDetailsResponse(AccountResponse.From(view), live, breach));
+        var accountPayouts = await payouts.ListByAccountAsync(firm.Id, accountId, cancellationToken);
+        return TypedResults.Ok(new AccountDetailsResponse(AccountResponse.From(view), live, breach, [.. accountPayouts.Select(PayoutResponse.From)]));
     }
 
     /// <summary>A one-time link that logs the trader in to the trading terminal on the current stage's account.</summary>

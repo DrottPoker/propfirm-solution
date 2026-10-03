@@ -8,19 +8,22 @@ using Npgsql;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Api.Trading;
+using Prop.Rules;
 
 namespace Prop.Api.Challenges;
 
 /// <summary>
 /// Runs the queued commands on the trading platform, one firm at a time in the order they were queued, so an
 /// account is always opened before its floors are set. A command that could not reach the platform is tried
-/// again and holds back the firm's later commands. A command the platform refuses is set aside as failed.
+/// again and holds back the firm's later commands. A command the platform refuses is set aside as failed. A
+/// refused withdrawal is also reported to the rule engine, in the same transaction, so its payout fails.
 /// </summary>
 internal sealed partial class TradingCommandWorker(
     NpgsqlDataSource dataSource,
     DatabaseSchema schema,
     FirmCatalog firms,
     ITradingPlatform trading,
+    ChallengeService challenges,
     WorkSignals signals,
     TimeProvider time,
     ILogger<TradingCommandWorker> logger) : BackgroundService
@@ -41,7 +44,7 @@ internal sealed partial class TradingCommandWorker(
         var retryDelay = TimeSpan.FromSeconds(1);
         while (!cancellationToken.IsCancellationRequested)
         {
-            long? current = null;
+            QueuedCommand? current = null;
             try
             {
                 if (await NextAsync(firm, cancellationToken) is not { } next)
@@ -50,7 +53,7 @@ internal sealed partial class TradingCommandWorker(
                     continue;
                 }
 
-                current = next.Id;
+                current = next;
                 await ExecuteCommandAsync(firm, next.Command, cancellationToken);
                 await FinishAsync(next.Id, "done_at", null, cancellationToken);
                 retryDelay = TimeSpan.FromSeconds(1);
@@ -59,10 +62,10 @@ internal sealed partial class TradingCommandWorker(
             {
                 return;
             }
-            catch (TradingPlatformRejectedException exception) when (current is { } id)
+            catch (TradingPlatformRejectedException exception) when (current is { } rejected)
             {
                 LogRejected(logger, firm.Id, exception);
-                if (!await TryFinishAsync(id, "failed_at", exception.Message, cancellationToken))
+                if (!await TrySetAsideAsync(firm, rejected, exception, cancellationToken))
                 {
                     await Task.Delay(retryDelay, time, cancellationToken);
                 }
@@ -71,9 +74,9 @@ internal sealed partial class TradingCommandWorker(
             {
                 // The trading platform or the database is unavailable. The same command is tried again.
                 LogRetry(logger, firm.Id, retryDelay, exception);
-                if (current is { } id)
+                if (current is { } failed)
                 {
-                    await TryFinishAsync(id, null, exception.Message, cancellationToken);
+                    await TryFinishAsync(failed.Id, null, exception.Message, cancellationToken);
                 }
 
                 await Task.Delay(retryDelay, time, cancellationToken);
@@ -95,6 +98,9 @@ internal sealed partial class TradingCommandWorker(
                 break;
             case CloseTradingAccount close:
                 await trading.CloseAccountAsync(firm.Trading, close.AccountId, cancellationToken);
+                break;
+            case WithdrawFromTradingAccount withdraw:
+                await trading.WithdrawAsync(firm.Trading, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown command {command.GetType().Name}.");
@@ -129,15 +135,51 @@ internal sealed partial class TradingCommandWorker(
         return userId;
     }
 
-    private async Task<(long Id, TradingCommand Command)?> NextAsync(Firm firm, CancellationToken cancellationToken)
+    private async Task<QueuedCommand?> NextAsync(Firm firm, CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand(
-            "select id, command from trading_commands where firm_id = $1 and done_at is null and failed_at is null order by id limit 1");
+            "select id, challenge_account_id, command from trading_commands where firm_id = $1 and done_at is null and failed_at is null order by id limit 1");
         command.Parameters.AddWithValue(firm.Id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)
-            ? (reader.GetInt64(0), JsonSerializer.Deserialize<TradingCommand>(reader.GetString(1), PropJson.Options)!)
+            ? new QueuedCommand(reader.GetInt64(0), reader.GetGuid(1), JsonSerializer.Deserialize<TradingCommand>(reader.GetString(2), PropJson.Options)!)
             : null;
+    }
+
+    /// <summary>
+    /// Marks the refused command as failed. A refused withdrawal also fails its payout, in the same transaction.
+    /// False when the database could not be reached. The command then stays queued and is tried again.
+    /// </summary>
+    private async Task<bool> TrySetAsideAsync(Firm firm, QueuedCommand rejected, TradingPlatformRejectedException refusal, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await using (var command = new NpgsqlCommand("update trading_commands set failed_at = $2, attempts = attempts + 1, last_error = $3 where id = $1", connection))
+            {
+                command.Parameters.AddWithValue(rejected.Id);
+                command.Parameters.AddWithValue(time.GetUtcNow());
+                command.Parameters.AddWithValue(refusal.Message);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            if (rejected.Command is WithdrawFromTradingAccount withdraw)
+            {
+                var reason = refusal.Reason ?? "The trading platform refused the withdrawal.";
+                await challenges.ApplyAsync(
+                    connection, firm, rejected.ChallengeAccountId, _ => new WithdrawalRejected(time.GetUtcNow(), withdraw.OperationId, reason), null, cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            challenges.Notify(firm);
+            return true;
+        }
+        catch (NpgsqlException exception)
+        {
+            LogNotRecorded(logger, rejected.Id, exception);
+            return false;
+        }
     }
 
     /// <summary>Counts an attempt, and marks the command done or failed when <paramref name="column"/> names it.</summary>
@@ -165,6 +207,8 @@ internal sealed partial class TradingCommandWorker(
             return false;
         }
     }
+
+    private sealed record QueuedCommand(long Id, Guid ChallengeAccountId, TradingCommand Command);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The trading platform refused a command for firm {FirmId}; it is set aside")]
     private static partial void LogRejected(ILogger logger, string firmId, Exception exception);

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
 import type { EngineEvent, InstrumentInfo, PositionSnapshot } from "@/lib/api/types";
-import { describeEvent, isWarning, type DigitsOf } from "@/lib/events";
+import { balanceOperationName, describeEvent, isWarning, type DigitsOf } from "@/lib/events";
 import { formatMoney, formatPrice, formatTime, formatVolume } from "@/lib/format";
 import { parsePrice } from "@/lib/orderInput";
 import { useCancelOrder, useClosePosition, useModifyStops } from "@/lib/queries";
@@ -14,6 +14,10 @@ const tabs = ["Positions", "Orders", "History", "Events"] as const;
 type Tab = (typeof tabs)[number];
 
 type ClosedPosition = Extract<EngineEvent, { kind?: "PositionClosed" }>;
+type BalanceOperation = Extract<EngineEvent, { kind?: "BalanceAdjusted" }>;
+
+// The generated kind is optional, so a plain comparison does not narrow the other branch.
+const isBalanceOperation = (e: ClosedPosition | BalanceOperation): e is BalanceOperation => e.kind === "BalanceAdjusted";
 
 export function BottomPanel({ accountId, instruments }: { accountId: string; instruments: InstrumentInfo[] }) {
   const [tab, setTab] = useState<Tab>("Positions");
@@ -220,16 +224,33 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   );
 }
 
+// Closed positions and balance operations such as payouts, newest first.
 function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
-  const closed = events.filter((e): e is ClosedPosition => e.kind === "PositionClosed").reverse();
+  const rows = events
+    .filter((e): e is ClosedPosition | BalanceOperation => e.kind === "PositionClosed" || e.kind === "BalanceAdjusted")
+    .reverse();
 
-  if (closed.length === 0) {
+  if (rows.length === 0) {
     return <Empty text="No closed positions yet." />;
   }
 
   return (
     <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open", "Close", "Reason", "Commission", "Profit"]}>
-      {closed.map((c) => {
+      {rows.map((c) => {
+        if (isBalanceOperation(c)) {
+          return (
+            <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border">
+              <Cell>{formatTime(c.timestamp)}</Cell>
+              <td colSpan={8} className="px-3 py-1 text-muted">
+                {balanceOperationName(c.amount)}
+              </td>
+              <Cell number className={c.amount >= 0 ? "text-profit" : "text-loss"}>
+                {formatMoney(c.amount)}
+              </Cell>
+            </tr>
+          );
+        }
+
         const digits = digitsOf(c.symbol);
         return (
           <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border">
