@@ -43,5 +43,11 @@ public sealed record OrderSnapshot(
 /// <summary>An equity floor. Headroom is how far equity can fall before the floor is breached.</summary>
 public sealed record FloorSnapshot(string FloorId, EquityFloorRule Rule, decimal Level, decimal HighWaterMark, decimal Headroom);
 
+/// <summary>
+/// What a one point move on one lot of the symbol is worth in the account currency, at the latest conversion rate.
+/// Profit is points times volume times <paramref name="PerLot"/>, before rounding and commission.
+/// </summary>
+public sealed record PointValue(string Symbol, string Currency, decimal PerLot);
+
 /// <summary>Price after the group's spread markup, with the time the raw price arrived.</summary>
 public sealed record SymbolPrice(string Symbol, decimal Bid, decimal Ask, DateTimeOffset Timestamp);

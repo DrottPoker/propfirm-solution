@@ -26,6 +26,7 @@ internal static class TradingEndpoints
             .AddEndpointFilter<AccountOwnerFilter>();
         account.MapGet("", GetAccountAsync);
         account.MapGet("/instruments", GetInstrumentsAsync);
+        account.MapGet("/instruments/{symbol}/point-value", GetPointValueAsync);
         account.MapGet("/prices", GetPricesAsync);
         account.MapGet("/candles/{symbol}", GetCandlesAsync);
         account.MapGet("/events", GetEventsAsync);
@@ -48,6 +49,16 @@ internal static class TradingEndpoints
         CancellationToken cancellationToken) =>
         await GroupConditionsOfAsync(engine, accountId, cancellationToken) is { } group
             ? TypedResults.Ok(catalog.InstrumentsFor(group))
+            : TypedResults.NotFound();
+
+    // Not found also when the symbol has no conversion rate yet, which a price soon brings.
+    private static async Task<Results<Ok<PointValue>, NotFound>> GetPointValueAsync(
+        string accountId,
+        string symbol,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await engine.QueryAsync(e => e.GetPointValue(accountId, symbol), cancellationToken) is { } value
+            ? TypedResults.Ok(value)
             : TypedResults.NotFound();
 
     private static async Task<Results<Ok<IReadOnlyList<SymbolPrice>>, NotFound>> GetPricesAsync(string accountId, EngineHost engine, CancellationToken cancellationToken)

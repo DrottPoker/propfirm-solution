@@ -89,6 +89,7 @@ Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är 
 |---|---|
 | `GET` | Kontot värderat till senaste priser. Varje golv har `headroom`: hur långt equity kan falla innan golvet bryts. |
 | `GET /instruments` | Gruppens instrument med villkor: hävstång, påslag och provision. |
+| `GET /instruments/{symbol}/point-value` | Vad en punkt på en lot är värd i kontots valuta vid senaste växelkurs (`perLot`). Vinsten är punkter gånger volym gånger `perLot`, före avrundning och provision. Terminalen använder det för att sätta stop loss och take profit med belopp. 404 om gruppen inte handlar symbolen eller växelkursen saknas än. |
 | `GET /prices` | Senaste priser efter påslag. |
 | `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. |
 | `GET /events?after={sequence}&limit=500` | Kontots händelser efter ett sekvensnummer. Högst 1 000 per anrop. |

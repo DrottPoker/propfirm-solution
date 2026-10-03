@@ -35,7 +35,7 @@ export function LinkLogin({ token, accountId }: { token: string | null; accountI
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       {error ? (
-        <div className="flex max-w-sm flex-col gap-3 rounded-lg border border-border bg-panel p-6 text-sm">
+        <div className="flex max-w-sm flex-col gap-3 rounded-xl border border-border bg-panel p-6 text-sm">
           <p role="alert">{error}</p>
           <Link href="/login" className="text-accent">
             Log in

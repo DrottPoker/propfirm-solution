@@ -58,6 +58,8 @@ internal sealed class EngineDriver(EngineConfiguration configuration)
 
     public IReadOnlyList<SymbolPrice>? Prices(string groupId = "standard") => _engine.GetPrices(groupId);
 
+    public PointValue? PointValue(string symbol = "EURUSD", string accountId = AccountId) => _engine.GetPointValue(accountId, symbol);
+
     public AccountSnapshot Account(string accountId = AccountId) =>
         _engine.GetAccount(accountId) ?? throw new InvalidOperationException($"Account {accountId} does not exist.");
 }
