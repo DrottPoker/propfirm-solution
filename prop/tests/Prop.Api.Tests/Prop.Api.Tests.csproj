@@ -19,4 +19,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The trading platform's contract, which TradingContractTests checks the client against -->
+  <ItemGroup>
+    <Content Include="..\..\..\contracts\trading\trading-service.json" Link="Contracts\trading-service.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

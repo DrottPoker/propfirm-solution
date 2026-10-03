@@ -255,6 +255,6 @@ public sealed class TradingContractTests
         Assert.True(found, $"{schema}.{property} is not in the contract.");
     }
 
-    private static string ContractPath([System.Runtime.CompilerServices.CallerFilePath] string callerPath = "") =>
-        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(callerPath)!, "..", "..", "..", "contracts", "trading", "trading-service.json"));
+    // Copied next to the tests by the project file. The source path is unknown in CI builds, which map it to /_/.
+    private static string ContractPath() => Path.Combine(AppContext.BaseDirectory, "Contracts", "trading-service.json");
 }
