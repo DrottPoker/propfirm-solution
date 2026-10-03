@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
 using Prop.Api.Api;
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
@@ -64,12 +65,15 @@ internal static class ShopEndpoints
             payments.TermsUrl);
     }
 
-    private static async Task<Ok<ShopResponse>> GetShopAsync(HttpContext context, OrderService service, CancellationToken cancellationToken)
+    // A shop whose slots are all taken stops selling, so no buyer pays for a challenge that cannot start.
+    private static async Task<Ok<ShopResponse>> GetShopAsync(HttpContext context, OrderService service, SlotService slots, CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
         var items = await service.ShopAsync(firm, cancellationToken);
+        var hasRoom = items.Count > 0 && (await slots.UsageAsync(firm, cancellationToken)).HasRoom;
         return TypedResults.Ok(new ShopResponse(
-            items.Count > 0,
+            hasRoom,
+            items.Count > 0 && !hasRoom,
             service.ProviderOf(firm) == PaymentProvider.Test,
             firm.Payments.TermsUrl,
             [.. items.Select(i => new ShopItemResponse(i.Challenge, i.Price.Amount, i.Price.Currency))]));

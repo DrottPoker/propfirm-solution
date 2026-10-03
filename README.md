@@ -176,10 +176,21 @@ En firma kan registrera sig själv och prova allt i en sandlåda. Starta handels
 
 1. Öppna http://app.localhost:3002/signup. Fyll i firmans namn, ett kort namn, din e-post och ett lösenord, och godkänn villkoren.
 2. Du hamnar inloggad i firmans adminpanel på dess egen adress, till exempel http://acme.localhost:3002/admin. Firmans server på handelsplattformen skapas på några sekunder, tillsammans med en tvåstegs-challenge på 100 000 USD.
-3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö.
+3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö. Under Billing går firman live, se nedan.
 4. Under Settings ändrar du logga och färger, skapar en nyckel för firmans API och sätter en webhook. Under Challenges gör du egna challenges, och under Team bjuder du in fler administratörer. Mejlen syns i Mailpit på http://localhost:8025.
 
 Lokalt behöver e-postadressen inte bekräftas. Vill du prova bekräftelsen, sätt `Signup:RequireEmailVerification` till `true` i propfirm-tjänstens `appsettings.Development.json`, så kommer länken i Mailpit. Webbläsare skickar alla adresser som slutar på `.localhost` till den egna datorn, så inga DNS-inställningar behövs. Se [specen för registreringen](docs/spec/registrering.md).
+
+## Prova att gå live och betala för platser
+
+En firma som har registrerat sig går live genom att betala startavgiften och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är exempel.
+
+1. Registrera en firma enligt ovan och öppna Billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
+2. Välj antal platser och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, och dess konton från sandlådan avslutas.
+3. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler på Billing, eller slå på automatisk utökning.
+4. Under Change card sparar du ett testkort som nekas, för att se vad som händer när en månad inte går att dra. Månaden dras 5 dagar innan den börjar, och är den obetald när den börjar pausas firmans challenges tills ett kort som fungerar betalar den.
+
+Med Stripe betalar firmorna till vårt eget Stripe-konto: sätt `Billing:Provider` till `Stripe`, `Billing:StripeSecretKey` till en testnyckel och `Billing:StripeWebhookSecret` till hemligheten från `stripe listen --forward-to http://localhost:5201/api/payments/v1/billing/stripe`. Se [specen för platser och betalning](docs/spec/platser-och-betalning.md).
 
 ## Prova köp i portalen
 

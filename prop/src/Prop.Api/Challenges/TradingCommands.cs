@@ -12,6 +12,11 @@ internal sealed record SetTradingFloor(string AccountId, string FloorId, FloorSp
 
 internal sealed record CloseTradingAccount(string AccountId) : TradingCommand;
 
+/// <summary>Stops new positions on the account while the challenge is paused.</summary>
+internal sealed record SuspendTradingAccount(string AccountId) : TradingCommand;
+
+internal sealed record ResumeTradingAccount(string AccountId) : TradingCommand;
+
 /// <summary>
 /// Withdraws <paramref name="Amount"/> (a positive number) once, keeping at least <paramref name="MinBalance"/>.
 /// A refusal fails the payout <paramref name="OperationId"/>.

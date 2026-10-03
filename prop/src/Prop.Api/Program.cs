@@ -13,6 +13,7 @@ using Microsoft.Extensions.Options;
 using Npgsql;
 
 using Prop.Api.Api;
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
@@ -66,11 +67,22 @@ builder.Services.AddOptions<PaymentsOptions>()
         o => o.OrderLifetime >= TimeSpan.FromMinutes(30) && o.OrderLifetime <= TimeSpan.FromHours(23) && o.StripeApiUrl.IsAbsoluteUri && o.StripeApiUrl.AbsolutePath.EndsWith('/'),
         "Payments:OrderLifetime must be 30 minutes to 23 hours, as Stripe allows, and Payments:StripeApiUrl an absolute address ending with /.")
     .ValidateOnStart();
+var billingOptions = builder.Services.AddOptions<BillingOptions>()
+    .Bind(builder.Configuration.GetSection(BillingOptions.SectionName))
+    .Validate(o => BillingTerms.From(o).Problems().Count == 0, "Billing has invalid prices or slot rules. Check Billing:Currency, StartupFee, SlotPrices, MinSlots, MaxSlots and ChargeDaysBeforeMonth.")
+    .Validate(
+        o => o.RetryInterval > TimeSpan.Zero && o.MaxAttempts >= 1 && o.WarningPercent is >= 1 and <= 100
+            && o.CheckoutLifetime >= TimeSpan.FromMinutes(30) && o.CheckoutLifetime <= TimeSpan.FromHours(23),
+        "Billing needs a positive RetryInterval, MaxAttempts of at least 1, WarningPercent of 1 to 100 and a CheckoutLifetime of 30 minutes to 23 hours.")
+    .Validate(
+        o => o.Provider == nameof(BillingProvider.Test) || (o.Provider == nameof(BillingProvider.Stripe) && o.StripeSecretKey.Length > 0 && o.StripeWebhookSecret.Length > 0),
+        "Billing:Provider must be Stripe, with Billing:StripeSecretKey and Billing:StripeWebhookSecret, or Test for development.");
 if (!isOpenApiGeneration)
 {
     tradingPlatform.ValidateOnStart();
     platform.ValidateOnStart();
     email.ValidateOnStart();
+    billingOptions.ValidateOnStart();
 }
 
 builder.Services.AddSingleton(TimeProvider.System);
@@ -88,6 +100,7 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
 builder.Services.AddSingleton(PropMigrations.All);
 builder.Services.AddSingleton<DatabaseSchema>();
 builder.Services.AddSingleton<WorkSignals>();
+builder.Services.AddSingleton<TradingStreamProgress>();
 builder.Services.AddSingleton<ChallengeCatalog>();
 builder.Services.AddSingleton<ChallengeService>();
 builder.Services.AddSingleton<ChallengeQueries>();
@@ -96,6 +109,13 @@ builder.Services.AddSingleton<PriceCatalog>();
 builder.Services.AddSingleton<OrderStore>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<StripeClient>();
+builder.Services.AddSingleton<SlotService>();
+builder.Services.AddSingleton<BillingStore>();
+builder.Services.AddSingleton<BillingService>();
+builder.Services.AddSingleton<IBillingGateway>(sp =>
+    sp.GetRequiredService<IOptions<BillingOptions>>().Value.Provider == nameof(BillingProvider.Test)
+        ? new TestBillingGateway()
+        : ActivatorUtilities.CreateInstance<StripeBillingGateway>(sp));
 builder.Services.AddSingleton<PortalUsers>();
 builder.Services.AddSingleton<IPasswordHasher<PortalUser>, PasswordHasher<PortalUser>>();
 
@@ -153,6 +173,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<TradingDayScheduler>();
     builder.Services.AddHostedService<WebhookWorker>();
     builder.Services.AddHostedService<FirmProvisioner>();
+    builder.Services.AddHostedService<BillingWorker>();
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => PropJson.Configure(o.SerializerOptions));
@@ -182,5 +203,6 @@ app.MapFirmApi();
 app.MapPortalApi();
 app.MapSignupApi();
 app.MapPaymentWebhooks();
+app.MapBillingWebhooks();
 
 app.Run();

@@ -79,6 +79,19 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
     }
 
+    // The platform answers a repeated suspend or resume with no events, so a retry is done.
+    public async Task SuspendAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Post, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/suspend", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
+    }
+
+    public async Task ResumeAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Post, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/resume", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
+    }
+
     public async Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(

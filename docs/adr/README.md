@@ -25,6 +25,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0017](0017-firmor-registrerar-sig-sjalva.md) | Firmor registrerar sig själva och börjar i en sandlåda | Föreslagen |
 | [0018](0018-domaner-och-underdomaner.md) | Domäner och underdomäner för produkterna | Föreslagen |
 | [0019](0019-kop-i-portalen-med-firmans-betalningsleverantor.md) | Köp i portalen med firmans egen betalningsleverantör | Föreslagen |
+| [0020](0020-forbetalda-platser-for-aktiva-challenges.md) | Förbetalda platser för aktiva challenges | Föreslagen |
 
 ## Så skriver du en ny ADR
 

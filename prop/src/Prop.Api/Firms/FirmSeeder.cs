@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 
+using Prop.Api.Billing;
 using Prop.Api.Configuration;
 using Prop.Api.Payments;
 
@@ -9,21 +10,24 @@ namespace Prop.Api.Firms;
 /// Saves the configured firms to the database at startup, as the configuration has them, and loads every firm
 /// into the catalog. Startup fails if the configuration is invalid.
 /// </summary>
-internal sealed partial class FirmSeeder(FirmStore store, FirmCatalog catalog, IConfiguration configuration, TimeProvider time) : IHostedService
+internal sealed partial class FirmSeeder(FirmStore store, BillingStore billing, FirmCatalog catalog, IConfiguration configuration, TimeProvider time) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var firms = (configuration.GetSection(FirmOptions.SectionName).Get<List<FirmOptions>>() ?? []).Select(Validate).ToList();
+            var options = configuration.GetSection(FirmOptions.SectionName).Get<List<FirmOptions>>() ?? [];
+            var firms = options.Select(Validate).ToList();
             Require(firms.Select(f => f.Id).Distinct(StringComparer.Ordinal).Count() == firms.Count, "Firm ids must be unique.");
             Require(
                 firms.SelectMany(f => f.Portal.Hosts).Distinct(StringComparer.OrdinalIgnoreCase).Count() == firms.Sum(f => f.Portal.Hosts.Count),
                 "A portal host can belong to one firm only.");
 
-            foreach (var firm in firms)
+            // Configured firms have their slots without paying for them.
+            foreach (var (firm, firmOptions) in firms.Zip(options))
             {
                 await store.SaveConfiguredAsync(firm, time.GetUtcNow(), cancellationToken);
+                await billing.SaveComplimentaryAsync(firm.Id, firmOptions.Slots, time.GetUtcNow(), cancellationToken);
             }
 
             catalog.Load(await store.ListAsync(cancellationToken));
@@ -41,6 +45,7 @@ internal sealed partial class FirmSeeder(FirmStore store, FirmCatalog catalog, I
     {
         Require(FirmRules.IsValidId(options.Id), $"Firm id '{options.Id}' must be 2 to 40 lowercase letters, digits or dashes, not first or last.");
         Require(FirmRules.IsValidName(options.Name), $"Firm {options.Id} needs a name of at most {FirmRules.MaxNameLength} characters.");
+        Require(options.Slots is null or >= 1, $"Firm {options.Id}: Slots must be at least 1, or empty for no limit.");
         Require(Sha256Hex().IsMatch(options.ApiKeySha256), $"Firm {options.Id} needs ApiKeySha256 as 64 lowercase hex characters.");
         Require(
             options.Trading.Server.Length > 0 && options.Trading.ApiKey.Length > 0 && options.Trading.Group.Length > 0 && options.Trading.Currency.Length > 0,

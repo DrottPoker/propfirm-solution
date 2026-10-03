@@ -592,3 +592,100 @@ export function useSavePayments() {
     },
   });
 }
+
+/** What the firm pays us: its slots, card, charges and the prices. Asked every two seconds while a payment is being confirmed. */
+export function useBilling(waitingForPayment = false) {
+  return useQuery({
+    queryKey: ["billing"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/billing"), "the billing"),
+    refetchInterval: waitingForPayment ? 2_000 : 15_000,
+  });
+}
+
+/** What choosing this many slots would cost now and each month. */
+export function useBillingQuote(slots: number | null) {
+  return useQuery({
+    queryKey: ["billing-quote", slots],
+    enabled: slots !== null,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/billing/quote", { params: { query: { slots: slots ?? 0 } } }), "the price"),
+  });
+}
+
+/** Starts going live. The answer is the page where the firm pays. */
+export function useActivate() {
+  return useMutation({
+    mutationFn: async (body: { slots: number; autoExpandStep: number | null }) =>
+      resultOf(await api.POST("/api/portal/admin/billing/activate", { body }), "the payment page"),
+  });
+}
+
+/** More slots are paid now, fewer apply from the next unpaid month. */
+export function useSetSlots() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (slots: number) => resultOf(await api.PUT("/api/portal/admin/billing/slots", { body: { slots } }), "the slots"),
+    onSuccess: (billing) => queryClient.setQueryData(["billing"], billing),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["billing-quote"] }),
+  });
+}
+
+/** How many slots are bought when the last free one is taken, or null for none. */
+export function useSetAutoExpand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (step: number | null) => resultOf(await api.PUT("/api/portal/admin/billing/auto-expand", { body: { step } }), "the automatic expansion"),
+    onSuccess: (billing) => queryClient.setQueryData(["billing"], billing),
+  });
+}
+
+/** A page that saves a new card. */
+export function useChangeCard() {
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/admin/billing/card"), "the card page"),
+  });
+}
+
+/** A page where an unpaid month is paid, with any card. */
+export function usePayCharge() {
+  return useMutation({
+    mutationFn: async (chargeId: string) =>
+      resultOf(await api.POST("/api/portal/admin/billing/charges/{chargeId}/checkout", { params: { path: { chargeId } } }), "the payment page"),
+  });
+}
+
+/** Tries an unpaid month on the saved card now. */
+export function useRetryCharge() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (chargeId: string) =>
+      resultOf(await api.POST("/api/portal/admin/billing/charges/{chargeId}/retry", { params: { path: { chargeId } } }), "the payment"),
+    onSuccess: (billing) => queryClient.setQueryData(["billing"], billing),
+    onError: () => queryClient.invalidateQueries({ queryKey: ["billing"] }),
+  });
+}
+
+/** A test page for paying the platform or saving a card, while payments to the platform are test payments. */
+export function useTestBillingCheckout(checkoutId: string) {
+  return useQuery({
+    queryKey: ["billing-checkout", checkoutId],
+    queryFn: async () =>
+      resultOf(await api.GET("/api/portal/admin/billing/checkouts/{checkoutId}", { params: { path: { checkoutId } } }), "the payment page"),
+  });
+}
+
+/** Pays or saves a card on a test page, with a test card that pays or one that declines. */
+export function useCompleteTestBillingCheckout(checkoutId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (declines: boolean) => {
+      const result = await api.POST("/api/portal/admin/billing/checkouts/{checkoutId}/complete", {
+        params: { path: { checkoutId } },
+        body: { declines },
+      });
+      if (!result.response.ok) {
+        resultOf(result, "the payment");
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["billing"] }),
+  });
+}

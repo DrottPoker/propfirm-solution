@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.Payments;
@@ -39,6 +40,7 @@ internal static class FirmEndpoints
         firm.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
         firm.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         firm.MapFirmOrders();
+        firm.MapFirmSlots();
         return app;
     }
 

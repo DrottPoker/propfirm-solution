@@ -1,6 +1,6 @@
 # Spec: handelsterminalen
 
-- Fas: 3a och 3b, insättningar och uttag i historiken i 5, ny layout efter fas 6
+- Fas: 3a och 3b, insättningar och uttag i historiken i 5, ny layout efter fas 6, pausade konton i 7
 - Status: Implementerad i `trading/terminal`
 - Datum: 2026-10-03
 
@@ -51,6 +51,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
   Prisaxeln behåller webbläsarens egen meny. Menyn stängs av ett val, Esc, Tab, ett klick utanför eller scroll i grafen, och den går att styra med piltangenterna. Säger motorn nej visas skälet i grafen.
 - **Orderpanelen** har knappar för att stega volym, pris, stop loss och take profit. Volymen stegas med instrumentets steg inom dess gränser, och priser stegas en pip i taget (0,0001 för EURUSD, 0,01 för USDJPY och 0,1 för XAUUSD). Ett tomt pris börjar från bid. Under volymen visas kontraktsvärdet i basvalutan. Stop loss och take profit sätts som pris eller som belopp i kontots valuta (Price eller till exempel USD). Ett belopp räknas om till ett pris från där ordern öppnar: ask för ett köp, bid för en sälj, eller orderpriset för en limit- eller stoporder. Avståndet avrundas nedåt till hela punkter, så att beloppet inte överskrids. Med belopp stegar knapparna med vad en pip är värd vid volymen. Under SÄLJ och KÖP visas det andra sättet för varje sida: priserna när tradern skrev belopp, och de uppskattade beloppen när tradern skrev priser. När ordern har lagts töms pris, stop loss och take profit, medan volymen, ordertypen och valet mellan pris och belopp ligger kvar. En avvisad order tömmer ingenting, så att tradern kan rätta den. I positionstabellen visas det uppskattade resultatet bredvid stop loss och take profit, och Edit kan också ta belopp. Där räknas beloppen från öppningspriset. Panelen visar gruppens villkor för symbolen: hävstång, påslag på spreaden, provision och kontraktsstorlek. Det är en del av öppenheten mot traders.
+- **Pausat konto:** kontoraden visar Paused, orderpanelen säger att nya ordrar inte tas emot, och köp och sälj går inte att trycka på. Tradern kan stänga positioner och flytta stop loss och take profit, också genom att dra linjerna i grafen. Händelserna visar när kontot pausades och fick handla igen.
 - **Historik** listar stängda positioner och insättningar och uttag, till exempel en utbetalning, med det nyaste först. Ett uttag syns som en rad med beloppet i vinstkolumnen.
 - **Händelser** listar allt som hänt kontot. Avvisningar, brott mot golv och stop out markeras i gult. Vid brott mot ett golv visas priserna från beviset.
 - **Statusraden** visar firmans server, tiden i UTC som i grafen, och kontots equity, marginal, fria marginal och marginalnivå.
@@ -104,6 +105,6 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Tester
 
-- Enhetstester med Vitest för inmatning och stegknappar, belopp och priser för stop loss och take profit, spökena för ordern som fylls i, uppdateringar på klockan, candles, affärerna i grafen, de senaste 24 timmarna, grupper och spread, golvens namn och färg, favoriter, formatering, händelsetexter, sammanslagning av händelser och priser, hämtning av händelser vid start och efter återanslutning, och vilken server som väljs (`pnpm test`).
+- Enhetstester med Vitest för händelserna när ett konto pausas och återupptas, inmatning och stegknappar, belopp och priser för stop loss och take profit, spökena för ordern som fylls i, uppdateringar på klockan, candles, affärerna i grafen, de senaste 24 timmarna, grupper och spread, golvens namn och färg, favoriter, formatering, händelsetexter, sammanslagning av händelser och priser, hämtning av händelser vid start och efter återanslutning, och vilken server som väljs (`pnpm test`).
 - Tester av hela flödet med Playwright (`pnpm e2e`): spärren och inloggningssidan med vald server, fel lösenord, inloggning med länk från portalen, inloggning, stegknapparna, köp, stängning, historik, händelser och utloggning, stop loss och take profit med belopp, att en avvisad order behåller fälten och en lagd order tömmer dem, en stop loss som dras i grafen, menyn vid högerklick med stopp för ordern och borttagning av spöket, flytt och borttagning av en positions stop loss, Reset chart och Esc, sökning och favoriter i symbollistan, byte av konto, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
 - Lint, typkontroll och bygge i CI.

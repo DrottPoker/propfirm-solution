@@ -24,7 +24,7 @@ public sealed partial class TradingEngine
         // A price can change equity through conversion too, so every account with exposure is evaluated.
         foreach (var account in _accounts)
         {
-            if (account.Status != AccountStatus.Active || !account.HasExposure)
+            if (account.Status == AccountStatus.Disabled || !account.HasExposure)
             {
                 continue;
             }
@@ -67,7 +67,7 @@ public sealed partial class TradingEngine
 
     private void EvaluateRisk(AccountState account, DateTimeOffset now, List<EngineEvent> events)
     {
-        if (account.Status != AccountStatus.Active || CheckFloors(account, now, events))
+        if (account.Status == AccountStatus.Disabled || CheckFloors(account, now, events))
         {
             return;
         }

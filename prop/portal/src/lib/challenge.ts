@@ -1,4 +1,5 @@
-import type { Account, AccountDetails, ChallengeStatus, FailureReason } from "./api/types";
+import type { Account, AccountDetails, ChallengeStatus, ExpiryReason, FailureReason } from "./api/types";
+import { dayBefore, formatDate } from "./format";
 
 export const statusLabels: Record<ChallengeStatus, string> = {
   OpeningAccount: "Opening account",
@@ -14,6 +15,12 @@ export const failureLabels: Record<FailureReason, string> = {
   OtherFloor: "a loss limit",
 };
 
+/** Why a challenge ran out of time, to finish "Ended on 5 Nov 2026: ...". */
+export const expiryLabels: Record<ExpiryReason, string> = {
+  TimeLimit: "the stage was not passed within its time limit.",
+  Inactivity: "no new trade was opened for too long.",
+};
+
 const floorLabels: Record<string, string> = {
   daily: "Daily loss limit",
   "max-loss": "Max loss limit",
@@ -26,6 +33,23 @@ export function floorLabel(floorId: string): string {
 /** Whether the trader can trade the account in the terminal right now. */
 export function canOpenTerminal(account: Account): boolean {
   return account.status === "Active" && account.tradingAccountId !== null;
+}
+
+/**
+ * The days the trader must keep to, for example "Open a new trade by 4 Nov 2026." Each deadline is the trading day
+ * the challenge ends on, so the last day to act is the one before it.
+ */
+export function deadlinesOf(account: Account): string[] {
+  const deadlines: string[] = [];
+  if (account.stageDeadline) {
+    deadlines.push(`Pass ${account.stageName} by ${formatDate(dayBefore(account.stageDeadline))}.`);
+  }
+
+  if (account.inactivityDeadline) {
+    deadlines.push(`Open a new trade by ${formatDate(dayBefore(account.inactivityDeadline))}.`);
+  }
+
+  return deadlines;
 }
 
 /** Whether the firm can still cancel the account. */

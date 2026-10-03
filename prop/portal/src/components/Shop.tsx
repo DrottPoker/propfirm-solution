@@ -25,7 +25,7 @@ export function Shop() {
     return <Message text="Loading..." />;
   }
 
-  const { items, open, test, termsUrl } = shop.data;
+  const { items, open, full, test, termsUrl } = shop.data;
   const email = me.data?.email ?? null;
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
@@ -39,7 +39,7 @@ export function Shop() {
         </Link>
       </header>
 
-      {!open && <p className="text-muted">No challenges are for sale here right now.</p>}
+      {!open && <p className="text-muted">{full ? "No new challenges can be bought right now. Try again later." : "No challenges are for sale here right now."}</p>}
       {test && (
         <p role="note" className="rounded border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Test payments: you pay on a test page, and no money is taken.
@@ -47,7 +47,7 @@ export function Shop() {
       )}
 
       <ul className="grid gap-4 md:grid-cols-2">
-        {items.map((item) => (
+        {(open ? items : []).map((item) => (
           <li key={item.challenge.id}>
             <Panel>
               <ChallengeSummary challenge={item.challenge} showId={false} />

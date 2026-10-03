@@ -839,6 +839,64 @@
         }
       }
     },
+    "/api/admin/v1/accounts/{accountId}/suspend": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts/{accountId}/resume": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/v1/accounts/{accountId}/balance-operations": {
       "post": {
         "tags": [
@@ -1121,6 +1179,7 @@
       "AccountStatus": {
         "enum": [
           "Active",
+          "Suspended",
           "Disabled"
         ]
       },
@@ -1167,7 +1226,8 @@
           "Manual",
           "InsufficientMargin",
           "EquityFloor",
-          "AccountClosed"
+          "AccountClosed",
+          "AccountSuspended"
         ]
       },
       "Candle": {
@@ -1367,6 +1427,12 @@
             "$ref": "#/components/schemas/EngineEventAccountDisabled"
           },
           {
+            "$ref": "#/components/schemas/EngineEventAccountResumed"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventAccountSuspended"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventBalanceAdjusted"
           },
           {
@@ -1409,6 +1475,8 @@
           "mapping": {
             "AccountCreated": "#/components/schemas/EngineEventAccountCreated",
             "AccountDisabled": "#/components/schemas/EngineEventAccountDisabled",
+            "AccountResumed": "#/components/schemas/EngineEventAccountResumed",
+            "AccountSuspended": "#/components/schemas/EngineEventAccountSuspended",
             "BalanceAdjusted": "#/components/schemas/EngineEventBalanceAdjusted",
             "EquityFloorBreached": "#/components/schemas/EngineEventEquityFloorBreached",
             "EquityFloorRemoved": "#/components/schemas/EngineEventEquityFloorRemoved",
@@ -1482,6 +1550,49 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineEventAccountResumed": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AccountResumed"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EngineEventAccountSuspended": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AccountSuspended"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The account takes no new positions or orders until it is resumed. Its pending orders were cancelled just before."
       },
       "EngineEventBalanceAdjusted": {
         "required": [
@@ -2021,7 +2132,13 @@
             "$ref": "#/components/schemas/EngineInputRemoveEquityFloor"
           },
           {
+            "$ref": "#/components/schemas/EngineInputResumeAccount"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputSetEquityFloor"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputSuspendAccount"
           }
         ],
         "description": "Input to the engine. The timestamp is set by the service when the input arrives\nand must never be earlier than the previous input.",
@@ -2038,7 +2155,9 @@
             "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
             "Quote": "#/components/schemas/EngineInputQuote",
             "RemoveEquityFloor": "#/components/schemas/EngineInputRemoveEquityFloor",
-            "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor"
+            "ResumeAccount": "#/components/schemas/EngineInputResumeAccount",
+            "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor",
+            "SuspendAccount": "#/components/schemas/EngineInputSuspendAccount"
           }
         }
       },
@@ -2367,6 +2486,28 @@
           }
         }
       },
+      "EngineInputResumeAccount": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ResumeAccount"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Lets a suspended account trade again."
+      },
       "EngineInputSetEquityFloor": {
         "required": [
           "accountId",
@@ -2396,6 +2537,28 @@
           }
         },
         "description": "Adds or replaces a named equity floor on the account."
+      },
+      "EngineInputSuspendAccount": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "SuspendAccount"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Stops new positions on the account, for example while the firm's bill is unpaid. Pending orders are\ncancelled. Open positions stay: the owner can close them and change their stops, and stops and floors still hold."
       },
       "EquityFloorRule": {
         "required": [
@@ -2946,6 +3109,8 @@
           "InvalidAmount",
           "UnknownAccount",
           "AccountDisabled",
+          "AccountSuspended",
+          "AccountNotSuspended",
           "SymbolNotTradable",
           "InvalidOrder",
           "InvalidVolume",

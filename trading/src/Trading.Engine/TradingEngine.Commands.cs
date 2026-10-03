@@ -62,9 +62,14 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyPlaceOrder(PlaceOrder command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
+        }
+
+        if (account.Status == AccountStatus.Suspended)
+        {
+            return RejectReason.AccountSuspended;
         }
 
         if (string.IsNullOrEmpty(command.OrderId))
@@ -179,7 +184,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyCancelOrder(CancelOrder command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -197,7 +202,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyClosePosition(ClosePosition command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -220,7 +225,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyModifyPosition(ModifyPosition command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -259,7 +264,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplySetEquityFloor(SetEquityFloor command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -283,7 +288,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyRemoveEquityFloor(RemoveEquityFloor command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -299,7 +304,7 @@ public sealed partial class TradingEngine
 
     private RejectReason? ApplyCloseAccount(CloseAccount command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }
@@ -309,9 +314,50 @@ public sealed partial class TradingEngine
         return null;
     }
 
+    private RejectReason? ApplySuspendAccount(SuspendAccount command, List<EngineEvent> events)
+    {
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
+        {
+            return accountRejection;
+        }
+
+        if (account.Status == AccountStatus.Suspended)
+        {
+            return RejectReason.AccountSuspended;
+        }
+
+        // A pending order would open a position, which a suspended account may not.
+        foreach (var order in account.Orders)
+        {
+            events.Add(new OrderCancelled(command.Timestamp, account.Id, order.Id, CancelReason.AccountSuspended));
+        }
+
+        account.Orders.Clear();
+        account.Status = AccountStatus.Suspended;
+        events.Add(new AccountSuspended(command.Timestamp, account.Id));
+        return null;
+    }
+
+    private RejectReason? ApplyResumeAccount(ResumeAccount command, List<EngineEvent> events)
+    {
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
+        {
+            return accountRejection;
+        }
+
+        if (account.Status != AccountStatus.Suspended)
+        {
+            return RejectReason.AccountNotSuspended;
+        }
+
+        account.Status = AccountStatus.Active;
+        events.Add(new AccountResumed(command.Timestamp, account.Id));
+        return null;
+    }
+
     private RejectReason? ApplyAdjustBalance(AdjustBalance command, List<EngineEvent> events)
     {
-        if (!TryGetActiveAccount(command.AccountId, out var account, out var accountRejection))
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
         {
             return accountRejection;
         }

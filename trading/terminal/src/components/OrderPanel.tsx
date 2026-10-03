@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 
+import { suspendedHelp } from "@/lib/account";
 import { CommandRejectedError } from "@/lib/api/client";
 import type { InstrumentInfo, OrderType, Side } from "@/lib/api/types";
 import { formatMoney, formatPrice, formatSignedMoney, formatUnits } from "@/lib/format";
@@ -42,6 +43,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
 
   const quote = useTradingStore((s) => s.prices[instrument.symbol]);
   const canTrade = useTradingStore((s) => s.connection === "connected" && s.account?.status === "Active");
+  const suspended = useTradingStore((s) => s.account?.status === "Suspended");
   const accountCurrency = useTradingStore((s) => s.account?.currency);
   const placeOrder = usePlaceOrder(accountId);
   const pointValue = usePointValue(accountId, instrument.symbol).data ?? undefined;
@@ -251,6 +253,11 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
       </div>
 
       <div className="flex flex-col gap-1.5">
+        {suspended && (
+          <p role="note" className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+            {suspendedHelp}
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {sides.map((side) => (
             <TradeButton

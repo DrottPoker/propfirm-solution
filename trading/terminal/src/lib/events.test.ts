@@ -57,6 +57,16 @@ describe("describeEvent", () => {
     expect(isWarning(event)).toBe(false);
   });
 
+  it("warns when trading is paused, and not when it resumes", () => {
+    const suspended: EngineEvent = { kind: "AccountSuspended", accountId: "demo", timestamp };
+    const resumed: EngineEvent = { kind: "AccountResumed", accountId: "demo", timestamp };
+
+    expect(describeEvent(suspended, digitsOf)).toBe("Trading paused: no new orders until it is resumed");
+    expect(isWarning(suspended)).toBe(true);
+    expect(describeEvent(resumed, digitsOf)).toBe("Trading resumed");
+    expect(isWarning(resumed)).toBe(false);
+  });
+
   it("names the rejected input and the reason", () => {
     const event: EngineEvent = {
       kind: "InputRejected",

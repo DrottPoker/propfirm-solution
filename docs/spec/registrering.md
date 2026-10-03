@@ -27,7 +27,7 @@ Lokalt ligger plattformen på http://app.localhost:3002 och en ny firma på till
 |---|---|
 | `Provisioning` | Firman finns, men servern på handelsplattformen skapas fortfarande. Konton kan inte startas än. |
 | `Sandbox` | Allt fungerar, men firman kan ha högst `Sandbox:MaxOpenAccounts` öppna challenge-konton (standard 10). Portalen visar att det är en testmiljö. |
-| `Live` | Inga gränser. Firmor i konfigurationen är live. Registrerade firmor går live när kontrollen av bolag och ägare finns (en senare fas). |
+| `Live` | Firman har platser för sina challenges. Firmor i konfigurationen är live och betalar inte. En registrerad firma går live genom att betala startavgiften och första månaden (se [specen för platser och betalning](platser-och-betalning.md)), men bara i utveckling tills kontrollen av bolag och ägare finns (fas 9). |
 
 ## Det korta namnet
 
@@ -130,8 +130,7 @@ Handelstjänsten:
 
 ## Begränsningar
 
-- En firma kan inte gå live än. Kontrollen av bolag och ägare kommer i en senare fas.
-- Ingen betalning till oss än. Den kommer med platserna för aktiva challenges.
+- En firma kan bara gå live i utveckling. Kontrollen av bolag och ägare kommer i fas 9.
 - Egen domän sätts fortfarande upp för hand.
 - Firman kan inte byta namn eller kort namn.
 - Mejl till traders skickas av firman själv.

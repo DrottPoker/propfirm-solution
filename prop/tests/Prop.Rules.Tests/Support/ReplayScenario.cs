@@ -6,7 +6,7 @@ using System.Text.Json.Serialization.Metadata;
 namespace Prop.Rules.Tests.Support;
 
 /// <summary>
-/// A whole challenge from purchase through a payout to a breach on the funded account, with repeated and late facts.
+/// A whole challenge from purchase through a pause and a payout to a breach on the funded account, with repeated and late facts.
 /// Every input becomes one JSON line with what the rule engine decided.
 /// </summary>
 internal static class ReplayScenario
@@ -50,7 +50,7 @@ internal static class ReplayScenario
         // Phase 2 opens the next day and is passed after four more trading days.
         Apply(new TradingDayStarted(At(4, 0), day.AddDays(4)));
         Apply(new AccountOpened(At(4, 8), "C1-1", ++sequence, day.AddDays(4)));
-        for (var d = 4; d < 8; d++)
+        for (var d = 4; d < 7; d++)
         {
             if (d > 4)
             {
@@ -60,6 +60,11 @@ internal static class ReplayScenario
             Apply(new PositionOpened(At(d, 10), "C1-1", ++sequence, day.AddDays(d)));
         }
 
+        // The firm's month is unpaid over a night: the account is suspended, and its days move on when it is paid.
+        Apply(new PauseChallenge(At(6, 12), day.AddDays(6)));
+        Apply(new TradingDayStarted(At(7, 0), day.AddDays(7)));
+        Apply(new ResumeChallenge(At(7, 9), day.AddDays(7)));
+        Apply(new PositionOpened(At(7, 10), "C1-1", ++sequence, day.AddDays(7)));
         Apply(new AccountUpdated(At(7, 16), "C1-1", ++sequence, 105_250.40m, 0));
 
         // The firm approves funding, and the funded trader trades on five days.

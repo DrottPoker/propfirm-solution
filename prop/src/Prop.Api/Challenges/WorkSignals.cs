@@ -15,6 +15,9 @@ internal sealed class WorkSignals
     /// <summary>A firm waits for its server on the trading platform.</summary>
     public WakeUp Provisioning { get; } = new();
 
+    /// <summary>A firm's slots or payments changed, for example when the last free slot was taken.</summary>
+    public WakeUp Billing { get; } = new();
+
     public WakeUp CommandsOf(string firmId) => _commands.GetOrAdd(firmId, _ => new WakeUp());
 }
 

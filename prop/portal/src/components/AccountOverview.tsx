@@ -1,6 +1,6 @@
 import type { AccountDetails, ChallengeStatus } from "@/lib/api/types";
-import { failureLabels, floorLabel, floorsOf, statusLabels, targetProgress } from "@/lib/challenge";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import { deadlinesOf, expiryLabels, failureLabels, floorLabel, floorsOf, statusLabels, targetProgress } from "@/lib/challenge";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 
 import { Figure, Panel } from "./ui";
 
@@ -43,6 +43,12 @@ export function AccountOverview({ details, actions }: { details: AccountDetails;
       </div>
 
       <StatusNotice details={details} />
+      {account.paused && account.status !== "Failed" && account.status !== "Cancelled" && (
+        <Notice tone="text-warning">
+          Paused by the firm. You cannot open new trades until it goes on, but you can close the ones you have. The days do not count while it is
+          paused.
+        </Notice>
+      )}
 
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Figure label="Balance" value={`${formatMoney(balance)} ${account.currency}`} />
@@ -92,6 +98,8 @@ export function AccountOverview({ details, actions }: { details: AccountDetails;
         </table>
       )}
 
+      {deadlinesOf(account).length > 0 && <p className="text-sm text-muted">{deadlinesOf(account).join(" ")}</p>}
+
       <p className="text-xs text-muted">
         {live ? "Valued at the latest prices." : "As last reported by the trading platform. Open positions are not valued here right now."}
       </p>
@@ -100,7 +108,7 @@ export function AccountOverview({ details, actions }: { details: AccountDetails;
 }
 
 function StatusNotice({ details }: { details: AccountDetails }) {
-  const { account, breach } = details;
+  const { account, breach, expiry } = details;
   switch (account.status) {
     case "OpeningAccount":
       return <Notice tone="text-warning">The trading account for {account.stageName} is being opened.</Notice>;
@@ -111,6 +119,10 @@ function StatusNotice({ details }: { details: AccountDetails }) {
         <Notice tone="text-loss">
           Failed on {formatDateTime(breach.time)}: equity {formatMoney(breach.equity)} fell below the {failureLabels[breach.reason]} at{" "}
           {formatMoney(breach.level)}.
+        </Notice>
+      ) : expiry ? (
+        <Notice tone="text-loss">
+          Ended on {formatDate(expiry.day)}: {expiryLabels[expiry.reason]}
         </Notice>
       ) : (
         <Notice tone="text-loss">Failed.</Notice>

@@ -53,6 +53,10 @@ internal sealed class EngineDriver(EngineConfiguration configuration)
 
     public IReadOnlyList<EngineEvent> CloseAccount() => Apply(t => new CloseAccount(t, AccountId));
 
+    public IReadOnlyList<EngineEvent> Suspend() => Apply(t => new SuspendAccount(t, AccountId));
+
+    public IReadOnlyList<EngineEvent> Resume() => Apply(t => new ResumeAccount(t, AccountId));
+
     public IReadOnlyList<EngineEvent> AdjustBalance(decimal amount, string operationId = "B1", decimal? minBalance = null, string accountId = AccountId) =>
         Apply(t => new AdjustBalance(t, accountId, operationId, amount, minBalance));
 

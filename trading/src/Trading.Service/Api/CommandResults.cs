@@ -11,11 +11,20 @@ internal static class CommandResults
 {
     public const string ReasonExtension = "reason";
 
-    public static Results<Ok<CommandResponse>, ProblemHttpResult> From(IReadOnlyList<EventEnvelope> events)
+    /// <summary>
+    /// The command's events, or a problem when it was rejected. A rejection for <paramref name="alreadyDone"/> means
+    /// the account is already as the command wants it, which answers with no events, so the command is safe to repeat.
+    /// </summary>
+    public static Results<Ok<CommandResponse>, ProblemHttpResult> From(IReadOnlyList<EventEnvelope> events, RejectReason? alreadyDone = null)
     {
         if (events.Select(e => e.Event).OfType<InputRejected>().FirstOrDefault() is not { } rejected)
         {
             return TypedResults.Ok(new CommandResponse(events));
+        }
+
+        if (rejected.Reason == alreadyDone)
+        {
+            return TypedResults.Ok(new CommandResponse([]));
         }
 
         return TypedResults.Problem(

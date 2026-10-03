@@ -158,6 +158,14 @@ function ChallengeEditor({ initial, isNew, onDone }: { initial: ChallengeForm; i
             <TextField label="Day starts" value={form.dayStart} onChange={(dayStart) => set({ dayStart })} type="time" />
             <TextField label="Time zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
           </div>
+          <TextField
+            label="Ends after days without a new trade"
+            value={form.inactivityDays}
+            onChange={(inactivityDays) => set({ inactivityDays })}
+            numeric
+            optional
+            placeholder="No limit"
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -172,6 +180,7 @@ function ChallengeEditor({ initial, isNew, onDone }: { initial: ChallengeForm; i
                 <th className="py-2 pr-3 font-normal">Max loss %</th>
                 <th className="py-2 pr-3 font-normal">Max loss</th>
                 <th className="py-2 pr-3 font-normal">Profit split %</th>
+                <th className="py-2 pr-3 font-normal">Time limit, days</th>
                 <th className="py-2 font-normal" />
               </tr>
             </thead>
@@ -200,6 +209,7 @@ function ChallengeEditor({ initial, isNew, onDone }: { initial: ChallengeForm; i
           </button>
           <span className="text-xs text-muted">
             Losses are in percent of the account size. The daily loss counts from the balance, or the higher of balance and equity, when the day starts.
+            A stage with a time limit must be passed within that many days after the day it starts. Paused days do not count.
           </span>
         </div>
 
@@ -279,6 +289,13 @@ function StageRow({
           <span className="text-muted">-</span>
         )}
       </td>
+      <td className="py-2 pr-3">
+        {funded ? (
+          <span className="text-muted">none</span>
+        ) : (
+          <NumberCell label={`${stage.name} time limit`} value={stage.maxDays} onChange={(maxDays) => onChange({ maxDays })} placeholder="None" />
+        )}
+      </td>
       <td className="py-2">
         {onRemove && (
           <button type="button" onClick={onRemove} className="text-muted hover:text-loss">
@@ -290,8 +307,17 @@ function StageRow({
   );
 }
 
-function NumberCell({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <input aria-label={label} inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} className={`${fieldClass} w-20 text-right`} />;
+function NumberCell({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <input
+      aria-label={label}
+      inputMode="decimal"
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${fieldClass} w-20 text-right`}
+    />
+  );
 }
 
 function TextField({
@@ -301,6 +327,7 @@ function TextField({
   disabled = false,
   mono = false,
   numeric = false,
+  optional = false,
   type = "text",
   placeholder,
 }: {
@@ -310,6 +337,7 @@ function TextField({
   disabled?: boolean;
   mono?: boolean;
   numeric?: boolean;
+  optional?: boolean;
   type?: string;
   placeholder?: string;
 }) {
@@ -318,7 +346,7 @@ function TextField({
       <span className="text-muted">{label}</span>
       <input
         type={type}
-        required
+        required={!optional}
         value={value}
         disabled={disabled}
         placeholder={placeholder}

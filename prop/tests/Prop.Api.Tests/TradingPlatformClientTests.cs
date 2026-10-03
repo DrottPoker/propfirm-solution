@@ -59,6 +59,21 @@ public sealed class TradingPlatformClientTests
         await client.CloseAccountAsync(Firm, "A1", TestContext.Current.CancellationToken);
     }
 
+    // While a firm's month is unpaid, its accounts take no new positions.
+    [Fact]
+    public async Task AccountsAreSuspendedAndResumedAndADisabledOneNeedsNeither()
+    {
+        const string disabled = """{"status":422,"reason":"AccountDisabled"}""";
+        var platform = new StubPlatform((HttpStatusCode.OK, """{"events":[]}"""), (HttpStatusCode.OK, """{"events":[]}"""), (HttpStatusCode.UnprocessableEntity, disabled));
+        var client = Client(platform);
+
+        await client.SuspendAccountAsync(Firm, "A1", TestContext.Current.CancellationToken);
+        await client.ResumeAccountAsync(Firm, "A1", TestContext.Current.CancellationToken);
+        await client.SuspendAccountAsync(Firm, "A2", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["POST api/admin/v1/accounts/A1/suspend", "POST api/admin/v1/accounts/A1/resume", "POST api/admin/v1/accounts/A2/suspend"], platform.Requests);
+    }
+
     [Fact]
     public async Task AWithdrawalIsANegativeBalanceOperationKeepingTheMinimumBalance()
     {
@@ -204,6 +219,8 @@ public sealed class TradingContractTests
     [InlineData("/api/admin/v1/accounts/{accountId}", "get")]
     [InlineData("/api/admin/v1/accounts/{accountId}/floors/{floorId}", "put")]
     [InlineData("/api/admin/v1/accounts/{accountId}/close", "post")]
+    [InlineData("/api/admin/v1/accounts/{accountId}/suspend", "post")]
+    [InlineData("/api/admin/v1/accounts/{accountId}/resume", "post")]
     [InlineData("/api/admin/v1/accounts/{accountId}/balance-operations", "post")]
     [InlineData("/api/admin/v1/events", "get")]
     public void EveryPathTheClientUsesIsInTheContract(string path, string method)

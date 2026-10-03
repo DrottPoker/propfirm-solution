@@ -29,6 +29,10 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
       return `Stop out at margin level ${formatPercent(event.marginLevelPercent)}`;
     case "AccountDisabled":
       return `Account disabled (${event.reason})`;
+    case "AccountSuspended":
+      return "Trading paused: no new orders until it is resumed";
+    case "AccountResumed":
+      return "Trading resumed";
     case "BalanceAdjusted":
       return `${balanceOperationName(event.amount)} of ${formatMoney(Math.abs(event.amount))}, balance ${formatMoney(event.balanceAfter)}`;
     case "InputRejected":
@@ -49,6 +53,7 @@ export function isWarning(event: EngineEvent): boolean {
     event.kind === "InputRejected" ||
     event.kind === "EquityFloorBreached" ||
     event.kind === "StopOutTriggered" ||
-    event.kind === "AccountDisabled"
+    event.kind === "AccountDisabled" ||
+    event.kind === "AccountSuspended"
   );
 }

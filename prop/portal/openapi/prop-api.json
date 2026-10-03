@@ -782,6 +782,25 @@
         }
       }
     },
+    "/api/firm/v1/slots": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlotsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/branding": {
       "get": {
         "tags": [
@@ -2187,6 +2206,282 @@
         }
       }
     },
+    "/api/portal/admin/billing": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/quote": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "slots",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuoteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/activate": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/slots": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SlotsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/auto-expand": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoExpandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/card": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/charges/{chargeId}/checkout": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "chargeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/charges/{chargeId}/retry": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "chargeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/checkouts/{checkoutId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestCheckoutResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/checkouts/{checkoutId}/complete": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "checkoutId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestCheckoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/portal/platform": {
       "get": {
         "tags": [
@@ -2363,9 +2658,19 @@
             "items": {
               "$ref": "#/components/schemas/PayoutResponse"
             }
+          },
+          "expiry": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExpiryEvidence"
+              }
+            ]
           }
         },
-        "description": "An account with its trading account right now, the evidence if it failed and its payouts, newest first."
+        "description": "An account with its trading account right now, the evidence if a floor was breached, why it expired if it ran\nout of time, and its payouts, newest first."
       },
       "AccountResponse": {
         "required": [
@@ -2389,7 +2694,10 @@
           "dailyFloor",
           "maxLossFloor",
           "createdAt",
-          "nextPayout"
+          "nextPayout",
+          "paused",
+          "stageDeadline",
+          "inactivityDeadline"
         ],
         "type": "object",
         "properties": {
@@ -2492,9 +2800,47 @@
                 "$ref": "#/components/schemas/PayoutQuoteResponse"
               }
             ]
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "stageDeadline": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "inactivityDeadline": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
           }
         },
-        "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\nfor the current stage, which starts at InitialBalance. The figures are what the trading\nplatform last reported."
+        "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\nfor the current stage, which starts at InitialBalance. The figures are what the trading\nplatform last reported. Paused is set while the firm's month is unpaid: no new positions\ncan be opened and the days do not count. StageDeadline is the trading day the stage fails on\nunless it is passed before, and InactivityDeadline the trading day the challenge ends on\nunless a position is opened before."
+      },
+      "ActivateRequest": {
+        "required": [
+          "slots",
+          "autoExpandStep"
+        ],
+        "type": "object",
+        "properties": {
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "autoExpandStep": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "Going live with this many slots, buying AutoExpandStep more when the last is taken, or none for no automatic expansion."
       },
       "AdminInviteRequest": {
         "required": [
@@ -2586,6 +2932,22 @@
         },
         "description": "The key for the firm API. It is shown only once."
       },
+      "AutoExpandRequest": {
+        "required": [
+          "step"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "How many slots to buy when the last free one is taken, or null to turn it off."
+      },
       "AvailabilityResponse": {
         "required": [
           "firmId",
@@ -2607,6 +2969,115 @@
             ]
           }
         }
+      },
+      "BillingPlan": {
+        "enum": [
+          "Paid",
+          "Complimentary",
+          null
+        ]
+      },
+      "BillingProvider": {
+        "enum": [
+          "Test",
+          "Stripe"
+        ],
+        "description": "Who takes the firm's payments to us."
+      },
+      "BillingResponse": {
+        "required": [
+          "status",
+          "plan",
+          "provider",
+          "slots",
+          "nextMonthSlots",
+          "autoExpandStep",
+          "card",
+          "unpaidSince",
+          "nextCharge",
+          "charges",
+          "prices",
+          "goLiveProblem"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BillingPlan"
+              }
+            ]
+          },
+          "provider": {
+            "$ref": "#/components/schemas/BillingProvider"
+          },
+          "slots": {
+            "$ref": "#/components/schemas/SlotsResponse"
+          },
+          "nextMonthSlots": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "autoExpandStep": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "card": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardResponse"
+              }
+            ]
+          },
+          "unpaidSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextCharge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NextChargeResponse"
+              }
+            ]
+          },
+          "charges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargeResponse"
+            }
+          },
+          "prices": {
+            "$ref": "#/components/schemas/PricesResponse"
+          },
+          "goLiveProblem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The firm's billing for its admin panel. Plan is null until the firm has started paying.\nNextMonthSlots is what a paying firm is charged for from the next unpaid month.\nGoLiveProblem says why a firm in the sandbox cannot go live by paying now."
       },
       "BrandingRequest": {
         "required": [
@@ -2790,6 +3261,32 @@
           }
         }
       },
+      "CardResponse": {
+        "required": [
+          "brand",
+          "last4",
+          "expMonth",
+          "expYear"
+        ],
+        "type": "object",
+        "properties": {
+          "brand": {
+            "type": "string"
+          },
+          "last4": {
+            "type": "string"
+          },
+          "expMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expYear": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The saved card. Only its brand, last digits and expiry are known."
+      },
       "ChallengeDefinition": {
         "required": [
           "id",
@@ -2827,13 +3324,20 @@
           "funded": {
             "$ref": "#/components/schemas/StageRules"
           },
+          "inactivityDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
           "fundedStage": {
             "type": "integer",
             "description": "The index of the funded stage, after the evaluation stages.",
             "format": "int32"
           }
         },
-        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it."
+        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it. With\nInactivityDays, a challenge ends when no position was opened for that many days, in\nevery stage including the funded one."
       },
       "ChallengePrice": {
         "required": [
@@ -2892,6 +3396,159 @@
           }
         },
         "description": "A ready-made challenge with its default values, to adjust and save as the firm's own."
+      },
+      "ChargeKind": {
+        "enum": [
+          "Activation",
+          "Renewal",
+          "Slots"
+        ]
+      },
+      "ChargeLine": {
+        "required": [
+          "description",
+          "quantity",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "One line of a charge: what is paid for, how many, and the amount for all of them."
+      },
+      "ChargeResponse": {
+        "required": [
+          "id",
+          "number",
+          "kind",
+          "status",
+          "month",
+          "slots",
+          "lines",
+          "amount",
+          "currency",
+          "failure",
+          "attempts",
+          "nextAttemptAt",
+          "createdAt",
+          "paidAt",
+          "canPay"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ChargeKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChargeStatus"
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargeLine"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "failure": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "canPay": {
+            "type": "boolean"
+          }
+        },
+        "description": "A charge. CanPay is set for an unpaid monthly charge, which the firm can try again or pay\non a checkout page. Failure is why the card was declined last."
+      },
+      "ChargeStatus": {
+        "enum": [
+          "Pending",
+          "Paid",
+          "Failed",
+          "Void"
+        ]
+      },
+      "CheckoutPurpose": {
+        "enum": [
+          "Payment",
+          "Card"
+        ],
+        "description": "What a checkout page is for: paying a charge, which also saves the card, or only saving a new card."
+      },
+      "CheckoutResponse": {
+        "required": [
+          "checkoutUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "checkoutUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "description": "Where the firm goes to pay or to save its card."
+      },
+      "CheckoutStatus": {
+        "enum": [
+          "Open",
+          "Completed",
+          "Expired"
+        ]
       },
       "CreatedOrderResponse": {
         "required": [
@@ -2965,6 +3622,34 @@
           }
         },
         "description": "Equity may not fall more than Percent of the initial balance below the day's starting point."
+      },
+      "ExpiryEvidence": {
+        "required": [
+          "time",
+          "reason",
+          "day"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ExpiryReason"
+          },
+          "day": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "description": "The challenge ran out of time when trading day Day started, after its time limit or the days allowed without a new position."
+      },
+      "ExpiryReason": {
+        "enum": [
+          "TimeLimit",
+          "Inactivity"
+        ]
       },
       "FailureReason": {
         "enum": [
@@ -3194,6 +3879,34 @@
           }
         },
         "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
+      },
+      "NextChargeResponse": {
+        "required": [
+          "month",
+          "chargeAt",
+          "slots",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "chargeAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "The month charged next: when, for how many slots and how much."
       },
       "OrderDetailsResponse": {
         "required": [
@@ -3764,6 +4477,111 @@
         },
         "description": "The price of a challenge in the portal, and whether it is sold there."
       },
+      "PricesResponse": {
+        "required": [
+          "currency",
+          "startupFee",
+          "slotPrices",
+          "minSlots",
+          "maxSlots",
+          "chargeDaysBeforeMonth",
+          "warningPercent"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "startupFee": {
+            "type": "number",
+            "format": "double"
+          },
+          "slotPrices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SlotPriceResponse"
+            }
+          },
+          "minSlots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxSlots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chargeDaysBeforeMonth": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warningPercent": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What firms pay: the startup fee, the slot prices and the rules for slots. The prices are examples until they are decided."
+      },
+      "QuoteKind": {
+        "enum": [
+          "Activation",
+          "MoreSlots",
+          "FewerSlots",
+          "Unchanged"
+        ]
+      },
+      "QuoteResponse": {
+        "required": [
+          "kind",
+          "slots",
+          "lines",
+          "amount",
+          "monthlyPrice",
+          "from",
+          "currency",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/QuoteKind"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargeLine"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "monthlyPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "from": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "What choosing a number of slots would cost: Lines paid now, and MonthlyPrice\nfor each month from From. Problem says why it cannot be chosen."
+      },
       "RejectPayoutRequest": {
         "required": [
           "reason"
@@ -3801,6 +4619,7 @@
       "ShopResponse": {
         "required": [
           "open",
+          "full",
           "test",
           "termsUrl",
           "items"
@@ -3808,6 +4627,9 @@
         "type": "object",
         "properties": {
           "open": {
+            "type": "boolean"
+          },
+          "full": {
             "type": "boolean"
           },
           "test": {
@@ -3827,7 +4649,7 @@
             }
           }
         },
-        "description": "What the firm's portal sells. Open is false when the firm takes no payment or sells nothing.\nTermsUrl is the firm's terms, which the buyer accepts. Test means no money is taken."
+        "description": "What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or\ncannot start more challenges now, which Full says. TermsUrl is the firm's\nterms, which the buyer accepts. Test means no money is taken."
       },
       "SignupRequest": {
         "required": [
@@ -3893,6 +4715,91 @@
         },
         "description": "Either the email with the confirmation link is sent, or the firm is created and AdminUrl logs its administrator in."
       },
+      "SlotLimit": {
+        "enum": [
+          "Sandbox",
+          "Paid",
+          "Complimentary",
+          "Unlimited"
+        ],
+        "description": "Where a firm's limit on open challenges comes from."
+      },
+      "SlotPriceResponse": {
+        "required": [
+          "from",
+          "price"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "Each slot's monthly price from slot number From on."
+      },
+      "SlotsRequest": {
+        "required": [
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "SlotsResponse": {
+        "required": [
+          "limit",
+          "slots",
+          "used",
+          "reserved",
+          "free",
+          "paid",
+          "warning"
+        ],
+        "type": "object",
+        "properties": {
+          "limit": {
+            "$ref": "#/components/schemas/SlotLimit"
+          },
+          "slots": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "used": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reserved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "free": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "paid": {
+            "type": "boolean"
+          },
+          "warning": {
+            "type": "boolean"
+          }
+        },
+        "description": "The firm's slots: Used by challenges that have not ended and Reserved by\norders waiting for payment. Slots and Free are null when there is no\nlimit. No challenge can start when nothing is free or Paid is false. Warning\nis set when most slots are taken."
+      },
       "StageRules": {
         "required": [
           "name",
@@ -3929,9 +4836,16 @@
               "number"
             ],
             "format": "double"
+          },
+          "maxDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           }
         },
-        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days.\nThe funded stage has no profit target. Its trader gets ProfitSplitPercent of the\nprofit as a payout, after at least MinTradingDays trading days since the last one."
+        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days, and within\nMaxDays days after the day it started when it has a time limit.\nThe funded stage has no profit target and no time limit. Its trader gets ProfitSplitPercent\nof the profit as a payout, after at least MinTradingDays trading days since the last one."
       },
       "StartAccountRequest": {
         "required": [
@@ -3997,6 +4911,59 @@
           }
         },
         "description": "One input to the account and what the rule engine decided, with the trading platform's event behind it."
+      },
+      "TestCheckoutRequest": {
+        "required": [
+          "declines"
+        ],
+        "type": "object",
+        "properties": {
+          "declines": {
+            "type": "boolean"
+          }
+        },
+        "description": "Completes a test checkout page with a test card that pays, or one that declines."
+      },
+      "TestCheckoutResponse": {
+        "required": [
+          "id",
+          "purpose",
+          "status",
+          "lines",
+          "amount",
+          "currency",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/CheckoutPurpose"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CheckoutStatus"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargeLine"
+            }
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid."
       },
       "TradingDayDefinition": {
         "required": [

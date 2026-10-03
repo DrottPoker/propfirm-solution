@@ -1,6 +1,6 @@
 # Spec: handelstjänsten
 
-- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6
+- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6, pausade konton i 7
 - Status: Implementerad i `trading/src/Trading.Service`
 - Datum: 2026-10-02
 
@@ -113,6 +113,8 @@ För firmans egna system, till exempel propfirm-plattformen (ADR 0012). Alla vä
 | `PUT /accounts/{accountId}/floors/{floorId}` | Sätter ett golv, till exempel `{ "rule": { "kind": "FixedFloor", "level": 95000 } }` eller `{ "rule": { "kind": "AnchoredFloor", "distance": 5000, "anchor": "Balance" } }`. |
 | `DELETE /accounts/{accountId}/floors/{floorId}` | Tar bort ett golv. |
 | `POST /accounts/{accountId}/close` | Stänger kontot. |
+| `POST /accounts/{accountId}/suspend` | Pausar kontot: väntande ordrar tas bort och nya tas inte emot, men tradern kan stänga positioner och ändra stoppar. Ett konto som redan är pausat svarar 200 utan händelser, och ett avstängt 422 med `AccountDisabled`. |
+| `POST /accounts/{accountId}/resume` | Låter ett pausat konto handla igen. Ett konto som inte är pausat svarar 200 utan händelser. |
 | `POST /accounts/{accountId}/balance-operations` | Sätter in eller tar ut pengar med `{ "operationId", "amount", "minBalance" }`. Ett negativt belopp är ett uttag. Samma `operationId` igen svarar 409 med `DuplicateId`, så ett nytt försök dras aldrig två gånger. Ett uttag som skulle lämna mindre än `minBalance`, ta mer än den fria marginalen eller bryta ett golv svarar 422 med `InsufficientFunds`. Golv som mäts från kontot följer med saldot (se [specen för handelsmotorn](handelsmotor.md)). |
 | `GET /events?after=0&limit=100&wait=0` | Firmans händelser efter ett löpnummer, äldst först, med `cursor` för nästa anrop. Högst 1 000 per anrop. Med `wait` väntar anropet upp till 30 sekunder på nya händelser. Bara sparade händelser visas, så ingen händelse kan försvinna vid en omstart. |
 
@@ -185,6 +187,6 @@ De flesta tester använder en journal i minnet som går via JSON som i Postgres.
 
 `PartnerApiTests` täcker partner-API:t: en ny firma handlar direkt i sin egen grupp, dess traders ser gruppens instrument, priser och grafer som terminalen laddar, firman ser bara sina egna händelser och konton, servrar är unika och giltiga, bara partners skapar firmor, en partner ser bara sina egna firmor, en ny nyckel ersätter den gamla, nya firmor listas inte men deras traders loggar in, firmor och grupper finns kvar efter en krasch och en vanlig omstart, och en grupp från ett avbrutet försök tas över.
 
-`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
+`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
 
 `PostgresJournalTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.

@@ -64,6 +64,25 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
         return failed is null ? null : new BreachEvidence(breach.Time, breach.FloorId, breach.Level, breach.Equity, failed.Reason);
     }
 
+    /// <summary>Why the account expired, from its steps. Null if it did not run out of time.</summary>
+    public async Task<ExpiryEvidence?> ExpiryAsync(string firmId, Guid id, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            select s.outputs
+            from challenge_steps s join challenge_accounts a on a.id = s.challenge_account_id
+            where a.firm_id = $1 and a.id = $2 and s.outputs @> '[{"kind": "ChallengeExpired"}]'
+            order by s.step desc limit 1
+            """);
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(id);
+        return await command.ExecuteScalarAsync(cancellationToken) is string outputs
+            && JsonSerializer.Deserialize<List<ChallengeOutput>>(outputs, PropJson.Options)!.OfType<ChallengeExpired>().FirstOrDefault() is { } expired
+                ? new ExpiryEvidence(expired.Time, expired.Reason, expired.Day)
+                : null;
+    }
+
     public Task<List<AccountView>> ListByTraderAsync(string firmId, Guid traderId, CancellationToken cancellationToken) =>
         ReadAsync($"{SelectView} where a.firm_id = $1 and a.trader_id = $2 order by a.number", [firmId, traderId], cancellationToken);
 

@@ -1,6 +1,6 @@
 # Spec: portalen
 
-- Fas: 4d, utbetalningar i 5, registrering och adminpanelens inställningar i 6, köp i 8
+- Fas: 4d, utbetalningar i 5, registrering och adminpanelens inställningar i 6, platser och betalning i 7, köp i 8
 - Status: Implementerad i `prop/portal` och `prop/src/Prop.Api/Portal`
 - Datum: 2026-10-03
 
@@ -17,13 +17,15 @@ Portalen är firmans egen sida för traders och administratörer, med firmans na
 | `/orders/{id}?token=` | Köparen | Ordern efter betalningen. Väntar på att leverantören bekräftar, och berättar sedan hur tradern kommer in i portalen. |
 | `/checkout/test?order=&token=` | Köparen | Testbetalning utan pengar, för firmor i sandlådan. |
 | `/invite?token=` | Traders | Tradern väljer lösenord med firmans inbjudan och loggas in. |
-| `/` | Traders | Översikt över ett konto: status, fas, saldo, equity, vinstmål med förlopp, handelsdagar, förlustgränser med marginal, och vid brott när och varför. Knappen "Open terminal". För ett funded-konto vinsten, traderns andel, handelsdagar sedan förra utbetalningen och knappen "Request payout", och kontots utbetalningar. Har tradern flera konton väljs ett med `?account=`. |
+| `/` | Traders | Översikt över ett konto: status, fas, saldo, equity, vinstmål med förlopp, handelsdagar, förlustgränser med marginal, sista dagen att öppna en ny affär och att klara fasen, att kontot är pausat, och vid brott eller när tiden tagit slut när och varför. Knappen "Open terminal". För ett funded-konto vinsten, traderns andel, handelsdagar sedan förra utbetalningen och knappen "Request payout", och kontots utbetalningar. Har tradern flera konton väljs ett med `?account=`. |
 | `/admin/login` | Administratörer | Inloggning för firmans administratörer. |
-| `/admin` | Administratörer | Starta en challenge åt en trader och sök konton på e-post och status. Medan firmans server skapas visas det i stället. |
+| `/admin` | Administratörer | Starta en challenge åt en trader och sök konton på e-post och status. Pausade konton är markerade. Medan firmans server skapas visas det i stället. |
 | `/admin/accounts/{id}` | Administratörer | Kontots översikt, inbjudningslänk till portalen, godkännande av funded-kontot, annullering med orsak, kontots utbetalningar med firmans beslut och hela historiken. |
 | `/admin/orders` | Administratörer | Ordrar från portalen: köpare, challenge, belopp, leverantör, status och återbetalningar eller bestridanden. Ordrar från firmans egen betalsida markeras som betalda härifrån, och ordrar som inte gick genom Stripe som återbetalda. |
 | `/admin/payouts` | Administratörer | Utbetalningar som väntar på firman, eller alla. Firman godkänner, markerar som betald med en valfri referens, eller nekar med en orsak som tradern ser. |
-| `/admin/challenges` | Administratörer | Firmans challenges. En ny challenge utgår från mallen, och befintliga kan ändras: storlek, handelsdagens start och tidszon, och varje fas mål, handelsdagar, förlustgränser och vinstandel. En till tre faser före funded. Varje challenge har sitt pris i portalen, i en valuta som kan vara en annan än kontots, och om den säljs där. |
+| `/admin/challenges` | Administratörer | Firmans challenges. En ny challenge utgår från mallen, och befintliga kan ändras: storlek, handelsdagens start och tidszon, dagar utan en ny affär innan challengen tar slut, och varje fas mål, handelsdagar, förlustgränser, vinstandel och tidsgräns. En till tre faser före funded. Varje challenge har sitt pris i portalen, i en valuta som kan vara en annan än kontots, och om den säljs där. |
+| `/admin/billing` | Administratörer | Gå live genom att betala, platserna, fler eller färre platser, automatisk utökning, kortet, obetalda månader och debiteringarna. Se [specen för platser och betalning](platser-och-betalning.md). |
+| `/admin/billing/checkout/{id}` | Administratörer | Testsidan för betalningar till plattformen och kort, i utveckling. |
 | `/admin/team` | Administratörer | Administratörerna, inbjudningar som väntar, en ny inbjudan med e-post, och borttagning av andra än sig själv. |
 | `/admin/settings` | Administratörer | Firman och dess status, logga och färger med förhandsvisning, betalningar (ingen försäljning, testbetalning, Stripe med firmans nycklar och adressen för Stripes webhook, eller firmans egen betalsida, och villkoren för köpare), nyckel för firmans API och webhookens adress och hemlighet. Nycklar och hemligheter visas bara en gång. |
 | `/admin/welcome?token=` | Alla | Engångslänken efter registreringen. Loggar in administratören och öppnar adminpanelen. |
@@ -37,6 +39,8 @@ Portalen är firmans egen sida för traders och administratörer, med firmans na
 - Knappen "Open terminal" fungerar när kontot är aktivt. Den hämtar en engångslänk och öppnar terminalen inloggad på fasens konto.
 - På en adress som ingen firma har visar portalen bara att ingen portal finns där. På plattformens adress skickas firmans sidor till registreringen, och på en firmas adress finns inte plattformens sidor.
 - En firma i sandlådan visar en rad om att det är en testmiljö på alla sidor, så att ingen trader tror att den är på riktigt.
+- Adminpanelen visar en rad på alla sidor när firmans månad är obetald, när en betalning nekats eller när platserna är slut eller nästan slut.
+- Ett pausat konto kan öppnas i terminalen, där tradern kan stänga sina positioner men inte öppna nya.
 
 ## Utseende
 
@@ -64,7 +68,7 @@ Alla vägar börjar med `/api/portal`. Firman känns igen på `X-Forwarded-Host`
 | `GET /me` | Trader | Traderns id, e-post, roll och firmans namn. |
 | `GET /admin/me` | Admin | Samma för administratören. |
 | `GET /accounts` | Trader | Traderns konton. |
-| `GET /accounts/{id}` | Trader | Kontot med `live` (saldo, equity och golv med marginal från handelsplattformen), `breach` (tid, golv, nivå, equity och orsak) när kontot har underkänts och `payouts`, kontots utbetalningar. Andras konton svarar 404. |
+| `GET /accounts/{id}` | Trader | Kontot med `live` (saldo, equity och golv med marginal från handelsplattformen), `breach` (tid, golv, nivå, equity och orsak) när ett golv bröts, `expiry` (tid, orsak och dag) när tiden tog slut och `payouts`, kontots utbetalningar. Andras konton svarar 404. |
 | `POST /accounts/{id}/terminal-link` | Trader | En engångslänk till terminalen. 409 när kontot inte är aktivt. |
 | `POST /accounts/{id}/payouts` | Trader | Begär en utbetalning av funded-kontots vinst. 201 med utbetalningen, eller 409 med orsaken. |
 | `GET /admin/challenges` | Admin | Firmans challenges. |
@@ -83,6 +87,7 @@ Alla vägar börjar med `/api/portal`. Firman känns igen på `X-Forwarded-Host`
 | `GET /admin/firm` och vägarna under den, `GET /admin/challenge-templates`, `PUT /admin/challenges/{challengeId}`, `/admin/admins` | Admin | Firmans inställningar, challenges och administratörer. Se [specen för registrering och sandlåda](registrering.md). |
 | `GET /shop`, `/orders` och vägarna under den | Alla | Butiken och köparens order. Se [specen för köp i portalen](kop.md). |
 | `/admin/orders`, `/admin/prices`, `PUT /admin/challenges/{challengeId}/price`, `PUT /admin/firm/payments` | Admin | Ordrar, priser och betalningar. Se [specen för köp i portalen](kop.md). |
+| `/admin/billing` och vägarna under den | Admin | Platserna och vad firman betalar oss. Se [specen för platser och betalning](platser-och-betalning.md). |
 
 Inloggningarna och inbjudningar har gemensamt en gräns på `Login:AttemptsPerMinute` försök i minuten per IP-adress, som standard 10. Svaret är då 429. Webbläsarens adress och protokoll tas från `X-Forwarded-For` och `X-Forwarded-Proto` när anropet kommer från en betrodd proxy, lokalt bara loopback. Annars skulle alla som når tjänsten genom portalen dela samma gräns.
 
@@ -136,5 +141,5 @@ I utveckling nås `demo-firm` på `localhost` och `127.0.0.1` med lila accentfä
 - `prop/tests/Prop.Api.Tests/PortalApiTests`: utseende per värdnamn, inbjudan och inloggning, att inbjudan bara fungerar en gång, inte efter 7 dagar och ersätts av en ny, fel lösenord, att traders bara ser sina konton, siffror i realtid och när handelsplattformen inte svarar, bevis vid brott, att sessioner och inbjudningar bara gäller hos sin firma, att adminpanelen bara är för administratörer, adminpanelens flöden, att administratörer bara ser sin firma, att en session överlever en omstart, att gränsen för inloggning räknas per webbläsare bakom portalen, att en administratör och en trader kan vara inloggade samtidigt i samma webbläsare, att konfigurerade traders loggar in med sitt lösenord efter varje start och att reglerna för inloggning går att stänga av.
 - `prop/tests/Prop.Api.Tests/PayoutFlowTests`: traderns begäran och administratörens beslut i portalen, och att en trader inte når andras konton eller adminpanelens beslut.
 - `prop/tests/Prop.Api.Tests/OrderFlowTests`: köp i portalen. Se [specen för köp i portalen](kop.md).
-- `prop/portal/src/lib/*.test.ts`: vilka ordrar firman kan markera och vad köparens ordersida säger, förlopp mot vinstmålet, vilka golv som visas, när knapparna fungerar, vilka beslut som går att fatta om en utbetalning, utbetalningarnas texter, färgerna och att standardfärgerna är de i `globals.css`, förslaget på kort namn och kontrollen av det, och challenge-redigeraren fram och tillbaka.
-- `prop/portal/e2e`: hela kedjan med handelsplattformen, propfirm-tjänsten och portalen. En konfigurerad trader loggar in med sitt korta lösenord. Administratören startar en challenge och skapar en inbjudan, tradern väljer lösenord i samma webbläsare, ser kontot och öppnar terminalen med en länk som handelsplattformen godtar, och administratören avbryter kontot. En trader klarar challengen `quick-test-100k` med handel och insättningar på handelsplattformen, begär en utbetalning i portalen, och administratören godkänner och markerar den som betald. En firma registrerar sig på `app.localhost`, hamnar i sin adminpanel på sin egen adress, ser att den är i sandlådan, får sin server och startar en challenge, byter färg och gör en egen challenge med en fas. Registreringen finns bara på plattformens adress, och tagna och reserverade korta namn visas medan de skrivs. En besökare köper en challenge med testbetalning och firman ser den betalda ordern, och en inloggad trader köper och kommer direkt till sitt nya konto.
+- `prop/portal/src/lib/*.test.ts`: platserna, prisstegen och raden om betalningen i adminpanelen, sista dagen att handla och att klara fasen, vilka ordrar firman kan markera och vad köparens ordersida säger, förlopp mot vinstmålet, vilka golv som visas, när knapparna fungerar, vilka beslut som går att fatta om en utbetalning, utbetalningarnas texter, färgerna och att standardfärgerna är de i `globals.css`, förslaget på kort namn och kontrollen av det, och challenge-redigeraren fram och tillbaka med tidsgräns och dagar utan en ny affär.
+- `prop/portal/e2e`: hela kedjan med handelsplattformen, propfirm-tjänsten och portalen. En konfigurerad trader loggar in med sitt korta lösenord. Administratören startar en challenge och skapar en inbjudan, tradern väljer lösenord i samma webbläsare, ser kontot och öppnar terminalen med en länk som handelsplattformen godtar, och administratören avbryter kontot. En trader klarar challengen `quick-test-100k` med handel och insättningar på handelsplattformen, begär en utbetalning i portalen, och administratören godkänner och markerar den som betald. En firma registrerar sig på `app.localhost`, hamnar i sin adminpanel på sin egen adress, ser att den är i sandlådan, får sin server och startar en challenge, byter färg och gör en egen challenge med en fas. Registreringen finns bara på plattformens adress, och tagna och reserverade korta namn visas medan de skrivs. En besökare köper en challenge med testbetalning och firman ser den betalda ordern, och en inloggad trader köper och kommer direkt till sitt nya konto. En firma går live med testbetalning efter ett kort som nekas, ser sina platser och sitt kort och köper fler platser.

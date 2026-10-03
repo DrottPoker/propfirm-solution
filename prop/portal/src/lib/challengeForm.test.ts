@@ -17,6 +17,7 @@ const twoStep: ChallengeDefinition = {
       dailyLoss: { percent: 5, reference: "Balance" },
       maxLoss: { percent: 10, kind: "Fixed" },
       profitSplitPercent: null,
+      maxDays: null,
     },
     {
       name: "Phase 2",
@@ -25,6 +26,7 @@ const twoStep: ChallengeDefinition = {
       dailyLoss: { percent: 5, reference: "Balance" },
       maxLoss: { percent: 10, kind: "Fixed" },
       profitSplitPercent: null,
+      maxDays: null,
     },
   ],
   funded: {
@@ -34,7 +36,9 @@ const twoStep: ChallengeDefinition = {
     dailyLoss: { percent: 5, reference: "Balance" },
     maxLoss: { percent: 10, kind: "Fixed" },
     profitSplitPercent: 80,
+    maxDays: null,
   },
+  inactivityDays: 30,
 };
 
 describe("challenge form", () => {
@@ -61,8 +65,20 @@ describe("challenge form", () => {
     });
   });
 
+  it("reads a time limit per stage and no limit on days without a trade", () => {
+    const form = formOf(twoStep);
+    form.evaluation[0] = { ...form.evaluation[0], maxDays: " 30 " };
+    form.inactivityDays = "";
+
+    expect(definitionOf(form)).toMatchObject({
+      definition: { evaluation: [{ maxDays: 30 }, { maxDays: null }], funded: { maxDays: null }, inactivityDays: null },
+    });
+  });
+
   it.each([
     [(f: ReturnType<typeof formOf>) => (f.initialBalance = "a lot"), "The account size must be a number."],
+    [(f: ReturnType<typeof formOf>) => (f.inactivityDays = "a month"), "The days without a new trade must be a whole number, or empty for no limit."],
+    [(f: ReturnType<typeof formOf>) => (f.evaluation[0].maxDays = "2.5"), "Phase 1: the time limit must be a whole number of days, or empty for none."],
     [(f: ReturnType<typeof formOf>) => (f.evaluation[1].profitTargetPercent = ""), "Phase 2: the profit target must be a number."],
     [(f: ReturnType<typeof formOf>) => (f.evaluation[0].minTradingDays = "2.5"), "Phase 1: the trading days must be a whole number."],
     [(f: ReturnType<typeof formOf>) => (f.funded.profitSplitPercent = "most"), "Funded: the profit split must be a number."],

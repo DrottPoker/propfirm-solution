@@ -75,8 +75,11 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
 
     public static byte[] HashToken(string token) => SHA256.HashData(Encoding.UTF8.GetBytes(token));
 
-    /// <summary>Saves a new order with the next number of the firm, and records that it was made.</summary>
-    public async Task<Order> InsertAsync(
+    /// <summary>
+    /// Saves a new order with the next number of the firm, and records that it was made. <paramref name="reserve"/>
+    /// runs first in the same transaction and says whether the order may hold a slot. Null when it may not.
+    /// </summary>
+    public async Task<Order?> InsertAsync(
         Guid id,
         string firmId,
         string email,
@@ -88,11 +91,17 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
         Uri checkoutUrl,
         DateTimeOffset now,
         DateTimeOffset expiresAt,
+        Func<NpgsqlConnection, CancellationToken, Task<bool>> reserve,
         CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (!await reserve(connection, cancellationToken))
+        {
+            return null;
+        }
+
         long number;
         await using (var counter = new NpgsqlCommand(
             """

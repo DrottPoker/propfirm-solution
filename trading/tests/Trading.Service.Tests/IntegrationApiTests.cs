@@ -117,6 +117,48 @@ public sealed class IntegrationApiTests
         Assert.Equal(["BalanceAdjusted", "InputRejected", "InputRejected"], events.EventKinds());
     }
 
+    // The prop platform suspends a firm's accounts like this while the firm's month is unpaid.
+    [Fact]
+    public async Task TheFirmSuspendsAndResumesAnAccountAndCanRepeatIt()
+    {
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
+        using var trader = await factory.CreateTraderClientAsync("T1");
+        using var admin = factory.CreateAdminClient();
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
+
+        var suspended = await admin.PostJsonAsync("/api/admin/v1/accounts/T1/suspend");
+        var again = await admin.PostJsonAsync("/api/admin/v1/accounts/T1/suspend");
+        var order = await trader.PostJsonAsync(
+            "/api/accounts/T1/orders",
+            new { orderId = "O1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m },
+            HttpStatusCode.UnprocessableEntity);
+        var whileSuspended = await admin.GetJsonAsync("/api/admin/v1/accounts/T1");
+        await other.PostJsonAsync("/api/admin/v1/accounts/T1/resume", null, HttpStatusCode.NotFound);
+        var resumed = await admin.PostJsonAsync("/api/admin/v1/accounts/T1/resume");
+        var resumedAgain = await admin.PostJsonAsync("/api/admin/v1/accounts/T1/resume");
+
+        Assert.Equal(["AccountSuspended"], suspended.GetProperty("events").EventKinds());
+        Assert.Empty(again.GetProperty("events").EnumerateArray());
+        Assert.Equal("AccountSuspended", order.GetProperty("reason").GetString());
+        Assert.Equal("Suspended", whileSuspended.GetProperty("status").GetString());
+        Assert.Equal(["AccountResumed"], resumed.GetProperty("events").EventKinds());
+        Assert.Empty(resumedAgain.GetProperty("events").EnumerateArray());
+        Assert.Equal("Active", (await admin.GetJsonAsync("/api/admin/v1/accounts/T1")).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task AClosedAccountCannotBeSuspended()
+    {
+        using var factory = new ServiceFactory();
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using var admin = factory.CreateAdminClient();
+        await admin.PostJsonAsync("/api/admin/v1/accounts/T1/close");
+
+        var refused = await admin.PostJsonAsync("/api/admin/v1/accounts/T1/suspend", null, HttpStatusCode.UnprocessableEntity);
+
+        Assert.Equal("AccountDisabled", refused.GetProperty("reason").GetString());
+    }
+
     [Fact]
     public async Task EachFirmReadsOnlyItsOwnEventsInOrder()
     {

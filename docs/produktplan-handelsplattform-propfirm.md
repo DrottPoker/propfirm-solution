@@ -116,7 +116,7 @@ registrera -> välj challenge-mall -> portalens logga och färger
 
 Mål: sandlådan på några minuter, live inom ett dygn.
 
-Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Kvar är betalningen till oss, kontrollen innan live och egen domän.
+Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Firman betalar oss i förskott med kort för platser för aktiva challenges, och går live genom att betala startavgiften och första månaden (fas 7, se [specen för platser och betalning](spec/platser-och-betalning.md)). Kvar är kontrollen innan live, som gör att en firma bara kan gå live i utveckling än, och egen domän.
 
 ### Krav
 
@@ -220,8 +220,10 @@ Typiska regler som firman ska kunna ställa in:
 - Max total förlust, till exempel 10 %, fast eller släpande.
 - Minsta antal handelsdagar.
 - För funded-konton ofta en regel om jämna resultat (konsistensregel).
-- Inaktivitet: en challenge utan affärer på till exempel 30 dagar avslutas. Det frigör också firmans plats (se Affärsmodell och prissättning).
+- Inaktivitet: en challenge utan nya affärer på till exempel 30 dagar avslutas. Det frigör också firmans plats (se Affärsmodell och prissättning).
 - Valfri tidsgräns per fas.
+
+Inaktiviteten och tidsgränsen finns (fas 7), och räknas inte medan en challenge är pausad för att firmans månad är obetald.
 
 Viktigt i designen:
 
@@ -344,6 +346,7 @@ Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva
 - **Månadsbetalningen** dras från kortet 5 dagar innan månaden börjar. Går den inte igenom har firman de dagarna på sig. Är den inte betald när månaden börjar startas inga nya challenges, och befintliga konton pausas. Vi levererar aldrig något som inte är betalt.
 - **Inaktivitet:** en challenge utan affärer på till exempel 30 dagar avslutas och frigör sin plats. Firman kan också avbryta konton själv.
 - **Sandlådan** tar inga platser.
+- **En order som väntar på betalning** i firmans portal håller en plats, så att köparen alltid kan få sin challenge.
 - Avtalet säger att firman ansvarar för att betalningen går igenom, och att traders konton pausas annars.
 
 ### Priset per plats

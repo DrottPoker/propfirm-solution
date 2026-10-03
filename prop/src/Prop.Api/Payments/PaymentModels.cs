@@ -67,10 +67,11 @@ public sealed record MarkOrderRequest(string? Reference);
 public sealed record PriceRequest(decimal Amount, string? Currency, bool ForSale);
 
 /// <summary>
-/// What the firm's portal sells. <paramref name="Open"/> is false when the firm takes no payment or sells nothing.
-/// <paramref name="TermsUrl"/> is the firm's terms, which the buyer accepts. <paramref name="Test"/> means no money is taken.
+/// What the firm's portal sells. <paramref name="Open"/> is false when the firm takes no payment, sells nothing or
+/// cannot start more challenges now, which <paramref name="Full"/> says. <paramref name="TermsUrl"/> is the firm's
+/// terms, which the buyer accepts. <paramref name="Test"/> means no money is taken.
 /// </summary>
-public sealed record ShopResponse(bool Open, bool Test, Uri? TermsUrl, IReadOnlyList<ShopItemResponse> Items);
+public sealed record ShopResponse(bool Open, bool Full, bool Test, Uri? TermsUrl, IReadOnlyList<ShopItemResponse> Items);
 
 public sealed record ShopItemResponse(ChallengeDefinition Challenge, decimal Price, string Currency);
 

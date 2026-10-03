@@ -16,6 +16,8 @@ export type StageForm = {
   maxLossPercent: string;
   maxLossKind: MaxLossKind;
   profitSplitPercent: string;
+  /** Days to pass the stage, or empty for no time limit. */
+  maxDays: string;
 };
 
 export type ChallengeForm = {
@@ -27,6 +29,8 @@ export type ChallengeForm = {
   dayStart: string;
   evaluation: StageForm[];
   funded: StageForm;
+  /** Days without a new trade before the challenge ends, or empty for no limit. */
+  inactivityDays: string;
 };
 
 export const maxEvaluationStages = 3;
@@ -41,6 +45,7 @@ export function formOf(definition: ChallengeDefinition): ChallengeForm {
     dayStart: definition.tradingDay.start.slice(0, 5),
     evaluation: definition.evaluation.map(stageFormOf),
     funded: stageFormOf(definition.funded),
+    inactivityDays: definition.inactivityDays == null ? "" : String(definition.inactivityDays),
   };
 }
 
@@ -55,6 +60,11 @@ export function definitionOf(form: ChallengeForm): { definition: ChallengeDefini
   const balance = numberOf(form.initialBalance);
   if (balance === null) {
     return { problem: "The account size must be a number." };
+  }
+
+  const inactivityDays = optionalWholeNumber(form.inactivityDays);
+  if (inactivityDays === undefined) {
+    return { problem: "The days without a new trade must be a whole number, or empty for no limit." };
   }
 
   const stages: StageRules[] = [];
@@ -77,6 +87,7 @@ export function definitionOf(form: ChallengeForm): { definition: ChallengeDefini
       tradingDay: { timeZone: form.timeZone.trim(), start: `${form.dayStart || "00:00"}:00` },
       evaluation: stages.slice(0, -1),
       funded: stages[stages.length - 1],
+      inactivityDays,
     },
   };
 }
@@ -91,6 +102,7 @@ function stageFormOf(stage: StageRules): StageForm {
     maxLossPercent: String(stage.maxLoss.percent),
     maxLossKind: stage.maxLoss.kind,
     profitSplitPercent: stage.profitSplitPercent == null ? "" : String(stage.profitSplitPercent),
+    maxDays: stage.maxDays == null ? "" : String(stage.maxDays),
   };
 }
 
@@ -100,6 +112,7 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
   const days = numberOf(stage.minTradingDays);
   const daily = numberOf(stage.dailyLossPercent);
   const maxLoss = numberOf(stage.maxLossPercent);
+  const maxDays = funded ? null : optionalWholeNumber(stage.maxDays);
   if (!funded && target === null) {
     return { problem: "the profit target must be a number." };
   }
@@ -116,6 +129,10 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
     return { problem: "the loss limits must be numbers." };
   }
 
+  if (maxDays === undefined) {
+    return { problem: "the time limit must be a whole number of days, or empty for none." };
+  }
+
   return {
     stage: {
       name: stage.name.trim(),
@@ -124,8 +141,19 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
       dailyLoss: { percent: daily, reference: stage.dailyLossReference },
       maxLoss: { percent: maxLoss, kind: stage.maxLossKind },
       profitSplitPercent: split,
+      maxDays,
     },
   };
+}
+
+/** A whole number, null when empty, or undefined when it is not a whole number. */
+function optionalWholeNumber(text: string): number | null | undefined {
+  if (text.trim() === "") {
+    return null;
+  }
+
+  const value = numberOf(text);
+  return value !== null && Number.isInteger(value) ? value : undefined;
 }
 
 function numberOf(text: string): number | null {

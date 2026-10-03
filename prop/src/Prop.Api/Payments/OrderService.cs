@@ -11,6 +11,7 @@ using Npgsql;
 
 using NpgsqlTypes;
 
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
@@ -70,6 +71,8 @@ internal sealed partial class OrderService(
     PriceCatalog prices,
     ChallengeCatalog challenges,
     ChallengeService accounts,
+    SlotService slots,
+    WorkSignals signals,
     PortalUsers users,
     IEmailSender email,
     StripeClient stripe,
@@ -143,9 +146,9 @@ internal sealed partial class OrderService(
             return new NewOrder.Refused(StatusCodes.Status404NotFound, "That challenge is not for sale.");
         }
 
-        if (!await accounts.HasRoomAsync(firm, cancellationToken))
+        if (!(await slots.UsageAsync(firm, cancellationToken)).HasRoom)
         {
-            return new NewOrder.Refused(StatusCodes.Status409Conflict, "The firm cannot start more challenges right now. Try again later.");
+            return NoRoom();
         }
 
         var now = time.GetUtcNow();
@@ -184,9 +187,36 @@ internal sealed partial class OrderService(
                 break;
         }
 
-        var order = await orders.InsertAsync(id, firm.Id, email, item.Challenge.Id, item.Price, provider, token, checkoutId, checkoutUrl, now, expiresAt, cancellationToken);
-        return new NewOrder.Created(order, token);
+        // The order holds a slot while the buyer pays, so the payment always has room to start the challenge.
+        var order = await orders.InsertAsync(
+            id,
+            firm.Id,
+            email,
+            item.Challenge.Id,
+            item.Price,
+            provider,
+            token,
+            checkoutId,
+            checkoutUrl,
+            now,
+            expiresAt,
+            async (connection, ct) =>
+            {
+                await SlotService.LockAsync(connection, firm.Id, ct);
+                var usage = await slots.UsageAsync(connection, firm, null, ct);
+                if (usage.Free == 1)
+                {
+                    signals.Billing.Set();
+                }
+
+                return usage.HasRoom;
+            },
+            cancellationToken);
+        return order is null ? NoRoom() : new NewOrder.Created(order, token);
     }
+
+    private static NewOrder.Refused NoRoom() =>
+        new(StatusCodes.Status409Conflict, "The firm cannot start more challenges right now. Try again later.");
 
     /// <summary>
     /// The order is paid: it becomes Paid and its account starts, in one transaction. A payment reported again
@@ -227,11 +257,11 @@ internal sealed partial class OrderService(
                 return new OrderChange(OrderChangeOutcome.AmountMismatch, order, "The payment does not match the order's price.");
             }
 
-            var started = await accounts.StartAsync(connection, firm, order.Email, order.ChallengeId, null, cancellationToken);
+            var started = await accounts.StartAsync(connection, firm, order.Email, order.ChallengeId, null, order.Id, cancellationToken);
             var problem = started.Account is not null
                 ? null
-                : started.SandboxFull
-                    ? "The sandbox had no room for another open challenge account, so none was started."
+                : started.Refusal is { } refusal
+                    ? SlotService.OrderProblem(refusal)
                     : "The firm no longer has the challenge, so no account was started.";
             paid = order with
             {

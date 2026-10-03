@@ -29,9 +29,10 @@ public sealed record MaxLossRule(decimal Percent, MaxLossKind Kind);
 
 /// <summary>
 /// Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
-/// target with no open positions after at least <paramref name="MinTradingDays"/> trading days.
-/// The funded stage has no profit target. Its trader gets <paramref name="ProfitSplitPercent"/> of the
-/// profit as a payout, after at least <paramref name="MinTradingDays"/> trading days since the last one.
+/// target with no open positions after at least <paramref name="MinTradingDays"/> trading days, and within
+/// <paramref name="MaxDays"/> days after the day it started when it has a time limit.
+/// The funded stage has no profit target and no time limit. Its trader gets <paramref name="ProfitSplitPercent"/>
+/// of the profit as a payout, after at least <paramref name="MinTradingDays"/> trading days since the last one.
 /// </summary>
 public sealed record StageRules(
     string Name,
@@ -39,7 +40,8 @@ public sealed record StageRules(
     int MinTradingDays,
     DailyLossRule DailyLoss,
     MaxLossRule MaxLoss,
-    decimal? ProfitSplitPercent = null);
+    decimal? ProfitSplitPercent = null,
+    int? MaxDays = null);
 
 /// <summary>When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days.</summary>
 public sealed record TradingDayDefinition(string TimeZone, TimeOnly Start);
@@ -47,7 +49,9 @@ public sealed record TradingDayDefinition(string TimeZone, TimeOnly Start);
 /// <summary>
 /// A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go
 /// through the evaluation stages in order and then trade a funded account. Every challenge keeps the
-/// definition it was bought with, so later changes by the firm never affect it.
+/// definition it was bought with, so later changes by the firm never affect it. With
+/// <paramref name="InactivityDays"/>, a challenge ends when no position was opened for that many days, in
+/// every stage including the funded one.
 /// </summary>
 public sealed partial record ChallengeDefinition(
     string Id,
@@ -56,8 +60,12 @@ public sealed partial record ChallengeDefinition(
     decimal InitialBalance,
     TradingDayDefinition TradingDay,
     IReadOnlyList<StageRules> Evaluation,
-    StageRules Funded)
+    StageRules Funded,
+    int? InactivityDays = null)
 {
+    /// <summary>The longest inactivity and time limit, in days.</summary>
+    public const int MaxDayLimit = 365;
+
     /// <summary>The index of the funded stage, after the evaluation stages.</summary>
     public int FundedStage => Evaluation.Count;
 
@@ -77,16 +85,26 @@ public sealed partial record ChallengeDefinition(
         Require(InitialBalance > 0 && decimal.Round(InitialBalance, 2) == InitialBalance, "The initial balance must be positive, in whole cents.");
         Require(TradingDay.TimeZone.Trim().Length > 0, "The trading day needs a time zone.");
         Require(Evaluation.Count > 0, "The challenge needs at least one evaluation stage.");
+        Require(
+            InactivityDays is null or (>= 1 and <= MaxDayLimit),
+            $"Inactivity must be 1 to {MaxDayLimit} days without a new position, or empty for no rule.");
 
         foreach (var (stage, index) in Evaluation.Select((s, i) => (s, i + 1)))
         {
             Require(stage.ProfitTargetPercent is > 0 and <= 100, $"Evaluation stage {index} needs a profit target above 0 and at most 100 percent.");
             Require(stage.ProfitSplitPercent is null, $"Evaluation stage {index} has no profit split. Only the funded stage pays out.");
+            Require(
+                stage.MaxDays is null or (>= 1 and <= MaxDayLimit),
+                $"Evaluation stage {index} needs a time limit of 1 to {MaxDayLimit} days, or empty for none.");
+            Require(
+                stage.MaxDays is not { } maxDays || maxDays >= stage.MinTradingDays,
+                $"Evaluation stage {index} needs a time limit of at least its minimum trading days.");
             ValidateStage(stage, $"Evaluation stage {index}");
         }
 
         Require(Funded.ProfitTargetPercent is null, "The funded stage has no profit target.");
         Require(Funded.ProfitSplitPercent is > 0 and <= 100, "The funded stage needs a profit split above 0 and at most 100 percent.");
+        Require(Funded.MaxDays is null, "The funded stage has no time limit.");
         ValidateStage(Funded, "The funded stage");
         return errors;
 
@@ -115,11 +133,15 @@ public sealed partial record ChallengeDefinition(
 /// <summary>Ready-made challenges that firms start from.</summary>
 public static class ChallengeTemplates
 {
+    /// <summary>Days without a new position before a challenge from a template ends.</summary>
+    public const int DefaultInactivityDays = 30;
+
     /// <summary>
     /// The common two-step challenge: profit targets of 10 and 5 percent, 5 percent daily loss from the
     /// balance at the start of the day, 10 percent fixed max loss and at least 4 trading days per
-    /// evaluation stage. The funded trader gets 80 percent of the profit, with at least 5 trading days
-    /// between payouts. Trading days start at midnight Swedish time.
+    /// evaluation stage, with no time limit. The funded trader gets 80 percent of the profit, with at least
+    /// 5 trading days between payouts. The challenge ends after 30 days without a new position. Trading days
+    /// start at midnight Swedish time.
     /// </summary>
     public static ChallengeDefinition TwoStep(string id, decimal initialBalance, string currency = "USD")
     {
@@ -135,6 +157,7 @@ public static class ChallengeTemplates
                 new StageRules("Phase 1", 10, 4, dailyLoss, maxLoss),
                 new StageRules("Phase 2", 5, 4, dailyLoss, maxLoss),
             ],
-            new StageRules("Funded", null, 5, dailyLoss, maxLoss, ProfitSplitPercent: 80));
+            new StageRules("Funded", null, 5, dailyLoss, maxLoss, ProfitSplitPercent: 80),
+            DefaultInactivityDays);
     }
 }

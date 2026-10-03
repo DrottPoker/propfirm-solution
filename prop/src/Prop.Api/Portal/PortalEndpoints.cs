@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
 using Prop.Api.Api;
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
@@ -70,6 +71,7 @@ internal static class PortalEndpoints
         admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         admin.MapAdminSettings();
         admin.MapAdminOrders();
+        admin.MapAdminBilling();
         return app;
     }
 

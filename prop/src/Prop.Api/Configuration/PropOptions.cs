@@ -87,6 +87,70 @@ public sealed class PaymentsOptions
     public bool TestPaymentsForLiveFirms { get; init; }
 }
 
+/// <summary>
+/// What firms pay us for their slots, and how (ADR 0020). A slot is room for one open challenge. The firm pays
+/// in advance by card: a startup fee when it goes live, and its slots for each month. The prices are examples
+/// until they are decided.
+/// </summary>
+public sealed class BillingOptions
+{
+    public const string SectionName = "Billing";
+
+    /// <summary>Stripe with our own account, or Test for a page in the portal that pays without money. Test is for development only.</summary>
+    public string Provider { get; init; } = "Stripe";
+
+    public string Currency { get; init; } = "USD";
+
+    /// <summary>Paid once, when the firm goes live. 0 for none.</summary>
+    public decimal StartupFee { get; init; }
+
+    /// <summary>
+    /// The monthly price of a slot, from the slot each tier starts at. Every slot costs the price of its own tier,
+    /// so the price per slot falls with more slots and never jumps.
+    /// </summary>
+    public IReadOnlyList<SlotPriceOptions> SlotPrices { get; init; } = [];
+
+    /// <summary>The fewest slots a firm can have.</summary>
+    public int MinSlots { get; init; } = 10;
+
+    public int MaxSlots { get; init; } = 10_000;
+
+    /// <summary>How many days before a month starts it is charged, so a failed card can be replaced in time.</summary>
+    public int ChargeDaysBeforeMonth { get; init; } = 5;
+
+    /// <summary>How long after a declined monthly charge the card is tried again.</summary>
+    public TimeSpan RetryInterval { get; init; } = TimeSpan.FromDays(1);
+
+    /// <summary>How many times a monthly charge is tried before only the firm can pay it.</summary>
+    public int MaxAttempts { get; init; } = 5;
+
+    /// <summary>When this share of the slots is used, the firm's administrators are warned.</summary>
+    public int WarningPercent { get; init; } = 80;
+
+    /// <summary>How long a checkout page for a payment or a card stays open. Stripe needs 30 minutes to 24 hours.</summary>
+    public TimeSpan CheckoutLifetime { get; init; } = TimeSpan.FromHours(1);
+
+    /// <summary>
+    /// Whether a firm in the sandbox may go live by paying, before the check of its company and owners exists. For
+    /// development only, until that check is built.
+    /// </summary>
+    public bool AllowGoLiveWithoutVerification { get; init; }
+
+    /// <summary>Our own Stripe account's secret key. A secret: keep it out of files outside development.</summary>
+    public string StripeSecretKey { get; init; } = "";
+
+    /// <summary>Signs Stripe's webhooks about our own payments. A secret.</summary>
+    public string StripeWebhookSecret { get; init; } = "";
+}
+
+/// <summary>The monthly price of each slot from slot number <see cref="From"/> on.</summary>
+public sealed class SlotPriceOptions
+{
+    public int From { get; init; }
+
+    public decimal Price { get; init; }
+}
+
 /// <summary>Email from the platform, such as confirmations and invitations for administrators.</summary>
 public sealed class EmailOptions
 {
@@ -160,6 +224,9 @@ public sealed class FirmOptions
     public FirmPortalOptions Portal { get; init; } = new();
 
     public FirmPaymentOptions Payments { get; init; } = new();
+
+    /// <summary>How many challenges the firm can have open at once, without paying for them. Empty for no limit.</summary>
+    public int? Slots { get; init; }
 
     /// <summary>Challenges created at startup, or replaced so they follow their template.</summary>
     public IReadOnlyList<SeedChallengeOptions> SeedChallenges { get; init; } = [];

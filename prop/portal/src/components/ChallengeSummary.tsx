@@ -19,9 +19,13 @@ export function ChallengeSummary({ challenge, showId = true }: { challenge: Chal
             loss, {stage.maxLoss.percent}% max loss ({stage.maxLoss.kind.toLowerCase()})
             {stage.minTradingDays > 0 && `, at least ${stage.minTradingDays} trading days${stage.profitSplitPercent == null ? "" : " between payouts"}`}
             {stage.profitSplitPercent != null && `, ${stage.profitSplitPercent}% of the profit to the trader`}
+            {stage.maxDays != null && `, to be passed within ${stage.maxDays} days`}
           </li>
         ))}
       </ul>
+      {challenge.inactivityDays != null && (
+        <span className="text-muted">Ends after {challenge.inactivityDays} days without a new trade.</span>
+      )}
     </div>
   );
 }

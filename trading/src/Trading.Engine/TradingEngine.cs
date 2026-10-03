@@ -73,6 +73,8 @@ public sealed partial class TradingEngine
             SetEquityFloor command => ApplySetEquityFloor(command, events),
             RemoveEquityFloor command => ApplyRemoveEquityFloor(command, events),
             CloseAccount command => ApplyCloseAccount(command, events),
+            SuspendAccount command => ApplySuspendAccount(command, events),
+            ResumeAccount command => ApplyResumeAccount(command, events),
             AdjustBalance command => ApplyAdjustBalance(command, events),
             _ => throw new ArgumentException($"Unknown input type {input.GetType().Name}.", nameof(input)),
         };
@@ -205,7 +207,8 @@ public sealed partial class TradingEngine
             })
             .ToList();
 
-    private bool TryGetActiveAccount(string? accountId, [NotNullWhen(true)] out AccountState? account, out RejectReason rejection)
+    // An account that is not disabled. A suspended one can still close positions, change stops, move money and be closed.
+    private bool TryGetOpenAccount(string? accountId, [NotNullWhen(true)] out AccountState? account, out RejectReason rejection)
     {
         if (!TryLookup(_accountsById, accountId, out account))
         {
@@ -213,7 +216,7 @@ public sealed partial class TradingEngine
             return false;
         }
 
-        if (account.Status != AccountStatus.Active)
+        if (account.Status == AccountStatus.Disabled)
         {
             account = null;
             rejection = RejectReason.AccountDisabled;

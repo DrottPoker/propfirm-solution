@@ -18,10 +18,14 @@ internal static class TradingDays
     }
 
     /// <summary>When the trading day after the one that <paramref name="time"/> is in starts.</summary>
-    public static DateTimeOffset NextStart(DateTimeOffset time, TradingDayDefinition definition)
+    public static DateTimeOffset NextStart(DateTimeOffset time, TradingDayDefinition definition) =>
+        StartOf(DayOf(time, definition).AddDays(1), definition);
+
+    /// <summary>When the trading day starts.</summary>
+    public static DateTimeOffset StartOf(DateOnly day, TradingDayDefinition definition)
     {
         var zone = Zone(definition);
-        var start = DayOf(time, definition).AddDays(1).ToDateTime(definition.Start);
+        var start = day.ToDateTime(definition.Start);
 
         // A start in the hour the clocks skip moves to the first time that exists.
         while (zone.IsInvalidTime(start))

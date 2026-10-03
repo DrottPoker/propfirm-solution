@@ -860,6 +860,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/firm/v1/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SlotsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/branding": {
         parameters: {
             query?: never;
@@ -2657,6 +2692,380 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BillingResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    slots: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuoteResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ActivateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/slots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SlotsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BillingResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/auto-expand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AutoExpandRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BillingResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/charges/{chargeId}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    chargeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CheckoutResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/charges/{chargeId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    chargeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BillingResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/checkouts/{checkoutId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    checkoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TestCheckoutResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/checkouts/{checkoutId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    checkoutId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TestCheckoutRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/platform": {
         parameters: {
             query?: never;
@@ -2824,17 +3233,24 @@ export interface components {
             token: null | string;
             password: null | string;
         };
-        /** @description An account with its trading account right now, the evidence if it failed and its payouts, newest first. */
+        /**
+         * @description An account with its trading account right now, the evidence if a floor was breached, why it expired if it ran
+         *     out of time, and its payouts, newest first.
+         */
         AccountDetailsResponse: {
             account: components["schemas"]["AccountResponse"];
             live: null | components["schemas"]["LiveFigures"];
             breach: null | components["schemas"]["BreachEvidence"];
             payouts: components["schemas"]["PayoutResponse"][];
+            expiry?: null | components["schemas"]["ExpiryEvidence"];
         };
         /**
          * @description A trader's challenge account. TradingAccountId is the account on the trading platform
          *     for the current stage, which starts at InitialBalance. The figures are what the trading
-         *     platform last reported.
+         *     platform last reported. Paused is set while the firm's month is unpaid: no new positions
+         *     can be opened and the days do not count. StageDeadline is the trading day the stage fails on
+         *     unless it is passed before, and InactivityDeadline the trading day the challenge ends on
+         *     unless a position is opened before.
          */
         AccountResponse: {
             /** Format: uuid */
@@ -2870,6 +3286,18 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             nextPayout: null | components["schemas"]["PayoutQuoteResponse"];
+            paused: boolean;
+            /** Format: date */
+            stageDeadline: null | string;
+            /** Format: date */
+            inactivityDeadline: null | string;
+        };
+        /** @description Going live with this many slots, buying AutoExpandStep more when the last is taken, or none for no automatic expansion. */
+        ActivateRequest: {
+            /** Format: int32 */
+            slots: number;
+            /** Format: int32 */
+            autoExpandStep: null | number;
         };
         AdminInviteRequest: {
             email: null | string;
@@ -2897,10 +3325,44 @@ export interface components {
         ApiKeyResponse: {
             apiKey: string;
         };
+        /** @description How many slots to buy when the last free one is taken, or null to turn it off. */
+        AutoExpandRequest: {
+            /** Format: int32 */
+            step: null | number;
+        };
         AvailabilityResponse: {
             firmId: string;
             available: boolean;
             reason: null | string;
+        };
+        /** @enum {unknown} */
+        BillingPlan: "Paid" | "Complimentary" | null;
+        /**
+         * @description Who takes the firm's payments to us.
+         * @enum {unknown}
+         */
+        BillingProvider: "Test" | "Stripe";
+        /**
+         * @description The firm's billing for its admin panel. Plan is null until the firm has started paying.
+         *     NextMonthSlots is what a paying firm is charged for from the next unpaid month.
+         *     GoLiveProblem says why a firm in the sandbox cannot go live by paying now.
+         */
+        BillingResponse: {
+            status: components["schemas"]["FirmStatus"];
+            plan: null | components["schemas"]["BillingPlan"];
+            provider: components["schemas"]["BillingProvider"];
+            slots: components["schemas"]["SlotsResponse"];
+            /** Format: int32 */
+            nextMonthSlots: null | number;
+            /** Format: int32 */
+            autoExpandStep: null | number;
+            card: null | components["schemas"]["CardResponse"];
+            /** Format: date-time */
+            unpaidSince: null | string;
+            nextCharge: null | components["schemas"]["NextChargeResponse"];
+            charges: components["schemas"]["ChargeResponse"][];
+            prices: components["schemas"]["PricesResponse"];
+            goLiveProblem: null | string;
         };
         /** @description The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb. */
         BrandingRequest: {
@@ -2959,10 +3421,21 @@ export interface components {
         CancelAccountRequest: {
             reason: null | string;
         };
+        /** @description The saved card. Only its brand, last digits and expiry are known. */
+        CardResponse: {
+            brand: string;
+            last4: string;
+            /** Format: int32 */
+            expMonth: number;
+            /** Format: int32 */
+            expYear: number;
+        };
         /**
          * @description A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go
          *     through the evaluation stages in order and then trade a funded account. Every challenge keeps the
-         *     definition it was bought with, so later changes by the firm never affect it.
+         *     definition it was bought with, so later changes by the firm never affect it. With
+         *     InactivityDays, a challenge ends when no position was opened for that many days, in
+         *     every stage including the funded one.
          */
         ChallengeDefinition: {
             id: string;
@@ -2973,6 +3446,8 @@ export interface components {
             tradingDay: components["schemas"]["TradingDayDefinition"];
             evaluation: components["schemas"]["StageRules"][];
             funded: components["schemas"]["StageRules"];
+            /** Format: int32 */
+            inactivityDays?: null | number;
             /**
              * Format: int32
              * @description The index of the funded stage, after the evaluation stages.
@@ -2996,6 +3471,60 @@ export interface components {
             description: string;
             definition: components["schemas"]["ChallengeDefinition"];
         };
+        /** @enum {unknown} */
+        ChargeKind: "Activation" | "Renewal" | "Slots";
+        /** @description One line of a charge: what is paid for, how many, and the amount for all of them. */
+        ChargeLine: {
+            description: string;
+            /** Format: int32 */
+            quantity: number;
+            /** Format: double */
+            amount: number;
+        };
+        /**
+         * @description A charge. CanPay is set for an unpaid monthly charge, which the firm can try again or pay
+         *     on a checkout page. Failure is why the card was declined last.
+         */
+        ChargeResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            kind: components["schemas"]["ChargeKind"];
+            status: components["schemas"]["ChargeStatus"];
+            /** Format: date */
+            month: string;
+            /** Format: int32 */
+            slots: number;
+            lines: components["schemas"]["ChargeLine"][];
+            /** Format: double */
+            amount: number;
+            currency: string;
+            failure: null | string;
+            /** Format: int32 */
+            attempts: number;
+            /** Format: date-time */
+            nextAttemptAt: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            paidAt: null | string;
+            canPay: boolean;
+        };
+        /** @enum {unknown} */
+        ChargeStatus: "Pending" | "Paid" | "Failed" | "Void";
+        /**
+         * @description What a checkout page is for: paying a charge, which also saves the card, or only saving a new card.
+         * @enum {unknown}
+         */
+        CheckoutPurpose: "Payment" | "Card";
+        /** @description Where the firm goes to pay or to save its card. */
+        CheckoutResponse: {
+            /** Format: uri */
+            checkoutUrl: string;
+        };
+        /** @enum {unknown} */
+        CheckoutStatus: "Open" | "Completed" | "Expired";
         /** @description The new order, and where the buyer pays. The buyer comes back to the order's page afterwards. */
         CreatedOrderResponse: {
             /** Format: uuid */
@@ -3025,6 +3554,16 @@ export interface components {
             percent: number;
             reference: components["schemas"]["DailyLossReference"];
         };
+        /** @description The challenge ran out of time when trading day Day started, after its time limit or the days allowed without a new position. */
+        ExpiryEvidence: {
+            /** Format: date-time */
+            time: string;
+            reason: components["schemas"]["ExpiryReason"];
+            /** Format: date */
+            day: string;
+        };
+        /** @enum {unknown} */
+        ExpiryReason: "TimeLimit" | "Inactivity";
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
         /**
@@ -3101,6 +3640,17 @@ export interface components {
             /** Format: double */
             percent: number;
             kind: components["schemas"]["MaxLossKind"];
+        };
+        /** @description The month charged next: when, for how many slots and how much. */
+        NextChargeResponse: {
+            /** Format: date */
+            month: string;
+            /** Format: date-time */
+            chargeAt: string;
+            /** Format: int32 */
+            slots: number;
+            /** Format: double */
+            amount: number;
         };
         /** @description An order with everything that happened to it, oldest first. */
         OrderDetailsResponse: {
@@ -3283,6 +3833,41 @@ export interface components {
             currency: null | string;
             forSale: boolean;
         };
+        /** @description What firms pay: the startup fee, the slot prices and the rules for slots. The prices are examples until they are decided. */
+        PricesResponse: {
+            currency: string;
+            /** Format: double */
+            startupFee: number;
+            slotPrices: components["schemas"]["SlotPriceResponse"][];
+            /** Format: int32 */
+            minSlots: number;
+            /** Format: int32 */
+            maxSlots: number;
+            /** Format: int32 */
+            chargeDaysBeforeMonth: number;
+            /** Format: int32 */
+            warningPercent: number;
+        };
+        /** @enum {unknown} */
+        QuoteKind: "Activation" | "MoreSlots" | "FewerSlots" | "Unchanged";
+        /**
+         * @description What choosing a number of slots would cost: Lines paid now, and MonthlyPrice
+         *     for each month from From. Problem says why it cannot be chosen.
+         */
+        QuoteResponse: {
+            kind: components["schemas"]["QuoteKind"];
+            /** Format: int32 */
+            slots: number;
+            lines: components["schemas"]["ChargeLine"][];
+            /** Format: double */
+            amount: number;
+            /** Format: double */
+            monthlyPrice: number;
+            /** Format: date */
+            from: null | string;
+            currency: string;
+            problem: null | string;
+        };
         RejectPayoutRequest: {
             reason: null | string;
         };
@@ -3293,11 +3878,13 @@ export interface components {
             currency: string;
         };
         /**
-         * @description What the firm's portal sells. Open is false when the firm takes no payment or sells nothing.
-         *     TermsUrl is the firm's terms, which the buyer accepts. Test means no money is taken.
+         * @description What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or
+         *     cannot start more challenges now, which Full says. TermsUrl is the firm's
+         *     terms, which the buyer accepts. Test means no money is taken.
          */
         ShopResponse: {
             open: boolean;
+            full: boolean;
             test: boolean;
             /** Format: uri */
             termsUrl: null | string;
@@ -3319,10 +3906,46 @@ export interface components {
             adminUrl: null | string;
         };
         /**
+         * @description Where a firm's limit on open challenges comes from.
+         * @enum {unknown}
+         */
+        SlotLimit: "Sandbox" | "Paid" | "Complimentary" | "Unlimited";
+        /** @description Each slot's monthly price from slot number From on. */
+        SlotPriceResponse: {
+            /** Format: int32 */
+            from: number;
+            /** Format: double */
+            price: number;
+        };
+        SlotsRequest: {
+            /** Format: int32 */
+            slots: number;
+        };
+        /**
+         * @description The firm's slots: Used by challenges that have not ended and Reserved by
+         *     orders waiting for payment. Slots and Free are null when there is no
+         *     limit. No challenge can start when nothing is free or Paid is false. Warning
+         *     is set when most slots are taken.
+         */
+        SlotsResponse: {
+            limit: components["schemas"]["SlotLimit"];
+            /** Format: int32 */
+            slots: null | number;
+            /** Format: int32 */
+            used: number;
+            /** Format: int32 */
+            reserved: number;
+            /** Format: int32 */
+            free: null | number;
+            paid: boolean;
+            warning: boolean;
+        };
+        /**
          * @description Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
-         *     target with no open positions after at least MinTradingDays trading days.
-         *     The funded stage has no profit target. Its trader gets ProfitSplitPercent of the
-         *     profit as a payout, after at least MinTradingDays trading days since the last one.
+         *     target with no open positions after at least MinTradingDays trading days, and within
+         *     MaxDays days after the day it started when it has a time limit.
+         *     The funded stage has no profit target and no time limit. Its trader gets ProfitSplitPercent
+         *     of the profit as a payout, after at least MinTradingDays trading days since the last one.
          */
         StageRules: {
             name: string;
@@ -3334,6 +3957,8 @@ export interface components {
             maxLoss: components["schemas"]["MaxLossRule"];
             /** Format: double */
             profitSplitPercent?: null | number;
+            /** Format: int32 */
+            maxDays?: null | number;
         };
         /**
          * @description Starts a challenge for the trader with the email. Reference is the firm's own id, for
@@ -3353,6 +3978,22 @@ export interface components {
             input: components["schemas"]["JsonElement"];
             outputs: components["schemas"]["JsonElement"];
             sourceEvent: null | components["schemas"]["JsonElement"];
+        };
+        /** @description Completes a test checkout page with a test card that pays, or one that declines. */
+        TestCheckoutRequest: {
+            declines: boolean;
+        };
+        /** @description A test checkout page in the portal: what it is for and, for a payment, what is paid. */
+        TestCheckoutResponse: {
+            id: string;
+            purpose: components["schemas"]["CheckoutPurpose"];
+            status: components["schemas"]["CheckoutStatus"];
+            lines: components["schemas"]["ChargeLine"][];
+            /** Format: double */
+            amount: number;
+            currency: string;
+            /** Format: date-time */
+            expiresAt: string;
         };
         /** @description When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days. */
         TradingDayDefinition: {

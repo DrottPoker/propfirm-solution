@@ -39,6 +39,9 @@ export function PortalHeader({ me, role }: { me: Me; role: Role }) {
             <Link href="/admin/team" className="hover:text-accent">
               Team
             </Link>
+            <Link href="/admin/billing" className="hover:text-accent">
+              Billing
+            </Link>
             <Link href="/admin/settings" className="hover:text-accent">
               Settings
             </Link>

@@ -3,6 +3,7 @@ import type { components } from "./schema";
 type Schemas = components["schemas"];
 
 export type AccountSnapshot = Schemas["AccountSnapshot"];
+export type AccountStatus = Schemas["AccountStatus"];
 export type PositionSnapshot = Schemas["PositionSnapshot"];
 export type OrderSnapshot = Schemas["OrderSnapshot"];
 export type FloorSnapshot = Schemas["FloorSnapshot"];

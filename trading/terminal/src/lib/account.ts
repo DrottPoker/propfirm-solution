@@ -29,3 +29,7 @@ export function initials(email: string): string {
   const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2);
   return letters.toUpperCase() || "?";
 }
+
+/** What a suspended account can and cannot do, for the trader. */
+export const suspendedHelp =
+  "Trading is paused on this account, so new orders are not taken. You can still close positions and change their stops.";

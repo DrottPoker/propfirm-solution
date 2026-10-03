@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 
+using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.Portal;
@@ -34,11 +35,9 @@ internal static class AccountActions
 
         var reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference;
         var result = await challenges.StartAsync(firm, request.Email, request.ChallengeId, reference, cancellationToken);
-        if (result.SandboxFull)
+        if (result.Refusal is { } refusal)
         {
-            return Problem(
-                StatusCodes.Status409Conflict,
-                "The sandbox has room for no more open challenge accounts. Cancel one to start another, or go live.");
+            return Problem(StatusCodes.Status409Conflict, SlotService.RefusalMessage(refusal));
         }
 
         if (result.Account is not { } account)
@@ -104,9 +103,11 @@ internal static class AccountActions
             }
         }
 
-        var breach = view.Account.State.Status == ChallengeStatus.Failed ? await queries.LastBreachAsync(firm.Id, accountId, cancellationToken) : null;
+        var failed = view.Account.State.Status == ChallengeStatus.Failed;
+        var breach = failed ? await queries.LastBreachAsync(firm.Id, accountId, cancellationToken) : null;
+        var expiry = failed && breach is null ? await queries.ExpiryAsync(firm.Id, accountId, cancellationToken) : null;
         var accountPayouts = await payouts.ListByAccountAsync(firm.Id, accountId, cancellationToken);
-        return TypedResults.Ok(new AccountDetailsResponse(AccountResponse.From(view), live, breach, [.. accountPayouts.Select(PayoutResponse.From)]));
+        return TypedResults.Ok(new AccountDetailsResponse(AccountResponse.From(view), live, breach, [.. accountPayouts.Select(PayoutResponse.From)], expiry));
     }
 
     /// <summary>A one-time link that logs the trader in to the trading terminal on the current stage's account.</summary>

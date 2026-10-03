@@ -934,6 +934,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/accounts/{accountId}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/accounts/{accountId}/balance-operations": {
         parameters: {
             query?: never;
@@ -1189,7 +1263,7 @@ export interface components {
             floors: components["schemas"]["FloorSnapshot"][];
         };
         /** @enum {unknown} */
-        AccountStatus: "Active" | "Disabled";
+        AccountStatus: "Active" | "Suspended" | "Disabled";
         AdminApiKeyResponse: {
             adminApiKey: string;
         };
@@ -1206,7 +1280,7 @@ export interface components {
             minBalance?: null | number;
         };
         /** @enum {unknown} */
-        CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed";
+        CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed" | "AccountSuspended";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
         Candle: {
             /** Format: date-time */
@@ -1261,7 +1335,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1278,6 +1352,21 @@ export interface components {
             kind?: "AccountDisabled";
             accountId: string;
             reason: components["schemas"]["DisableReason"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        EngineEventAccountResumed: {
+            /** @enum {string} */
+            kind?: "AccountResumed";
+            accountId: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description The account takes no new positions or orders until it is resumed. Its pending orders were cancelled just before. */
+        EngineEventAccountSuspended: {
+            /** @enum {string} */
+            kind?: "AccountSuspended";
+            accountId: string;
             /** Format: date-time */
             timestamp: string;
         };
@@ -1450,7 +1539,7 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputSetEquityFloor"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -1564,6 +1653,14 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /** @description Lets a suspended account trade again. */
+        EngineInputResumeAccount: {
+            /** @enum {string} */
+            kind?: "ResumeAccount";
+            accountId: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
         /** @description Adds or replaces a named equity floor on the account. */
         EngineInputSetEquityFloor: {
             /** @enum {string} */
@@ -1571,6 +1668,17 @@ export interface components {
             accountId: string;
             floorId: string;
             rule: components["schemas"]["EquityFloorRule"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Stops new positions on the account, for example while the firm's bill is unpaid. Pending orders are
+         *     cancelled. Open positions stay: the owner can close them and change their stops, and stops and floors still hold.
+         */
+        EngineInputSuspendAccount: {
+            /** @enum {string} */
+            kind?: "SuspendAccount";
+            accountId: string;
             /** Format: date-time */
             timestamp: string;
         };
@@ -1754,7 +1862,7 @@ export interface components {
             margin: number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
         /** @description A firm's server: the id traders log in with and the firm's name. */
         ServerInfo: {
             id: string;

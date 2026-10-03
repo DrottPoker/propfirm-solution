@@ -5,6 +5,7 @@ import { useEffect } from "react";
 
 import { useMe, type Role } from "@/lib/queries";
 
+import { BillingNotice } from "./BillingNotice";
 import { PortalHeader } from "./PortalHeader";
 import { Message } from "./ui";
 
@@ -32,6 +33,7 @@ export function RequireRole({ role, children }: { role: Role; children: React.Re
   return (
     <>
       <PortalHeader me={me.data} role={role} />
+      {role === "admin" && <BillingNotice />}
       {children}
     </>
   );

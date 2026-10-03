@@ -13,6 +13,21 @@ public sealed class ChallengeDefinitionTests
         Assert.Same(TwoStep.Funded, TwoStep.Stage(TwoStep.FundedStage));
         Assert.Equal(new TradingDayDefinition("Europe/Stockholm", TimeOnly.MinValue), TwoStep.TradingDay);
         Assert.Equal((80m, 5), (TwoStep.Funded.ProfitSplitPercent, TwoStep.Funded.MinTradingDays));
+        Assert.Equal(30, TwoStep.InactivityDays);
+        Assert.All(TwoStep.Evaluation.Append(TwoStep.Funded), s => Assert.Null(s.MaxDays));
+    }
+
+    [Fact]
+    public void TimeLimitsAndInactivityAreOptional()
+    {
+        var limited = TwoStep with
+        {
+            Evaluation = [TwoStep.Evaluation[0] with { MaxDays = 30 }, TwoStep.Evaluation[1] with { MaxDays = 4 }],
+            InactivityDays = ChallengeDefinition.MaxDayLimit,
+        };
+
+        Assert.Empty(limited.Validate());
+        Assert.Empty((TwoStep with { InactivityDays = null }).Validate());
     }
 
     [Theory]
@@ -27,6 +42,11 @@ public sealed class ChallengeDefinitionTests
     [InlineData("no profit split", "needs a profit split")]
     [InlineData("profit split above 100", "needs a profit split")]
     [InlineData("profit split on evaluation stage", "has no profit split")]
+    [InlineData("no inactivity days", "Inactivity must be 1 to 365 days")]
+    [InlineData("inactivity above a year", "Inactivity must be 1 to 365 days")]
+    [InlineData("no days in the time limit", "time limit of 1 to 365 days")]
+    [InlineData("time limit below the trading days", "time limit of at least its minimum trading days")]
+    [InlineData("time limit on funded stage", "funded stage has no time limit")]
     public void InvalidDefinitionsAreRefused(string problem, string error)
     {
         var phase1 = TwoStep.Evaluation[0];
@@ -43,6 +63,11 @@ public sealed class ChallengeDefinitionTests
             "no profit split" => TwoStep with { Funded = TwoStep.Funded with { ProfitSplitPercent = null } },
             "profit split above 100" => TwoStep with { Funded = TwoStep.Funded with { ProfitSplitPercent = 100.5m } },
             "profit split on evaluation stage" => TwoStep with { Evaluation = [phase1 with { ProfitSplitPercent = 80 }] },
+            "no inactivity days" => TwoStep with { InactivityDays = 0 },
+            "inactivity above a year" => TwoStep with { InactivityDays = 366 },
+            "no days in the time limit" => TwoStep with { Evaluation = [phase1 with { MaxDays = 0, MinTradingDays = 0 }] },
+            "time limit below the trading days" => TwoStep with { Evaluation = [phase1 with { MaxDays = 3 }] },
+            "time limit on funded stage" => TwoStep with { Funded = TwoStep.Funded with { MaxDays = 30 } },
             _ => throw new ArgumentOutOfRangeException(nameof(problem)),
         };
 

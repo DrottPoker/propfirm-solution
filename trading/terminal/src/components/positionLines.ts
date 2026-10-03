@@ -222,7 +222,8 @@ export function usePositionLines({
       const chart = chartRef.current;
       const handles = handlesRef.current;
       const state = useTradingStore.getState();
-      if (e.button !== 0 || !chart || !handles || state.connection !== "connected" || state.account?.status !== "Active") {
+      // Stops can be moved on a suspended account too, since that only protects positions already open.
+      if (e.button !== 0 || !chart || !handles || state.connection !== "connected" || !state.account || state.account.status === "Disabled") {
         return;
       }
 

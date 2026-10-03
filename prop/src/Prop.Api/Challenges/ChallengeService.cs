@@ -3,13 +3,11 @@ using System.Text.Json.Nodes;
 
 using Common.Postgres;
 
-using Microsoft.Extensions.Options;
-
 using Npgsql;
 
 using NpgsqlTypes;
 
-using Prop.Api.Configuration;
+using Prop.Api.Billing;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Rules;
@@ -31,9 +29,9 @@ internal sealed record ChallengeAccount(
 
 /// <summary>
 /// A started account, or the one the firm already started with the same reference. Null account: the challenge
-/// does not exist, or <paramref name="SandboxFull"/> when the firm's sandbox has no room for another open account.
+/// does not exist, or <paramref name="Refusal"/> says why none can start now, for example no free slot.
 /// </summary>
-internal sealed record StartResult(ChallengeAccount? Account, bool Created, bool SandboxFull = false);
+internal sealed record StartResult(ChallengeAccount? Account, bool Created, StartRefusal? Refusal = null);
 
 /// <summary>
 /// Runs the rule engine for challenge accounts. Every change happens in one transaction with the account
@@ -45,8 +43,8 @@ internal sealed class ChallengeService(
     NpgsqlDataSource dataSource,
     DatabaseSchema schema,
     FirmCatalog firms,
+    SlotService slots,
     WorkSignals signals,
-    IOptions<SandboxOptions> sandbox,
     TimeProvider time)
 {
     private const string SelectAccount =
@@ -63,7 +61,7 @@ internal sealed class ChallengeService(
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        var result = await StartAsync(connection, firm, email, definitionId, reference, cancellationToken);
+        var result = await StartAsync(connection, firm, email, definitionId, reference, null, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         if (result.Created)
         {
@@ -75,7 +73,7 @@ internal sealed class ChallengeService(
 
     /// <summary>
     /// Starts an account inside the caller's transaction, for example together with the order that paid for
-    /// it. The caller notifies the workers after committing.
+    /// it, whose reserved slot the account then takes. The caller notifies the workers after committing.
     /// </summary>
     public async Task<StartResult> StartAsync(
         NpgsqlConnection connection,
@@ -83,6 +81,7 @@ internal sealed class ChallengeService(
         string email,
         string definitionId,
         string? reference,
+        Guid? fromOrder,
         CancellationToken cancellationToken)
     {
         if (reference is not null)
@@ -100,14 +99,18 @@ internal sealed class ChallengeService(
             return new StartResult(null, Created: false);
         }
 
-        // Starts in a firm's sandbox wait for each other, so the limit holds.
-        if (firm.Status != FirmStatus.Live)
+        // Starts and orders of a firm wait for each other, so the last free slot is taken once.
+        await SlotService.LockAsync(connection, firm.Id, cancellationToken);
+        var usage = await slots.UsageAsync(connection, firm, fromOrder, cancellationToken);
+        if (usage.Refusal is { } refusal)
         {
-            await ExecuteAsync(connection, "select pg_advisory_xact_lock(hashtextextended('sandbox:' || $1, 0))", [firm.Id], cancellationToken);
-            if (await CountOpenAsync(connection, firm.Id, cancellationToken) >= sandbox.Value.MaxOpenAccounts)
-            {
-                return new StartResult(null, Created: false, SandboxFull: true);
-            }
+            return new StartResult(null, Created: false, refusal);
+        }
+
+        // A paying firm may need more slots bought, or a warning.
+        if (usage.Limit == SlotLimit.Paid)
+        {
+            signals.Billing.Set();
         }
 
         var now = time.GetUtcNow();
@@ -136,35 +139,17 @@ internal sealed class ChallengeService(
         return new StartResult(account, Created: true);
     }
 
-    /// <summary>Whether a firm in the sandbox has room for another open account. A live firm always has.</summary>
-    public async Task<bool> HasRoomAsync(Firm firm, CancellationToken cancellationToken)
-    {
-        if (firm.Status == FirmStatus.Live)
-        {
-            return true;
-        }
-
-        await schema.EnsureAsync(cancellationToken);
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        return await CountOpenAsync(connection, firm.Id, cancellationToken) < sandbox.Value.MaxOpenAccounts;
-    }
-
-    private static async Task<long> CountOpenAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
-    {
-        await using var command = new NpgsqlCommand(
-            $"select count(*) from challenge_accounts where firm_id = $1 and status not in ('{ChallengeStatus.Failed}', '{ChallengeStatus.Cancelled}')",
-            connection);
-        command.Parameters.AddWithValue(firmId);
-        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
-    }
-
     /// <summary>Applies an input in its own transaction. Null when the firm has no such account.</summary>
-    public async Task<ChallengeStep?> ApplyAsync(Firm firm, Guid accountId, ChallengeInput input, CancellationToken cancellationToken)
+    public Task<ChallengeStep?> ApplyAsync(Firm firm, Guid accountId, ChallengeInput input, CancellationToken cancellationToken) =>
+        ApplyAsync(firm, accountId, _ => input, cancellationToken);
+
+    /// <summary>Applies an input made from the current state in its own transaction. Null when the firm has no such account.</summary>
+    public async Task<ChallengeStep?> ApplyAsync(Firm firm, Guid accountId, Func<ChallengeState, ChallengeInput> createInput, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        var step = await ApplyAsync(connection, firm, accountId, _ => input, null, cancellationToken);
+        var step = await ApplyAsync(connection, firm, accountId, createInput, null, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         Notify(firm);
         return step;
@@ -202,8 +187,8 @@ internal sealed class ChallengeService(
         await RecordStepAsync(connection, account, number, now, JsonSerializer.Serialize(input, PropJson.Options), step.Outputs, sourceEvent, cancellationToken);
         await ExecuteAsync(
             connection,
-            "update challenge_accounts set status = $2, stage = $3, current_day = $4, state = $5, steps = $6, updated_at = $7 where id = $1",
-            [account.Id, step.State.Status.ToString(), step.State.Stage, (object?)step.State.CurrentDay ?? DBNull.Value, Jsonb(step.State), number, now],
+            "update challenge_accounts set status = $2, stage = $3, current_day = $4, state = $5, steps = $6, updated_at = $7, paused = $8 where id = $1",
+            [account.Id, step.State.Status.ToString(), step.State.Stage, (object?)step.State.CurrentDay ?? DBNull.Value, Jsonb(step.State), number, now, step.State.IsPaused],
             cancellationToken);
         await QueueAsync(connection, firm, account with { State = step.State }, step.Outputs, now, cancellationToken);
         return step;
@@ -264,6 +249,12 @@ internal sealed class ChallengeService(
                 case CloseAccountRequested close:
                     await QueueCommandAsync(connection, firm, account, new CloseTradingAccount(close.AccountId), now, cancellationToken);
                     break;
+                case SuspendAccountRequested suspend:
+                    await QueueCommandAsync(connection, firm, account, new SuspendTradingAccount(suspend.AccountId), now, cancellationToken);
+                    break;
+                case ResumeAccountRequested resume:
+                    await QueueCommandAsync(connection, firm, account, new ResumeTradingAccount(resume.AccountId), now, cancellationToken);
+                    break;
                 case StageStarted:
                     await QueueWebhookAsync(connection, firm, account, "account.stage_started", output, now, cancellationToken);
                     break;
@@ -278,6 +269,15 @@ internal sealed class ChallengeService(
                     break;
                 case ChallengeCancelled:
                     await QueueWebhookAsync(connection, firm, account, "account.cancelled", output, now, cancellationToken);
+                    break;
+                case ChallengeExpired:
+                    await QueueWebhookAsync(connection, firm, account, "account.expired", output, now, cancellationToken);
+                    break;
+                case ChallengePaused:
+                    await QueueWebhookAsync(connection, firm, account, "account.paused", output, now, cancellationToken);
+                    break;
+                case ChallengeResumed:
+                    await QueueWebhookAsync(connection, firm, account, "account.resumed", output, now, cancellationToken);
                     break;
                 case PayoutRequested requested:
                     await InsertPayoutAsync(connection, firm, account, requested.Payout, cancellationToken);

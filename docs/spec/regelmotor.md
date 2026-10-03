@@ -1,20 +1,20 @@
 # Spec: regelmotorn
 
-- Fas: 4a, utbetalningar i 5
+- Fas: 4a, utbetalningar i 5, inaktivitet, tidsgräns och paus i 7
 - Status: Implementerad i `prop/src/Prop.Rules`
 - Datum: 2026-10-03
 
 ## Syfte
 
-Regelmotorn avgör hur det går för en trader i en challenge: när ett konto ska öppnas, vilka förlustgränser som gäller, vilka dagar som räknas som handelsdagar, när en fas är klar, när challengen är underkänd och vad en funded trader får i utbetalning. Den är deterministisk: samma indata ger alltid samma beslut (se [ADR 0011](../adr/0011-regelmotorn-satter-golv.md)). Propfirm-tjänsten kör den mot handelsplattformen (se [specen för propfirm-tjänsten](propfirm-tjanst.md)).
+Regelmotorn avgör hur det går för en trader i en challenge: när ett konto ska öppnas, vilka förlustgränser som gäller, vilka dagar som räknas som handelsdagar, när en fas är klar, när challengen är underkänd eller har tagit slut på tid, och vad en funded trader får i utbetalning. Den är deterministisk: samma indata ger alltid samma beslut (se [ADR 0011](../adr/0011-regelmotorn-satter-golv.md)). Propfirm-tjänsten kör den mot handelsplattformen (se [specen för propfirm-tjänsten](propfirm-tjanst.md)).
 
 ## Vem gör vad
 
 | Del | Ansvar |
 |---|---|
 | Handelsplattformen | Räknar equity och kontrollerar golven vid varje pris. Vid ett brott stängs allt, kontot stängs av och bevisen sparas. |
-| Regelmotorn | Sätter golven, lägger om det dagliga golvet varje handelsdag, räknar handelsdagar, avgör när en fas är klar, styr livscykeln och tar utbetalningar från begäran till betald. |
-| Tjänsten (fas 4c) | Gör om firmans handelsdag till indata, hämtar fakta från handelsplattformen, utför det regelmotorn begär och sparar allt. |
+| Regelmotorn | Sätter golven, lägger om det dagliga golvet varje handelsdag, räknar handelsdagar, avgör när en fas är klar eller har tagit slut på tid, styr livscykeln, pausar och tar utbetalningar från begäran till betald. |
+| Tjänsten (fas 4c) | Gör om firmans handelsdag till indata, hämtar fakta från handelsplattformen, pausar firmans challenges när månaden är obetald (se [specen för platser och betalning](platser-och-betalning.md)), utför det regelmotorn begär och sparar allt. |
 
 ## Challenge
 
@@ -26,6 +26,7 @@ En challenge är det firman säljer. Varje challenge sparar en kopia av sin defi
 | `TradingDay` | När en handelsdag börjar: tidszon och klockslag. |
 | `Evaluation` | Faserna som ska klaras, i ordning. Minst en. |
 | `Funded` | Reglerna för funded-kontot. Inget vinstmål, men en vinstandel. |
+| `InactivityDays` | Hur många dagar utan en ny position challengen får ha, 1 till 365, i alla faser och som funded. Tomt för ingen regel. |
 
 Varje fas har:
 
@@ -33,6 +34,7 @@ Varje fas har:
 - **Minsta antal handelsdagar.** En handelsdag är en dag då minst en position öppnades.
 - **Max daglig förlust** i procent av kontostorleken, räknad från dagens startpunkt: saldot, eller det högsta av saldo och equity, när dagen börjar.
 - **Max total förlust** i procent av kontostorleken. Fast under kontostorleken, eller släpande efter högsta equity och låst vid kontostorleken.
+- **Tidsgräns** (`MaxDays`), valfri: fasen ska vara klar inom så många dagar efter dagen den började, 1 till 365 och minst fasens minsta antal handelsdagar. Funded-fasen har ingen tidsgräns.
 
 Funded-fasen har i stället för vinstmål en **vinstandel** (`ProfitSplitPercent`): hur stor del av vinsten tradern får, över 0 och högst 100 %. Dess minsta antal handelsdagar gäller mellan utbetalningarna. Utvärderingsfaserna har ingen vinstandel.
 
@@ -49,17 +51,20 @@ Procentsatser blir belopp avrundade till hela cent. Definitionen kontrolleras in
 | Max daglig förlust | 5 % från saldot vid dagens start | 5 % | 5 % |
 | Max total förlust | 10 %, fast | 10 %, fast | 10 %, fast |
 | Vinstandel | | | 80 % |
+| Tidsgräns | ingen | ingen | ingen |
 
-En handelsdag börjar vid midnatt svensk tid (`Europe/Stockholm`).
+En handelsdag börjar vid midnatt svensk tid (`Europe/Stockholm`). Challengen tar slut efter 30 dagar utan en ny position.
 
 ## Livscykel
 
 ```
 OpeningAccount -> Active -> (fas klar) -> OpeningAccount -> Active -> ...
                                        -> AwaitingFunding -> (firman godkänner) -> OpeningAccount -> Active (funded)
-Active -> Failed      (ett golv bröts)
+Active -> Failed      (ett golv bröts, tidsgränsen tog slut eller ingen ny position på för länge)
 alla utom slut -> Cancelled  (firman avbröt, eller kontot stängdes av på handelsplattformen)
 ```
+
+En challenge som inte har tagit slut kan också vara pausad medan firmans månad är obetald. Den har då samma status, men tradern kan inte öppna nya positioner och dagarna räknas inte.
 
 En utbetalning på funded-kontot har en egen livscykel. Bara en utbetalning åt gången kan vara på gång.
 
@@ -75,6 +80,8 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 |---|---|---|
 | `AccountOpened` | Tjänsten | Kontot för fasen är öppnat, med handelsplattformens löpnummer och handelsdagen. |
 | `TradingDayStarted` | Tjänsten | En ny handelsdag har börjat. |
+| `PauseChallenge` | Tjänsten | Firmans månad är obetald, så challengen pausas under handelsdagen. |
+| `ResumeChallenge` | Tjänsten | Firmans månad är betald, så challengen fortsätter under handelsdagen. |
 | `ApproveFunding` | Firman | Tradern får ett funded-konto efter firmans kontroller, till exempel KYC och avtal. |
 | `CancelChallenge` | Firman | Challengen avbryts. |
 | `RequestPayout` | Tradern | Tradern begär en utbetalning. Tjänsten väljer utbetalningens id. |
@@ -97,7 +104,10 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 | `StagePassed` | Fasen är klar. Blir webhooken `account.passed`. |
 | `FundingAwaited` | Alla faser är klara. Firman ska godkänna funded-kontot. |
 | `ChallengeFailed` | Ett golv bröts: daglig förlust, total förlust eller ett annat golv. Blir webhooken `account.breached`. |
+| `ChallengeExpired` | Challengen tog slut på tid när en handelsdag började: fasens tidsgräns (`TimeLimit`) eller dagarna utan en ny position (`Inactivity`). Blir webhooken `account.expired`. |
 | `ChallengeCancelled` | Challengen avbröts. |
+| `ChallengePaused`, `ChallengeResumed` | Challengen pausades, eller fortsätter med sina tidsgränser flyttade så många dagar som den var pausad. Blir webhooks `account.paused` och `account.resumed`. |
+| `SuspendAccountRequested`, `ResumeAccountRequested` | Stoppa nya positioner på kontot, eller tillåt dem igen. Tradern kan alltid stänga sina positioner. |
 | `PayoutRequested` | Tradern har begärt en utbetalning. Innehåller vinsten, vinstandelen och traderns belopp. |
 | `WithdrawalRequested` | Ta ut vinsten från kontot en gång, med utbetalningens id, men bara om startsaldot finns kvar efteråt. |
 | `PayoutWithdrawn` | Vinsten är uttagen. Firman ska godkänna utbetalningen. Blir webhooken `payout.requested`. |
@@ -111,6 +121,11 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 - **Fasen är klar** när saldot når vinstmålet, inga positioner är öppna och fasen har minst det antal handelsdagar som krävs. Kontot stängs, och nästa fas får ett nytt konto. Efter sista fasen väntar challengen på firman.
 - **Brott:** handelsplattformen har redan stängt allt och stängt av kontot. Challengen blir underkänd med nivån och equity från bevisen.
 - **Ett konto som öppnas efter att challengen tagit slut** stängs direkt.
+- **Inaktivitet:** varje ny position, och starten av en fas, ger challengen `InactivityDays` dagar efter den dagen till nästa position. När dagen efter dem börjar tar challengen slut, och kontot stängs. Att hålla en position öppen räknas inte som aktivitet. Med 30 dagar och en position den 1 november är 1 december den sista dagen att öppna nästa, och challengen tar slut när 2 december börjar.
+- **Tidsgräns:** en fas med `MaxDays` tar slut när dagen `MaxDays` dagar efter dagen den började har passerat, om den inte är klar. En fas som börjar den 5 oktober med 10 dagar ska vara klar den 15 oktober och tar slut när 16 oktober börjar. Tidsgränsen kontrolleras före inaktiviteten när båda tar slut samma dag.
+- **Dagar som tjänsten missar,** till exempel när den har stått still, räknas ändå: kontrollen gäller dagen som börjar, hur många dagar som än gått. Tjänsten startar en sådan dag först när handelsplattformens händelser från före den är hanterade, så att en affär i sista stund räknas.
+- **En challenge som väntar på firmans godkännande** tar aldrig slut på tid, eftersom tradern inte har något konto att handla på.
+- **Paus:** kontot pausas på handelsplattformen och dagarna till tidsgränsen och inaktiviteten räknas inte. Väntande ordrar tas bort på handelsplattformen. Tradern kan stänga sina positioner, så en fas kan bli klar under pausen. Nästa fas konto pausas då direkt när det öppnas. Vid återupptagandet flyttas tidsgränserna fram med dagarna från pausen, eller från fasens första dag om den började under pausen. Golven, brott, annullering och utbetalningar fungerar som vanligt under pausen.
 - **Öppna positioner** räknas upp när en position öppnas och sätts till plattformens antal när en stängs.
 - **Trassliga fakta:** ett faktum används bara om det gäller det aktuella kontot och har ett högre löpnummer än alla tidigare. Upprepade och sena fakta, och fakta om en tidigare fas konto, ändrar ingenting. En handelsdag som redan har börjat ignoreras.
 
@@ -134,12 +149,15 @@ Testerna ligger i `prop/tests/Prop.Rules.Tests`:
 - Definitioner, standardmallen och avrundning.
 - Varje regel och övergång i livscykeln, och trassliga fakta.
 - Utbetalningar (`PayoutRulesTests`): beloppet och avrundningen, varje orsak att neka, en åt gången, uttaget som startar en ny period, godkännande, betalning, nej, nekat uttag och uttag efter avbruten challenge.
-- En hel challenge från köp via en utbetalning till brott på funded-kontot spelas upp och jämförs med facitfilen `Golden/two-step-challenge.jsonl`. Varje ändring av ett beslut syns som en diff. Skapa om facit med `UPDATE_GOLDEN=1` och granska diffen.
+- Tid (`ExpiryRulesTests`): tidsgränsen, en ny tidsgräns per fas, inaktiviteten i varje fas också funded, en ny position som flyttar den, dagar som missats, tidsgränsen före inaktiviteten, challenges utan reglerna och challenges som väntar på firman.
+- Paus (`PauseRulesTests`): kontot som pausas och dagar som inte räknas, tidsgränserna som flyttas, upprepad paus, en fas som börjar under pausen, en fas som blir klar under pausen, challenges som tagit slut och utbetalningar under pausen.
+- En hel challenge från köp via en paus och en utbetalning till brott på funded-kontot spelas upp och jämförs med facitfilen `Golden/two-step-challenge.jsonl`. Varje ändring av ett beslut syns som en diff. Skapa om facit med `UPDATE_GOLDEN=1` och granska diffen.
 - Att regelmotorn aldrig använder flyttal, och att den inte når klocka, slump eller I/O (`BannedSymbols.txt`).
 
 ## Begränsningar
 
 - Regelmotorn används av propfirm-tjänsten (se [specen för propfirm-tjänsten](propfirm-tjanst.md)), som gör `StartOfDayFloor` till handelsplattformens `AnchoredFloor`.
-- Ingen regel för jämna resultat, inaktivitet eller nyhetshandel än.
+- Ingen regel för jämna resultat eller nyhetshandel än.
+- Inaktivitet och tidsgräns räknas i hela handelsdagar, så den dag fasen eller pausen började räknas inte.
 - Bara hela vinsten kan betalas ut, inte en del av den.
 - Skalning av funded-konton kommer senare.

@@ -25,12 +25,13 @@ En trader ska kunna köpa en challenge direkt i firmans portal. Pengarna går ti
 | Status | Betyder |
 |---|---|
 | `Pending` | Väntar på betalning. |
-| `Paid` | Betald. Kontot är startat, eller `problem` säger varför inte. |
+| `Paid` | Betald. Kontot är startat, eller `problem` säger varför inte, till exempel att ingen plats var ledig. |
 | `Expired` | Ingen betalning inom `Payments:OrderLifetime` (standard 1 timme), eller så sa leverantören att betalningen inte blir av. En betalning som kommer senare räknas ändå. |
 
 - Ordern har ett nummer per firma som börjar på 1001, köparens e-post, challengen, priset och valutan, leverantören, leverantörens id för betalningen och kontot den startade.
 - `refundedAt` och `disputedAt` sätts när pengarna har gått tillbaka eller köparen har bestridit betalningen. Kontot rörs inte, utan firman avgör om det ska avbrytas.
-- Kontot startas med challengen som den är när betalningen kommer. Är firman i sandlådan och full blir ordern ändå `Paid`, utan konto och med en förklaring i `problem`.
+- Kontot startas med challengen som den är när betalningen kommer.
+- **En order som väntar på betalning håller en plats** av firmans platser, så att köparen alltid har en plats när betalningen kommer (se [specen för platser och betalning](platser-och-betalning.md)). En order som går ut lämnar tillbaka platsen. Kommer betalningen ändå när ingen plats är ledig, eller när firmans månad är obetald, blir ordern `Paid` utan konto och med en förklaring i `problem`. Firman startar då kontot själv när det går.
 - Samma betalning flera gånger ger aldrig mer än ett konto, eftersom ordern låses när den markeras som betald.
 - Allt som händer med en order sparas i `order_events` med vem som sa det (`buyer`, `stripe`, `firm-api` eller `admin`) och leverantörens meddelande som bevis.
 
@@ -46,7 +47,7 @@ Priset ligger utanför challengen, som bara innehåller regler. Ett pris har bel
 | `Stripe` | En Stripe Checkout Session som skapas med firmans egen hemliga nyckel. Pengarna går till firmans Stripe-konto. | Stripes webhook till `/api/payments/v1/stripe/{firma}`, signerad med firmans signeringshemlighet. |
 | `External` | Firmans egen sida, med `order` och `return` i adressen | Firmans system med `POST /api/firm/v1/orders/{id}/mark-paid`, eller en administratör i adminpanelen. |
 
-En firma utan leverantör säljer inget i portalen. Butiken är öppen när leverantören fungerar och minst en challenge har ett pris och säljs.
+En firma utan leverantör säljer inget i portalen. Butiken är öppen när leverantören fungerar, minst en challenge har ett pris och säljs, och firman har en ledig plats och en betald månad. Är alla platser tagna säger butiken att inga nya challenges kan köpas just nu.
 
 ### Stripe
 
@@ -83,8 +84,8 @@ Vägarna börjar med `/api/portal` och finns på firmans adress. Köparen behöv
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /shop` | `open`, `test` (testbetalningar), firmans `termsUrl` och challengerna till salu med pris och valuta, billigast först. |
-| `POST /orders` | `{ "challengeId", "email", "acceptTerms" }`. Svarar 201 med `orderId`, `number` och `checkoutUrl`. En inloggad trader köper med sin egen e-post. 409 när butiken är stängd eller sandlådan är full, 404 för en challenge som inte säljs, 422 för fel e-post eller villkor som inte är godkända, 503 när leverantören inte svarar. Samma gräns för försök som inloggningen. |
+| `GET /shop` | `open`, `full` (stängd för att inga platser är lediga), `test` (testbetalningar), firmans `termsUrl` och challengerna till salu med pris och valuta, billigast först. |
+| `POST /orders` | `{ "challengeId", "email", "acceptTerms" }`. Svarar 201 med `orderId`, `number` och `checkoutUrl`. En inloggad trader köper med sin egen e-post. 409 när butiken är stängd eller ingen plats är ledig, 404 för en challenge som inte säljs, 422 för fel e-post eller villkor som inte är godkända, 503 när leverantören inte svarar. Samma gräns för försök som inloggningen. |
 | `GET /orders/{id}?token=` | Ordern för köparen: status, challengens namn, belopp, betalsidan medan den väntar, kontot, om tradern redan har lösenord och när inbjudan skickades. |
 | `POST /orders/{id}/invite` | `{ "token" }`. Skickar inbjudan igen. 202, 409 när tradern redan har lösenord eller ordern inte har startat något, 429 inom en minut från förra, 503 när mejlet inte gick iväg. |
 | `POST /orders/{id}/test-payment` | `{ "token" }`. Betalar en testorder. 409 för andra ordrar, en order som gått ut och när firman inte får ta testbetalningar. |
@@ -144,6 +145,7 @@ I utveckling säljer `demo-firm` `two-step-100k` för 499 USD och `quick-test-10
 
 ## Tester
 
+- `prop/tests/Prop.Api.Tests/SlotTests`: en order som håller den sista platsen åt sin köpare, butiken som stänger, en order som går ut och lämnar tillbaka platsen och en betalning som kommer när ingen plats är ledig.
 - `prop/tests/Prop.Api.Tests/OrderFlowTests`: butiken som öppnar när firman tar betalt och har ett pris, testbetalning med inbjudan som fungerar, en inloggad trader som köper med sin egen e-post, Stripe-sessionen med firmans nyckel och idempotensnyckel, Stripes webhook som startar kontot exakt en gång, fel signatur och fel firma, ett belopp som inte stämmer, återbetalning och bestridande med webhooks till firman, en betalning efter att sessionen gått ut, Stripe som nekar, bara testnycklar i sandlådan, nycklar som sparas men aldrig visas, firmans egen sida med firmans API och priset som ordern behåller, att bara egna sidans ordrar markeras för hand, priser som kontrolleras, full sandlåda, firmans villkor, inbjudan som skickas igen, en testorder som gått ut, testbetalningar bara i sandlådan utanför utveckling och att ordrar är firmans egna. Stripe är en låtsad version (`FakeStripe`) som tar emot sessionerna och gör signerade händelser.
 - `prop/portal/src/lib/orders.test.ts`: vilka ordrar firman kan markera, orderns anteckning och vad köparens ordersida säger.
 - `prop/portal/e2e/shop.spec.ts`: en besökare köper med testbetalning och firman ser den betalda ordern och kontot, och en inloggad trader köper och kommer direkt till sitt nya konto.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Account, AccountDetails } from "./api/types";
-import { canCancel, canOpenTerminal, floorLabel, floorsOf, kindOf, kindsOf, targetProgress } from "./challenge";
+import { canCancel, canOpenTerminal, deadlinesOf, floorLabel, floorsOf, kindOf, kindsOf, targetProgress } from "./challenge";
 
 const account: Account = {
   id: "0199a000-0000-7000-8000-000000000001",
@@ -25,6 +25,9 @@ const account: Account = {
   maxLossFloor: 90_000,
   createdAt: "2026-10-05T08:00:00Z",
   nextPayout: null,
+  paused: false,
+  stageDeadline: null,
+  inactivityDeadline: "2026-11-05",
 };
 
 describe("targetProgress", () => {
@@ -78,6 +81,16 @@ describe("actions", () => {
     expect(canCancel({ ...account, status: "AwaitingFunding" })).toBe(true);
     expect(canCancel({ ...account, status: "Failed" })).toBe(false);
     expect(canCancel({ ...account, status: "Cancelled" })).toBe(false);
+  });
+});
+
+describe("deadlinesOf", () => {
+  it("gives the last day before each deadline", () => {
+    expect(deadlinesOf({ ...account, stageDeadline: "2026-10-16" })).toEqual(["Pass Phase 1 by 15 Oct 2026.", "Open a new trade by 4 Nov 2026."]);
+  });
+
+  it("is empty for a challenge without deadlines", () => {
+    expect(deadlinesOf({ ...account, inactivityDeadline: null })).toEqual([]);
   });
 });
 

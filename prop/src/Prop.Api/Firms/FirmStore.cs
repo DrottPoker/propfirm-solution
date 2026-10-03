@@ -144,6 +144,10 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             ],
             cancellationToken);
 
+    /// <summary>The firm has paid and goes live. Done in the caller's transaction.</summary>
+    public static Task SetLiveAsync(NpgsqlConnection connection, string firmId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ExecuteAsync(connection, "update firms set status = $2, updated_at = $3 where id = $1", [firmId, FirmStatus.Live.ToString(), now], cancellationToken);
+
     /// <summary>How the firm's portal takes payment. Stripe's keys are kept when <paramref name="payments"/> has none.</summary>
     public Task SetPaymentsAsync(string firmId, FirmPayments payments, DateTimeOffset now, CancellationToken cancellationToken)
     {

@@ -16,6 +16,11 @@ public enum OrderType
 public enum AccountStatus
 {
     Active,
+
+    /// <summary>No new positions or orders. Open positions can still be closed, and stops and floors still hold.</summary>
+    Suspended,
+
+    /// <summary>Closed for good: nothing can be done on the account.</summary>
     Disabled,
 }
 
@@ -35,6 +40,7 @@ public enum CancelReason
     InsufficientMargin,
     EquityFloor,
     AccountClosed,
+    AccountSuspended,
 }
 
 public enum DisableReason
@@ -58,6 +64,12 @@ public enum RejectReason
     InvalidAmount,
     UnknownAccount,
     AccountDisabled,
+
+    /// <summary>The account is suspended: no new orders, and it cannot be suspended again.</summary>
+    AccountSuspended,
+
+    /// <summary>The account is not suspended, so there is nothing to resume.</summary>
+    AccountNotSuspended,
     SymbolNotTradable,
     InvalidOrder,
     InvalidVolume,

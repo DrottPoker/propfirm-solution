@@ -64,6 +64,17 @@ public sealed record CloseAccount(DateTimeOffset Timestamp, string AccountId)
     : EngineInput(Timestamp), IAccountCommand;
 
 /// <summary>
+/// Stops new positions on the account, for example while the firm's bill is unpaid. Pending orders are
+/// cancelled. Open positions stay: the owner can close them and change their stops, and stops and floors still hold.
+/// </summary>
+public sealed record SuspendAccount(DateTimeOffset Timestamp, string AccountId)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>Lets a suspended account trade again.</summary>
+public sealed record ResumeAccount(DateTimeOffset Timestamp, string AccountId)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
 /// Deposits a positive <paramref name="Amount"/> or withdraws a negative one. The caller chooses
 /// <paramref name="OperationId"/>, which is never reused on the account, so a retry cannot apply it twice.
 /// A withdrawal must leave the balance at or above <paramref name="MinBalance"/>, fit in the free margin

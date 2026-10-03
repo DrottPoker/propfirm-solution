@@ -9,7 +9,7 @@ public sealed record OpenAccountRequested(DateTimeOffset Time, int Stage, decima
 /// <summary>Set or replace a floor on the account. The trading platform checks it on every price.</summary>
 public sealed record FloorRequested(DateTimeOffset Time, string AccountId, string FloorId, FloorSpec Floor) : ChallengeOutput(Time);
 
-/// <summary>Close the account, after its stage was passed or the challenge was cancelled.</summary>
+/// <summary>Close the account, after its stage was passed or the challenge was cancelled or expired.</summary>
 public sealed record CloseAccountRequested(DateTimeOffset Time, string AccountId) : ChallengeOutput(Time);
 
 public sealed record StageStarted(DateTimeOffset Time, int Stage, string AccountId) : ChallengeOutput(Time);
@@ -41,7 +41,34 @@ public sealed record ChallengeFailed(
     decimal Level,
     decimal Equity) : ChallengeOutput(Time);
 
+public enum ExpiryReason
+{
+    /// <summary>The stage was not passed within its time limit.</summary>
+    TimeLimit,
+
+    /// <summary>No position was opened for the challenge's inactivity days.</summary>
+    Inactivity,
+}
+
+/// <summary>
+/// The challenge ran out of time when trading day <paramref name="Day"/> started: its stage's time limit, or
+/// the days allowed without a new position. The account is closed, which frees the firm's slot.
+/// </summary>
+public sealed record ChallengeExpired(DateTimeOffset Time, int Stage, string AccountId, ExpiryReason Reason, DateOnly Day) : ChallengeOutput(Time);
+
 public sealed record ChallengeCancelled(DateTimeOffset Time, string Reason) : ChallengeOutput(Time);
+
+/// <summary>The challenge is paused until the firm has paid. Its days stop counting.</summary>
+public sealed record ChallengePaused(DateTimeOffset Time) : ChallengeOutput(Time);
+
+/// <summary>The challenge goes on. Its deadlines moved by the <paramref name="DaysPaused"/> it was paused.</summary>
+public sealed record ChallengeResumed(DateTimeOffset Time, int DaysPaused) : ChallengeOutput(Time);
+
+/// <summary>Stop new positions on the account. The trader can still close the open ones, and the floors still hold.</summary>
+public sealed record SuspendAccountRequested(DateTimeOffset Time, string AccountId) : ChallengeOutput(Time);
+
+/// <summary>Let the trader open positions on the account again.</summary>
+public sealed record ResumeAccountRequested(DateTimeOffset Time, string AccountId) : ChallengeOutput(Time);
 
 /// <summary>The trader asked for a payout. Its profit is withdrawn next.</summary>
 public sealed record PayoutRequested(DateTimeOffset Time, Payout Payout) : ChallengeOutput(Time);

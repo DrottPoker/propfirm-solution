@@ -38,6 +38,8 @@ internal static class AdminEndpoints
         admin.MapPut("/accounts/{accountId}/floors/{floorId}", SetFloorAsync);
         admin.MapDelete("/accounts/{accountId}/floors/{floorId}", RemoveFloorAsync);
         admin.MapPost("/accounts/{accountId}/close", CloseAccountAsync);
+        admin.MapPost("/accounts/{accountId}/suspend", SuspendAccountAsync);
+        admin.MapPost("/accounts/{accountId}/resume", ResumeAccountAsync);
         admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
         admin.MapGet("/events", GetEventsAsync);
         return app;
@@ -213,6 +215,29 @@ internal static class AdminEndpoints
         CancellationToken cancellationToken) =>
         await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
             ? CommandResults.From(await engine.SendAsync(t => new CloseAccount(t, accountId), cancellationToken))
+            : UnknownAccount();
+
+    /// <summary>
+    /// Stops new positions and cancels pending orders, for example while the firm's bill is unpaid. The owner can
+    /// still close positions and change their stops. Answers with no events when the account is already suspended.
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SuspendAccountAsync(
+        string accountId,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
+            ? CommandResults.From(await engine.SendAsync(t => new SuspendAccount(t, accountId), cancellationToken), alreadyDone: RejectReason.AccountSuspended)
+            : UnknownAccount();
+
+    /// <summary>Lets a suspended account trade again. Answers with no events when the account is not suspended.</summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ResumeAccountAsync(
+        string accountId,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
+            ? CommandResults.From(await engine.SendAsync(t => new ResumeAccount(t, accountId), cancellationToken), alreadyDone: RejectReason.AccountNotSuspended)
             : UnknownAccount();
 
     /// <summary>A deposit or withdrawal, for example a trader's payout. Floors measured from the account move with the balance.</summary>

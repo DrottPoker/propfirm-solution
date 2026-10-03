@@ -22,6 +22,15 @@ internal interface ITradingPlatform
     Task CloseAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Stops new positions on the account; the trader can still close the open ones. Done if it is already
+    /// suspended or disabled.
+    /// </summary>
+    Task SuspendAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
+
+    /// <summary>Lets the trader open positions again. Done if the account is not suspended or is disabled.</summary>
+    Task ResumeAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Withdraws <paramref name="amount"/> (a positive number), keeping at least <paramref name="minBalance"/>.
     /// Done if the operation was already applied, so a retry is safe. Refused if too little is left.
     /// </summary>

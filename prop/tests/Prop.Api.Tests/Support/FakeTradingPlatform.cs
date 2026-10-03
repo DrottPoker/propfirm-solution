@@ -212,6 +212,12 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         }
     }
 
+    public Task SuspendAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken) =>
+        SetSuspendedAsync(accountId, suspended: true);
+
+    public Task ResumeAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken) =>
+        SetSuspendedAsync(accountId, suspended: false);
+
     /// <summary>Like ours: applied once per operation id, and refused for a disabled account or when too little would be left.</summary>
     public async Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken)
     {
@@ -304,6 +310,26 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     public Task<TradingLoginLink> CreateLoginLinkAsync(FirmTrading firm, Guid userId, string? accountId, CancellationToken cancellationToken) =>
         Call($"link {accountId}", () => new TradingLoginLink(new Uri($"https://trade.test/login/link?token=fake&account={accountId}"), time.GetUtcNow().AddMinutes(2)));
 
+    // Like ours: a repeated suspend or resume, or one on a disabled account, is done without an event.
+    private async Task SetSuspendedAsync(string accountId, bool suspended)
+    {
+        var changed = await Call($"{(suspended ? "suspend" : "resume")} {accountId}", () =>
+        {
+            var account = _accounts[accountId];
+            if (account.Disabled || account.Suspended == suspended)
+            {
+                return false;
+            }
+
+            account.Suspended = suspended;
+            return true;
+        });
+        if (changed)
+        {
+            Publish(accountId, suspended ? "AccountSuspended" : "AccountResumed", _ => [], (s, t, id, raw, _) => new TradingOtherEvent(s, t, id, raw));
+        }
+    }
+
     // Servers made through the partner API take only their newest key. Configured ones are not checked.
     private void RequireKey(FirmTrading firm)
     {
@@ -370,6 +396,9 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         public decimal? Equity { get; set; }
 
         public bool Disabled { get; set; }
+
+        /// <summary>No new positions can be opened, as on ours while the firm's month is unpaid.</summary>
+        public bool Suspended { get; set; }
 
         public Dictionary<string, decimal> Floors { get; } = new(StringComparer.Ordinal);
 

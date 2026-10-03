@@ -106,6 +106,74 @@ internal static class PlatformEmails
             """,
             firmName);
 
+    /// <summary>A charge of the firm's saved card was declined.</summary>
+    public static EmailMessage PaymentDeclined(
+        string platform,
+        string firmName,
+        string to,
+        string charge,
+        string amount,
+        string reason,
+        DateTimeOffset? nextAttempt,
+        DateTimeOffset? pausedFrom,
+        Uri billingUrl)
+    {
+        var next = nextAttempt is { } attempt
+            ? $"We try the card again on {attempt:yyyy-MM-dd} at {attempt:HH:mm} UTC."
+            : "We do not try the card again by ourselves.";
+        var pause = pausedFrom is { } from
+            ? $" If it is not paid by {from:yyyy-MM-dd} at {from:HH:mm} UTC, no new challenges can start and your traders' accounts are paused until it is."
+            : "";
+        return new(
+            to,
+            $"Payment for {firmName} declined",
+            $"""
+            Hi,
+
+            We could not charge your card {amount} for {charge}: {reason}
+
+            {next}{pause} Pay with another card or try again in your admin panel:
+
+            {billingUrl}
+
+            {platform}
+            """);
+    }
+
+    /// <summary>The month started unpaid, so the firm's challenges are paused.</summary>
+    public static EmailMessage FirmPaused(string platform, string firmName, string to, Uri billingUrl) =>
+        new(
+            to,
+            $"{firmName} is paused until this month is paid",
+            $"""
+            Hi,
+
+            This month's slots for {firmName} are not paid yet. Until they are, no new challenges can start, and your traders' accounts are paused: they cannot open new trades, but they can close the ones they have, and their days do not count. Everything goes on as soon as the payment goes through.
+
+            Pay with another card or try again in your admin panel:
+
+            {billingUrl}
+
+            {platform}
+            """);
+
+    /// <summary>Most of the firm's slots are taken.</summary>
+    public static EmailMessage SlotsNearlyFull(string platform, string firmName, string to, int taken, int slots, bool autoExpand, Uri billingUrl) =>
+        new(
+            to,
+            $"{firmName} has used {taken} of {slots} slots",
+            $"""
+            Hi,
+
+            {taken} of your {slots} slots for open challenges are taken. When every slot is taken, no new challenges can start and your shop stops selling until a challenge ends or you buy more slots.{(autoExpand ? " Automatic expansion is on, so more slots are bought when the last one is taken." : "")}
+
+            See your slots and buy more in your admin panel:
+
+            {billingUrl}
+
+            {platform}
+            """);
+
     public static EmailMessage InviteAdmin(string platform, string firmName, string invitedBy, string to, Uri link, TimeSpan lifetime) =>
         new(
             to,

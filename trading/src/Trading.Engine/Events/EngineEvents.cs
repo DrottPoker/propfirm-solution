@@ -96,6 +96,13 @@ public sealed record StopOutTriggered(DateTimeOffset Timestamp, string AccountId
 public sealed record AccountDisabled(DateTimeOffset Timestamp, string AccountId, DisableReason Reason)
     : EngineEvent(Timestamp), IAccountEvent;
 
+/// <summary>The account takes no new positions or orders until it is resumed. Its pending orders were cancelled just before.</summary>
+public sealed record AccountSuspended(DateTimeOffset Timestamp, string AccountId)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+public sealed record AccountResumed(DateTimeOffset Timestamp, string AccountId)
+    : EngineEvent(Timestamp), IAccountEvent;
+
 /// <summary>Money was deposited (positive amount) or withdrawn (negative amount). Not a trading result.</summary>
 public sealed record BalanceAdjusted(DateTimeOffset Timestamp, string AccountId, string OperationId, decimal Amount, decimal BalanceAfter)
     : EngineEvent(Timestamp), IAccountEvent;

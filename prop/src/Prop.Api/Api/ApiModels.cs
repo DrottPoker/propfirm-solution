@@ -17,7 +17,10 @@ public sealed record CancelAccountRequest(string? Reason);
 /// <summary>
 /// A trader's challenge account. <paramref name="TradingAccountId"/> is the account on the trading platform
 /// for the current stage, which starts at <paramref name="InitialBalance"/>. The figures are what the trading
-/// platform last reported.
+/// platform last reported. <paramref name="Paused"/> is set while the firm's month is unpaid: no new positions
+/// can be opened and the days do not count. <paramref name="StageDeadline"/> is the trading day the stage fails on
+/// unless it is passed before, and <paramref name="InactivityDeadline"/> the trading day the challenge ends on
+/// unless a position is opened before.
 /// </summary>
 public sealed record AccountResponse(
     Guid Id,
@@ -40,7 +43,10 @@ public sealed record AccountResponse(
     decimal? DailyFloor,
     decimal? MaxLossFloor,
     DateTimeOffset CreatedAt,
-    PayoutQuoteResponse? NextPayout)
+    PayoutQuoteResponse? NextPayout,
+    bool Paused,
+    DateOnly? StageDeadline,
+    DateOnly? InactivityDeadline)
 {
     internal static AccountResponse From(AccountView view)
     {
@@ -69,7 +75,10 @@ public sealed record AccountResponse(
             trading?.DailyFloor,
             trading?.MaxLossFloor,
             account.CreatedAt,
-            state.IsFunded ? PayoutQuoteResponse.From(ChallengeRules.QuotePayout(state)) : null);
+            state.IsFunded ? PayoutQuoteResponse.From(ChallengeRules.QuotePayout(state)) : null,
+            state.IsPaused,
+            state.Status == ChallengeStatus.Active ? state.StageDeadline : null,
+            state.Status == ChallengeStatus.Active ? state.InactivityDeadline : null);
     }
 }
 
@@ -148,8 +157,16 @@ public sealed record StepResponse(int Step, DateTimeOffset RecordedAt, JsonEleme
 /// <summary>Open <paramref name="Url"/> once before <paramref name="ExpiresAt"/> to be logged in to the trading terminal.</summary>
 public sealed record LoginLinkResponse(Uri Url, DateTimeOffset ExpiresAt);
 
-/// <summary>An account with its trading account right now, the evidence if it failed and its payouts, newest first.</summary>
-public sealed record AccountDetailsResponse(AccountResponse Account, LiveFigures? Live, BreachEvidence? Breach, IReadOnlyList<PayoutResponse> Payouts);
+/// <summary>
+/// An account with its trading account right now, the evidence if a floor was breached, why it expired if it ran
+/// out of time, and its payouts, newest first.
+/// </summary>
+public sealed record AccountDetailsResponse(
+    AccountResponse Account,
+    LiveFigures? Live,
+    BreachEvidence? Breach,
+    IReadOnlyList<PayoutResponse> Payouts,
+    ExpiryEvidence? Expiry = null);
 
 /// <summary>The trading account valued at the latest prices. Missing when the trading platform cannot be reached.</summary>
 public sealed record LiveFigures(decimal Balance, decimal Equity, IReadOnlyList<FloorFigure> Floors);
@@ -159,6 +176,9 @@ public sealed record FloorFigure(string FloorId, decimal Level, decimal Headroom
 
 /// <summary>What the trading platform recorded when a floor was breached.</summary>
 public sealed record BreachEvidence(DateTimeOffset Time, string FloorId, decimal Level, decimal Equity, FailureReason Reason);
+
+/// <summary>The challenge ran out of time when trading day <paramref name="Day"/> started, after its time limit or the days allowed without a new position.</summary>
+public sealed record ExpiryEvidence(DateTimeOffset Time, ExpiryReason Reason, DateOnly Day);
 
 /// <summary>Open <paramref name="Url"/> once before <paramref name="ExpiresAt"/> to choose a password for the portal.</summary>
 public sealed record InviteResponse(Uri Url, DateTimeOffset ExpiresAt);

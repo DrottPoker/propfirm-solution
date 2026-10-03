@@ -1,21 +1,8 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-import { platformUrl, portalPort } from "../playwright.config";
+import { platformUrl } from "../playwright.config";
 
-const ownerPassword = "e2e-owner-password";
-
-/** A firm signs up on the platform and lands in its own admin panel, on its own address. Development needs no email confirmation. */
-async function signUp(page: Page, firmName: string, shortName: string) {
-  await page.goto(`${platformUrl}/signup`);
-  await page.getByLabel("Firm name").fill(firmName);
-  await expect(page.getByLabel("Short name")).toHaveValue(shortName);
-  await expect(page.getByText("Available")).toBeVisible();
-  await page.getByLabel("Your email").fill(`owner@${shortName}.e2e.example`);
-  await page.getByLabel("Password").fill(ownerPassword);
-  await page.getByRole("checkbox").check();
-  await page.getByRole("button", { name: "Create my firm" }).click();
-  await expect(page).toHaveURL(`http://${shortName}.localhost:${portalPort}/admin`);
-}
+import { signUp } from "./support";
 
 test("a firm signs up, gets its own portal and server, and starts a challenge in the sandbox", async ({ page }) => {
   await signUp(page, "Nordic E2E Prop", "nordic-e2e-prop");

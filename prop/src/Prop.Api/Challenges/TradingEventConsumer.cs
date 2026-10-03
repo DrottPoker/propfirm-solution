@@ -22,6 +22,7 @@ internal sealed partial class TradingEventConsumer(
     FirmCatalog firms,
     ITradingPlatform trading,
     ChallengeService challenges,
+    TradingStreamProgress progress,
     IOptions<TradingPlatformOptions> options,
     TimeProvider time,
     ILogger<TradingEventConsumer> logger) : BackgroundService
@@ -43,10 +44,17 @@ internal sealed partial class TradingEventConsumer(
             {
                 var firm = firms.ById(firmId)!;
                 var cursor = await CursorAsync(firm, cancellationToken);
+                var requestedAt = time.GetUtcNow();
                 var page = await trading.ReadEventsAsync(firm.Trading!, cursor, options.Value.EventsPerRequest, options.Value.EventWaitSeconds, cancellationToken);
                 if (page.Events.Count > 0)
                 {
                     await HandleAsync(firm, page, cancellationToken);
+                }
+
+                // A short page is the end of the stream, so every event the platform had when the request started is handled.
+                if (page.Events.Count < options.Value.EventsPerRequest)
+                {
+                    progress.Record(firm.Id, requestedAt);
                 }
 
                 retryDelay = TimeSpan.FromSeconds(1);

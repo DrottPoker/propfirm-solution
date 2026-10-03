@@ -158,6 +158,9 @@ function Accounts() {
                   <td className="py-2">{account.stageName}</td>
                   <td className="py-2">
                     <StatusBadge status={account.status} />
+                    {account.paused && account.status !== "Failed" && account.status !== "Cancelled" && (
+                      <span className="ml-2 rounded bg-warning/20 px-2 py-0.5 text-sm text-warning">Paused</span>
+                    )}
                   </td>
                   <td className="py-2 text-right font-mono tabular-nums">{formatMoney(account.balance)}</td>
                   <td className="py-2 text-right text-muted">{formatDateTime(account.createdAt)}</td>

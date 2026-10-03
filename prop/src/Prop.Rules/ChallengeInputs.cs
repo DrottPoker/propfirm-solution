@@ -13,6 +13,15 @@ public sealed record AccountOpened(DateTimeOffset Time, string AccountId, long S
 /// <summary>A new trading day started, by the challenge's trading day definition.</summary>
 public sealed record TradingDayStarted(DateTimeOffset Time, DateOnly Day) : ChallengeInput(Time);
 
+/// <summary>
+/// The firm's month is not paid, so the challenge pauses during trading day <paramref name="Day"/>: the trader
+/// cannot open new positions, and the days until the time limit and the inactivity rule stop counting.
+/// </summary>
+public sealed record PauseChallenge(DateTimeOffset Time, DateOnly Day) : ChallengeInput(Time);
+
+/// <summary>The firm has paid, so the paused challenge goes on during trading day <paramref name="Day"/>.</summary>
+public sealed record ResumeChallenge(DateTimeOffset Time, DateOnly Day) : ChallengeInput(Time);
+
 /// <summary>The firm approved the trader for a funded account after its own checks, for example KYC and agreement.</summary>
 public sealed record ApproveFunding(DateTimeOffset Time) : ChallengeInput(Time);
 

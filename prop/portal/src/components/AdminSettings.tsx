@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -49,8 +50,11 @@ function Firm({ settings }: { settings: FirmSettings }) {
       </dl>
       {settings.status !== "Live" && (
         <p className="text-xs text-muted">
-          The firm is in the sandbox. Everything works, but with a few test traders only. Going live comes later, after a check of the company and its
-          owners.
+          The firm is in the sandbox. Everything works, but with a few test traders only. You go live under{" "}
+          <Link href="/admin/billing" className="text-accent hover:underline">
+            Billing
+          </Link>
+          .
         </p>
       )}
     </Panel>

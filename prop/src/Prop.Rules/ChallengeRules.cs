@@ -6,7 +6,7 @@ namespace Prop.Rules;
 /// The rules of a challenge as pure functions: the same state and input always give the same result.
 /// The trading platform is the authority on equity and enforces the loss limits as floors on every price.
 /// The rule engine sets those floors, resets the daily floor every trading day, counts trading days,
-/// decides when a stage is passed and takes the funded trader's payouts through to paid.
+/// decides when a stage is passed or has run out of time and takes the funded trader's payouts through to paid.
 /// </summary>
 public static class ChallengeRules
 {
@@ -37,6 +37,8 @@ public static class ChallengeRules
     {
         AccountOpened opened => OnAccountOpened(state, opened),
         TradingDayStarted day => OnTradingDayStarted(state, day),
+        PauseChallenge pause => OnPause(state, pause),
+        ResumeChallenge resume => OnResume(state, resume),
         ApproveFunding approve => OnApproveFunding(state, approve),
         CancelChallenge cancel => OnCancel(state, cancel),
         RequestPayout request => OnRequestPayout(state, request),
@@ -119,6 +121,8 @@ public static class ChallengeRules
             return input.AccountId == state.AccountId ? Unchanged(state) : Ignored(state, input, "No account is being opened.");
         }
 
+        // The deadlines count from the day the stage starts. A stage that starts while the challenge is paused
+        // is paused from its first day, so its deadlines move on by the days from then.
         var initial = state.Definition.InitialBalance;
         var started = state with
         {
@@ -128,16 +132,25 @@ public static class ChallengeRules
             TradingDays = ImmutableSortedSet<DateOnly>.Empty,
             Account = new AccountFigures(initial, 0),
             LastSequence = Math.Max(state.LastSequence, input.Sequence),
+            StageDeadline = state.Rules.MaxDays is { } maxDays ? input.Day.AddDays(maxDays + 1) : null,
+            InactivityDeadline = InactivityDeadlineAfter(state.Definition, input.Day),
+            PausedOn = state.PausedOn is { } pausedOn && pausedOn < input.Day ? input.Day : state.PausedOn,
         };
-        return new ChallengeStep(
-            started,
-            [
-                new StageStarted(input.Time, started.Stage, input.AccountId),
-                new FloorRequested(input.Time, input.AccountId, FloorIds.MaxLoss, MaxLossFloor(started)),
-                DailyFloor(started, input.Time),
-            ]);
+        List<ChallengeOutput> outputs =
+        [
+            new StageStarted(input.Time, started.Stage, input.AccountId),
+            new FloorRequested(input.Time, input.AccountId, FloorIds.MaxLoss, MaxLossFloor(started)),
+            DailyFloor(started, input.Time),
+        ];
+        if (started.IsPaused)
+        {
+            outputs.Add(new SuspendAccountRequested(input.Time, input.AccountId));
+        }
+
+        return new ChallengeStep(started, outputs);
     }
 
+    // A stage that runs out of time ends when the day starts. A paused challenge's days do not count.
     private static ChallengeStep OnTradingDayStarted(ChallengeState state, TradingDayStarted input)
     {
         if (state.CurrentDay is { } current && input.Day <= current)
@@ -146,7 +159,60 @@ public static class ChallengeRules
         }
 
         var next = state with { CurrentDay = input.Day };
-        return next.Status == ChallengeStatus.Active ? new ChallengeStep(next, [DailyFloor(next, input.Time)]) : Unchanged(next);
+        if (next.Status != ChallengeStatus.Active)
+        {
+            return Unchanged(next);
+        }
+
+        if (!next.IsPaused && ExpiryOn(next, input.Day) is { } reason)
+        {
+            var accountId = next.AccountId!;
+            return new ChallengeStep(
+                next with { Status = ChallengeStatus.Failed },
+                [new ChallengeExpired(input.Time, next.Stage, accountId, reason, input.Day), new CloseAccountRequested(input.Time, accountId)]);
+        }
+
+        return new ChallengeStep(next, [DailyFloor(next, input.Time)]);
+    }
+
+    private static ChallengeStep OnPause(ChallengeState state, PauseChallenge input)
+    {
+        if (state.HasEnded || state.IsPaused)
+        {
+            return Unchanged(state);
+        }
+
+        List<ChallengeOutput> outputs = [new ChallengePaused(input.Time)];
+        if (state is { Status: ChallengeStatus.Active, AccountId: { } accountId })
+        {
+            outputs.Add(new SuspendAccountRequested(input.Time, accountId));
+        }
+
+        return new ChallengeStep(state with { PausedOn = input.Day }, outputs);
+    }
+
+    // The deadlines move on by the days the challenge was paused, so the trader loses no time.
+    private static ChallengeStep OnResume(ChallengeState state, ResumeChallenge input)
+    {
+        if (state.PausedOn is not { } pausedOn)
+        {
+            return Unchanged(state);
+        }
+
+        var days = Math.Max(0, input.Day.DayNumber - pausedOn.DayNumber);
+        var resumed = state with
+        {
+            PausedOn = null,
+            StageDeadline = state.StageDeadline?.AddDays(days),
+            InactivityDeadline = state.InactivityDeadline?.AddDays(days),
+        };
+        List<ChallengeOutput> outputs = [new ChallengeResumed(input.Time, days)];
+        if (state is { Status: ChallengeStatus.Active, AccountId: { } accountId })
+        {
+            outputs.Add(new ResumeAccountRequested(input.Time, accountId));
+        }
+
+        return new ChallengeStep(resumed, outputs);
     }
 
     private static ChallengeStep OnApproveFunding(ChallengeState state, ApproveFunding input)
@@ -176,7 +242,7 @@ public static class ChallengeRules
         }
 
         outputs.Add(new ChallengeCancelled(input.Time, input.Reason));
-        return new ChallengeStep(state with { Status = ChallengeStatus.Cancelled }, outputs);
+        return new ChallengeStep(state with { Status = ChallengeStatus.Cancelled, PausedOn = null }, outputs);
     }
 
     // The whole profit is withdrawn at once, so the trader cannot keep trading on money that is being paid out.
@@ -268,10 +334,16 @@ public static class ChallengeRules
         return IsTargetReached(updated) ? Pass(updated, input.Time) : Unchanged(updated);
     }
 
-    // The open position counts until the platform reports the positions left after a close.
+    // The open position counts until the platform reports the positions left after a close. A new position
+    // also restarts the days allowed without one.
     private static ChallengeStep OnPositionOpened(ChallengeState state, PositionOpened input)
     {
-        var opened = state with { Account = state.Account! with { OpenPositions = state.Account.OpenPositions + 1 } };
+        var deadline = InactivityDeadlineAfter(state.Definition, input.Day);
+        var opened = state with
+        {
+            Account = state.Account! with { OpenPositions = state.Account.OpenPositions + 1 },
+            InactivityDeadline = state.InactivityDeadline is { } current && current > deadline ? current : deadline,
+        };
         if (opened.TradingDays.Contains(input.Day))
         {
             return Unchanged(opened);
@@ -292,13 +364,13 @@ public static class ChallengeRules
 
         // The trading platform has already closed the positions and disabled the account.
         return new ChallengeStep(
-            state with { Status = ChallengeStatus.Failed },
+            state with { Status = ChallengeStatus.Failed, PausedOn = null },
             [new ChallengeFailed(input.Time, state.Stage, input.AccountId, reason, input.FloorId, input.Level, input.Equity)]);
     }
 
     private static ChallengeStep OnAccountDisabled(ChallengeState state, AccountDisabled input) =>
         new(
-            state with { Status = ChallengeStatus.Cancelled },
+            state with { Status = ChallengeStatus.Cancelled, PausedOn = null },
             [new ChallengeCancelled(input.Time, "The trading account was disabled on the trading platform.")]);
 
     // The target is measured on the balance, so it only counts once every position is closed.
@@ -324,6 +396,8 @@ public static class ChallengeRules
             AccountId = null,
             TradingDays = ImmutableSortedSet<DateOnly>.Empty,
             Account = null,
+            StageDeadline = null,
+            InactivityDeadline = null,
         };
 
         if (next.Stage < definition.FundedStage)
@@ -335,6 +409,16 @@ public static class ChallengeRules
         outputs.Add(new FundingAwaited(time));
         return new ChallengeStep(next with { Status = ChallengeStatus.AwaitingFunding }, outputs);
     }
+
+    // The time limit comes first when both run out on the same day.
+    private static ExpiryReason? ExpiryOn(ChallengeState state, DateOnly day) =>
+        state.StageDeadline is { } stageDeadline && day >= stageDeadline ? ExpiryReason.TimeLimit
+        : state.InactivityDeadline is { } inactivityDeadline && day >= inactivityDeadline ? ExpiryReason.Inactivity
+        : null;
+
+    // Activity on a day leaves that day and the inactivity days after it. The challenge ends when the next one starts.
+    private static DateOnly? InactivityDeadlineAfter(ChallengeDefinition definition, DateOnly day) =>
+        definition.InactivityDays is { } days ? day.AddDays(days + 1) : null;
 
     private static FloorSpec MaxLossFloor(ChallengeState state)
     {

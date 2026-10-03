@@ -1,0 +1,33 @@
+import { expect, test } from "@playwright/test";
+
+import { signUp } from "./support";
+
+test("a firm in the sandbox goes live by paying, and buys more slots", async ({ page }) => {
+  await signUp(page, "Billing E2E Firm", "billing-e2e-firm");
+  await expect(page.getByRole("option", { name: /two-step-100k/ })).toBeAttached({ timeout: 20_000 });
+
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
+  await expect(page.getByRole("heading", { name: "Go live" })).toBeVisible();
+  await page.getByLabel("Slots", { exact: true }).fill("20");
+  await expect(page.getByRole("cell", { name: "Startup fee" })).toBeVisible();
+  await page.getByRole("button", { name: /and go live$/ }).click();
+
+  // The test payment page: a card that declines first, then one that pays.
+  await expect(page).toHaveURL(/\/admin\/billing\/checkout\/test_[0-9a-f]+$/);
+  await page.getByRole("button", { name: "Try a card that declines" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "The test card was declined." })).toBeVisible();
+  await page.getByRole("button", { name: /^Pay / }).click();
+
+  await expect(page).toHaveURL(/\/admin\/billing\?checkout=done$/);
+  await expect(page.getByText("Thank you. The payment went through.")).toBeVisible();
+
+  // Live now: the portal no longer says it is a test environment.
+  await expect(page.getByRole("status").filter({ hasText: "Test environment" })).toHaveCount(0);
+  await expect(page.getByText("0 of 20 slots taken. 20 free.")).toBeVisible();
+  await expect(page.getByText("Test ending 4242, expires 12/2034")).toBeVisible();
+
+  await page.getByLabel("New number of slots").fill("25");
+  await page.getByRole("button", { name: /^Buy now for / }).click();
+  await expect(page.getByText("0 of 25 slots taken. 25 free.")).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^More slots,/ })).toBeVisible();
+});

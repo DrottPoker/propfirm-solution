@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { floorLabel, floorRisk, initials, type FloorRisk } from "@/lib/account";
-import type { FloorSnapshot } from "@/lib/api/types";
+import { floorLabel, floorRisk, initials, suspendedHelp, type FloorRisk } from "@/lib/account";
+import type { AccountStatus, FloorSnapshot } from "@/lib/api/types";
 import { productName } from "@/lib/config";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { useLogout } from "@/lib/queries";
@@ -51,7 +51,7 @@ export function AccountBar({ accounts, email, serverName }: { accounts: string[]
             <AccountPicker
               accounts={accounts}
               accountId={account.accountId}
-              disabled={account.status === "Disabled"}
+              status={account.status}
               onChange={(id) => router.push(`/?account=${encodeURIComponent(id)}`)}
             />
             <Figure label="Balance" value={formatMoney(account.balance)} unit={account.currency} />
@@ -73,12 +73,12 @@ export function AccountBar({ accounts, email, serverName }: { accounts: string[]
 function AccountPicker({
   accounts,
   accountId,
-  disabled,
+  status,
   onChange,
 }: {
   accounts: string[];
   accountId: string;
-  disabled: boolean;
+  status: AccountStatus;
   onChange: (accountId: string) => void;
 }) {
   const id = useId();
@@ -112,7 +112,12 @@ function AccountPicker({
           <span className="font-medium">{accountId}</span>
         </>
       )}
-      {disabled && <span className="mt-0.5 w-fit rounded bg-loss/15 px-1.5 text-[11px] font-medium text-loss">Disabled</span>}
+      {status === "Disabled" && <span className="mt-0.5 w-fit rounded bg-loss/15 px-1.5 text-[11px] font-medium text-loss">Disabled</span>}
+      {status === "Suspended" && (
+        <span className="mt-0.5 w-fit rounded bg-warning/15 px-1.5 text-[11px] font-medium text-warning" title={suspendedHelp}>
+          Paused
+        </span>
+      )}
     </div>
   );
 }

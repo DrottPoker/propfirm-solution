@@ -102,6 +102,12 @@ internal sealed partial class TradingCommandWorker(
             case CloseTradingAccount close:
                 await trading.CloseAccountAsync(firm.Trading!, close.AccountId, cancellationToken);
                 break;
+            case SuspendTradingAccount suspend:
+                await trading.SuspendAccountAsync(firm.Trading!, suspend.AccountId, cancellationToken);
+                break;
+            case ResumeTradingAccount resume:
+                await trading.ResumeAccountAsync(firm.Trading!, resume.AccountId, cancellationToken);
+                break;
             case WithdrawFromTradingAccount withdraw:
                 await trading.WithdrawAsync(firm.Trading!, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
                 break;
