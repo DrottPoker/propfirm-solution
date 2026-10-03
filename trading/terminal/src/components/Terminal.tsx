@@ -37,10 +37,10 @@ export function Terminal({ requestedAccountId }: { requestedAccountId: string | 
     return <Message text="You have no trading account yet." />;
   }
 
-  return <TradingTerminal key={accountId} accountId={accountId} email={me.data.email} />;
+  return <TradingTerminal key={accountId} accountId={accountId} email={me.data.email} serverName={me.data.server.name} />;
 }
 
-function TradingTerminal({ accountId, email }: { accountId: string; email: string }) {
+function TradingTerminal({ accountId, email, serverName }: { accountId: string; email: string; serverName: string }) {
   useTradingConnection(accountId);
   const instruments = useInstruments(accountId);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -54,7 +54,7 @@ function TradingTerminal({ accountId, email }: { accountId: string; email: strin
 
   return (
     <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_16rem] gap-px bg-border">
-      <AccountBar email={email} />
+      <AccountBar email={email} serverName={serverName} />
       <div className="grid min-h-0 grid-cols-[15rem_minmax(0,1fr)_17rem] gap-px">
         <Watchlist instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
         <PriceChart accountId={accountId} instrument={instrument} />

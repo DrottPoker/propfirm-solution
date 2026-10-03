@@ -31,6 +31,9 @@ internal sealed class ServiceFactory(
     /// <summary>The development firm's admin key, from appsettings.Development.json.</summary>
     public const string AdminApiKey = "dev-admin-key";
 
+    /// <summary>The development firm's server, which traders log in to.</summary>
+    public const string DemoServer = "demo-firm";
+
     public const string TraderPassword = "test-password";
 
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero));
@@ -75,17 +78,17 @@ internal sealed class ServiceFactory(
     }
 
     /// <summary>A client logged in as the trader, which also carries the admin key.</summary>
-    public async Task<HttpClient> LoginAsync(string email, string password)
+    public async Task<HttpClient> LoginAsync(string email, string password, string server = DemoServer)
     {
         var client = CreateAdminClient();
-        client.DefaultRequestHeaders.Add("Cookie", await LoginCookieAsync(email, password));
+        client.DefaultRequestHeaders.Add("Cookie", await LoginCookieAsync(email, password, server));
         return client;
     }
 
-    public async Task<string> LoginCookieAsync(string email, string password)
+    public async Task<string> LoginCookieAsync(string email, string password, string server = DemoServer)
     {
         using var client = CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        using var response = await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new { email, password });
+        using var response = await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new { server, email, password });
         response.EnsureSuccessStatusCode();
         var setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("trading_session=", StringComparison.Ordinal));
         return setCookie.Split(';')[0];

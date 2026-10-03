@@ -82,6 +82,14 @@ Kör tjänsterna lokalt:
 
 Lösenorden i `deploy/` gäller bara lokal utveckling.
 
+I Claude Code-appen kan handelsplattformen startas i förhandsvisningen med konfigurationerna i `.claude/launch.json`. Starta Postgres med docker compose först.
+
+| Konfiguration | Startar |
+|---|---|
+| `trading-service` | Handelstjänsten med prisflödet från dina user secrets (se Riktiga priser från Tiingo) |
+| `trading-service-synthetic` | Handelstjänsten med syntetiska priser, till exempel när valutamarknaden är stängd |
+| `trading-terminal` | Handelsterminalen |
+
 ## Prova handelstjänsten
 
 Tjänsten sparar allt i Postgres, så starta databasen först (se Kom igång). Den startar med syntetiska priser och kontot `demo` (100 000 USD). Den är inte klar för produktion och startar därför bara i miljön Development.
@@ -92,7 +100,7 @@ Konton, positioner och historik finns kvar efter en omstart. Stäng av med Ctrl+
 dotnet run --project trading/src/Trading.Service
 ```
 
-Lokalt finns firman `demo-firm` med API-nyckeln `dev-admin-key`, kontot `demo` som ägs av `demo@example.com` med lösenordet `demo-password` och kontot `test` som ägs av `test@test.com` med lösenordet `test`. De finns i `appsettings.Development.json` och gäller bara lokal utveckling.
+Lokalt finns firman `demo-firm` (servern Demo Firm) med API-nyckeln `dev-admin-key`, kontot `demo` som ägs av `demo@example.com` med lösenordet `demo-password` och kontot `test` som ägs av `test@test.com` med lösenordet `test`. De finns i `appsettings.Development.json` och gäller bara lokal utveckling.
 
 Skapa en egen trader med firmans nyckel:
 
@@ -110,7 +118,7 @@ Starta handelstjänsten enligt ovan och starta sedan terminalen i en annan termi
 pnpm dev:terminal
 ```
 
-Öppna http://localhost:3001 och logga in med `demo@example.com` och `demo-password`, eller med `test@test.com` och `test`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
+Öppna http://localhost:3001, välj servern Demo Firm och logga in med `demo@example.com` och `demo-password`, eller med `test@test.com` och `test`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
 
 ## Riktiga priser från Tiingo
 

@@ -8,10 +8,11 @@
 
 Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pratar bara med handelstjänsten (se [specen för handelstjänsten](handelstjanst.md)).
 
-## Inloggning och firmans utseende
+## Inloggning
 
-- **Firmans utseende** hämtas på servern från `GET /api/branding` med adressen terminalen öppnades på. Namn och färger sätts innan sidan visas, så att standardutseendet aldrig blinkar förbi. Färgerna blir CSS-variabler och kontrolleras en gång till i terminalen. Utan svar från tjänsten visas standardutseendet.
-- **Inloggning** på `/login` med e-post och lösenord. Sidan visar firmans namn och logga.
+- **Vårt eget utseende.** Terminalen är vårt varumärke och inte white label (ADR 0009). Namnet finns på ett ställe, `productName` i `src/lib/config.ts`, tills produkten har fått sitt namn.
+- **Inloggning** på `/login` med server, e-post och lösenord, som i MetaTrader och TradeLocker. Tradern får uppgifterna från firmans portal. Servrarna hämtas från `GET /api/servers` och visas med firmans namn.
+- **Vald server:** i första hand den i länken från firmans portal (`/login?server=nordic-prop`), sedan den som senast användes på enheten och annars den enda som finns.
 - **Spärr:** den som inte är inloggad skickas till `/login`.
 - **Konto:** terminalen visar det första kontot tradern äger, eller det som anges med `?account=` om tradern äger det.
 - **Utloggning** finns i kontoraden, bredvid traderns e-postadress.
@@ -20,7 +21,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Firma  Status  Konto  Saldo  Equity  Marginal  Nivå   e-post Ut  │
+│ Namn  Status  Konto Firma  Saldo  Equity  Marginal  Nivå  e-post │
 │ Golv: nivå och hur långt equity kan falla innan det bryts        │
 ├───────────┬─────────────────────────────────────┬────────────────┤
 │ Symboler  │ Graf: candles, tidsramar, linjer    │ Ordertyp       │
@@ -33,7 +34,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-- **Kontoraden** visar golven och hur mycket equity kan falla innan varje golv bryts. Värdet kommer från motorn (`headroom`).
+- **Kontoraden** visar firmans namn bredvid kontot och golven och hur mycket equity kan falla innan varje golv bryts. Värdet kommer från motorn (`headroom`).
 - **Orderpanelen** visar gruppens villkor för symbolen: hävstång, påslag på spreaden, provision och kontraktsstorlek. Det är en del av öppenheten mot traders.
 - **Händelser** listar allt som hänt kontot. Avvisningar, brott mot golv och stop out markeras i gult. Vid brott mot ett golv visas priserna från beviset.
 
@@ -75,6 +76,6 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Tester
 
-- Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser och firmans färger (`pnpm test`).
-- Tester av hela flödet med Playwright (`pnpm e2e`): spärren och firmans inloggningssida, fel lösenord, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
+- Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser och vilken server som väljs (`pnpm test`).
+- Tester av hela flödet med Playwright (`pnpm e2e`): spärren och inloggningssidan med vald server, fel lösenord, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
 - Lint, typkontroll och bygge i CI.

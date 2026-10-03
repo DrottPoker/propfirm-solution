@@ -4,9 +4,10 @@ import { servicePort } from "../playwright.config";
 
 const serviceUrl = `http://localhost:${servicePort}`;
 
-// The development firm's admin key and branding, from appsettings.Development.json.
+// The development firm's admin key and server, from appsettings.Development.json.
 const adminHeaders = { "X-Api-Key": "dev-admin-key" };
-const firmName = "Demo Firm";
+const server = { id: "demo-firm", name: "Demo Firm" };
+const productName = "Trading terminal";
 
 const password = "e2e-password";
 
@@ -39,12 +40,14 @@ async function logIn(page: Page, email: string) {
   await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
 }
 
-test("visitors who are not logged in are sent to the firm's login page", async ({ page }) => {
+test("visitors who are not logged in are sent to the login page with the server chosen", async ({ page }) => {
   await page.goto("/");
 
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page).toHaveTitle(`${firmName} terminal`);
-  await expect(page.getByRole("heading", { name: firmName })).toBeVisible();
+  await expect(page).toHaveTitle(productName);
+  await expect(page.getByRole("heading", { name: productName })).toBeVisible();
+  // The only server is chosen for the trader.
+  await expect(page.getByLabel("Server")).toHaveValue(server.id);
 });
 
 test("a wrong password is refused", async ({ page, request }) => {
@@ -53,7 +56,7 @@ test("a wrong password is refused", async ({ page, request }) => {
   await submitLogin(page, trader.email, "not-the-password");
 
   // Next.js has an alert of its own for route announcements, so look inside the form.
-  await expect(page.locator("form").getByRole("alert")).toHaveText("Wrong email or password.");
+  await expect(page.locator("form").getByRole("alert")).toHaveText("Wrong server, email or password.");
   await expect(page).toHaveURL(/\/login$/);
 });
 
@@ -62,6 +65,7 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
 
   await logIn(page, trader.email);
   await expect(page.getByText(trader.accountId, { exact: true })).toBeVisible();
+  await expect(page.getByText(server.name)).toBeVisible();
   await expect(page.getByText("Live")).toBeVisible();
 
   // The buttons are enabled once prices have arrived.

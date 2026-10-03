@@ -23,7 +23,7 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 | `CandleStore` | Bygger candles av bid per symbol och tidsram (M1, M5, M15, M30, H1, H4, D1). |
 | `TradingHub`, `RealtimePublisher` | Realtid via SignalR. |
 | `AccountSeeder` | Skapar utvecklingskonton och deras ägare vid start om de inte redan finns. |
-| `TenantCatalog`, `AdminApiKeyFilter` | Firmorna: domäner, grupper, API-nycklar och utseende. |
+| `TenantCatalog`, `AdminApiKeyFilter` | Firmorna: server, namn, grupper och API-nycklar. |
 | `IUserStore`, `AuthEndpoints`, `AccountOwnerFilter` | Inloggning för traders och ägarskap för konton (ADR 0009). |
 
 ## Motorloopen
@@ -71,10 +71,10 @@ Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `POST /api/auth/login` | Loggar in med `{ "email", "password" }` hos firman som äger adressen. Sätter sessionscookien. Högst 10 försök per minut och IP-adress. |
+| `POST /api/auth/login` | Loggar in med `{ "server", "email", "password" }`, där `server` är firmans id. Sätter sessionscookien. Fel server, e-post eller lösenord ger samma svar. Högst 10 försök per minut och IP-adress. |
 | `POST /api/auth/logout` | Loggar ut. |
-| `GET /api/auth/me` | Den inloggade tradern och kontona den äger. |
-| `GET /api/branding?host=` | Firmans namn, logga och färger för en adress. Används av terminalen innan någon har loggat in. |
+| `GET /api/auth/me` | Den inloggade tradern, firmans server och kontona tradern äger. |
+| `GET /api/servers` | Servrarna som går att logga in på, med id och firmans namn, sorterade efter namn. Kräver ingen inloggning. |
 
 ### För tradern
 
@@ -129,12 +129,12 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `SyntheticFeed` | Frö, intervall, längd på historiken och startpriser per symbol. |
 | `Realtime` | Takt för priser och konto. |
 | `Journal` | Antal indata mellan ögonblicksbilder, hur många som behålls och hur lång prishistorik graferna byggs från vid start. |
-| `Tenants` | Firmorna: id, domäner, grupper, SHA-256 av API-nyckeln och utseende (namn, logga, färger). |
+| `Tenants` | Firmorna: id (servern, till exempel `nordic-prop`), namn, grupper och SHA-256 av API-nyckeln. |
 | `PriceFeed` | `Provider` (`Synthetic` eller `Tiingo`). För Tiingo även `Tiingo:ApiKey`, som sätts med `dotnet user-secrets`. |
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 
-I utveckling finns firman `demo-firm` på `localhost` med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
+I utveckling finns firman `demo-firm` (Demo Firm) med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 

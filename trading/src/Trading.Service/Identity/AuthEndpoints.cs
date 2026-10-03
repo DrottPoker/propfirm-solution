@@ -9,7 +9,7 @@ using Trading.Service.Tenancy;
 
 namespace Trading.Service.Identity;
 
-/// <summary>Login for traders with a session cookie, and the firm's branding for the terminal.</summary>
+/// <summary>Login for traders with a session cookie. Traders choose their firm's server, as in MetaTrader.</summary>
 internal static class AuthEndpoints
 {
     public const string LoginRateLimit = "login";
@@ -23,7 +23,7 @@ internal static class AuthEndpoints
         auth.MapPost("/login", LoginAsync).RequireRateLimiting(LoginRateLimit);
         auth.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)LogoutAsync);
         auth.MapGet("/me", MeAsync).RequireAuthorization();
-        app.MapGet("/api/branding", GetBranding).WithTags("Auth");
+        app.MapGet("/api/servers", GetServers).WithTags("Auth");
         return app;
     }
 
@@ -35,16 +35,12 @@ internal static class AuthEndpoints
         IPasswordHasher<User> hasher,
         CancellationToken cancellationToken)
     {
-        if (tenants.ByHost(context.Request.Host.Host) is not { } tenant)
-        {
-            return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "No firm uses this address.");
-        }
-
-        var user = await users.FindByEmailAsync(tenant.Id, request.Email ?? "", cancellationToken);
+        var tenant = tenants.ById(request.Server ?? "");
+        var user = tenant is null ? null : await users.FindByEmailAsync(tenant.Id, request.Email ?? "", cancellationToken);
         var verified = hasher.VerifyHashedPassword(user!, user?.PasswordHash ?? UnknownUserHash.Value, request.Password ?? "");
-        if (user is null || verified == PasswordVerificationResult.Failed)
+        if (tenant is null || user is null || verified == PasswordVerificationResult.Failed)
         {
-            return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Wrong email or password.");
+            return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Wrong server, email or password.");
         }
 
         Claim[] claims =
@@ -56,7 +52,7 @@ internal static class AuthEndpoints
         await context.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme)));
-        return TypedResults.Ok(await ToMeResponseAsync(user, users, cancellationToken));
+        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
     }
 
     private static async Task<NoContent> LogoutAsync(HttpContext context)
@@ -65,23 +61,36 @@ internal static class AuthEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult>> MeAsync(ClaimsPrincipal principal, IUserStore users, CancellationToken cancellationToken) =>
-        CurrentUser.IdOf(principal) is { } userId && await users.FindByIdAsync(userId, cancellationToken) is { } user
-            ? TypedResults.Ok(await ToMeResponseAsync(user, users, cancellationToken))
+    // A firm that is no longer configured ends the sessions of its traders.
+    private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult>> MeAsync(
+        ClaimsPrincipal principal,
+        TenantCatalog tenants,
+        IUserStore users,
+        CancellationToken cancellationToken) =>
+        CurrentUser.IdOf(principal) is { } userId
+        && await users.FindByIdAsync(userId, cancellationToken) is { } user
+        && tenants.ById(user.TenantId) is { } tenant
+            ? TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken))
             : TypedResults.Unauthorized();
 
-    /// <summary>Branding for the firm that owns the host. The terminal passes the host it was opened on.</summary>
-    private static Results<Ok<Branding>, NotFound> GetBranding(string? host, HttpContext context, TenantCatalog tenants) =>
-        tenants.ByHost(host ?? context.Request.Host.Host) is { } tenant ? TypedResults.Ok(tenant.Branding) : TypedResults.NotFound();
+    /// <summary>The servers traders can log in to, ordered by name.</summary>
+    private static Ok<IReadOnlyList<ServerInfo>> GetServers(TenantCatalog tenants) =>
+        TypedResults.Ok<IReadOnlyList<ServerInfo>>([.. tenants.All.Select(ToServerInfo).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)]);
 
-    private static async Task<MeResponse> ToMeResponseAsync(User user, IUserStore users, CancellationToken cancellationToken) =>
-        new(user.Id, user.Email, user.TenantId, await users.AccountsOfAsync(user.Id, cancellationToken));
+    private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, CancellationToken cancellationToken) =>
+        new(user.Id, user.Email, ToServerInfo(tenant), await users.AccountsOfAsync(user.Id, cancellationToken));
+
+    private static ServerInfo ToServerInfo(Tenant tenant) => new(tenant.Id, tenant.Name);
 }
 
-public sealed record LoginRequest(string? Email, string? Password);
+/// <summary>Server is the id of the firm's server, as in MetaTrader.</summary>
+public sealed record LoginRequest(string? Server, string? Email, string? Password);
 
-/// <summary>The logged in trader and the accounts they own.</summary>
-public sealed record MeResponse(Guid UserId, string Email, string TenantId, IReadOnlyList<string> Accounts);
+/// <summary>A firm's server: the id traders log in with and the firm's name.</summary>
+public sealed record ServerInfo(string Id, string Name);
+
+/// <summary>The logged in trader, their firm's server and the accounts they own.</summary>
+public sealed record MeResponse(Guid UserId, string Email, ServerInfo Server, IReadOnlyList<string> Accounts);
 
 internal static class CurrentUser
 {

@@ -5,19 +5,10 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/api/branding": {
+    "/api/servers": {
       "get": {
         "tags": [
           "Auth"
-        ],
-        "parameters": [
-          {
-            "name": "host",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
         ],
         "responses": {
           "200": {
@@ -25,13 +16,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Branding"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServerInfo"
+                  }
                 }
               }
             }
-          },
-          "404": {
-            "description": "Not Found"
           }
         }
       }
@@ -718,32 +709,6 @@
           "Active",
           "Disabled"
         ]
-      },
-      "Branding": {
-        "required": [
-          "displayName",
-          "logoUrl",
-          "colors"
-        ],
-        "type": "object",
-        "properties": {
-          "displayName": {
-            "type": "string"
-          },
-          "logoUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "colors": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
-          }
-        },
-        "description": "What the terminal needs to look like the firm's own."
       },
       "CancelReason": {
         "enum": [
@@ -1953,11 +1918,18 @@
       },
       "LoginRequest": {
         "required": [
+          "server",
           "email",
           "password"
         ],
         "type": "object",
         "properties": {
+          "server": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "email": {
             "type": [
               "null",
@@ -1970,13 +1942,14 @@
               "string"
             ]
           }
-        }
+        },
+        "description": "Server is the id of the firm's server, as in MetaTrader."
       },
       "MeResponse": {
         "required": [
           "userId",
           "email",
-          "tenantId",
+          "server",
           "accounts"
         ],
         "type": "object",
@@ -1988,8 +1961,8 @@
           "email": {
             "type": "string"
           },
-          "tenantId": {
-            "type": "string"
+          "server": {
+            "$ref": "#/components/schemas/ServerInfo"
           },
           "accounts": {
             "type": "array",
@@ -1998,7 +1971,7 @@
             }
           }
         },
-        "description": "The logged in trader and the accounts they own."
+        "description": "The logged in trader, their firm's server and the accounts they own."
       },
       "ModifyStopsRequest": {
         "required": [
@@ -2226,6 +2199,22 @@
           "InvalidFloor",
           "UnknownFloor"
         ]
+      },
+      "ServerInfo": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "description": "A firm's server: the id traders log in with and the firm's name."
       },
       "SetFloorRequest": {
         "required": [

@@ -1,13 +1,13 @@
 # Produktplan: handelsplattform och propfirm-plattform
 
-Senast uppdaterad: 2026-10-02
+Senast uppdaterad: 2026-10-03
 
 ## Sammanfattning
 
 Vi bygger två separata produkter som säljs till små och nystartade propfirms:
 
-1. **Handelsplattform**: en webbaserad plattform för simulerad handel, i stil med TradeLocker och cTrader men utan riktig orderutförande.
-2. **Propfirm-plattform**: allt som behövs för att driva en challenge-verksamhet, det vill säga challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
+1. **Handelsplattform**: en webbaserad plattform för simulerad handel, i stil med TradeLocker och cTrader men utan riktig orderutförande. Den är vårt eget varumärke och inte white label. Varje firma har en egen server, och traders loggar in med firmans server som i MetaTrader och TradeLocker.
+2. **Propfirm-plattform**: allt som behövs för att driva en challenge-verksamhet, det vill säga challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde. Den är white label med firmans namn, logga, färger och domän, och använder vår handelsplattform.
 
 Produkterna kan säljas tillsammans som ett billigt allt-i-ett-paket eller var för sig. De byggs med ett tydligt gränssnitt emellan.
 
@@ -96,6 +96,7 @@ Vi vinner inte på att vara billigast. Det finns redan erbjudanden för $1 000/m
 
 Dessutom:
 
+- **Ett eget varumärke för traders.** Handelsplattformen har samma namn hos alla firmor, som TradeLocker. Traders som känner igen den litar lättare på en ny firma, och varumärket växer med varje firma som använder den.
 - **Lätt att byta till oss.** Importverktyg för traders och konton från andra plattformar, och möjlighet att exportera all data.
 - **Skydd mot plattformsrisk.** Tydliga avtal och full dataexport bemöter oron efter MetaQuotes och ProjectX.
 - **Kostnadsfördel mot rena CRM-leverantörer.** Egen handelsmotor betyder inga licensavgifter till tredje part. Det gäller mot leverantörer som bygger ovanpå andras plattformar, men inte mot Fintatech, TradeLocker och Match-Trader som har båda delarna.
@@ -107,8 +108,8 @@ Firman ska kunna starta utan att prata med oss. Etablerade konkurrenter är bygg
 ### Flöde
 
 ```
-registrera -> välj challenge-mall -> logga och färger
--> firmanamn.<vår domän> fungerar direkt -> prova i sandlådan
+registrera -> välj challenge-mall -> portalens logga och färger
+-> firmanamn.<vår domän> och firmans server fungerar direkt -> prova i sandlådan
 -> koppla betalning (köplänk eller webhook) -> kontroll av bolag och ägare
 -> live -> egen domän när DNS är klar
 ```
@@ -118,7 +119,7 @@ Mål: sandlådan på några minuter, live inom ett dygn.
 ### Krav
 
 - **Färdiga mallar** för vanliga challenges, till exempel 100k i två steg, som firman kan justera.
-- **Varumärke och domän.** Underdomän direkt. Egen domän med automatiskt TLS-certifikat.
+- **Varumärke och domän för portalen.** Underdomän direkt. Egen domän med automatiskt TLS-certifikat. Handelsplattformen behåller vårt varumärke, och firman syns där som server och namn vid kontot.
 - **Sandlåda med hela kedjan.** Firman skapar en challenge, handlar och ser regelmotorn godkänna eller stänga ett konto. Bara firmans egna testanvändare, så att kostnaden för prisdata hålls nere.
 - **Kontroll innan live.** Sandlådan kräver ingen kontroll. Innan firman får ta emot riktiga traders kontrolleras bolag och ägare automatiskt, med manuell granskning inom ett dygn. Det skyddar mot firmor som tar avgifter och aldrig betalar ut, vilket annars skadar vårt rykte.
 - **Avtal i portalen.** Användarvillkor och personuppgiftsbiträdesavtal godkänns vid registrering.
@@ -134,7 +135,7 @@ Låta traders handla på simulerade konton med riktiga livepriser. Ingenting ski
 
 ### Användare
 
-Traders, via firmans white label (firmans namn, logga och domän).
+Traders hos firmorna. Plattformen är vårt eget varumärke och inte white label. Varje firma har en egen server. Tradern får sina inloggningsuppgifter från firmans portal och väljer firmans server när den loggar in, som i MetaTrader och TradeLocker.
 
 ### Version 1
 
@@ -176,7 +177,7 @@ TradingView Lightweight Charts är gratis och öppen källkod. TradingView ska a
 
 ### Syfte
 
-Allt en firma behöver för att sälja challenges, följa upp traders och hantera utbetalningar, utan att bygga något själv.
+Allt en firma behöver för att sälja challenges, följa upp traders och hantera utbetalningar, utan att bygga något själv. Plattformen är white label: traders ser firmans namn, logga, färger och domän. Handeln sker på vår handelsplattform, där portalen skapar traderns inloggning hos firmans server.
 
 ### Delar
 
@@ -290,7 +291,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Kodbas:** ett repo med hårda gränser mellan produkterna som kontrolleras automatiskt (ADR 0001).
 - **Webb, traderportal och adminpanel:** Next.js med TypeScript.
 - **Backend (handelsmotor, regelmotor och API):** C# på .NET 10 med Postgres. Inbyggda decimaltal gör pengaberäkningarna exakta (ADR 0002).
-- **Inloggning:** handelsplattformen har egna användare per firma, så samma e-postadress kan finnas hos flera firmor. Firman avgörs av adressen (ADR 0009).
+- **Inloggning:** handelsplattformen har egna användare per firma, så samma e-postadress kan finnas hos flera firmor. Tradern väljer firmans server när den loggar in (ADR 0009).
 - **Handelsmotor och regelmotor:** egna tjänster som körs hela tiden, inte serverless, eftersom de håller öppna anslutningar och aktuellt tillstånd i minnet. Kärnan i handelsmotorn är deterministisk (ADR 0005) och beskrivs i [specen för handelsmotorn](spec/handelsmotor.md).
 - **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. NATS JetStream för händelser mellan tjänsterna. Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
 - **Kontrakt mellan produkterna:** protobuf, med gRPC för kommandon och NATS för händelser (ADR 0004).
@@ -298,7 +299,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Historik och analys:** Postgres till att börja med, TimescaleDB eller ClickHouse senare.
 - **Pengar:** belopp sparas som heltal eller decimaltal, aldrig som flyttal. Avgifter och utbetalningar bokförs i en huvudbok där rader bara läggs till.
 - **Flera kunder i samma system:** strikt isolering av varje kunds data.
-- **White label:** egen domän, logga och färger per kund.
+- **White label i propfirm-plattformen:** egen domän, logga och färger per kund. Handelsplattformen har vårt eget varumärke.
 - **Konfiguration per kund:** regler, challenges och priser.
 - **Revisionsloggar:** varje beslut ska gå att spåra.
 - **Fuskdetektering senare:** spara IP-adress, enhet och betalmetod per konto från början.

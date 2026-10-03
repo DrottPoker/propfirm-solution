@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/branding": {
+    "/api/servers": {
         parameters: {
             query?: never;
             header?: never;
@@ -13,9 +13,7 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: {
-                    host?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -28,15 +26,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Branding"];
+                        "application/json": components["schemas"]["ServerInfo"][];
                     };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -746,14 +737,6 @@ export interface components {
         };
         /** @enum {unknown} */
         AccountStatus: "Active" | "Disabled";
-        /** @description What the terminal needs to look like the firm's own. */
-        Branding: {
-            displayName: string;
-            logoUrl: null | string;
-            colors: {
-                [key: string]: string;
-            };
-        };
         /** @enum {unknown} */
         CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
@@ -1119,16 +1102,18 @@ export interface components {
             /** Format: double */
             commissionPerLotPerSide: number;
         };
+        /** @description Server is the id of the firm's server, as in MetaTrader. */
         LoginRequest: {
+            server: null | string;
             email: null | string;
             password: null | string;
         };
-        /** @description The logged in trader and the accounts they own. */
+        /** @description The logged in trader, their firm's server and the accounts they own. */
         MeResponse: {
             /** Format: uuid */
             userId: string;
             email: string;
-            tenantId: string;
+            server: components["schemas"]["ServerInfo"];
             accounts: string[];
         };
         ModifyStopsRequest: {
@@ -1194,6 +1179,11 @@ export interface components {
         };
         /** @enum {unknown} */
         RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor";
+        /** @description A firm's server: the id traders log in with and the firm's name. */
+        ServerInfo: {
+            id: string;
+            name: string;
+        };
         SetFloorRequest: {
             rule: components["schemas"]["EquityFloorRule"];
         };

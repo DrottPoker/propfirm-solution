@@ -20,10 +20,19 @@ export function useMe() {
   });
 }
 
-/** The service said no to the email and password, or to too many attempts. */
+/** The servers traders can log in to. Each firm has one, as in MetaTrader. */
+export function useServers() {
+  return useQuery({
+    queryKey: ["servers"],
+    queryFn: async () => queryResult(await api.GET("/api/servers"), "the servers"),
+    staleTime: Infinity,
+  });
+}
+
+/** The service said no to the server, email and password, or to too many attempts. */
 export class LoginFailedError extends Error {
   constructor(readonly tooManyAttempts: boolean) {
-    super(tooManyAttempts ? "Too many attempts. Wait a minute and try again." : "Wrong email or password.");
+    super(tooManyAttempts ? "Too many attempts. Wait a minute and try again." : "Wrong server, email or password.");
     this.name = "LoginFailedError";
   }
 }
@@ -31,7 +40,7 @@ export class LoginFailedError extends Error {
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { email: string; password: string }) => {
+    mutationFn: async (input: { server: string; email: string; password: string }) => {
       const result = await api.POST("/api/auth/login", { body: input });
       if (result.response.status === 401 || result.response.status === 429) {
         throw new LoginFailedError(result.response.status === 429);
