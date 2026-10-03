@@ -123,7 +123,7 @@ Mål: sandlådan på några minuter, live inom ett dygn.
 - **Sandlåda med hela kedjan.** Firman skapar en challenge, handlar och ser regelmotorn godkänna eller stänga ett konto. Bara firmans egna testanvändare, så att kostnaden för prisdata hålls nere.
 - **Kontroll innan live.** Sandlådan kräver ingen kontroll. Innan firman får ta emot riktiga traders kontrolleras bolag och ägare automatiskt, med manuell granskning inom ett dygn. Det skyddar mot firmor som tar avgifter och aldrig betalar ut, vilket annars skadar vårt rykte.
 - **Avtal i portalen.** Användarvillkor och personuppgiftsbiträdesavtal godkänns vid registrering.
-- **Automatisk fakturering** med kort, månadsvis i förskott.
+- **Betalning i förskott** med kort: startavgift och platser för aktiva challenges (se Affärsmodell och prissättning).
 - **Hjälp med det som tar längst tid.** Plattformen är sannolikt inte det enda som försenar en ny firma. Erbjud färdiga integrationer mot betalleverantörer som accepterar propfirms, och guider för KYC-leverantör, villkor och bolag.
 - **Bra dokumentation**, så att kunderna klarar sig utan support.
 
@@ -218,6 +218,8 @@ Typiska regler som firman ska kunna ställa in:
 - Max total förlust, till exempel 10 %, fast eller släpande.
 - Minsta antal handelsdagar.
 - För funded-konton ofta en regel om jämna resultat (konsistensregel).
+- Inaktivitet: en challenge utan affärer på till exempel 30 dagar avslutas. Det frigör också firmans plats (se Affärsmodell och prissättning).
+- Valfri tidsgräns per fas.
 
 Viktigt i designen:
 
@@ -323,15 +325,42 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 
 ## Affärsmodell och prissättning
 
-- Låg startavgift + månadsavgift + avgift per aktivt konto. Priset växer med kundens storlek.
+Firman betalar alltid i förskott. Vi fakturerar aldrig i efterhand, så en firma som går dåligt eller läggs ner kan inte lämna obetalda skulder. Traderns pengar går aldrig via oss (se Utbetalningar).
+
+### Platser för aktiva challenges
+
+Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva samtidigt. Priset växer med firmans storlek. Priserna nedan är exempel och inte bestämda.
+
+| Del | Exempel |
+|---|---|
+| Startavgift, en gång | 500 USD |
+| 50 platser, per månad | 250 USD (5 USD per plats) |
+
+- **En aktiv challenge tar en plats** från att den startar tills den är slut: underkänd, avbruten eller stängd. Ett funded-konto tar en plats så länge det finns. Alla faser i en challenge delar samma plats, även om varje fas får ett eget handelskonto.
+- **När platserna är slut** kan inga nya challenges startas. Firmans butik ska då sluta sälja, så att ingen trader betalar för en challenge som inte kan startas. Firman ser lediga platser i adminpanelen och i API:t, och får en varning när till exempel 80 % är använda.
+- **Fler platser** kan köpas när som helst och betalas direkt för resten av månaden. Firman kan välja automatisk utökning, till exempel 10 platser i taget, som dras från kortet direkt. Färre platser gäller från nästa månad, och bara om de öppna challengerna får plats.
+- **Månadsbetalningen** dras från kortet 5 dagar innan månaden börjar. Går den inte igenom har firman de dagarna på sig. Är den inte betald när månaden börjar startas inga nya challenges, och befintliga konton pausas. Vi levererar aldrig något som inte är betalt.
+- **Inaktivitet:** en challenge utan affärer på till exempel 30 dagar avslutas och frigör sin plats. Firman kan också avbryta konton själv.
+- **Sandlådan** tar inga platser.
+- Avtalet säger att firman ansvarar för att betalningen går igenom, och att traders konton pausas annars.
+
+### Priset per plats
+
+- **Det måste täcka vad en trader kostar oss per månad.** Den största kostnaden blir troligen prisdata per slutanvändare. Sätt priset först när offerterna från dataleverantörerna finns.
+- **Det får inte äta upp firmans intäkt.** En challenge för 50 USD som är aktiv i 10 månader kostar firman 50 USD med 5 USD per plats, alltså hela intäkten. De flesta challenges tar slut inom några veckor eftersom de flesta traders misslyckas, men det ska bekräftas i intervjuerna. Skydd mot fallet:
+  - Inaktivitetsregeln ovan.
+  - Valfri tidsgräns per fas, som firman ställer in.
+  - Lågt pris per plats, och lägre pris per plats ju fler platser firman köper.
+- **Ett funded-konto som lever länge är en verklig kostnad**, både för oss och för firman. Firman räknar med den när den sätter sina priser.
+- **Firmorna är vana vid modellen.** Konkurrenterna säljer i nivåer av aktiva konton (TradeLocker, FXPropTech, Fintatech), och marknadens nivå är ca $4,50-10 per aktivt konto och månad (se Marknad och konkurrens).
+
+### Övrigt
+
 - Publik prislista på webbplatsen. Det hör till självbetjäningen.
-- Hypotes att testa i intervjuer: ca $500 i startavgift, ca $500/mån och några dollar per aktivt konto. Med självbetjäning kostar uppstarten oss lite, så pröva om startavgiften kan tas bort eller tas ut först när firman går live.
-- Marknadens nivå är ca $4,50-10 per aktivt konto (se Marknad och konkurrens).
-- Definiera "aktivt konto" tydligt. TradeLocker räknar ett konto som aktivt om det haft minst en öppen position under månaden.
+- Med självbetjäning kostar uppstarten oss lite, så pröva i intervjuerna om startavgiften kan tas bort eller tas ut först när firman går live.
 - Billigt men inte gratis och inte billigast. För lågt pris skadar förtroendet och är svårt att höja senare.
-- Månadsbetalning i förskott och korta avtal, eftersom små firms ofta läggs ner.
+- Korta avtal, eftersom små firms ofta läggs ner.
 - Undvik stora intäktsdelningar. Det är det kunderna klagar på hos konkurrenterna.
-- Kontrollera kostnaden för prisdata per slutanvändare innan priset sätts.
 
 ## Drift
 
@@ -366,6 +395,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 1. Intervjua 10-20 små propfirms och personer som planerar att starta en: vad de betalar, vad som krånglar och vad som skulle få dem att byta. Fråga också:
    - Hur lång tid tog det från beslut till första sålda challenge, och vad tog längst tid?
    - Har ni tittat på Fintatech eller FXPropTech? Varför valde ni bort dem?
+   - Hur länge är en challenge aktiv i genomsnitt, och hur stor andel blir funded? Det avgör vad en plats får kosta.
 2. Ta in priser och licensvillkor för vidaredistribution från 2-3 dataleverantörer.
 3. Gör en landningssida med väntelista, till exempel "Starta din propfirm i dag. Fast pris. Ingen intäktsdelning. Inget säljsamtal." Dela den där blivande grundare finns och mät anmälningarna.
 4. Titta på Fintatechs produkt via deras demo. Var öppen med att du undersöker marknaden.
@@ -376,7 +406,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 
 - Namn på produkterna och företaget.
 - Vilken dataleverantör och vilka licensvillkor? Under utvecklingen används Tiingos gratisplan (ADR 0010), som inte får visas för andra. Tiingo har även en plan för vidaredistribution.
-- Slutlig prismodell efter intervjuerna.
+- Priserna: startavgift, pris per plats och rabatt vid fler platser. Bestäms efter intervjuerna och offerterna för prisdata.
 - Bolagsform och vilket land bolaget ska ligga i.
 - Vilka plattformar adaptrarna ska stödja först, utöver vår egen handelsplattform.
 - Behövs en gratis eller mycket billig nivå för de minsta firmorna, som hos Fintatech?
