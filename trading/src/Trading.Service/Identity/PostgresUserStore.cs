@@ -1,13 +1,16 @@
 using Npgsql;
 
+using Trading.Service.Persistence;
+
 namespace Trading.Service.Identity;
 
-internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStore
+internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSchema schema) : IUserStore
 {
     private const string UniqueViolation = "23505";
 
     public async Task<User?> CreateAsync(string tenantId, string email, string passwordHash, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         var user = new User(Guid.CreateVersion7(), tenantId, email.Trim(), passwordHash);
         await using var command = dataSource.CreateCommand(
             "insert into users (id, tenant_id, email, normalized_email, password_hash) values ($1, $2, $3, $4, $5)");
@@ -38,6 +41,7 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStor
 
     public async Task<bool> AddAccountAsync(Guid userId, string accountId, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand(
             "insert into account_owners (account_id, user_id) values ($1, $2) on conflict (account_id) do nothing");
         command.Parameters.AddWithValue(accountId);
@@ -47,6 +51,7 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStor
 
     public async Task RemoveAccountAsync(string accountId, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand("delete from account_owners where account_id = $1");
         command.Parameters.AddWithValue(accountId);
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -54,6 +59,7 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStor
 
     public async Task<bool> OwnsAsync(Guid userId, string accountId, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand("select exists (select 1 from account_owners where account_id = $1 and user_id = $2)");
         command.Parameters.AddWithValue(accountId);
         command.Parameters.AddWithValue(userId);
@@ -62,6 +68,7 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStor
 
     public async Task<IReadOnlyList<string>> AccountsOfAsync(Guid userId, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand("select account_id from account_owners where user_id = $1 order by created_at, account_id");
         command.Parameters.AddWithValue(userId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -76,6 +83,7 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource) : IUserStor
 
     private async Task<User?> FindAsync(string sql, object[] parameters, CancellationToken cancellationToken)
     {
+        await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand(sql);
         foreach (var parameter in parameters)
         {

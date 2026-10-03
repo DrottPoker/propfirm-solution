@@ -52,6 +52,7 @@ builder.Services.AddSingleton<EventLog>();
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
     sp.GetRequiredService<IConfiguration>().GetConnectionString("Trading")
     ?? throw new InvalidOperationException("The connection string Trading is missing.")));
+builder.Services.AddSingleton<DatabaseSchema>();
 builder.Services.AddSingleton<IEngineJournal, PostgresEngineJournal>();
 builder.Services.AddSingleton<IUserStore, PostgresUserStore>();
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();

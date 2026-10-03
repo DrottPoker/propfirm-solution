@@ -92,7 +92,7 @@ Konton, positioner och historik finns kvar efter en omstart. Stäng av med Ctrl+
 dotnet run --project trading/src/Trading.Service
 ```
 
-Lokalt finns firman `demo-firm` med API-nyckeln `dev-admin-key`, och kontot `demo` som ägs av `demo@example.com` med lösenordet `demo-password`. De finns i `appsettings.Development.json` och gäller bara lokal utveckling.
+Lokalt finns firman `demo-firm` med API-nyckeln `dev-admin-key`, kontot `demo` som ägs av `demo@example.com` med lösenordet `demo-password` och kontot `test` som ägs av `test@test.com` med lösenordet `test`. De finns i `appsettings.Development.json` och gäller bara lokal utveckling.
 
 Skapa en egen trader med firmans nyckel:
 
@@ -110,7 +110,7 @@ Starta handelstjänsten enligt ovan och starta sedan terminalen i en annan termi
 pnpm dev:terminal
 ```
 
-Öppna http://localhost:3001 och logga in med `demo@example.com` och `demo-password`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
+Öppna http://localhost:3001 och logga in med `demo@example.com` och `demo-password`, eller med `test@test.com` och `test`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
 
 ## Riktiga priser från Tiingo
 

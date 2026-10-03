@@ -1,7 +1,6 @@
 using System.Xml.Linq;
 
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 
 using Npgsql;
 
@@ -11,13 +10,14 @@ using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
 
+// Every test starts from an empty database, so each store must create the schema itself when used first.
 public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
     [Fact]
     public async Task UsersAreFoundByEmailWithoutCaseAndOnlyWithinTheirFirm()
     {
         await using var dataSource = await CreateDatabaseAsync();
-        var users = new PostgresUserStore(dataSource);
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
 
         var created = await users.CreateAsync("firm-a", " Trader@Test.Example ", "hash", TestContext.Current.CancellationToken);
 
@@ -32,7 +32,7 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
     public async Task EmailIsUniqueWithinAFirmOnly()
     {
         await using var dataSource = await CreateDatabaseAsync();
-        var users = new PostgresUserStore(dataSource);
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
 
         Assert.NotNull(await users.CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken));
         Assert.Null(await users.CreateAsync("firm-a", "A@TEST.EXAMPLE", "hash", TestContext.Current.CancellationToken));
@@ -43,7 +43,7 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
     public async Task AnAccountHasOneOwner()
     {
         await using var dataSource = await CreateDatabaseAsync();
-        var users = new PostgresUserStore(dataSource);
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
         var first = (await users.CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken))!;
         var second = (await users.CreateAsync("firm-a", "b@test.example", "hash", TestContext.Current.CancellationToken))!;
 
@@ -61,20 +61,25 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
     public async Task CookieKeysAreKept()
     {
         await using var dataSource = await CreateDatabaseAsync();
-        var keys = new PostgresXmlRepository(dataSource);
+        var keys = new PostgresXmlRepository(dataSource, Schema(dataSource));
 
         keys.StoreElement(new XElement("key", new XAttribute("id", "1")), "key-1");
         keys.StoreElement(new XElement("key", new XAttribute("id", "1")), "key-1");
         keys.StoreElement(new XElement("key", new XAttribute("id", "2")), "key-2");
 
-        Assert.Equal(["1", "2"], new PostgresXmlRepository(dataSource).GetAllElements().Select(e => e.Attribute("id")!.Value));
+        Assert.Equal(["1", "2"], new PostgresXmlRepository(dataSource, Schema(dataSource)).GetAllElements().Select(e => e.Attribute("id")!.Value));
     }
 
-    private async Task<NpgsqlDataSource> CreateDatabaseAsync()
+    // The service reads the cookie keys before the engine starts, so this is the first use on a new database.
+    [Fact]
+    public async Task CookieKeysCanBeReadFirstOnANewDatabase()
     {
-        var dataSource = NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());
-        await new PostgresEngineJournal(dataSource, Options.Create(new JournalOptions()), NullLogger<PostgresEngineJournal>.Instance)
-            .InitializeAsync(TestContext.Current.CancellationToken);
-        return dataSource;
+        await using var dataSource = await CreateDatabaseAsync();
+
+        Assert.Empty(new PostgresXmlRepository(dataSource, Schema(dataSource)).GetAllElements());
     }
+
+    private static DatabaseSchema Schema(NpgsqlDataSource dataSource) => new(dataSource, NullLogger<DatabaseSchema>.Instance);
+
+    private async Task<NpgsqlDataSource> CreateDatabaseAsync() => NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());
 }

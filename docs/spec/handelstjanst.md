@@ -46,7 +46,7 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 | `engine_snapshots` | Motorns tillstånd efter ett visst indata, med konfigurationens fingeravtryck. De tre senaste behålls. |
 | `users`, `account_owners` | Traders och vilka konton de äger. |
 | `data_protection_keys` | Nycklarna som skyddar inloggningscookies. |
-| `schema_migrations` | Vilka migreringar som körts. Tabellerna skapas och uppgraderas vid start. |
+| `schema_migrations` | Vilka migreringar som körts. Tabellerna skapas och uppgraderas en gång per start, innan något lager använder databasen första gången. Nycklarna för cookies läses nämligen innan motorn startar. |
 
 **Skrivning:** Motorn tillämpar indata direkt. En separat skrivare sparar dem i batcher i en transaktion. Svar på kommandon, händelser i realtid och svar på frågor släpps först när det de bygger på är sparat. Misslyckas en skrivning tre gånger stoppas tjänsten.
 
@@ -134,7 +134,7 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 
-I utveckling finns firman `demo-firm` på `localhost` med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Allt detta gäller bara lokal utveckling.
+I utveckling finns firman `demo-firm` på `localhost` med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 

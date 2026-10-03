@@ -16,14 +16,14 @@ using Trading.Service.Json;
 namespace Trading.Service.Persistence;
 
 /// <summary>The journal in Postgres. Each batch is written in one transaction with COPY.</summary>
-internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, IOptions<JournalOptions> options, ILogger<PostgresEngineJournal> logger)
+internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, DatabaseSchema schema, IOptions<JournalOptions> options)
     : IEngineJournal
 {
     private const string QuoteKind = nameof(Quote);
 
     private static readonly JsonSerializerOptions Json = EngineJson.CreateOptions();
 
-    public Task InitializeAsync(CancellationToken cancellationToken) => Migrations.ApplyAsync(dataSource, logger, cancellationToken);
+    public Task InitializeAsync(CancellationToken cancellationToken) => schema.EnsureAsync(cancellationToken);
 
     public async Task<JournalSnapshot?> LoadLatestSnapshotAsync(CancellationToken cancellationToken)
     {

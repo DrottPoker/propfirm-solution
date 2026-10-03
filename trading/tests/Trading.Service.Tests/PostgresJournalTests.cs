@@ -27,10 +27,11 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
     public async Task MigrationsCanRunOnEveryStart()
     {
         await using var journal = await CreateJournalAsync();
+        var restarted = CreateJournal(journal.DataSource);
 
-        await journal.Value.InitializeAsync(TestContext.Current.CancellationToken);
+        await restarted.InitializeAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, await journal.Value.GetLastInputSequenceAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(0, await restarted.GetLastInputSequenceAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -148,13 +149,17 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
     private async Task<JournalHandle> CreateJournalAsync(int snapshotsToKeep = 3)
     {
         var dataSource = NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());
-        var journal = new PostgresEngineJournal(
-            dataSource,
-            Options.Create(new JournalOptions { SnapshotsToKeep = snapshotsToKeep }),
-            NullLogger<PostgresEngineJournal>.Instance);
+        var journal = CreateJournal(dataSource, snapshotsToKeep);
         await journal.InitializeAsync(TestContext.Current.CancellationToken);
         return new JournalHandle(journal, dataSource);
     }
+
+    /// <summary>A journal as a new start of the service creates it.</summary>
+    private static PostgresEngineJournal CreateJournal(NpgsqlDataSource dataSource, int snapshotsToKeep = 3) =>
+        new(
+            dataSource,
+            new DatabaseSchema(dataSource, NullLogger<DatabaseSchema>.Instance),
+            Options.Create(new JournalOptions { SnapshotsToKeep = snapshotsToKeep }));
 
     private static string ToJson(EventEnvelope envelope) => JsonSerializer.Serialize(envelope, Json);
 
