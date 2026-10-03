@@ -22,8 +22,16 @@ internal sealed class AccountSeeder(
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        // Fails with the recovery error if the journal could not be replayed.
-        await engine.Ready.WaitAsync(cancellationToken);
+        // Fails with the recovery error if the journal could not be replayed. The failure also stops the host,
+        // which cancels this wait, and the cancellation must not hide why the service did not start.
+        try
+        {
+            await engine.Ready.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (engine.Ready.IsFaulted)
+        {
+            await engine.Ready;
+        }
 
         foreach (var seed in options.Value.SeedAccounts)
         {
