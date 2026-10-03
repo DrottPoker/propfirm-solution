@@ -1,23 +1,26 @@
 @import "tailwindcss";
 
-/* Dark trading theme. Per-firm white label colors come later as overrides of these tokens. */
+/* Dark trading theme. The terminal is our own brand (ADR 0009), so there are no per-firm colors. */
 :root {
-  --background: #0b0e14;
-  --panel: #11151c;
-  --border: #1f2530;
-  --foreground: #d6d9e0;
-  --muted: #7d8590;
-  --accent: #3b82f6;
-  --buy: #16a34a;
-  --sell: #dc2626;
+  color-scheme: dark;
+  --background: #060a12;
+  --panel: #0d1320;
+  --raised: #141c2c;
+  --border: #1d2738;
+  --foreground: #e3e8f0;
+  --muted: #8591a5;
+  --accent: #2f7cf6;
+  --buy: #12b76a;
+  --sell: #ef4444;
   --profit: #22c55e;
-  --loss: #ef4444;
+  --loss: #f04438;
   --warning: #f59e0b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-panel: var(--panel);
+  --color-raised: var(--raised);
   --color-border: var(--border);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
@@ -35,4 +38,9 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }

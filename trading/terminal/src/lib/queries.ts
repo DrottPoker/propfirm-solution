@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, queryResult } from "./api/client";
 import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
+import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
 import { useTradingStore } from "./store";
 
@@ -99,6 +100,35 @@ export function useInstruments(accountId: string) {
   });
 }
 
+/**
+ * A refresh interval that ends on whole multiples of the period on the clock. Every component that uses the same
+ * query then refreshes at the same moment and shares one request, instead of each sending its own a little apart.
+ */
+export function onTheClock(periodMs: number): () => number {
+  return () => periodMs - (Date.now() % periodMs);
+}
+
+const pointValueRefreshMs = 10_000;
+
+/**
+ * What a point of the symbol is worth on the account, from the engine. It follows the conversion rate, so it is
+ * refreshed now and then. Null until the symbol has a conversion rate.
+ */
+export function usePointValue(accountId: string, symbol: string | null) {
+  return useQuery({
+    queryKey: ["pointValue", accountId, symbol],
+    enabled: symbol !== null,
+    queryFn: async () => {
+      const result = await api.GET("/api/accounts/{accountId}/instruments/{symbol}/point-value", {
+        params: { path: { accountId, symbol: symbol ?? "" } },
+      });
+      return result.response.status === 404 ? null : queryResult(result, "the point value");
+    },
+    staleTime: pointValueRefreshMs,
+    refetchInterval: onTheClock(pointValueRefreshMs),
+  });
+}
+
 /** Candle history. Live updates are applied by the chart itself. */
 export function useCandles(accountId: string, symbol: string | null, timeframe: Timeframe) {
   return useQuery({
@@ -112,6 +142,27 @@ export function useCandles(accountId: string, symbol: string | null, timeframe: 
         "candles",
       ),
     staleTime: Infinity,
+  });
+}
+
+const daySummaryRefreshMs = 5 * 60 * 1000;
+
+/** The last 24 hours of a symbol for the watchlist and the chart header. Shown together with the live bid. */
+export function useDaySummary(accountId: string, symbol: string | null) {
+  return useQuery({
+    queryKey: ["day", accountId, symbol],
+    enabled: symbol !== null,
+    queryFn: async () => {
+      const candles = queryResult(
+        await api.GET("/api/accounts/{accountId}/candles/{symbol}", {
+          params: { path: { accountId, symbol: symbol ?? "" }, query: { timeframe: dayTimeframe, count: dayCandleCount } },
+        }),
+        "candles",
+      );
+      return summarizeDay(candles, Date.now());
+    },
+    staleTime: daySummaryRefreshMs,
+    refetchInterval: onTheClock(daySummaryRefreshMs),
   });
 }
 

@@ -30,6 +30,17 @@ internal sealed class Valuation(PriceBook prices, IReadOnlyDictionary<string, in
         return Round(inQuoteCurrency * Rate(position.Instrument.QuoteCurrency, currency), currency);
     }
 
+    /// <summary>
+    /// Profit in <paramref name="currency"/> of a one point move on one lot, at the current conversion rate. Not rounded, since
+    /// it is a rate to multiply with: <see cref="Profit"/> rounds the result.
+    /// </summary>
+    public bool TryGetPointValue(Instrument instrument, string currency, out decimal value)
+    {
+        var known = prices.TryGetRate(instrument.QuoteCurrency, currency, out var rate);
+        value = known ? instrument.ContractSize * instrument.Point * rate : 0m;
+        return known;
+    }
+
     public decimal Margin(Instrument instrument, SymbolConditions conditions, decimal volume, string currency) =>
         Round(volume * instrument.ContractSize * Rate(instrument.BaseCurrency, currency) / conditions.Leverage, currency);
 

@@ -10,6 +10,7 @@ import { AccountBar } from "./AccountBar";
 import { BottomPanel } from "./BottomPanel";
 import { OrderPanel } from "./OrderPanel";
 import { PriceChart } from "./PriceChart";
+import { StatusBar } from "./StatusBar";
 import { Watchlist } from "./Watchlist";
 
 /** Sends visitors who are not logged in to the login page, and picks which of the trader's accounts to show. */
@@ -65,14 +66,17 @@ function TradingTerminal({
   }
 
   return (
-    <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_16rem] gap-px bg-border">
+    <div className="flex h-full flex-col">
       <AccountBar accounts={accounts} email={email} serverName={serverName} />
-      <div className="grid min-h-0 grid-cols-[15rem_minmax(0,1fr)_17rem] gap-px">
-        <Watchlist instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
-        <PriceChart accountId={accountId} instrument={instrument} />
-        <OrderPanel accountId={accountId} instrument={instrument} />
-      </div>
-      <BottomPanel accountId={accountId} instruments={list} />
+      <main className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_13rem] gap-2 p-2">
+        <div className="grid min-h-0 grid-cols-[19rem_minmax(0,1fr)_18rem] gap-2">
+          <Watchlist accountId={accountId} instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
+          <PriceChart accountId={accountId} instrument={instrument} />
+          <OrderPanel accountId={accountId} instrument={instrument} />
+        </div>
+        <BottomPanel accountId={accountId} instruments={list} />
+      </main>
+      <StatusBar serverName={serverName} />
     </div>
   );
 }

@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
-import type { EngineEvent, InstrumentInfo, PositionSnapshot } from "@/lib/api/types";
+import type { EngineEvent, InstrumentInfo, PositionSnapshot, Side } from "@/lib/api/types";
 import { balanceOperationName, describeEvent, isWarning, type DigitsOf } from "@/lib/events";
-import { formatMoney, formatPrice, formatTime, formatVolume } from "@/lib/format";
-import { parsePrice } from "@/lib/orderInput";
-import { useCancelOrder, useClosePosition, useModifyStops } from "@/lib/queries";
+import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume } from "@/lib/format";
+import { useCancelOrder, useClosePosition, useModifyStops, usePointValue } from "@/lib/queries";
+import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
+
+import { StopUnitToggle } from "./StopUnitToggle";
 
 const tabs = ["Positions", "Orders", "History", "Events"] as const;
 type Tab = (typeof tabs)[number];
@@ -40,7 +42,7 @@ export function BottomPanel({ accountId, instruments }: { accountId: string; ins
   };
 
   return (
-    <section className="flex min-h-0 flex-col bg-panel text-sm">
+    <section className="flex min-h-0 flex-col rounded-lg border border-border bg-panel text-sm">
       <nav className="flex items-center gap-1 border-b border-border px-2" role="tablist">
         {tabs.map((t) => (
           <button
@@ -49,7 +51,7 @@ export function BottomPanel({ accountId, instruments }: { accountId: string; ins
             role="tab"
             aria-selected={t === tab}
             onClick={() => setTab(t)}
-            className={`px-3 py-2 ${t === tab ? "border-b-2 border-accent text-foreground" : "text-muted hover:text-foreground"}`}
+            className={`-mb-px border-b-2 px-3 py-2.5 font-medium ${t === tab ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
           >
             {t}
             {counts[t] ? ` (${counts[t]})` : ""}
@@ -90,39 +92,59 @@ function Positions({
   }
 
   return (
-    <Table headers={["Position", "Symbol", "Side", "Volume", "Open", "Current", "SL", "TP", "Margin", "Profit", ""]}>
+    <Table headers={["Position", "Symbol", "Side", "Volume", "Open price", "Current price", "SL", "TP", "Margin", "Unrealized P/L", ""]}>
       {positions.map((p) => {
         const digits = digitsOf(p.symbol);
         return editing === p.positionId ? (
           <EditStops key={p.positionId} accountId={accountId} position={p} digits={digits} onDone={() => setEditing(null)} onError={onError} />
         ) : (
-          <tr key={p.positionId} className="border-t border-border">
-            <Cell>{shortId(p.positionId)}</Cell>
-            <Cell>{p.symbol}</Cell>
-            <Cell className={p.side === "Buy" ? "text-profit" : "text-loss"}>{p.side}</Cell>
+          <tr key={p.positionId} className="border-t border-border hover:bg-raised/50">
+            <Cell className="font-mono text-muted">{shortId(p.positionId)}</Cell>
+            <Cell className="font-medium">{p.symbol}</Cell>
+            <Cell>
+              <SideBadge side={p.side} />
+            </Cell>
             <Cell number>{formatVolume(p.volume)}</Cell>
             <Cell number>{formatPrice(p.openPrice, digits)}</Cell>
             <Cell number>{formatPrice(p.currentPrice, digits)}</Cell>
-            <Cell number>{formatPrice(p.stopLoss, digits)}</Cell>
-            <Cell number>{formatPrice(p.takeProfit, digits)}</Cell>
+            <StopCell accountId={accountId} position={p} price={p.stopLoss} digits={digits} />
+            <StopCell accountId={accountId} position={p} price={p.takeProfit} digits={digits} />
             <Cell number>{formatMoney(p.margin)}</Cell>
             <Cell number className={p.profit >= 0 ? "text-profit" : "text-loss"}>
-              {formatMoney(p.profit)}
+              {formatSignedMoney(p.profit)}
             </Cell>
             <Cell>
-              <span className="flex justify-end gap-3">
-                <button type="button" className="text-muted hover:text-foreground" onClick={() => setEditing(p.positionId)}>
-                  SL/TP
-                </button>
-                <button type="button" className="text-muted hover:text-loss" disabled={close.isPending} onClick={() => close.mutate(p.positionId, { onError })}>
+              <span className="flex justify-end gap-2">
+                <ActionButton onClick={() => setEditing(p.positionId)}>Edit</ActionButton>
+                <ActionButton danger disabled={close.isPending} onClick={() => close.mutate(p.positionId, { onError })}>
                   Close
-                </button>
+                </ActionButton>
               </span>
             </Cell>
           </tr>
         );
       })}
     </Table>
+  );
+}
+
+// The stop's price and what the position would make or lose there, before commission.
+function StopCell({ accountId, position, price, digits }: { accountId: string; position: PositionSnapshot; price: number | null; digits: number }) {
+  const pointValue = usePointValue(accountId, position.symbol).data;
+  const amount = price !== null && pointValue ? estimatedProfit(position.side, position.volume, position.openPrice, price, digits, pointValue.perLot) : null;
+
+  return (
+    <Cell number>
+      {formatPrice(price, digits)}
+      {amount !== null && (
+        <>
+          {" "}
+          <span className={`text-xs ${amount >= 0 ? "text-profit/80" : "text-loss/80"}`} title="Estimated result at this level, before commission">
+            {formatSignedMoney(amount)}
+          </span>
+        </>
+      )}
+    </Cell>
   );
 }
 
@@ -140,18 +162,57 @@ function EditStops({
   onError: (e: Error) => void;
 }) {
   const modify = useModifyStops(accountId);
-  const [stopLoss, setStopLoss] = useState(position.stopLoss?.toFixed(digits) ?? "");
-  const [takeProfit, setTakeProfit] = useState(position.takeProfit?.toFixed(digits) ?? "");
+  const pointValue = usePointValue(accountId, position.symbol).data ?? undefined;
+  const currency = useTradingStore((s) => s.account?.currency);
+  const [unit, setUnit] = useState<StopUnit>("price");
+  const [fields, setFields] = useState<Record<StopUnit, Record<StopKind, string>>>({
+    price: { stopLoss: position.stopLoss?.toFixed(digits) ?? "", takeProfit: position.takeProfit?.toFixed(digits) ?? "" },
+    money: { stopLoss: "", takeProfit: "" },
+  });
+
+  const amountAt = (price: number | null) =>
+    price !== null && pointValue ? estimatedProfit(position.side, position.volume, position.openPrice, price, digits, pointValue.perLot) : null;
+
+  // Amounts start from the current stops, when they lose and win as a stop loss and take profit should.
+  const switchUnit = (next: StopUnit) => {
+    if (next === "money" && fields.money.stopLoss === "" && fields.money.takeProfit === "") {
+      const loss = amountAt(position.stopLoss);
+      const win = amountAt(position.takeProfit);
+      setFields((f) => ({
+        ...f,
+        money: {
+          stopLoss: loss !== null && loss < 0 ? (-loss).toFixed(2) : "",
+          takeProfit: win !== null && win > 0 ? win.toFixed(2) : "",
+        },
+      }));
+    }
+    setUnit(next);
+  };
+
+  const setField = (kind: StopKind, value: string) => setFields((f) => ({ ...f, [unit]: { ...f[unit], [kind]: value } }));
+  // Amounts are counted from the open price.
+  const resolved = resolveStops(unit, fields[unit].stopLoss, fields[unit].takeProfit, position.side, position.openPrice, position.volume, digits, pointValue?.perLot);
+  const preview = !resolved.ok
+    ? ""
+    : unit === "money"
+      ? [resolved.stopLoss !== null && `SL ${formatPrice(resolved.stopLoss, digits)}`, resolved.takeProfit !== null && `TP ${formatPrice(resolved.takeProfit, digits)}`]
+          .filter(Boolean)
+          .join(" · ")
+      : [resolved.stopLoss, resolved.takeProfit]
+          .map((price, i) => {
+            const amount = amountAt(price);
+            return amount === null ? null : `${i === 0 ? "SL" : "TP"} ${formatSignedMoney(amount)}`;
+          })
+          .filter(Boolean)
+          .join(" · ");
 
   const save = () => {
-    const sl = parsePrice(stopLoss, digits);
-    const tp = parsePrice(takeProfit, digits);
-    if (!sl.ok || !tp.ok) {
-      onError(new Error(`Stop loss and take profit need at most ${digits} decimals.`));
+    if (!resolved.ok) {
+      onError(new Error(resolved.error));
       return;
     }
 
-    modify.mutate({ positionId: position.positionId, stopLoss: sl.value, takeProfit: tp.value }, { onSuccess: onDone, onError });
+    modify.mutate({ positionId: position.positionId, stopLoss: resolved.stopLoss, takeProfit: resolved.takeProfit }, { onSuccess: onDone, onError });
   };
 
   return (
@@ -160,14 +221,14 @@ function EditStops({
       <Cell>{position.symbol}</Cell>
       <td colSpan={9} className="px-3 py-1">
         <span className="flex items-center gap-2">
-          <StopInput label="SL" value={stopLoss} onChange={setStopLoss} />
-          <StopInput label="TP" value={takeProfit} onChange={setTakeProfit} />
-          <button type="button" className="rounded bg-accent px-3 py-1 text-white disabled:opacity-40" disabled={modify.isPending} onClick={save}>
+          <StopInput label="SL" value={fields[unit].stopLoss} onChange={(value) => setField("stopLoss", value)} />
+          <StopInput label="TP" value={fields[unit].takeProfit} onChange={(value) => setField("takeProfit", value)} />
+          <StopUnitToggle unit={unit} currency={pointValue?.currency ?? currency ?? "Money"} onChange={switchUnit} />
+          <button type="button" className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-40" disabled={modify.isPending} onClick={save}>
             Save
           </button>
-          <button type="button" className="text-muted hover:text-foreground" onClick={onDone}>
-            Cancel
-          </button>
+          <ActionButton onClick={onDone}>Cancel</ActionButton>
+          {preview && <span className="font-mono text-xs text-muted tabular-nums">{preview}</span>}
         </span>
       </td>
     </tr>
@@ -183,7 +244,7 @@ function StopInput({ label, value, onChange }: { label: string; value: string; o
         onChange={(e) => onChange(e.target.value)}
         placeholder="None"
         inputMode="decimal"
-        className="w-28 rounded border border-border bg-background px-2 py-0.5 font-mono tabular-nums outline-none focus:border-accent"
+        className="w-28 rounded-md border border-border bg-raised px-2 py-1 font-mono tabular-nums outline-none focus:border-accent"
       />
     </label>
   );
@@ -202,20 +263,24 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
       {orders.map((o) => {
         const digits = digitsOf(o.symbol);
         return (
-          <tr key={o.orderId} className="border-t border-border">
-            <Cell>{shortId(o.orderId)}</Cell>
-            <Cell>{o.symbol}</Cell>
+          <tr key={o.orderId} className="border-t border-border hover:bg-raised/50">
+            <Cell className="font-mono text-muted">{shortId(o.orderId)}</Cell>
+            <Cell className="font-medium">{o.symbol}</Cell>
             <Cell>{o.type}</Cell>
-            <Cell className={o.side === "Buy" ? "text-profit" : "text-loss"}>{o.side}</Cell>
+            <Cell>
+              <SideBadge side={o.side} />
+            </Cell>
             <Cell number>{formatVolume(o.volume)}</Cell>
             <Cell number>{formatPrice(o.price, digits)}</Cell>
             <Cell number>{formatPrice(o.stopLoss, digits)}</Cell>
             <Cell number>{formatPrice(o.takeProfit, digits)}</Cell>
             <Cell>{formatTime(o.placedTime)}</Cell>
             <Cell>
-              <button type="button" className="text-muted hover:text-loss" disabled={cancel.isPending} onClick={() => cancel.mutate(o.orderId, { onError })}>
-                Cancel
-              </button>
+              <span className="flex justify-end">
+                <ActionButton danger disabled={cancel.isPending} onClick={() => cancel.mutate(o.orderId, { onError })}>
+                  Cancel
+                </ActionButton>
+              </span>
             </Cell>
           </tr>
         );
@@ -235,17 +300,17 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
   }
 
   return (
-    <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open", "Close", "Reason", "Commission", "Profit"]}>
+    <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Profit"]}>
       {rows.map((c) => {
         if (isBalanceOperation(c)) {
           return (
-            <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border">
+            <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
               <Cell>{formatTime(c.timestamp)}</Cell>
-              <td colSpan={8} className="px-3 py-1 text-muted">
+              <td colSpan={8} className="px-3 py-1.5 text-muted">
                 {balanceOperationName(c.amount)}
               </td>
               <Cell number className={c.amount >= 0 ? "text-profit" : "text-loss"}>
-                {formatMoney(c.amount)}
+                {formatSignedMoney(c.amount)}
               </Cell>
             </tr>
           );
@@ -253,18 +318,20 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
 
         const digits = digitsOf(c.symbol);
         return (
-          <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border">
+          <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
             <Cell>{formatTime(c.timestamp)}</Cell>
-            <Cell>{shortId(c.positionId)}</Cell>
-            <Cell>{c.symbol}</Cell>
-            <Cell className={c.side === "Buy" ? "text-profit" : "text-loss"}>{c.side}</Cell>
+            <Cell className="font-mono text-muted">{shortId(c.positionId)}</Cell>
+            <Cell className="font-medium">{c.symbol}</Cell>
+            <Cell>
+              <SideBadge side={c.side} />
+            </Cell>
             <Cell number>{formatVolume(c.volume)}</Cell>
             <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
             <Cell number>{formatPrice(c.closePrice, digits)}</Cell>
             <Cell>{c.reason}</Cell>
             <Cell number>{formatMoney(c.commission)}</Cell>
             <Cell number className={c.profit >= 0 ? "text-profit" : "text-loss"}>
-              {formatMoney(c.profit)}
+              {formatSignedMoney(c.profit)}
             </Cell>
           </tr>
         );
@@ -281,7 +348,7 @@ function Events({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsO
   return (
     <ul className="divide-y divide-border">
       {[...events].reverse().map((event, index) => (
-        <li key={`${event.timestamp}-${index}`} className={`flex gap-4 px-3 py-1.5 ${isWarning(event) ? "text-warning" : ""}`}>
+        <li key={`${event.timestamp}-${index}`} className={`flex gap-4 px-3 py-2 ${isWarning(event) ? "text-warning" : ""}`}>
           <span className="shrink-0 font-mono text-muted tabular-nums">{formatTime(event.timestamp)}</span>
           <span>{describeEvent(event, digitsOf)}</span>
           {event.kind === "EquityFloorBreached" && (
@@ -301,7 +368,7 @@ function Table({ headers, children }: { headers: string[]; children: React.React
       <thead className="sticky top-0 bg-panel text-xs text-muted">
         <tr>
           {headers.map((h, i) => (
-            <th key={`${h}-${i}`} className="px-3 py-1.5 text-left font-normal">
+            <th key={`${h}-${i}`} className="px-3 py-2 text-left font-normal whitespace-nowrap">
               {h}
             </th>
           ))}
@@ -313,11 +380,39 @@ function Table({ headers, children }: { headers: string[]; children: React.React
 }
 
 function Cell({ children, number, className = "" }: { children: React.ReactNode; number?: boolean; className?: string }) {
-  return <td className={`px-3 py-1 ${number ? "font-mono tabular-nums" : ""} ${className}`}>{children}</td>;
+  return <td className={`px-3 py-1.5 whitespace-nowrap ${number ? "font-mono tabular-nums" : ""} ${className}`}>{children}</td>;
+}
+
+function SideBadge({ side }: { side: Side }) {
+  const color = side === "Buy" ? "border-buy/40 bg-buy/10 text-buy" : "border-sell/40 bg-sell/10 text-sell";
+  return <span className={`rounded border px-1.5 py-0.5 text-xs font-medium ${color}`}>{side}</span>;
+}
+
+function ActionButton({
+  children,
+  onClick,
+  disabled,
+  danger = false,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-md border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-40 ${danger ? "hover:border-loss/50 hover:text-loss" : "hover:border-muted"}`}
+    >
+      {children}
+    </button>
+  );
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="px-3 py-4 text-muted">{text}</p>;
+  return <p className="px-3 py-6 text-center text-muted">{text}</p>;
 }
 
 // Ids are client-generated UUIDs; the start is enough to tell them apart on screen.

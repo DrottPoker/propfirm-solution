@@ -106,6 +106,25 @@ public sealed partial class TradingEngine
         return _groups.TryGetValue(groupId, out var group) ? group.ToDefinition() : null;
     }
 
+    /// <summary>
+    /// What a point of the symbol is worth on the account, for turning an amount of money into a stop loss or take profit.
+    /// Null if the account does not exist, its group cannot trade the symbol, or there is no conversion rate yet.
+    /// </summary>
+    public PointValue? GetPointValue(string accountId, string symbol)
+    {
+        ArgumentNullException.ThrowIfNull(accountId);
+        ArgumentNullException.ThrowIfNull(symbol);
+        if (!_accountsById.TryGetValue(accountId, out var account)
+            || !_instruments.TryGetValue(symbol, out var instrument)
+            || !account.Group.TryGetConditions(symbol, out _))
+        {
+            return null;
+        }
+
+        var currency = account.Group.Currency;
+        return _valuation.TryGetPointValue(instrument, currency, out var perLot) ? new PointValue(symbol, currency, perLot) : null;
+    }
+
     /// <summary>Latest prices after the group's markup, for each of the group's symbols that has a price. Null if the group does not exist.</summary>
     public IReadOnlyList<SymbolPrice>? GetPrices(string groupId)
     {

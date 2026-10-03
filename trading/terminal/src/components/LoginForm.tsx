@@ -7,7 +7,9 @@ import { productName } from "@/lib/config";
 import { LoginFailedError, useLogin, useServers } from "@/lib/queries";
 import { initialServer, rememberedServer, rememberServer } from "@/lib/servers";
 
-const fieldClass = "rounded border border-border bg-background px-3 py-2 outline-none focus:border-accent";
+import { LogoMark } from "./icons";
+
+const fieldClass = "rounded-md border border-border bg-raised px-3 py-2 outline-none focus:border-accent";
 
 /** Login with the firm's server, email and password. Traders get them from their firm's portal. */
 export function LoginForm({ requestedServer }: { requestedServer: string | null }) {
@@ -43,8 +45,11 @@ export function LoginForm({ requestedServer }: { requestedServer: string | null 
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-panel p-6">
-        <h1 className="text-lg font-semibold">{productName}</h1>
+      <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-border bg-panel p-6 shadow-2xl shadow-black/40">
+        <h1 className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+          <LogoMark />
+          {productName}
+        </h1>
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">Server</span>
@@ -90,7 +95,7 @@ export function LoginForm({ requestedServer }: { requestedServer: string | null 
           </p>
         )}
 
-        <button type="submit" disabled={login.isPending} className="rounded bg-accent py-2 font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={login.isPending} className="rounded-md bg-accent py-2 font-medium text-white hover:bg-accent/90 disabled:opacity-50">
           {login.isPending ? "Logging in..." : "Log in"}
         </button>
       </form>

@@ -8,6 +8,7 @@ export type OrderSnapshot = Schemas["OrderSnapshot"];
 export type FloorSnapshot = Schemas["FloorSnapshot"];
 export type SymbolPrice = Schemas["SymbolPrice"];
 export type InstrumentInfo = Schemas["InstrumentInfo"];
+export type PointValue = Schemas["PointValue"];
 export type Candle = Schemas["Candle"];
 export type EventEnvelope = Schemas["EventEnvelope"];
 export type EngineEvent = Schemas["EngineEvent"];

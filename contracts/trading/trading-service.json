@@ -183,6 +183,46 @@
         }
       }
     },
+    "/api/accounts/{accountId}/instruments/{symbol}/point-value": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "symbol",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PointValue"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/accounts/{accountId}/prices": {
       "get": {
         "tags": [
@@ -2806,6 +2846,27 @@
           }
         },
         "description": "Places an order. The client creates the order id, so a retry can never place the order twice."
+      },
+      "PointValue": {
+        "required": [
+          "symbol",
+          "currency",
+          "perLot"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "perLot": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "What a one point move on one lot of the symbol is worth in the account currency, at the latest conversion rate.\nProfit is points times volume times PerLot, before rounding and commission."
       },
       "PositionSnapshot": {
         "required": [

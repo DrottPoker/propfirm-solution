@@ -15,6 +15,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 - `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag, och `GetLatestQuotes()` de senaste råa priserna.
 - `TradingEngine.GetGroupId(accountId)` returnerar kontots grupp utan att värdera kontot.
 - `TradingEngine.GetGroup(groupId)` returnerar gruppens villkor, med symbolerna i bokstavsordning.
+- `TradingEngine.GetPointValue(accountId, symbol)` returnerar vad en punkt på en lot är värd i kontots valuta: kontraktsstorlek gånger punkt gånger växelkursen från symbolens kursvaluta, samma kurs som vinsten räknas med. Värdet avrundas inte. Null om kontot inte finns, gruppen inte handlar symbolen eller växelkursen saknas.
 - `TradingEngine.ExportState()` och `TradingEngine.FromState(configuration, state)` exporterar och återställer hela tillståndet. En återställd motor ger exakt samma händelser som originalet för samma indata.
 - Händelser och kommandon som hör till ett konto är märkta med `IAccountEvent` och `IAccountCommand`, så att tjänsten kan fördela dem per konto. Priser och grupper hör inte till något konto.
 - Motorn är inte trådsäker. Indata ska tillämpas en i taget och i tur och ordning.

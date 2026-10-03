@@ -118,6 +118,7 @@ public sealed class TradingApiTests
     [InlineData("/api/accounts/missing/instruments")]
     [InlineData("/api/accounts/missing/events")]
     [InlineData("/api/accounts/missing/candles/EURUSD?timeframe=M1")]
+    [InlineData("/api/accounts/missing/instruments/EURUSD/point-value")]
     public async Task ReadsForAccountsTheTraderDoesNotOwnReturnNotFound(string url)
     {
         using var factory = new ServiceFactory();
@@ -161,6 +162,29 @@ public sealed class TradingApiTests
         Assert.True(eurUsd.GetProperty("spreadMarkupPoints").GetInt32() >= 0);
         Assert.True(eurUsd.GetProperty("commissionPerLotPerSide").GetDecimal() >= 0m);
         Assert.Equal(5, eurUsd.GetProperty("digits").GetInt32());
+    }
+
+    [Fact]
+    public async Task PointValueIsInTheAccountCurrencyOnceThereIsAConversionRate()
+    {
+        using var factory = new ServiceFactory();
+        using var client = await factory.CreateTraderClientAsync(AccountId);
+        var url = $"/api/accounts/{AccountId}/instruments/USDJPY/point-value";
+
+        // JPY needs a USDJPY price to become USD.
+        using (var before = await client.GetAsync(new Uri(url, UriKind.Relative), TestContext.Current.CancellationToken))
+        {
+            Assert.Equal(HttpStatusCode.NotFound, before.StatusCode);
+        }
+
+        await factory.PushQuoteAsync("USDJPY", 150.000m, 150.020m);
+        var usdJpy = await client.GetJsonAsync(url);
+        var eurUsd = await client.GetJsonAsync($"/api/accounts/{AccountId}/instruments/EURUSD/point-value");
+
+        Assert.Equal("USD", usdJpy.GetProperty("currency").GetString());
+        // 100 000 x 0.001 JPY at the mid rate 150.010
+        Assert.Equal(0.6666m, Math.Round(usdJpy.GetProperty("perLot").GetDecimal(), 4));
+        Assert.Equal(1m, eurUsd.GetProperty("perLot").GetDecimal());
     }
 
     [Fact]

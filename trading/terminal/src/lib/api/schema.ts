@@ -273,6 +273,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{accountId}/instruments/{symbol}/point-value": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    symbol: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PointValue"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{accountId}/prices": {
         parameters: {
             query?: never;
@@ -1675,6 +1720,16 @@ export interface components {
             stopLoss?: null | number;
             /** Format: double */
             takeProfit?: null | number;
+        };
+        /**
+         * @description What a one point move on one lot of the symbol is worth in the account currency, at the latest conversion rate.
+         *     Profit is points times volume times PerLot, before rounding and commission.
+         */
+        PointValue: {
+            symbol: string;
+            currency: string;
+            /** Format: double */
+            perLot: number;
         };
         /** @description An open position. CurrentPrice is the price it would close at now. */
         PositionSnapshot: {
