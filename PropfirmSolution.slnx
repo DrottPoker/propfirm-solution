@@ -2,9 +2,11 @@
   <Folder Name="/prop/" />
   <Folder Name="/prop/src/">
     <Project Path="prop/src/Prop.Api/Prop.Api.csproj" />
+    <Project Path="prop/src/Prop.Rules/Prop.Rules.csproj" />
   </Folder>
   <Folder Name="/prop/tests/">
     <Project Path="prop/tests/Prop.Api.Tests/Prop.Api.Tests.csproj" />
+    <Project Path="prop/tests/Prop.Rules.Tests/Prop.Rules.Tests.csproj" />
   </Folder>
   <Folder Name="/trading/" />
   <Folder Name="/trading/src/">

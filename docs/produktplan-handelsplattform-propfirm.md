@@ -227,6 +227,8 @@ Viktigt i designen:
 - **Spara bevis för varje regelbrott**: tidpunkt, equity, priser och öppna positioner. Visa det för tradern.
 - **Hantera trassliga händelser.** De kan komma dubbelt, sent eller i fel ordning. Samma händelse ska kunna tas emot flera gånger utan fel, och tillståndet ska stämmas av regelbundet.
 
+Standardvärden, den exakta definitionen av dag och hur regelmotorn och handelsplattformen delar på ansvaret beskrivs i [specen för regelmotorn](spec/regelmotor.md) och [ADR 0011](adr/0011-regelmotorn-satter-golv.md).
+
 ### Kontots livscykel
 
 ```

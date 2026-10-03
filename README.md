@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md) och [handelsterminalen](docs/spec/handelsterminal.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md) och [regelmotorn](docs/spec/regelmotor.md).
 
 ## Struktur
 
@@ -23,8 +23,10 @@ propfirm-solution/
 │   └── terminal/         # webbgränssnittet för traders (Next.js), med genererade API-typer
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
-│   │   └── Prop.Api/          # regelmotor, kontots livscykel, API och webhooks
+│   │   ├── Prop.Rules/        # regelmotorn: deterministisk, ingen I/O
+│   │   └── Prop.Api/          # kontots livscykel, API och webhooks
 │   ├── tests/
+│   │   └── Prop.Rules.Tests/  # regler, livscykel, uppspelning mot facit, arkitektur
 │   └── portal/           # traderportal, adminpanel och uppstart (Next.js)
 ├── shared/               # generell kod utan affärslogik
 └── deploy/               # docker compose för lokal utveckling

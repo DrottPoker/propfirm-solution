@@ -16,6 +16,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0008](0008-journal-av-indata.md) | Journal av indata med ögonblicksbilder | Föreslagen |
 | [0009](0009-inloggning-och-firmor.md) | Inloggning och firmor i handelsplattformen | Föreslagen |
 | [0010](0010-prisflode-for-utveckling.md) | Tiingo som riktigt prisflöde under utvecklingen | Beslutad |
+| [0011](0011-regelmotorn-satter-golv.md) | Regelmotorn sätter golv och avgör faserna | Föreslagen |
 
 ## Så skriver du en ny ADR
 

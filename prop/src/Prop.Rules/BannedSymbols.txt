@@ -1,0 +1,29 @@
+# The rule engine must be deterministic: the same inputs always give the same outputs.
+# Time and trading days come from inputs, never from the system clock.
+P:System.DateTime.Now;Use the time of the input
+P:System.DateTime.UtcNow;Use the time of the input
+P:System.DateTime.Today;Use the time of the input
+P:System.DateTimeOffset.Now;Use the time of the input
+P:System.DateTimeOffset.UtcNow;Use the time of the input
+P:System.TimeProvider.System;Use the time of the input
+P:System.Environment.TickCount;Use the time of the input
+P:System.Environment.TickCount64;Use the time of the input
+T:System.Diagnostics.Stopwatch;Use the time of the input
+
+# No randomness or generated identifiers. Ids come from inputs.
+T:System.Random;The rule engine must be deterministic
+T:System.Security.Cryptography.RandomNumberGenerator;The rule engine must be deterministic
+M:System.Guid.NewGuid;Take ids from inputs
+M:System.Guid.CreateVersion7;Take ids from inputs
+
+# No I/O. The service around the rule engine handles files, network and threads.
+T:System.IO.File;The rule engine must not do I/O
+T:System.IO.Directory;The rule engine must not do I/O
+T:System.IO.FileStream;The rule engine must not do I/O
+T:System.Net.Http.HttpClient;The rule engine must not do I/O
+T:System.Console;The rule engine must not do I/O
+T:System.Threading.Thread;The rule engine is single-threaded
+T:System.Threading.Timer;Use the time of the input
+M:System.Threading.Tasks.Task.Run(System.Action);The rule engine is single-threaded
+M:System.Threading.Tasks.Task.Delay(System.Int32);Use the time of the input
+M:System.Threading.Tasks.Task.Delay(System.TimeSpan);Use the time of the input
