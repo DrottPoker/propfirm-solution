@@ -132,14 +132,13 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         var connectionString = await postgres.CreateDatabaseAsync();
         using (var first = new ServiceFactory(postgresConnectionString: connectionString))
         {
-            using var client = first.CreateClient();
-            await client.CreateAccountAsync("T1");
+            using var client = await first.CreateTraderClientAsync("T1");
             await first.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
             await client.PostJsonAsync("/api/accounts/T1/orders", new { orderId = "O1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m });
         }
 
         using var second = new ServiceFactory(postgresConnectionString: connectionString);
-        using var restarted = second.CreateClient();
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf("T1"), ServiceFactory.TraderPassword);
 
         var account = await restarted.GetJsonAsync("/api/accounts/T1");
         Assert.Equal("O1", account.GetProperty("positions")[0].GetProperty("positionId").GetString());

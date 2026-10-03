@@ -80,6 +80,11 @@ public sealed class SeedAccountOptions
 
     public decimal InitialBalance { get; init; }
 
+    /// <summary>The trader who owns the account. Created with this password if missing. Development only.</summary>
+    public string OwnerEmail { get; init; } = "";
+
+    public string OwnerPassword { get; init; } = "";
+
     public IReadOnlyList<SeedFloorOptions> Floors { get; init; } = [];
 }
 

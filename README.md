@@ -84,7 +84,7 @@ Lösenorden i `deploy/` gäller bara lokal utveckling.
 
 ## Prova handelstjänsten
 
-Tjänsten sparar allt i Postgres, så starta databasen först (se Kom igång). Den startar med syntetiska priser och kontot `demo` (100 000 USD). Den har ingen inloggning än och startar därför bara i miljön Development.
+Tjänsten sparar allt i Postgres, så starta databasen först (se Kom igång). Den startar med syntetiska priser och kontot `demo` (100 000 USD). Den är inte klar för produktion och startar därför bara i miljön Development.
 
 Konton, positioner och historik finns kvar efter en omstart. Stäng av med Ctrl+C, så sparas en ögonblicksbild och nästa start går snabbt. Börja om från noll med `docker compose -f deploy/docker-compose.yml down -v`.
 
@@ -92,20 +92,12 @@ Konton, positioner och historik finns kvar efter en omstart. Stäng av med Ctrl+
 dotnet run --project trading/src/Trading.Service
 ```
 
-Visa kontot och priserna:
+Lokalt finns firman `demo-firm` med API-nyckeln `dev-admin-key`, och kontot `demo` som ägs av `demo@example.com` med lösenordet `demo-password`. De finns i `appsettings.Development.json` och gäller bara lokal utveckling.
+
+Skapa en egen trader med firmans nyckel:
 
 ```bash
-curl http://localhost:5101/api/accounts/demo
-```
-
-```bash
-curl http://localhost:5101/api/accounts/demo/prices
-```
-
-Köp 1 lot EURUSD:
-
-```bash
-curl -X POST http://localhost:5101/api/accounts/demo/orders -H "Content-Type: application/json" -d "{\"orderId\":\"o-1\",\"symbol\":\"EURUSD\",\"side\":\"Buy\",\"type\":\"Market\",\"volume\":1.00}"
+curl -X POST http://localhost:5101/api/admin/users -H "X-Api-Key: dev-admin-key" -H "Content-Type: application/json" -d "{\"email\":\"me@example.com\",\"password\":\"my-password-1\"}"
 ```
 
 Alla vägar finns i OpenAPI-dokumentet på http://localhost:5101/openapi/v1.json och i [specen för handelstjänsten](docs/spec/handelstjanst.md).
@@ -118,7 +110,40 @@ Starta handelstjänsten enligt ovan och starta sedan terminalen i en annan termi
 pnpm dev:terminal
 ```
 
-Öppna http://localhost:3001. Kontot väljs i adressen, till exempel http://localhost:3001/?account=demo.
+Öppna http://localhost:3001 och logga in med `demo@example.com` och `demo-password`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
+
+## Riktiga priser från Tiingo
+
+Tjänsten använder syntetiska priser som standard. För riktiga priser under utvecklingen (ADR 0010):
+
+1. Skapa ett gratis konto på [tiingo.com](https://www.tiingo.com) och kopiera din API-nyckel från [kontosidan för API](https://www.tiingo.com/account/api/token).
+2. Spara den utanför repot med user secrets:
+
+```bash
+dotnet user-secrets set "PriceFeed:Provider" "Tiingo" --project trading/src/Trading.Service
+```
+
+```bash
+dotnet user-secrets set "PriceFeed:Tiingo:ApiKey" "din-nyckel" --project trading/src/Trading.Service
+```
+
+Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara för utveckling. När valutamarknaden är stängd, från fredag kväll till söndag kväll, kommer inga nya priser och ordrar avvisas som för gamla. Använd då de syntetiska priserna. Gå tillbaka till syntetiska priser med `dotnet user-secrets remove "PriceFeed:Provider" --project trading/src/Trading.Service`. Testerna läser aldrig user secrets, så de påverkas inte av valet.
+
+## Tester av hela flödet
+
+Playwright startar en egen tjänst och terminal mot databasen `trading_e2e`, så testerna kan köras medan du utvecklar. Postgres måste vara igång och tjänsten byggd i Release.
+
+```bash
+dotnet build trading/src/Trading.Service -c Release
+```
+
+```bash
+pnpm --filter @trading/terminal exec playwright install chromium
+```
+
+```bash
+pnpm --filter @trading/terminal e2e
+```
 
 ## När API:t ändras
 
@@ -137,3 +162,4 @@ Vid varje push till `main` och varje pull request körs:
 - **Backend:** formatering (`dotnet format`), bygge med varningar som fel, kontroll att OpenAPI-dokumentet är aktuellt, tester.
 - **Webb:** kontroll att API-typerna är aktuella, lint, typkontroll, tester och bygge.
 - **Infrastruktur:** validering av docker compose.
+- **Hela flödet:** Playwright mot tjänsten, terminalen och Postgres.

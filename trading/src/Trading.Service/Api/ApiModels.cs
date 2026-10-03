@@ -16,7 +16,12 @@ public sealed record PlaceOrderRequest(
 
 public sealed record ModifyStopsRequest(decimal? StopLoss, decimal? TakeProfit);
 
-public sealed record CreateAccountRequest(string AccountId, string GroupId, decimal InitialBalance);
+/// <summary>Creates a trading account owned by a user of the same firm.</summary>
+public sealed record CreateAccountRequest(string AccountId, string GroupId, decimal InitialBalance, Guid OwnerUserId);
+
+public sealed record CreateUserRequest(string? Email, string? Password);
+
+public sealed record UserResponse(Guid UserId, string Email);
 
 public sealed record SetFloorRequest(EquityFloorRule Rule);
 

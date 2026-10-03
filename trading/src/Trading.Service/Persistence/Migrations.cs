@@ -8,7 +8,7 @@ namespace Trading.Service.Persistence;
 /// </summary>
 internal static partial class Migrations
 {
-    private static readonly string[] Scripts = ["0001_journal.sql"];
+    private static readonly string[] Scripts = ["0001_journal.sql", "0002_identity.sql"];
 
     // Serializes migrations if several instances start at once.
     private const long LockKey = 7_301_947_265;

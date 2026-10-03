@@ -4,6 +4,8 @@
     <!-- The OpenAPI document is generated on build and committed. The terminal generates its TypeScript types from it. -->
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../terminal/openapi</OpenApiDocumentsDirectory>
     <OpenApiGenerateDocumentsOptions>--file-name trading-service</OpenApiGenerateDocumentsOptions>
+    <!-- Secrets for local development, such as the Tiingo API key, live outside the repository. -->
+    <UserSecretsId>trading-service-6f0d4c2e-8a51-4c1f-9d3b-2f7e5a1c9b40</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

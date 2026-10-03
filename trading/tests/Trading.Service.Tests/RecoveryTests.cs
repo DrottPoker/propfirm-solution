@@ -2,25 +2,26 @@ using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
 
-/// <summary>Restarts of the whole service on the same journal.</summary>
+/// <summary>Restarts of the whole service on the same storage.</summary>
 public sealed class RecoveryTests
 {
     private const string AccountId = "T1";
 
+    private static readonly Dictionary<string, string> ChangedMarkup = new() { ["Trading:Groups:0:Symbols:0:SpreadMarkupPoints"] = "5" };
+
     [Fact]
     public async Task StateSurvivesARestart()
     {
-        var journal = new InMemoryJournal();
+        var backend = new InMemoryBackend();
         long lastSequence;
-        using (var first = new ServiceFactory(journal))
+        using (var first = new ServiceFactory(backend))
         {
-            using var client = first.CreateClient();
-            await TradeAsync(first, client);
+            using var client = await TradeAsync(first);
             lastSequence = (await client.GetJsonAsync($"/api/accounts/{AccountId}/events")).EnumerateArray().Last().GetProperty("sequence").GetInt64();
         }
 
-        using var second = new ServiceFactory(journal);
-        using var restarted = second.CreateClient();
+        using var second = new ServiceFactory(backend);
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
 
         var account = await restarted.GetJsonAsync($"/api/accounts/{AccountId}");
         Assert.Equal("O1", account.GetProperty("positions")[0].GetProperty("positionId").GetString());
@@ -39,13 +40,12 @@ public sealed class RecoveryTests
     public async Task StateSurvivesACrash()
     {
         using var first = new ServiceFactory();
-        using var client = first.CreateClient();
-        await TradeAsync(first, client);
+        using var client = await TradeAsync(first);
         var before = await client.GetJsonAsync($"/api/accounts/{AccountId}");
 
         // Everything a client got an answer for is stored, so a copy now is what a crash leaves behind.
-        using var second = new ServiceFactory(first.Journal.Clone());
-        using var restarted = second.CreateClient();
+        using var second = new ServiceFactory(first.Backend.Crashed());
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
 
         var after = await restarted.GetJsonAsync($"/api/accounts/{AccountId}");
         Assert.Equal(before.GetProperty("balance").GetDecimal(), after.GetProperty("balance").GetDecimal());
@@ -53,36 +53,54 @@ public sealed class RecoveryTests
     }
 
     [Fact]
-    public async Task DevelopmentAccountIsNotRecreated()
+    public async Task SessionSurvivesARestart()
     {
-        var journal = new InMemoryJournal();
-        using (var first = new ServiceFactory(journal))
+        var backend = new InMemoryBackend();
+        string cookie;
+        using (var first = new ServiceFactory(backend))
         {
-            using var client = first.CreateClient();
-            await first.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
-            await client.PostJsonAsync("/api/accounts/demo/orders", new { orderId = "D1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m });
+            (await first.CreateTraderClientAsync(AccountId)).Dispose();
+            cookie = await first.LoginCookieAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
         }
 
-        using var second = new ServiceFactory(journal);
-        using var restarted = second.CreateClient();
+        using var second = new ServiceFactory(backend);
+        using var client = second.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { HandleCookies = false });
+        client.DefaultRequestHeaders.Add("Cookie", cookie);
 
-        var demo = await restarted.GetJsonAsync("/api/accounts/demo");
-        Assert.Equal("D1", demo.GetProperty("positions")[0].GetProperty("positionId").GetString());
+        var me = await client.GetJsonAsync("/api/auth/me");
+        Assert.Equal(AccountId, me.GetProperty("accounts")[0].GetString());
+    }
+
+    [Fact]
+    public async Task DevelopmentAccountIsNotRecreated()
+    {
+        var backend = new InMemoryBackend();
+        using (var first = new ServiceFactory(backend))
+        {
+            using var demo = await first.LoginAsync("demo@example.com", "demo-password");
+            await first.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
+            await demo.PostJsonAsync("/api/accounts/demo/orders", new { orderId = "D1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m });
+        }
+
+        using var second = new ServiceFactory(backend);
+        using var restarted = await second.LoginAsync("demo@example.com", "demo-password");
+
+        var account = await restarted.GetJsonAsync("/api/accounts/demo");
+        Assert.Equal("D1", account.GetProperty("positions")[0].GetProperty("positionId").GetString());
     }
 
     [Fact]
     public async Task ChartsAreRebuiltFromRecordedPrices()
     {
-        var journal = new InMemoryJournal();
-        using (var first = new ServiceFactory(journal))
+        var backend = new InMemoryBackend();
+        using (var first = new ServiceFactory(backend))
         {
-            first.CreateClient().Dispose();
+            (await first.CreateTraderClientAsync(AccountId)).Dispose();
             await first.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         }
 
-        using var second = new ServiceFactory(journal);
-        using var restarted = second.CreateClient();
-        await restarted.CreateAccountAsync(AccountId);
+        using var second = new ServiceFactory(backend);
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
 
         await Eventually.ThatAsync(
             async () => (await restarted.GetJsonAsync($"/api/accounts/{AccountId}/candles/EURUSD?timeframe=M1")).GetArrayLength() == 1,
@@ -93,10 +111,9 @@ public sealed class RecoveryTests
     public async Task DamagedJournalStopsTheStart()
     {
         using var first = new ServiceFactory();
-        using var client = first.CreateClient();
-        await TradeAsync(first, client);
-        var damaged = first.Journal.Clone();
-        damaged.RemoveLastEvent();
+        (await TradeAsync(first)).Dispose();
+        var damaged = first.Backend.Crashed();
+        damaged.Journal.RemoveLastEvent();
 
         using var second = new ServiceFactory(damaged);
         var exception = Assert.ThrowsAny<Exception>(() => second.CreateClient());
@@ -108,10 +125,9 @@ public sealed class RecoveryTests
     public async Task ChangedConfigurationWithInputsToReplayStopsTheStart()
     {
         using var first = new ServiceFactory();
-        using var client = first.CreateClient();
-        await TradeAsync(first, client);
+        (await TradeAsync(first)).Dispose();
 
-        using var second = new ServiceFactory(first.Journal.Clone(), ChangedMarkup);
+        using var second = new ServiceFactory(first.Backend.Crashed(), ChangedMarkup);
         var exception = Assert.ThrowsAny<Exception>(() => second.CreateClient());
 
         Assert.Contains("configuration has changed", exception.ToString(), StringComparison.Ordinal);
@@ -120,27 +136,25 @@ public sealed class RecoveryTests
     [Fact]
     public async Task ChangedConfigurationAfterACleanStopIsAccepted()
     {
-        var journal = new InMemoryJournal();
-        using (var first = new ServiceFactory(journal))
+        var backend = new InMemoryBackend();
+        using (var first = new ServiceFactory(backend))
         {
-            using var client = first.CreateClient();
-            await TradeAsync(first, client);
+            (await TradeAsync(first)).Dispose();
         }
 
-        using var second = new ServiceFactory(journal, ChangedMarkup);
-        using var restarted = second.CreateClient();
+        using var second = new ServiceFactory(backend, ChangedMarkup);
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
 
         var instruments = await restarted.GetJsonAsync($"/api/accounts/{AccountId}/instruments");
         Assert.Equal(5, instruments.EnumerateArray().First(i => i.GetProperty("symbol").GetString() == "EURUSD").GetProperty("spreadMarkupPoints").GetInt32());
     }
 
-    private static readonly Dictionary<string, string> ChangedMarkup = new() { ["Trading:Groups:0:Symbols:0:SpreadMarkupPoints"] = "5" };
-
-    private static async Task TradeAsync(ServiceFactory factory, HttpClient client)
+    private static async Task<HttpClient> TradeAsync(ServiceFactory factory)
     {
-        await client.CreateAccountAsync(AccountId);
+        var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         await client.PostJsonAsync($"/api/accounts/{AccountId}/orders", new { orderId = "O1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 1.00m });
         await client.PutJsonAsync($"/api/admin/accounts/{AccountId}/floors/max-loss", new { rule = new { kind = "FixedFloor", level = 90_000m } });
+        return client;
     }
 }

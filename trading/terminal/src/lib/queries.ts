@@ -1,10 +1,57 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, queryResult } from "./api/client";
 import type { CommandResponse, PlaceOrderRequest, Timeframe } from "./api/types";
 import { useTradingStore } from "./store";
 
 const accountPath = (accountId: string) => ({ params: { path: { accountId } } });
+
+const meKey = ["me"];
+
+/** The logged in trader, or null when nobody is logged in. */
+export function useMe() {
+  return useQuery({
+    queryKey: meKey,
+    queryFn: async () => {
+      const result = await api.GET("/api/auth/me");
+      return result.response.status === 401 ? null : queryResult(result, "the logged in trader");
+    },
+    staleTime: Infinity,
+  });
+}
+
+/** The service said no to the email and password, or to too many attempts. */
+export class LoginFailedError extends Error {
+  constructor(readonly tooManyAttempts: boolean) {
+    super(tooManyAttempts ? "Too many attempts. Wait a minute and try again." : "Wrong email or password.");
+    this.name = "LoginFailedError";
+  }
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { email: string; password: string }) => {
+      const result = await api.POST("/api/auth/login", { body: input });
+      if (result.response.status === 401 || result.response.status === 429) {
+        throw new LoginFailedError(result.response.status === 429);
+      }
+
+      return queryResult(result, "the login");
+    },
+    onSuccess: (me) => queryClient.setQueryData(meKey, me),
+  });
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      await api.POST("/api/auth/logout");
+    },
+    onSuccess: () => queryClient.setQueryData(meKey, null),
+  });
+}
 
 export function useInstruments(accountId: string) {
   return useQuery({

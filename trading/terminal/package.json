@@ -9,7 +9,8 @@
     "lint": "eslint --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "generate:api": "openapi-typescript openapi/trading-service.json --output src/lib/api/schema.ts"
+    "generate:api": "openapi-typescript openapi/trading-service.json --output src/lib/api/schema.ts",
+    "e2e": "node e2e/prepare-database.mjs && playwright test"
   },
   "dependencies": {
     "@microsoft/signalr": "10.0.11",
@@ -22,6 +23,7 @@
     "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
     "@types/react": "^19",

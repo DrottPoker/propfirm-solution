@@ -85,3 +85,48 @@ jobs:
 
       - name: Validate docker compose
         run: docker compose -f deploy/docker-compose.yml config --quiet
+
+  e2e:
+    name: End to end (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - uses: pnpm/action-setup@v6
+        with:
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Start Postgres
+        run: docker compose -f deploy/docker-compose.yml up -d --wait postgres
+
+      - name: Build the trading service
+        run: dotnet build trading/src/Trading.Service --configuration Release
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @trading/terminal exec playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        run: pnpm --filter @trading/terminal e2e
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            trading/terminal/playwright-report
+            trading/terminal/test-results

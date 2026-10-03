@@ -14,6 +14,8 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0006](0006-api-mellan-terminal-och-tjanst.md) | REST och SignalR mellan terminalen och handelstjänsten | Föreslagen |
 | [0007](0007-graf-lightweight-charts.md) | TradingView Lightweight Charts för grafen | Beslutad |
 | [0008](0008-journal-av-indata.md) | Journal av indata med ögonblicksbilder | Föreslagen |
+| [0009](0009-inloggning-och-firmor.md) | Inloggning och firmor i handelsplattformen | Föreslagen |
+| [0010](0010-prisflode-for-utveckling.md) | Tiingo som riktigt prisflöde under utvecklingen | Beslutad |
 
 ## Så skriver du en ny ADR
 

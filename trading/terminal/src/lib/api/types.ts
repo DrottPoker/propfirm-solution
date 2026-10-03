@@ -16,3 +16,5 @@ export type CommandResponse = Schemas["CommandResponse"];
 export type Side = Schemas["Side"];
 export type OrderType = Schemas["OrderType"];
 export type Timeframe = Schemas["Timeframe"];
+export type Branding = Schemas["Branding"];
+export type Me = Schemas["MeResponse"];

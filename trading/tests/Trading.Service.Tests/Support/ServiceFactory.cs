@@ -1,35 +1,49 @@
+using System.Net.Http.Json;
+
+using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
 using Trading.Service.Engine;
 using Trading.Service.Feeds;
+using Trading.Service.Identity;
 using Trading.Service.Persistence;
 
 namespace Trading.Service.Tests.Support;
 
 /// <summary>
-/// The real service in memory, with prices pushed by the test, a clock that only moves when told and a
-/// journal in memory. Pass the same journal to a second factory to restart the service.
-/// With a Postgres connection string, the real journal in that database is used instead.
+/// The real service in memory, with prices pushed by the test, a clock that only moves when told and
+/// storage in memory. Pass the same backend to a second factory to restart the service. With a Postgres
+/// connection string, the real stores in that database are used instead.
 /// </summary>
 internal sealed class ServiceFactory(
-    InMemoryJournal? journal = null,
+    InMemoryBackend? backend = null,
     IReadOnlyDictionary<string, string>? settings = null,
     string? postgresConnectionString = null)
     : WebApplicationFactory<Program>
 {
+    /// <summary>The development firm's admin key, from appsettings.Development.json.</summary>
+    public const string AdminApiKey = "dev-admin-key";
+
+    public const string TraderPassword = "test-password";
+
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero));
 
     public ManualPriceFeed Feed { get; } = new();
 
-    public InMemoryJournal Journal { get; } = journal ?? new InMemoryJournal();
+    public InMemoryBackend Backend { get; } = backend ?? new InMemoryBackend();
+
+    public InMemoryJournal Journal => Backend.Journal;
 
     public EngineHost Engine => Services.GetRequiredService<EngineHost>();
+
+    public static string EmailOf(string accountId) => $"{accountId.ToLowerInvariant()}@test.example";
 
     /// <summary>Pushes a raw price and waits until the engine has applied it.</summary>
     public async Task PushQuoteAsync(string symbol, decimal bid, decimal ask)
@@ -39,17 +53,68 @@ internal sealed class ServiceFactory(
         await Eventually.ThatAsync(() => Engine.QuotesApplied >= target, "the engine to apply the price");
     }
 
-    public HubConnection CreateHubConnection() =>
+    public HttpClient CreateAdminClient(string apiKey = AdminApiKey)
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+        return client;
+    }
+
+    /// <summary>
+    /// Creates a trader who owns a new account and returns a client logged in as that trader.
+    /// The client also carries the admin key, so tests can call both APIs.
+    /// </summary>
+    public async Task<HttpClient> CreateTraderClientAsync(string accountId, decimal balance = 100_000m)
+    {
+        using var admin = CreateAdminClient();
+        var user = await admin.PostJsonAsync("/api/admin/users", new { email = EmailOf(accountId), password = TraderPassword });
+        await admin.PostJsonAsync(
+            "/api/admin/accounts",
+            new { accountId, groupId = "standard", initialBalance = balance, ownerUserId = user.GetProperty("userId").GetGuid() });
+        return await LoginAsync(EmailOf(accountId), TraderPassword);
+    }
+
+    /// <summary>A client logged in as the trader, which also carries the admin key.</summary>
+    public async Task<HttpClient> LoginAsync(string email, string password)
+    {
+        var client = CreateAdminClient();
+        client.DefaultRequestHeaders.Add("Cookie", await LoginCookieAsync(email, password));
+        return client;
+    }
+
+    public async Task<string> LoginCookieAsync(string email, string password)
+    {
+        using var client = CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        using var response = await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new { email, password });
+        response.EnsureSuccessStatusCode();
+        var setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("trading_session=", StringComparison.Ordinal));
+        return setCookie.Split(';')[0];
+    }
+
+    public HubConnection CreateHubConnection(string? cookie = null) =>
         new HubConnectionBuilder()
             .WithUrl(new Uri(Server.BaseAddress, "/hubs/trading"), options =>
             {
                 options.HttpMessageHandlerFactory = _ => Server.CreateHandler();
                 options.Transports = HttpTransportType.LongPolling;
+                if (cookie is not null)
+                {
+                    options.Headers["Cookie"] = cookie;
+                }
             })
             .Build();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Tests must not depend on the developer's user secrets, such as a real price feed.
+        builder.ConfigureAppConfiguration((_, configuration) =>
+        {
+            foreach (var secrets in configuration.Sources.OfType<JsonConfigurationSource>().Where(s => s.Path == "secrets.json").ToList())
+            {
+                configuration.Sources.Remove(secrets);
+            }
+        });
+
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())
         {
             builder.UseSetting(key, value);
@@ -66,7 +131,9 @@ internal sealed class ServiceFactory(
             services.AddSingleton<IPriceFeed>(Feed);
             if (postgresConnectionString is null)
             {
-                services.AddSingleton<IEngineJournal>(Journal);
+                services.AddSingleton<IEngineJournal>(Backend.Journal);
+                services.AddSingleton<IUserStore>(Backend.Users);
+                services.AddSingleton<IXmlRepository>(Backend.Keys);
             }
         });
     }

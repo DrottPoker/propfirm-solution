@@ -1,16 +1,24 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
 using Trading.Engine.Events;
 using Trading.Engine.Inputs;
 using Trading.Service.Configuration;
+using Trading.Service.Identity;
+using Trading.Service.Tenancy;
 
 namespace Trading.Service.Engine;
 
 /// <summary>
-/// Creates the configured development accounts at startup if they do not exist yet. Accounts restored
-/// from the journal are left as they are. Fails startup if a new account is rejected.
+/// Creates the configured development accounts and their owners at startup if they do not exist yet.
+/// Accounts restored from the journal are left as they are. Fails startup if a new account is rejected.
 /// </summary>
-internal sealed class AccountSeeder(EngineHost engine, IOptions<TradingOptions> options) : IHostedService
+internal sealed class AccountSeeder(
+    EngineHost engine,
+    IUserStore users,
+    IPasswordHasher<User> hasher,
+    TenantCatalog tenants,
+    IOptions<TradingOptions> options) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -19,6 +27,13 @@ internal sealed class AccountSeeder(EngineHost engine, IOptions<TradingOptions> 
 
         foreach (var seed in options.Value.SeedAccounts)
         {
+            var tenant = tenants.ByGroup(seed.GroupId)
+                ?? throw new InvalidOperationException($"Seed account {seed.AccountId} is in group {seed.GroupId}, which no tenant has.");
+            var owner = await users.FindByEmailAsync(tenant.Id, seed.OwnerEmail, cancellationToken)
+                ?? await users.CreateAsync(tenant.Id, seed.OwnerEmail, hasher.HashPassword(null!, seed.OwnerPassword), cancellationToken)
+                ?? throw new InvalidOperationException($"Could not create the owner of seed account {seed.AccountId}.");
+            await users.AddAccountAsync(owner.Id, seed.AccountId, cancellationToken);
+
             if (await engine.QueryAsync(e => e.GetAccount(seed.AccountId) is not null, cancellationToken))
             {
                 continue;

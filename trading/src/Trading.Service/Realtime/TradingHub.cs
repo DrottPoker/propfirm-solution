@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.SignalR;
 
 using Trading.Engine;
 using Trading.Service.Engine;
+using Trading.Service.Identity;
 
 namespace Trading.Service.Realtime;
 
@@ -19,12 +20,17 @@ public interface ITradingClient
 }
 
 /// <summary>Realtime connection for the trading terminal. Commands go through the REST API.</summary>
-internal sealed class TradingHub(EngineHost engine, SubscriptionRegistry subscriptions) : Hub<ITradingClient>
+internal sealed class TradingHub(EngineHost engine, IUserStore users, SubscriptionRegistry subscriptions) : Hub<ITradingClient>
 {
-    /// <summary>Starts sending the account's state, events and prices to this connection.</summary>
+    /// <summary>Starts sending the account's state, events and prices to this connection. Only the owner may subscribe.</summary>
     public async Task Subscribe(string accountId)
     {
         var cancellationToken = Context.ConnectionAborted;
+        if (Context.User is null || CurrentUser.IdOf(Context.User) is not { } userId || !await users.OwnsAsync(userId, accountId, cancellationToken))
+        {
+            throw new HubException("Unknown account.");
+        }
+
         var snapshot = await engine.QueryAsync(e => e.GetAccount(accountId), cancellationToken)
             ?? throw new HubException("Unknown account.");
 

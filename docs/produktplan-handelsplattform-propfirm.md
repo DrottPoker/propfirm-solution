@@ -290,7 +290,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Kodbas:** ett repo med hårda gränser mellan produkterna som kontrolleras automatiskt (ADR 0001).
 - **Webb, traderportal och adminpanel:** Next.js med TypeScript.
 - **Backend (handelsmotor, regelmotor och API):** C# på .NET 10 med Postgres. Inbyggda decimaltal gör pengaberäkningarna exakta (ADR 0002).
-- **Inloggning:** beslutas senare. Samma e-postadress måste kunna finnas hos flera firmor.
+- **Inloggning:** handelsplattformen har egna användare per firma, så samma e-postadress kan finnas hos flera firmor. Firman avgörs av adressen (ADR 0009).
 - **Handelsmotor och regelmotor:** egna tjänster som körs hela tiden, inte serverless, eftersom de håller öppna anslutningar och aktuellt tillstånd i minnet. Kärnan i handelsmotorn är deterministisk (ADR 0005) och beskrivs i [specen för handelsmotorn](spec/handelsmotor.md).
 - **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. NATS JetStream för händelser mellan tjänsterna. Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
 - **Kontrakt mellan produkterna:** protobuf, med gRPC för kommandon och NATS för händelser (ADR 0004).
@@ -366,14 +366,13 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 ## Öppna frågor
 
 - Namn på produkterna och företaget.
-- Vilken dataleverantör och vilka licensvillkor?
+- Vilken dataleverantör och vilka licensvillkor? Under utvecklingen används Tiingos gratisplan (ADR 0010), som inte får visas för andra. Tiingo har även en plan för vidaredistribution.
 - Slutlig prismodell efter intervjuerna.
 - Bolagsform och vilket land bolaget ska ligga i.
 - Vilka plattformar adaptrarna ska stödja först, utöver vår egen handelsplattform.
 - Behövs en gratis eller mycket billig nivå för de minsta firmorna, som hos Fintatech?
 - Ska startavgiften tas bort?
 - Hur görs kontrollen av kunden automatiskt, och med vilken leverantör?
-- Inloggning för traders och firmor: egen lösning eller en tjänst som klarar samma e-post hos flera firmor?
 
 ## Källor
 

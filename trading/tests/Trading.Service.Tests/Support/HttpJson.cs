@@ -19,9 +19,6 @@ internal static class HttpJson
     public static Task<JsonElement> DeleteJsonAsync(this HttpClient client, string url) =>
         client.SendJsonAsync(HttpMethod.Delete, url, null, HttpStatusCode.OK);
 
-    public static Task<JsonElement> CreateAccountAsync(this HttpClient client, string accountId, decimal balance = 100_000m) =>
-        client.PostJsonAsync("/api/admin/accounts", new { accountId, groupId = "standard", initialBalance = balance });
-
     public static async Task<JsonElement> PriceAsync(this HttpClient client, string accountId, string symbol)
     {
         var prices = await client.GetJsonAsync($"/api/accounts/{accountId}/prices");

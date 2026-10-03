@@ -17,11 +17,11 @@ Handelsterminalen i webbläsaren behöver lägga ordrar och få priser, kontovä
 - **Avvisningar** blir problem-svar (RFC 9457) med fältet `reason`: 404 för okänt konto, order, position eller golv, 409 för id som redan använts och 422 för övriga.
 - **JSON:** camelCase och enums som text. Händelser, kommandon och golvregler har fältet `kind` med typens namn. Belopp skickas som JSON-tal, och tal skrivna som text godtas inte.
 - **Takt:** händelser skickas direkt. Priser skickas högst var 100:e ms och kontot högst var 250:e ms, och bara när de ändrats.
-- **Administration** (skapa konto, sätta golv, stänga konto) ligger under `/api/admin` tills det interna API:t mot propfirm-plattformen finns.
-- **Ingen inloggning ännu.** Tjänsten vägrar starta i andra miljöer än Development, så att ett öppet API aldrig kan driftsättas av misstag.
+- **Administration** (skapa trader och konto, sätta golv, stänga konto) ligger under `/api/admin` och kräver firmans API-nyckel.
+- **Inloggning** med cookie för traders, och ägarskap för konton, beskrivs i ADR 0009.
 
 ## Konsekvenser
 
 - Motorns typer används direkt i API:t. Det är enkelt så länge terminal och motor hör till samma produkt, men en ändring i motorns typer ändrar API:t.
 - JSON-tal räcker för visning eftersom gränssnittet inte räknar. Om ett publikt API för algohandel byggs kan belopp behöva skickas som text.
-- Inloggning måste byggas innan tjänsten kan köras någon annanstans än lokalt.
+- Tjänsten kör bara i miljön Development tills HTTPS, hemligheter och ett prisflöde med licens finns.

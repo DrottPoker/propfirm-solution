@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { useInstruments } from "@/lib/queries";
+import { useInstruments, useMe } from "@/lib/queries";
 import { useTradingConnection } from "@/lib/realtime";
 
 import { AccountBar } from "./AccountBar";
@@ -11,7 +12,35 @@ import { OrderPanel } from "./OrderPanel";
 import { PriceChart } from "./PriceChart";
 import { Watchlist } from "./Watchlist";
 
-export function Terminal({ accountId }: { accountId: string }) {
+/** Sends visitors who are not logged in to the login page, and picks which of the trader's accounts to show. */
+export function Terminal({ requestedAccountId }: { requestedAccountId: string | null }) {
+  const router = useRouter();
+  const me = useMe();
+
+  useEffect(() => {
+    if (me.data === null) {
+      router.replace("/login");
+    }
+  }, [me.data, router]);
+
+  if (me.isError) {
+    return <Message text="Could not reach the trading service." />;
+  }
+
+  if (!me.data) {
+    return <Message text="Loading..." />;
+  }
+
+  const accounts = me.data.accounts;
+  const accountId = requestedAccountId && accounts.includes(requestedAccountId) ? requestedAccountId : accounts[0];
+  if (!accountId) {
+    return <Message text="You have no trading account yet." />;
+  }
+
+  return <TradingTerminal key={accountId} accountId={accountId} email={me.data.email} />;
+}
+
+function TradingTerminal({ accountId, email }: { accountId: string; email: string }) {
   useTradingConnection(accountId);
   const instruments = useInstruments(accountId);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -20,16 +49,12 @@ export function Terminal({ accountId }: { accountId: string }) {
   const instrument = list.find((i) => i.symbol === selectedSymbol) ?? list[0] ?? null;
 
   if (instruments.isError) {
-    return (
-      <main className="flex flex-1 items-center justify-center p-8 text-muted">
-        Could not load account {accountId}. Is the trading service running?
-      </main>
-    );
+    return <Message text={`Could not load account ${accountId}.`} />;
   }
 
   return (
     <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_16rem] gap-px bg-border">
-      <AccountBar />
+      <AccountBar email={email} />
       <div className="grid min-h-0 grid-cols-[15rem_minmax(0,1fr)_17rem] gap-px">
         <Watchlist instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
         <PriceChart accountId={accountId} instrument={instrument} />
@@ -38,4 +63,8 @@ export function Terminal({ accountId }: { accountId: string }) {
       <BottomPanel accountId={accountId} instruments={list} />
     </div>
   );
+}
+
+function Message({ text }: { text: string }) {
+  return <main className="flex flex-1 items-center justify-center p-8 text-muted">{text}</main>;
 }

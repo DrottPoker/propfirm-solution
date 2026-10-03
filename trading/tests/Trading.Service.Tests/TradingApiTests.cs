@@ -13,8 +13,7 @@ public sealed class TradingApiTests
     public async Task MarketOrderFillsAtTheAskTheAccountSees()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         var ask = (await client.PriceAsync(AccountId, "EURUSD")).GetProperty("ask").GetDecimal();
 
@@ -31,8 +30,7 @@ public sealed class TradingApiTests
     public async Task EventsKeepTheAccountHistoryInOrder()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         await client.PostJsonAsync(Orders, MarketBuy("O1"));
         await client.PostJsonAsync($"/api/accounts/{AccountId}/positions/O1/close");
@@ -51,8 +49,7 @@ public sealed class TradingApiTests
     public async Task PendingOrdersCanBeCancelledAndStopsModified()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
 
         var placed = await client.PostJsonAsync(Orders, new { orderId = "L1", symbol = "EURUSD", side = "Buy", type = "Limit", volume = 1.00m, price = 1.07000m });
@@ -69,18 +66,15 @@ public sealed class TradingApiTests
     public async Task RejectionsUseMatchingStatusCodesAndGiveTheReason()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
 
         var noPrice = await client.PostJsonAsync(Orders, MarketBuy("O1"), HttpStatusCode.UnprocessableEntity);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         await client.PostJsonAsync(Orders, MarketBuy("O1"));
         var duplicate = await client.PostJsonAsync(Orders, MarketBuy("O1"), HttpStatusCode.Conflict);
-        var unknownAccount = await client.PostJsonAsync("/api/accounts/missing/orders", MarketBuy("O1"), HttpStatusCode.NotFound);
 
         Assert.Equal("NoPrice", noPrice.GetProperty("reason").GetString());
         Assert.Equal("DuplicateId", duplicate.GetProperty("reason").GetString());
-        Assert.Equal("UnknownAccount", unknownAccount.GetProperty("reason").GetString());
     }
 
     [Theory]
@@ -89,10 +83,10 @@ public sealed class TradingApiTests
     [InlineData("/api/accounts/missing/instruments")]
     [InlineData("/api/accounts/missing/events")]
     [InlineData("/api/accounts/missing/candles/EURUSD?timeframe=M1")]
-    public async Task ReadsForUnknownAccountsReturnNotFound(string url)
+    public async Task ReadsForAccountsTheTraderDoesNotOwnReturnNotFound(string url)
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
+        using var client = await factory.CreateTraderClientAsync(AccountId);
 
         using var response = await client.GetAsync(new Uri(url, UriKind.Relative), TestContext.Current.CancellationToken);
 
@@ -103,8 +97,7 @@ public sealed class TradingApiTests
     public async Task FloorBreachLiquidatesAndDisablesTheAccount()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         await client.PostJsonAsync(Orders, new { orderId = "O1", symbol = "EURUSD", side = "Buy", type = "Market", volume = 10.00m });
 
@@ -124,8 +117,7 @@ public sealed class TradingApiTests
     public async Task InstrumentsShowTheTradingConditionsOfTheGroup()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
 
         var instruments = await client.GetJsonAsync($"/api/accounts/{AccountId}/instruments");
 
@@ -140,8 +132,7 @@ public sealed class TradingApiTests
     public async Task CandlesUseTheBidTheAccountSees()
     {
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync(AccountId);
+        using var client = await factory.CreateTraderClientAsync(AccountId);
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
         var bid = (await client.PriceAsync(AccountId, "EURUSD")).GetProperty("bid").GetDecimal();
 

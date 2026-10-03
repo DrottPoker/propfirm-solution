@@ -4,6 +4,157 @@
  */
 
 export interface paths {
+    "/api/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    host?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Branding"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LoginRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{accountId}": {
         parameters: {
             query?: never;
@@ -390,6 +541,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateUserRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/accounts": {
         parameters: {
             query?: never;
@@ -556,6 +746,14 @@ export interface components {
         };
         /** @enum {unknown} */
         AccountStatus: "Active" | "Disabled";
+        /** @description What the terminal needs to look like the firm's own. */
+        Branding: {
+            displayName: string;
+            logoUrl: null | string;
+            colors: {
+                [key: string]: string;
+            };
+        };
         /** @enum {unknown} */
         CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
@@ -579,11 +777,18 @@ export interface components {
         CommandResponse: {
             events: components["schemas"]["EventEnvelope"][];
         };
+        /** @description Creates a trading account owned by a user of the same firm. */
         CreateAccountRequest: {
             accountId: string;
             groupId: string;
             /** Format: double */
             initialBalance: number;
+            /** Format: uuid */
+            ownerUserId: string;
+        };
+        CreateUserRequest: {
+            email: null | string;
+            password: null | string;
         };
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
@@ -914,6 +1119,18 @@ export interface components {
             /** Format: double */
             commissionPerLotPerSide: number;
         };
+        LoginRequest: {
+            email: null | string;
+            password: null | string;
+        };
+        /** @description The logged in trader and the accounts they own. */
+        MeResponse: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
+            tenantId: string;
+            accounts: string[];
+        };
         ModifyStopsRequest: {
             /** Format: double */
             stopLoss: null | number;
@@ -994,6 +1211,11 @@ export interface components {
         };
         /** @enum {unknown} */
         Timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1";
+        UserResponse: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
+        };
     };
     responses: never;
     parameters: never;

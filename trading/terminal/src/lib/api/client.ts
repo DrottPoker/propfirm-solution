@@ -3,7 +3,8 @@ import createClient from "openapi-fetch";
 import { tradingApiUrl } from "../config";
 import type { paths } from "./schema";
 
-export const api = createClient<paths>({ baseUrl: tradingApiUrl });
+// The session cookie is sent with every call.
+export const api = createClient<paths>({ baseUrl: tradingApiUrl, credentials: "include" });
 
 /** The service rejected a command. The reason is the engine's reject reason, for example "StalePrice". */
 export class CommandRejectedError extends Error {

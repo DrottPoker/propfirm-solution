@@ -14,11 +14,10 @@ public sealed class RealtimeTests
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var factory = new ServiceFactory();
-        using var client = factory.CreateClient();
-        await client.CreateAccountAsync("T1");
+        using var client = await factory.CreateTraderClientAsync("T1");
         await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
 
-        await using var connection = factory.CreateHubConnection();
+        await using var connection = factory.CreateHubConnection(await factory.LoginCookieAsync(ServiceFactory.EmailOf("T1"), ServiceFactory.TraderPassword));
         var account = Expect(connection, "Account");
         var initialPrices = Expect(connection, "Prices");
         await connection.StartAsync(cancellationToken);
@@ -40,14 +39,25 @@ public sealed class RealtimeTests
     }
 
     [Fact]
-    public async Task SubscribingToAnUnknownAccountFails()
+    public async Task SubscribingToAnAccountOfSomeoneElseFails()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var factory = new ServiceFactory();
-        await using var connection = factory.CreateHubConnection();
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        (await factory.CreateTraderClientAsync("T2")).Dispose();
+        await using var connection = factory.CreateHubConnection(await factory.LoginCookieAsync(ServiceFactory.EmailOf("T1"), ServiceFactory.TraderPassword));
         await connection.StartAsync(cancellationToken);
 
-        await Assert.ThrowsAsync<HubException>(() => connection.InvokeAsync("Subscribe", "missing", cancellationToken));
+        await Assert.ThrowsAsync<HubException>(() => connection.InvokeAsync("Subscribe", "T2", cancellationToken));
+    }
+
+    [Fact]
+    public async Task ConnectingWithoutLoginIsRefused()
+    {
+        using var factory = new ServiceFactory();
+        await using var connection = factory.CreateHubConnection();
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => connection.StartAsync(TestContext.Current.CancellationToken));
     }
 
     // Completes with the first message to the method that matches the filter.

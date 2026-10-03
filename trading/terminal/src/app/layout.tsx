@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+
+import { getBranding } from "@/lib/branding";
+import { themeStyle } from "@/lib/theme";
+
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -13,19 +17,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Trading terminal",
-  description: "Simulated trading terminal",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getBranding();
+  return {
+    title: branding ? `${branding.displayName} terminal` : "Trading terminal",
+    description: "Simulated trading terminal",
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// The firm is known from the address, so its colors are set before anything renders.
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const branding = await getBranding();
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={themeStyle(branding) as React.CSSProperties}
     >
       <body className="flex h-full flex-col overflow-hidden">
-        <Providers>{children}</Providers>
+        <Providers branding={branding}>{children}</Providers>
       </body>
     </html>
   );

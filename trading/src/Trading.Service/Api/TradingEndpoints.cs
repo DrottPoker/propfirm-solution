@@ -5,11 +5,12 @@ using Trading.Engine.Inputs;
 using Trading.Service.Candles;
 using Trading.Service.Configuration;
 using Trading.Service.Engine;
+using Trading.Service.Identity;
 using Trading.Service.Persistence;
 
 namespace Trading.Service.Api;
 
-/// <summary>The trader's API, scoped to one account. Used by the trading terminal.</summary>
+/// <summary>The trader's API, scoped to one account the logged in trader owns. Used by the trading terminal.</summary>
 internal static class TradingEndpoints
 {
     private const int DefaultCandles = 500;
@@ -19,7 +20,10 @@ internal static class TradingEndpoints
 
     public static IEndpointRouteBuilder MapTradingApi(this IEndpointRouteBuilder app)
     {
-        var account = app.MapGroup("/api/accounts/{accountId}").WithTags("Trading");
+        var account = app.MapGroup("/api/accounts/{accountId}")
+            .WithTags("Trading")
+            .RequireAuthorization()
+            .AddEndpointFilter<AccountOwnerFilter>();
         account.MapGet("", GetAccountAsync);
         account.MapGet("/instruments", GetInstrumentsAsync);
         account.MapGet("/prices", GetPricesAsync);

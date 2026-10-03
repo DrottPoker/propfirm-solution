@@ -1,0 +1,80 @@
+using System.Xml.Linq;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+using Npgsql;
+
+using Trading.Service.Identity;
+using Trading.Service.Persistence;
+using Trading.Service.Tests.Support;
+
+namespace Trading.Service.Tests;
+
+public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
+{
+    [Fact]
+    public async Task UsersAreFoundByEmailWithoutCaseAndOnlyWithinTheirFirm()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource);
+
+        var created = await users.CreateAsync("firm-a", " Trader@Test.Example ", "hash", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(created);
+        Assert.Equal("Trader@Test.Example", created.Email);
+        Assert.Equal(created, await users.FindByEmailAsync("firm-a", "trader@test.example", TestContext.Current.CancellationToken));
+        Assert.Null(await users.FindByEmailAsync("firm-b", "trader@test.example", TestContext.Current.CancellationToken));
+        Assert.Equal(created, await users.FindByIdAsync(created.Id, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task EmailIsUniqueWithinAFirmOnly()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource);
+
+        Assert.NotNull(await users.CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken));
+        Assert.Null(await users.CreateAsync("firm-a", "A@TEST.EXAMPLE", "hash", TestContext.Current.CancellationToken));
+        Assert.NotNull(await users.CreateAsync("firm-b", "a@test.example", "hash", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task AnAccountHasOneOwner()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource);
+        var first = (await users.CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken))!;
+        var second = (await users.CreateAsync("firm-a", "b@test.example", "hash", TestContext.Current.CancellationToken))!;
+
+        Assert.True(await users.AddAccountAsync(first.Id, "A1", TestContext.Current.CancellationToken));
+        Assert.False(await users.AddAccountAsync(second.Id, "A1", TestContext.Current.CancellationToken));
+        Assert.True(await users.OwnsAsync(first.Id, "A1", TestContext.Current.CancellationToken));
+        Assert.False(await users.OwnsAsync(second.Id, "A1", TestContext.Current.CancellationToken));
+        Assert.Equal(["A1"], await users.AccountsOfAsync(first.Id, TestContext.Current.CancellationToken));
+
+        await users.RemoveAccountAsync("A1", TestContext.Current.CancellationToken);
+        Assert.False(await users.OwnsAsync(first.Id, "A1", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task CookieKeysAreKept()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var keys = new PostgresXmlRepository(dataSource);
+
+        keys.StoreElement(new XElement("key", new XAttribute("id", "1")), "key-1");
+        keys.StoreElement(new XElement("key", new XAttribute("id", "1")), "key-1");
+        keys.StoreElement(new XElement("key", new XAttribute("id", "2")), "key-2");
+
+        Assert.Equal(["1", "2"], new PostgresXmlRepository(dataSource).GetAllElements().Select(e => e.Attribute("id")!.Value));
+    }
+
+    private async Task<NpgsqlDataSource> CreateDatabaseAsync()
+    {
+        var dataSource = NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());
+        await new PostgresEngineJournal(dataSource, Options.Create(new JournalOptions()), NullLogger<PostgresEngineJournal>.Instance)
+            .InitializeAsync(TestContext.Current.CancellationToken);
+        return dataSource;
+    }
+}

@@ -1,6 +1,6 @@
 # Spec: handelsterminalen
 
-- Fas: 3a
+- Fas: 3a och 3b
 - Status: Implementerad i `trading/terminal`
 - Datum: 2026-10-02
 
@@ -8,11 +8,19 @@
 
 Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pratar bara med handelstjänsten (se [specen för handelstjänsten](handelstjanst.md)).
 
+## Inloggning och firmans utseende
+
+- **Firmans utseende** hämtas på servern från `GET /api/branding` med adressen terminalen öppnades på. Namn och färger sätts innan sidan visas, så att standardutseendet aldrig blinkar förbi. Färgerna blir CSS-variabler och kontrolleras en gång till i terminalen. Utan svar från tjänsten visas standardutseendet.
+- **Inloggning** på `/login` med e-post och lösenord. Sidan visar firmans namn och logga.
+- **Spärr:** den som inte är inloggad skickas till `/login`.
+- **Konto:** terminalen visar det första kontot tradern äger, eller det som anges med `?account=` om tradern äger det.
+- **Utloggning** finns i kontoraden, bredvid traderns e-postadress.
+
 ## Layout
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│ Status  Konto  Saldo  Equity  Marginal  Fri marginal  Nivå       │
+│ Firma  Status  Konto  Saldo  Equity  Marginal  Nivå   e-post Ut  │
 │ Golv: nivå och hur långt equity kan falla innan det bryts        │
 ├───────────┬─────────────────────────────────────┬────────────────┤
 │ Symboler  │ Graf: candles, tidsramar, linjer    │ Ordertyp       │
@@ -58,19 +66,15 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 - Zustand för livedata och TanStack Query för anrop.
 - `openapi-fetch` för typade anrop och `@microsoft/signalr` för realtid.
 
-## Konto
+## Begränsningar
 
-Det finns ingen inloggning än. Kontot väljs i adressen, till exempel `http://localhost:3001/?account=demo`. Standard är `demo`.
-
-## Begränsningar i fas 3a
-
-- Ingen inloggning och ingen white label.
 - Panelerna har fast storlek, och layouten är gjord för datorskärm.
+- Inget byte eller återställning av lösenord.
 - Grafen saknar ritverktyg och indikatorer.
 - Tider i grafen visas i UTC.
-- Inga tester av hela flödet i webbläsaren. Det kommer med Playwright.
 
 ## Tester
 
-- Enhetstester med Vitest för inmatning, candles, händelsetexter och sammanslagning av händelser (`pnpm test`).
+- Enhetstester med Vitest för inmatning, candles, händelsetexter, sammanslagning av händelser och firmans färger (`pnpm test`).
+- Tester av hela flödet med Playwright (`pnpm e2e`): spärren och firmans inloggningssida, fel lösenord, inloggning, köp, stängning, historik, händelser och utloggning, och att en trader bara ser sitt eget konto. Testerna startar en egen tjänst på port 5121 och en egen terminal på port 3021 mot databasen `trading_e2e`, som töms före varje körning. De kan alltså köras medan du utvecklar. Postgres från `deploy/docker-compose.yml` måste vara igång.
 - Lint, typkontroll och bygge i CI.

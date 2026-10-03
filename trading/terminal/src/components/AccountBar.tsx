@@ -1,6 +1,11 @@
 "use client";
 
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+
+import { useBranding } from "@/app/providers";
 import { formatMoney, formatPercent } from "@/lib/format";
+import { useLogout } from "@/lib/queries";
 import { useTradingStore, type ConnectionState } from "@/lib/store";
 
 const connectionStyles: Record<ConnectionState, { label: string; dot: string }> = {
@@ -11,12 +16,20 @@ const connectionStyles: Record<ConnectionState, { label: string; dot: string }> 
 };
 
 /** Account figures and the distance to every equity floor, so the trader always sees the limits. */
-export function AccountBar() {
+export function AccountBar({ email }: { email: string }) {
   const account = useTradingStore((s) => s.account);
   const connection = connectionStyles[useTradingStore((s) => s.connection)];
+  const branding = useBranding();
+  const logout = useLogout();
+  const router = useRouter();
 
   return (
     <header className="flex flex-wrap items-center gap-x-6 gap-y-1 bg-panel px-4 py-2 text-sm">
+      {branding?.logoUrl ? (
+        <Image src={branding.logoUrl} alt={branding.displayName} width={96} height={24} unoptimized className="h-6 w-auto object-contain" />
+      ) : (
+        <span className="font-semibold">{branding?.displayName ?? "Trading"}</span>
+      )}
       <span className="flex items-center gap-2 text-muted" title="Connection to the trading service">
         <span className={`size-2 rounded-full ${connection.dot}`} />
         {connection.label}
@@ -40,6 +53,18 @@ export function AccountBar() {
           ))}
         </>
       )}
+
+      <span className="ml-auto flex items-center gap-3 text-muted">
+        {email}
+        <button
+          type="button"
+          className="hover:text-foreground"
+          disabled={logout.isPending}
+          onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/login") })}
+        >
+          Log out
+        </button>
+      </span>
     </header>
   );
 }

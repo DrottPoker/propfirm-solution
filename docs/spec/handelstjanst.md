@@ -1,6 +1,6 @@
 # Spec: handelstjänsten
 
-- Fas: 2a och 2b
+- Fas: 2a, 2b och 3b
 - Status: Implementerad i `trading/src/Trading.Service`
 - Datum: 2026-10-02
 
@@ -17,11 +17,14 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 | `EventLog` | Skickar sparade händelser vidare till realtidsdelen. |
 | `EngineHealthCheck` | `/health` är friskt först när journalen är uppspelad, och bara så länge den går att skriva. |
 | `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. |
-| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. |
+| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Standard. |
+| `TiingoPriceFeed` | Riktiga priser för valutor och guld från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. |
 | `PriceFeedPump` | Flyttar priser från flödet till candles och motorn. Bygger graferna från sparade priser vid start, eller från flödets historik första gången. |
 | `CandleStore` | Bygger candles av bid per symbol och tidsram (M1, M5, M15, M30, H1, H4, D1). |
 | `TradingHub`, `RealtimePublisher` | Realtid via SignalR. |
-| `AccountSeeder` | Skapar utvecklingskonton vid start om de inte redan finns. |
+| `AccountSeeder` | Skapar utvecklingskonton och deras ägare vid start om de inte redan finns. |
+| `TenantCatalog`, `AdminApiKeyFilter` | Firmorna: domäner, grupper, API-nycklar och utseende. |
+| `IUserStore`, `AuthEndpoints`, `AccountOwnerFilter` | Inloggning för traders och ägarskap för konton (ADR 0009). |
 
 ## Motorloopen
 
@@ -41,6 +44,8 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 | `engine_inputs` | Varje indata med löpnummer. Priser i egna kolumner, kommandon som JSON. |
 | `engine_events` | Varje händelse med löpnummer och konto. Används för `GET /events`. |
 | `engine_snapshots` | Motorns tillstånd efter ett visst indata, med konfigurationens fingeravtryck. De tre senaste behålls. |
+| `users`, `account_owners` | Traders och vilka konton de äger. |
+| `data_protection_keys` | Nycklarna som skyddar inloggningscookies. |
 | `schema_migrations` | Vilka migreringar som körts. Tabellerna skapas och uppgraderas vid start. |
 
 **Skrivning:** Motorn tillämpar indata direkt. En separat skrivare sparar dem i batcher i en transaktion. Svar på kommandon, händelser i realtid och svar på frågor släpps först när det de bygger på är sparat. Misslyckas en skrivning tre gånger stoppas tjänsten.
@@ -62,9 +67,18 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 
 Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument skrivs till `trading/terminal/openapi/trading-service.json` när tjänsten byggs, och terminalens typer genereras från det.
 
+### Inloggning
+
+| Metod och väg | Beskrivning |
+|---|---|
+| `POST /api/auth/login` | Loggar in med `{ "email", "password" }` hos firman som äger adressen. Sätter sessionscookien. Högst 10 försök per minut och IP-adress. |
+| `POST /api/auth/logout` | Loggar ut. |
+| `GET /api/auth/me` | Den inloggade tradern och kontona den äger. |
+| `GET /api/branding?host=` | Firmans namn, logga och färger för en adress. Används av terminalen innan någon har loggat in. |
+
 ### För tradern
 
-Alla vägar börjar med `/api/accounts/{accountId}`.
+Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är inloggad och äger kontot. Andras konton svarar 404.
 
 | Metod och väg | Beskrivning |
 |---|---|
@@ -80,9 +94,12 @@ Alla vägar börjar med `/api/accounts/{accountId}`.
 
 ### Administration
 
+Kräver firmans API-nyckel i headern `X-Api-Key`, och når bara firmans egna grupper, traders och konton.
+
 | Metod och väg | Beskrivning |
 |---|---|
-| `POST /api/admin/accounts` | Skapar ett konto. |
+| `POST /api/admin/users` | Skapar en trader med `{ "email", "password" }`. Lösenordet ska ha minst 10 tecken. E-postadressen är unik inom firman. |
+| `POST /api/admin/accounts` | Skapar ett konto i en av firmans grupper, ägt av en av firmans traders (`ownerUserId`). |
 | `PUT /api/admin/accounts/{accountId}/floors/{floorId}` | Sätter ett golv, till exempel `{ "rule": { "kind": "FixedFloor", "level": 95000 } }`. |
 | `DELETE /api/admin/accounts/{accountId}/floors/{floorId}` | Tar bort ett golv. |
 | `POST /api/admin/accounts/{accountId}/close` | Stänger kontot. |
@@ -94,7 +111,7 @@ Alla vägar börjar med `/api/accounts/{accountId}`.
 
 ## Realtid
 
-SignalR-hubben ligger på `/hubs/trading`. Klienten anropar `Subscribe(accountId)` och får sedan:
+SignalR-hubben ligger på `/hubs/trading` och kräver inloggning. Klienten anropar `Subscribe(accountId)` för ett konto den äger och får sedan:
 
 | Meddelande | Innehåll | När |
 |---|---|---|
@@ -112,15 +129,19 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `SyntheticFeed` | Frö, intervall, längd på historiken och startpriser per symbol. |
 | `Realtime` | Takt för priser och konto. |
 | `Journal` | Antal indata mellan ögonblicksbilder, hur många som behålls och hur lång prishistorik graferna byggs från vid start. |
+| `Tenants` | Firmorna: id, domäner, grupper, SHA-256 av API-nyckeln och utseende (namn, logga, färger). |
+| `PriceFeed` | `Provider` (`Synthetic` eller `Tiingo`). För Tiingo även `Tiingo:ApiKey`, som sätts med `dotnet user-secrets`. |
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 
-I utveckling skapas kontot `demo` med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000.
+I utveckling finns firman `demo-firm` på `localhost` med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 
-- Ingen inloggning. Tjänsten startar bara i miljön Development.
-- Bara det syntetiska prisflödet finns. En adapter för en riktig dataleverantör väntar på valet av leverantör och dess licensvillkor.
+- Tjänsten startar bara i miljön Development. Före produktion behövs HTTPS, hantering av hemligheter och ett prisflöde med licens.
+- Tiingo-flödet får inte visas för andra. En leverantör för produktionen väntar på licensvillkoren.
+- Det finns inga handelstider. Med Tiingo kommer inga nya priser när marknaden är stängd, så ordrar avvisas med `StalePrice` efter `MaxQuoteAge`. Det syntetiska flödet går dygnet runt.
+- Byte och återställning av lösenord finns inte än.
 - Journalen växer med alla priser och har ännu ingen arkivering.
 - Candles använder UTC och dygnsgräns vid midnatt, inte 17:00 New York-tid.
 
@@ -130,4 +151,6 @@ Testerna ligger i `trading/tests/Trading.Service.Tests`. De kör den riktiga tj�
 
 De flesta tester använder en journal i minnet som går via JSON som i Postgres. Den kan hålla inne eller fälla skrivningar, så att testerna kan visa att inget släpps innan det är sparat, att fel stoppar tjänsten, att omstart efter krasch och efter vanlig avstängning ger samma tillstånd och att skadad journal eller ändrad konfiguration stoppar starten.
 
-`PostgresJournalTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt och att hela tjänsten kan startas om mot Postgres.
+`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
+
+`PostgresJournalTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt och att hela tjänsten kan startas om mot Postgres.
