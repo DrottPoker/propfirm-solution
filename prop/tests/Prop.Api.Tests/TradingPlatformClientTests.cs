@@ -12,7 +12,7 @@ namespace Prop.Api.Tests;
 /// <summary>The HTTP client for our trading platform's admin API, against answers like the platform's.</summary>
 public sealed class TradingPlatformClientTests
 {
-    private static readonly FirmTrading Firm = new("demo-firm", "dev-admin-key", "standard");
+    private static readonly FirmTrading Firm = new("demo-firm", "dev-admin-key", "standard", "USD");
 
     [Fact]
     public async Task OpeningAnAccountAgainIsDoneWhenTheFirmAlreadyHasIt()

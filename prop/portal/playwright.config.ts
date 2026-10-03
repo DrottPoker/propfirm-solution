@@ -4,7 +4,11 @@ import { defineConfig, devices } from "@playwright/test";
 // run while you develop.
 export const tradingPort = 5122;
 const propApiPort = 5222;
-const portalPort = 3022;
+export const portalPort = 3022;
+
+/** Where firms sign up, and the address template of new firms' portals. Browsers send *.localhost to this computer. */
+export const platformUrl = `http://app.localhost:${portalPort}`;
+const firmPortalUrl = `http://{firm}.localhost:${portalPort}/`;
 
 /** The trading platform's terminal address in login links. Nothing runs there: the tests stop at the link. */
 export const terminalUrl = "http://localhost:3023";
@@ -30,7 +34,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: `dotnet run --project ../src/Prop.Api -c Release --no-build -- --urls http://localhost:${propApiPort} --ConnectionStrings:Prop=${JSON.stringify(propDatabase)} --TradingPlatform:Url=http://localhost:${tradingPort}/ --Firms:0:Portal:Url=http://localhost:${portalPort}/`,
+      command: `dotnet run --project ../src/Prop.Api -c Release --no-build -- --urls http://localhost:${propApiPort} --ConnectionStrings:Prop=${JSON.stringify(propDatabase)} --TradingPlatform:Url=http://localhost:${tradingPort}/ --Firms:0:Portal:Url=http://localhost:${portalPort}/ --Platform:Url=${platformUrl}/ --Platform:FirmPortalUrl=${firmPortalUrl}`,
       url: `http://localhost:${propApiPort}/health`,
       timeout: 120_000,
     },

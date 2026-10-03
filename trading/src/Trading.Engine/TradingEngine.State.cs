@@ -26,11 +26,12 @@ public sealed partial class TradingEngine
                     a.Floors.Values.Select(f => new FloorRecord(f.Id, f.Rule, f.HighWaterMark, f.Anchor)).ToList(),
                     a.UsedOrderIds.Order(StringComparer.Ordinal).ToList(),
                     a.UsedOperationIds.Order(StringComparer.Ordinal).ToList()))
-                .ToList());
+                .ToList(),
+            _createdGroups.Select(g => g.ToDefinition()).ToList());
 
     /// <summary>
     /// Creates an engine from exported state. Throws if the state does not fit the configuration,
-    /// for example an account in a group that no longer exists.
+    /// for example an account in a group that no longer exists, or a created group that is now configured.
     /// </summary>
     public static TradingEngine FromState(EngineConfiguration configuration, EngineState state)
     {
@@ -52,6 +53,17 @@ public sealed partial class TradingEngine
         {
             Require(_instruments.ContainsKey(quote.Symbol), $"Price for unknown symbol {quote.Symbol}.");
             _prices.Update(quote);
+        }
+
+        // Accounts refer to groups, so the created groups come first.
+        var symbols = _instruments.Keys.ToHashSet(StringComparer.Ordinal);
+        foreach (var definition in state.Groups ?? [])
+        {
+            Require(!_groups.ContainsKey(definition.Id), $"Created group {definition.Id} is also configured, or appears twice.");
+            Require(ConfigurationValidator.GroupProblem(definition, symbols) is null, $"Created group {definition.Id} does not fit the configuration.");
+            var group = new GroupState(definition);
+            _groups.Add(group.Id, group);
+            _createdGroups.Add(group);
         }
 
         foreach (var record in state.Accounts)

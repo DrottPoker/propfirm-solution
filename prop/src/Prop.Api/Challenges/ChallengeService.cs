@@ -3,10 +3,13 @@ using System.Text.Json.Nodes;
 
 using Common.Postgres;
 
+using Microsoft.Extensions.Options;
+
 using Npgsql;
 
 using NpgsqlTypes;
 
+using Prop.Api.Configuration;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Rules;
@@ -26,8 +29,11 @@ internal sealed record ChallengeAccount(
     int Steps,
     DateTimeOffset CreatedAt);
 
-/// <summary>A started account, or the one the firm already started with the same reference. Null account: the challenge does not exist.</summary>
-internal sealed record StartResult(ChallengeAccount? Account, bool Created);
+/// <summary>
+/// A started account, or the one the firm already started with the same reference. Null account: the challenge
+/// does not exist, or <paramref name="SandboxFull"/> when the firm's sandbox has no room for another open account.
+/// </summary>
+internal sealed record StartResult(ChallengeAccount? Account, bool Created, bool SandboxFull = false);
 
 /// <summary>
 /// Runs the rule engine for challenge accounts. Every change happens in one transaction with the account
@@ -35,7 +41,13 @@ internal sealed record StartResult(ChallengeAccount? Account, bool Created);
 /// decisions need, commands for the trading platform and webhooks, is queued. Nothing is done twice and
 /// nothing is lost if the service stops halfway.
 /// </summary>
-internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSchema schema, WorkSignals signals, TimeProvider time)
+internal sealed class ChallengeService(
+    NpgsqlDataSource dataSource,
+    DatabaseSchema schema,
+    FirmCatalog firms,
+    WorkSignals signals,
+    IOptions<SandboxOptions> sandbox,
+    TimeProvider time)
 {
     private const string SelectAccount =
         """
@@ -68,6 +80,16 @@ internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSche
             return new StartResult(null, Created: false);
         }
 
+        // Starts in a firm's sandbox wait for each other, so the limit holds.
+        if (firm.Status != FirmStatus.Live)
+        {
+            await ExecuteAsync(connection, "select pg_advisory_xact_lock(hashtextextended('sandbox:' || $1, 0))", [firm.Id], cancellationToken);
+            if (await CountOpenAsync(connection, firm.Id, cancellationToken) >= sandbox.Value.MaxOpenAccounts)
+            {
+                return new StartResult(null, Created: false, SandboxFull: true);
+            }
+        }
+
         var now = time.GetUtcNow();
         var traderId = await EnsureTraderAsync(connection, firm.Id, email, now, cancellationToken);
         var number = await NextNumberAsync(connection, firm.Id, cancellationToken);
@@ -95,6 +117,15 @@ internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSche
         await transaction.CommitAsync(cancellationToken);
         Notify(firm);
         return new StartResult(account, Created: true);
+    }
+
+    private static async Task<long> CountOpenAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            $"select count(*) from challenge_accounts where firm_id = $1 and status not in ('{ChallengeStatus.Failed}', '{ChallengeStatus.Cancelled}')",
+            connection);
+        command.Parameters.AddWithValue(firmId);
+        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     /// <summary>Applies an input in its own transaction. Null when the firm has no such account.</summary>
@@ -174,7 +205,7 @@ internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSche
             cancellationToken);
 
     /// <summary>Queues what the decisions need: commands for the trading platform and webhooks for the firm.</summary>
-    private static async Task QueueAsync(
+    private async Task QueueAsync(
         NpgsqlConnection connection,
         Firm firm,
         ChallengeAccount account,
@@ -182,6 +213,8 @@ internal sealed class ChallengeService(NpgsqlDataSource dataSource, DatabaseSche
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // The firm as it is now, so a webhook the firm set a moment ago gets the decision.
+        firm = firms.ById(firm.Id) ?? firm;
         foreach (var output in outputs)
         {
             switch (output)

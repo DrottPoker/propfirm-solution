@@ -8,6 +8,7 @@ using Npgsql;
 
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
+using Trading.Service.Tenancy;
 using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
@@ -128,6 +129,49 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
 
         await using var count = dataSource.CreateCommand("select count(*) from login_links");
         Assert.Equal(2L, (long)(await count.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
+    }
+
+    [Fact]
+    public async Task FirmsKeepTheirGroupsAndKeys()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var tenants = new PostgresTenantStore(dataSource, Schema(dataSource));
+        var now = new DateTimeOffset(2026, 10, 5, 10, 0, 0, TimeSpan.Zero);
+        var configured = new Tenant("demo-firm", "Demo Firm", ["standard"], [1], null, Listed: true);
+        var created = new Tenant("acme", "Acme", ["acme-standard", "acme-eur"], [2], "prop-platform", Listed: false);
+
+        await tenants.SaveConfiguredAsync(configured, now, TestContext.Current.CancellationToken);
+        await tenants.SaveConfiguredAsync(configured with { Name = "Demo", Groups = ["standard", "gold"] }, now, TestContext.Current.CancellationToken);
+        Assert.True(await tenants.CreateAsync(created, now, TestContext.Current.CancellationToken));
+        await tenants.SetAdminApiKeyAsync("acme", [3], TestContext.Current.CancellationToken);
+
+        var all = await tenants.ListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(["acme", "demo-firm"], all.Select(t => t.Id));
+        Assert.Equal(["acme-eur", "acme-standard"], all[0].Groups);
+        Assert.Equal([3], all[0].AdminApiKeyHash);
+        Assert.Equal(("prop-platform", false), (all[0].PartnerId, all[0].Listed));
+        Assert.Equal(["gold", "standard"], all[1].Groups);
+        Assert.Equal(("Demo", (string?)null, true), (all[1].Name, all[1].PartnerId, all[1].Listed));
+    }
+
+    [Fact]
+    public async Task FirmIdsAndGroupsAreTakenOnce()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var tenants = new PostgresTenantStore(dataSource, Schema(dataSource));
+        var now = new DateTimeOffset(2026, 10, 5, 10, 0, 0, TimeSpan.Zero);
+        await tenants.SaveConfiguredAsync(new Tenant("demo-firm", "Demo Firm", ["standard"], [1], null, true), now, TestContext.Current.CancellationToken);
+        Assert.True(await tenants.CreateAsync(new Tenant("acme", "Acme", ["acme-standard"], [2], "prop-platform", false), now, TestContext.Current.CancellationToken));
+
+        Assert.False(await tenants.CreateAsync(new Tenant("acme", "Acme", ["other-group"], [3], "prop-platform", false), now, TestContext.Current.CancellationToken));
+        Assert.False(await tenants.CreateAsync(new Tenant("acme-two", "Acme", ["standard"], [3], "prop-platform", false), now, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            tenants.SaveConfiguredAsync(new Tenant("acme", "Taken over", ["gold"], [4], null, true), now, TestContext.Current.CancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            tenants.SaveConfiguredAsync(new Tenant("other-firm", "Other", ["acme-standard"], [4], null, true), now, TestContext.Current.CancellationToken));
+
+        var all = await tenants.ListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([("acme", "Acme"), ("demo-firm", "Demo Firm")], all.Select(t => (t.Id, t.Name)));
     }
 
     private static DatabaseSchema Schema(NpgsqlDataSource dataSource) => new(dataSource, TradingMigrations.All, NullLogger<DatabaseSchema>.Instance);

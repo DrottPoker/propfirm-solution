@@ -74,9 +74,12 @@ builder.Services.AddSingleton<IUserStore, PostgresUserStore>();
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
 builder.Services.AddSingleton<ILoginLinkStore, PostgresLoginLinkStore>();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddSingleton(sp => new TenantCatalog(
-    sp.GetRequiredService<IConfiguration>().GetSection(TenantOptions.SectionName).Get<List<TenantOptions>>() ?? [],
-    sp.GetRequiredService<EngineConfiguration>()));
+builder.Services.AddSingleton<ITenantStore, PostgresTenantStore>();
+builder.Services.AddSingleton<TenantCatalog>();
+builder.Services.AddSingleton<TenantProvisioner>();
+builder.Services.AddOptions<TenancyOptions>().Bind(builder.Configuration.GetSection(TenancyOptions.SectionName));
+builder.Services.AddSingleton(sp => new PartnerCatalog(
+    sp.GetRequiredService<IConfiguration>().GetSection(PartnerOptions.SectionName).Get<List<PartnerOptions>>() ?? []));
 
 // Login cookies are protected with keys kept in the database, so sessions survive restarts.
 builder.Services.AddDataProtection().SetApplicationName("trading-service");
@@ -134,7 +137,8 @@ builder.Services.AddSingleton<SubscriptionRegistry>();
 builder.Services.AddSingleton<EngineHost>();
 if (!isOpenApiGeneration)
 {
-    // Start order matters: the engine loop must run before anything sends to it.
+    // Start order matters: the firms are loaded first, and the engine loop must run before anything sends to it.
+    builder.Services.AddHostedService<TenantSeeder>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EngineHost>());
     builder.Services.AddHostedService<AccountSeeder>();
     builder.Services.AddHostedService<PriceFeedPump>();
@@ -145,7 +149,7 @@ builder.Services.ConfigureHttpJsonOptions(o => EngineJson.Configure(o.Serializer
 builder.Services.AddSignalR().AddJsonProtocol(o => EngineJson.Configure(o.PayloadSerializerOptions));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddHealthChecks().AddCheck<EngineHealthCheck>("engine");
+builder.Services.AddHealthChecks().AddCheck<EngineHealthCheck>("engine").AddCheck<TenantsHealthCheck>("tenants");
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
@@ -168,6 +172,7 @@ app.MapHealthChecks("/health");
 app.MapAuthApi();
 app.MapTradingApi();
 app.MapAdminApi();
+app.MapPartnerApi();
 app.MapHub<TradingHub>("/hubs/trading").RequireAuthorization();
 
 app.Run();

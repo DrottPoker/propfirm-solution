@@ -649,7 +649,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Branding"];
+                        "application/json": components["schemas"]["BrandingResponse"];
                     };
                 };
             };
@@ -871,6 +871,84 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/welcome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WelcomeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/invites/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
                 };
             };
         };
@@ -1513,6 +1591,533 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/firm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BrandingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/api-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiKeyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["WebhookRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebhookResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/webhook/secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebhookSecretResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/challenge-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengeTemplateResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/challenges/{challengeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    challengeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChallengeDefinition"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengeDefinition"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/admins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/admins/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AdminInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminInviteResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/admins/{adminId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    adminId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/platform": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlatformResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/signup/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    firmId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AvailabilityResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SignupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SignupResponse"];
+                    };
+                };
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SignupResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/signup/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["VerifySignupRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VerifySignupResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1568,13 +2173,52 @@ export interface components {
             createdAt: string;
             nextPayout: null | components["schemas"]["PayoutQuoteResponse"];
         };
-        /** @description What the portal needs to look like the firm's own. */
-        Branding: {
+        AdminInviteRequest: {
+            email: null | string;
+        };
+        AdminInviteResponse: {
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** @description IsYou marks the administrator who asked. */
+        AdminResponse: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            /** Format: date-time */
+            createdAt: string;
+            isYou: boolean;
+        };
+        /** @description The firm's administrators, and the invitations that wait for a password. */
+        AdminsResponse: {
+            admins: components["schemas"]["AdminResponse"][];
+            invites: components["schemas"]["AdminInviteResponse"][];
+        };
+        /** @description The key for the firm API. It is shown only once. */
+        ApiKeyResponse: {
+            apiKey: string;
+        };
+        AvailabilityResponse: {
+            firmId: string;
+            available: boolean;
+            reason: null | string;
+        };
+        /** @description The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb. */
+        BrandingRequest: {
+            logoUrl: null | string;
+            colors: null | {
+                [key: string]: string;
+            };
+        };
+        /** @description What the portal needs to look like the firm's own, and whether the firm is still in the sandbox or being set up. */
+        BrandingResponse: {
             name: string;
             logoUrl: null | string;
             colors: {
                 [key: string]: string;
             };
+            status: components["schemas"]["FirmStatus"];
         };
         /** @description What the trading platform recorded when a floor was breached. */
         BreachEvidence: {
@@ -1612,6 +2256,13 @@ export interface components {
         };
         /** @enum {unknown} */
         ChallengeStatus: "OpeningAccount" | "Active" | "AwaitingFunding" | "Failed" | "Cancelled";
+        /** @description A ready-made challenge with its default values, to adjust and save as the firm's own. */
+        ChallengeTemplateResponse: {
+            id: string;
+            name: string;
+            description: string;
+            definition: components["schemas"]["ChallengeDefinition"];
+        };
         /**
          * @description Where the daily loss limit starts from when a trading day starts.
          * @enum {unknown}
@@ -1625,6 +2276,30 @@ export interface components {
         };
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
+        /** @description The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in the sandbox. */
+        FirmSettingsResponse: {
+            id: string;
+            name: string;
+            status: components["schemas"]["FirmStatus"];
+            /** Format: uri */
+            portalUrl: string;
+            logoUrl: null | string;
+            colors: {
+                [key: string]: string;
+            };
+            tradingServer: null | string;
+            currency: null | string;
+            hasApiKey: boolean;
+            /** Format: uri */
+            webhookUrl: null | string;
+            /** Format: int32 */
+            sandboxMaxOpenAccounts: null | number;
+        };
+        /**
+         * @description Where a firm is on its way from sign-up to live (ADR 0017).
+         * @enum {unknown}
+         */
+        FirmStatus: "Provisioning" | "Sandbox" | "Live";
         /** @description A loss limit and how far equity can fall before it is breached. */
         FloorFigure: {
             floorId: string;
@@ -1725,6 +2400,22 @@ export interface components {
         };
         /** @enum {unknown} */
         PayoutStatus: "Withdrawing" | "Pending" | "Approved" | "Paid" | "Rejected" | "Failed";
+        /**
+         * @description The platform, for the sign-up page: its name, the terms firms accept, the address new portals get
+         *     (FirmPortalUrl with {firm} for the short name), and whether the email is confirmed first.
+         */
+        PlatformResponse: {
+            name: string;
+            termsVersion: string;
+            /** Format: uri */
+            termsUrl: null | string;
+            /** Format: uri */
+            dpaUrl: null | string;
+            firmPortalUrl: string;
+            /** Format: int32 */
+            minimumPasswordLength: number;
+            emailVerification: boolean;
+        };
         PortalLoginRequest: {
             email: null | string;
             password: null | string;
@@ -1739,6 +2430,21 @@ export interface components {
         };
         RejectPayoutRequest: {
             reason: null | string;
+        };
+        /** @description FirmId is the short name: the portal's subdomain and the server on the trading platform. */
+        SignupRequest: {
+            firmName: null | string;
+            firmId: null | string;
+            email: null | string;
+            password: null | string;
+            acceptTerms: boolean;
+        };
+        /** @description Either the email with the confirmation link is sent, or the firm is created and AdminUrl logs its administrator in. */
+        SignupResponse: {
+            verificationRequired: boolean;
+            firmId: string;
+            /** Format: uri */
+            adminUrl: null | string;
         };
         /**
          * @description Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
@@ -1781,6 +2487,31 @@ export interface components {
             timeZone: string;
             /** Format: time */
             start: string;
+        };
+        VerifySignupRequest: {
+            token: null | string;
+        };
+        /** @description Open AdminUrl once to be logged in to the new firm's admin panel. */
+        VerifySignupResponse: {
+            firmId: string;
+            /** Format: uri */
+            adminUrl: string;
+        };
+        /** @description An https address for webhooks, or empty to turn them off. */
+        WebhookRequest: {
+            url: null | string;
+        };
+        /** @description Secret is set only when it was just made, and is shown only once. */
+        WebhookResponse: {
+            /** Format: uri */
+            url: null | string;
+            secret: null | string;
+        };
+        WebhookSecretResponse: {
+            secret: string;
+        };
+        WelcomeRequest: {
+            token: null | string;
         };
     };
     responses: never;

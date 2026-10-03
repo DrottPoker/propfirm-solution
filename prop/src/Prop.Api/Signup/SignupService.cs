@@ -1,0 +1,279 @@
+using System.Buffers.Text;
+using System.Security.Cryptography;
+using System.Text;
+
+using Common.Postgres;
+
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
+
+using Npgsql;
+
+using Prop.Api.Challenges;
+using Prop.Api.Configuration;
+using Prop.Api.Email;
+using Prop.Api.Firms;
+using Prop.Api.Portal;
+using Prop.Api.Trading;
+
+namespace Prop.Api.Signup;
+
+/// <summary>Whether a short name can be chosen, and why not.</summary>
+internal sealed record Availability(bool Available, string? Reason)
+{
+    public static readonly Availability Yes = new(true, null);
+}
+
+internal abstract record SignupOutcome
+{
+    /// <summary>A field is wrong. <paramref name="Field"/> names it, as in the request.</summary>
+    public sealed record Invalid(string Field, string Problem) : SignupOutcome;
+
+    public sealed record Taken(string Problem) : SignupOutcome;
+
+    /// <summary>The email with the confirmation link is sent.</summary>
+    public sealed record VerificationSent : SignupOutcome;
+
+    /// <summary>The firm is created. The link logs its administrator in on the firm's portal.</summary>
+    public sealed record Completed(string FirmId, Uri AdminUrl) : SignupOutcome;
+
+    public sealed record EmailNotSent : SignupOutcome;
+}
+
+/// <summary>
+/// Firms that sign up themselves (ADR 0017). A sign-up waits for the email address to be confirmed, unless that is
+/// turned off. Confirming creates the firm, its portal address, its administrator and a one-time login link in one
+/// transaction, and wakes the job that creates its server on the trading platform.
+/// </summary>
+internal sealed partial class SignupService(
+    NpgsqlDataSource dataSource,
+    DatabaseSchema schema,
+    FirmCatalog firms,
+    FirmStore store,
+    ITradingPartner partner,
+    IPasswordHasher<PortalUser> hasher,
+    IEmailSender email,
+    WorkSignals signals,
+    IOptions<SignupOptions> signup,
+    IOptions<PlatformOptions> platform,
+    IOptions<LoginOptions> login,
+    TimeProvider time,
+    ILogger<SignupService> logger)
+{
+    public static readonly TimeSpan VerificationLifetime = TimeSpan.FromHours(24);
+
+    public const int MaxEmailLength = 254;
+
+    /// <summary>Whether the short name can be chosen now by the person with the email. Asks the trading platform too when told to.</summary>
+    public async Task<Availability> CheckAsync(string? firmId, string? emailAddress, bool askTradingPlatform, CancellationToken cancellationToken)
+    {
+        if (!FirmRules.IsValidId(firmId))
+        {
+            return new Availability(false, "Use 2 to 40 lowercase letters, digits and dashes, not first or last.");
+        }
+
+        if (IsReserved(firmId!))
+        {
+            return new Availability(false, "That name is reserved.");
+        }
+
+        if (firms.ById(firmId!) is not null || await IsPendingForOtherAsync(firmId!, emailAddress, cancellationToken))
+        {
+            return new Availability(false, "That name is taken.");
+        }
+
+        if (askTradingPlatform)
+        {
+            try
+            {
+                if (!await partner.IsServerAvailableAsync(firmId!, cancellationToken))
+                {
+                    return new Availability(false, "That name is taken.");
+                }
+            }
+            catch (TradingPlatformUnavailableException exception)
+            {
+                // The server is created later and tried again, so a sign-up need not wait for the trading platform.
+                LogTradingPlatformUnavailable(logger, exception);
+            }
+        }
+
+        return Availability.Yes;
+    }
+
+    public async Task<SignupOutcome> SignUpAsync(string? firmName, string? firmId, string? emailAddress, string? password, bool acceptTerms, CancellationToken cancellationToken)
+    {
+        if (!FirmRules.IsValidName(firmName) || firmName!.Trim().Length < 2)
+        {
+            return new SignupOutcome.Invalid("firmName", $"The firm's name needs 2 to {FirmRules.MaxNameLength} characters.");
+        }
+
+        if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@', StringComparison.Ordinal) || emailAddress.Trim().Length > MaxEmailLength)
+        {
+            return new SignupOutcome.Invalid("email", "A valid email address is required.");
+        }
+
+        var minimumLength = login.Value.MinimumPasswordLength;
+        if (password is null || password.Length < minimumLength)
+        {
+            return new SignupOutcome.Invalid("password", minimumLength == 1 ? "Choose a password." : $"The password needs at least {minimumLength} characters.");
+        }
+
+        if (!acceptTerms)
+        {
+            return new SignupOutcome.Invalid("acceptTerms", "Accept the terms and the data processing agreement to sign up.");
+        }
+
+        var availability = await CheckAsync(firmId, emailAddress, askTradingPlatform: true, cancellationToken);
+        if (!availability.Available)
+        {
+            return FirmRules.IsValidId(firmId) ? new SignupOutcome.Taken(availability.Reason!) : new SignupOutcome.Invalid("firmId", availability.Reason!);
+        }
+
+        var now = time.GetUtcNow();
+        var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
+        await SaveAsync(token, firmId!, firmName.Trim(), emailAddress.Trim(), hasher.HashPassword(null!, password), now, cancellationToken);
+
+        if (!signup.Value.RequireEmailVerification)
+        {
+            return await VerifyAsync(token, cancellationToken) switch
+            {
+                SignupOutcome.Completed completed => completed,
+                _ => new SignupOutcome.Taken("That name is taken."),
+            };
+        }
+
+        try
+        {
+            var link = new Uri(platform.Value.Url!, $"verify?token={token}");
+            await email.SendAsync(PlatformEmails.ConfirmSignup(platform.Value.Name, firmName.Trim(), emailAddress.Trim(), link, VerificationLifetime), cancellationToken);
+            return new SignupOutcome.VerificationSent();
+        }
+        catch (EmailNotSentException exception)
+        {
+            LogEmailNotSent(logger, exception);
+            await DeleteAsync(token, cancellationToken);
+            return new SignupOutcome.EmailNotSent();
+        }
+    }
+
+    /// <summary>
+    /// Creates the firm from a confirmed sign-up. Invalid when the link is unknown, used or expired, Taken when
+    /// someone else got the name first.
+    /// </summary>
+    public async Task<SignupOutcome> VerifyAsync(string? token, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return new SignupOutcome.Invalid("token", "The link has expired or was already used.");
+        }
+
+        await schema.EnsureAsync(cancellationToken);
+        var now = time.GetUtcNow();
+        string firmId;
+        Uri portalUrl;
+        string loginToken;
+        await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
+        await using (var transaction = await connection.BeginTransactionAsync(cancellationToken))
+        {
+            await using var use = new NpgsqlCommand(
+                """
+                update firm_signups set used_at = $2
+                where token_hash = $1 and used_at is null and expires_at > $2
+                returning firm_id, firm_name, email, password_hash, terms_version
+                """,
+                connection);
+            use.Parameters.AddWithValue(Hash(token));
+            use.Parameters.AddWithValue(now);
+            string firmName, adminEmail, passwordHash, termsVersion;
+            await using (var reader = await use.ExecuteReaderAsync(cancellationToken))
+            {
+                if (!await reader.ReadAsync(cancellationToken))
+                {
+                    return new SignupOutcome.Invalid("token", "The link has expired or was already used.");
+                }
+
+                (firmId, firmName, adminEmail, passwordHash, termsVersion) =
+                    (reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
+            }
+
+            portalUrl = platform.Value.PortalUrlOf(firmId);
+            if (!await FirmStore.InsertSignedUpAsync(connection, firmId, firmName, portalUrl, termsVersion, now, cancellationToken))
+            {
+                return new SignupOutcome.Taken("Someone else took that name first. Sign up again with another one.");
+            }
+
+            var adminId = await FirmAdmins.InsertAsync(connection, firmId, adminEmail, passwordHash, now, cancellationToken);
+            loginToken = await FirmAdmins.CreateLoginLinkAsync(connection, adminId, now, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        firms.Put(await store.GetAsync(firmId, cancellationToken) ?? throw new InvalidOperationException($"Firm {firmId} disappeared."));
+        signals.Provisioning.Set();
+        LogSignedUp(logger, firmId);
+        return new SignupOutcome.Completed(firmId, new Uri(portalUrl, $"admin/welcome?token={loginToken}"));
+    }
+
+    private bool IsReserved(string firmId) =>
+        FirmRules.ReservedIds.Contains(firmId)
+        || signup.Value.ReservedFirmIds.Contains(firmId, StringComparer.Ordinal)
+        || platform.Value.Url?.Host.Split('.')[0] == firmId;
+
+    // Someone else signed up with the name and may still confirm it.
+    private async Task<bool> IsPendingForOtherAsync(string firmId, string? emailAddress, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            "select exists (select 1 from firm_signups where firm_id = $1 and normalized_email <> $2 and used_at is null and expires_at > $3)");
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(Emails.Normalize(emailAddress ?? ""));
+        command.Parameters.AddWithValue(time.GetUtcNow());
+        return await command.ExecuteScalarAsync(cancellationToken) is true;
+    }
+
+    // A new sign-up replaces the person's earlier unconfirmed ones. Sign-ups that expired long ago are removed.
+    private async Task SaveAsync(string token, string firmId, string firmName, string emailAddress, string passwordHash, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var batch = dataSource.CreateBatch();
+        var cleanUp = new NpgsqlBatchCommand("delete from firm_signups where (normalized_email = $1 and used_at is null) or expires_at < $2");
+        cleanUp.Parameters.AddWithValue(Emails.Normalize(emailAddress));
+        cleanUp.Parameters.AddWithValue(now - TimeSpan.FromDays(30));
+        batch.BatchCommands.Add(cleanUp);
+
+        var insert = new NpgsqlBatchCommand(
+            """
+            insert into firm_signups (token_hash, firm_id, firm_name, email, normalized_email, password_hash, terms_version, created_at, expires_at)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            """);
+        insert.Parameters.AddWithValue(Hash(token));
+        insert.Parameters.AddWithValue(firmId);
+        insert.Parameters.AddWithValue(firmName);
+        insert.Parameters.AddWithValue(emailAddress);
+        insert.Parameters.AddWithValue(Emails.Normalize(emailAddress));
+        insert.Parameters.AddWithValue(passwordHash);
+        insert.Parameters.AddWithValue(signup.Value.TermsVersion);
+        insert.Parameters.AddWithValue(now);
+        insert.Parameters.AddWithValue(now + VerificationLifetime);
+        batch.BatchCommands.Add(insert);
+
+        await batch.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task DeleteAsync(string token, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("delete from firm_signups where token_hash = $1");
+        command.Parameters.AddWithValue(Hash(token));
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static byte[] Hash(string token) => SHA256.HashData(Encoding.UTF8.GetBytes(token));
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Firm {FirmId} signed up")]
+    private static partial void LogSignedUp(ILogger logger, string firmId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The trading platform could not say whether a server name is free; the sign-up goes on")]
+    private static partial void LogTradingPlatformUnavailable(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The confirmation email for a sign-up could not be sent")]
+    private static partial void LogEmailNotSent(ILogger logger, Exception exception);
+}

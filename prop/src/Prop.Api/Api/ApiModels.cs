@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using Prop.Api.Challenges;
+using Prop.Api.Firms;
 using Prop.Rules;
 
 namespace Prop.Api.Api;
@@ -168,3 +169,10 @@ public sealed record AcceptInviteRequest(string? Token, string? Password);
 
 /// <summary>Who is logged in to the portal. <paramref name="Role"/> is trader or admin.</summary>
 public sealed record PortalMeResponse(Guid UserId, string Email, string Role, string FirmName);
+
+/// <summary>What the portal needs to look like the firm's own, and whether the firm is still in the sandbox or being set up.</summary>
+public sealed record BrandingResponse(string Name, string? LogoUrl, IReadOnlyDictionary<string, string> Colors, FirmStatus Status)
+{
+    internal static BrandingResponse From(Firm firm) =>
+        new(firm.Portal.Branding.Name, firm.Portal.Branding.LogoUrl, firm.Portal.Branding.Colors, firm.Status);
+}

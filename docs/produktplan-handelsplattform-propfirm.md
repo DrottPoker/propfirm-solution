@@ -116,6 +116,8 @@ registrera -> välj challenge-mall -> portalens logga och färger
 
 Mål: sandlådan på några minuter, live inom ett dygn.
 
+Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Kvar är betalningen till oss, kontrollen innan live och egen domän.
+
 ### Krav
 
 - **Färdiga mallar** för vanliga challenges, till exempel 100k i två steg, som firman kan justera.

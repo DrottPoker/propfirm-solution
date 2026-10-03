@@ -28,7 +28,7 @@ internal static class PortalEndpoints
     public static IEndpointRouteBuilder MapPortalApi(this IEndpointRouteBuilder app)
     {
         var portal = app.MapGroup("/api/portal").WithTags("Portal").AddEndpointFilter<PortalFirmFilter>();
-        portal.MapGet("/branding", (HttpContext context) => TypedResults.Ok(PortalFirmFilter.FirmOf(context).Portal.Branding));
+        portal.MapGet("/branding", (HttpContext context) => TypedResults.Ok(BrandingResponse.From(PortalFirmFilter.FirmOf(context))));
         portal.MapPost(
                 "/login",
                 (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, CancellationToken cancellationToken) =>
@@ -50,6 +50,7 @@ internal static class PortalEndpoints
                     LoginAsync(PortalRoles.Admin, request, context, users, hasher, cancellationToken))
             .RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/admin/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Admin)));
+        portal.MapAdminWaysIn();
 
         var admin = portal.MapGroup("/admin").RequireAuthorization(PortalAuth.AdminPolicy);
         admin.MapGet("/me", MeAsync);
@@ -65,6 +66,7 @@ internal static class PortalEndpoints
         admin.MapPost("/payouts/{payoutId:guid}/approve", ApprovePayoutAsync);
         admin.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
         admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
+        admin.MapAdminSettings();
         return app;
     }
 

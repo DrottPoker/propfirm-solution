@@ -10,6 +10,6 @@ internal static class TradingMigrations
 
     public static readonly SqlMigrations All = new(
         typeof(TradingMigrations).Assembly,
-        ["0001_journal.sql", "0002_identity.sql", "0003_integration.sql"],
+        ["0001_journal.sql", "0002_identity.sql", "0003_integration.sql", "0004_tenants.sql"],
         LockKey);
 }

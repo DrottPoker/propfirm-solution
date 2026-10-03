@@ -1,12 +1,12 @@
 # Spec: portalen
 
-- Fas: 4d, utbetalningar i 5
+- Fas: 4d, utbetalningar i 5, registrering och adminpanelens inställningar i 6
 - Status: Implementerad i `prop/portal` och `prop/src/Prop.Api/Portal`
 - Datum: 2026-10-03
 
 ## Syfte
 
-Portalen är firmans egen sida för traders och administratörer, med firmans namn, logga, färger och domän. Tradern följer sina challenges, öppnar handelsterminalen och begär utbetalningar härifrån. Firman startar challenges, bjuder in traders, godkänner funded-konton, hanterar utbetalningar och avbryter konton i adminpanelen. Besluten finns i [ADR 0014](../adr/0014-vitmarkt-portal-pa-firmans-adress.md). Kontona och regelmotorn beskrivs i [specen för propfirm-tjänsten](propfirm-tjanst.md).
+Portalen är firmans egen sida för traders och administratörer, med firmans namn, logga, färger och domän. Tradern följer sina challenges, öppnar handelsterminalen och begär utbetalningar härifrån. Firman startar challenges, bjuder in traders, godkänner funded-konton, hanterar utbetalningar och avbryter konton i adminpanelen. På plattformens egen adress visar samma portal i stället registreringen, med vårt namn (se [specen för registrering och sandlåda](registrering.md)). Besluten finns i [ADR 0014](../adr/0014-vitmarkt-portal-pa-firmans-adress.md) och [ADR 0017](../adr/0017-firmor-registrerar-sig-sjalva.md). Kontona och regelmotorn beskrivs i [specen för propfirm-tjänsten](propfirm-tjanst.md).
 
 ## Sidor
 
@@ -16,19 +16,26 @@ Portalen är firmans egen sida för traders och administratörer, med firmans na
 | `/invite?token=` | Traders | Tradern väljer lösenord med firmans inbjudan och loggas in. |
 | `/` | Traders | Översikt över ett konto: status, fas, saldo, equity, vinstmål med förlopp, handelsdagar, förlustgränser med marginal, och vid brott när och varför. Knappen "Open terminal". För ett funded-konto vinsten, traderns andel, handelsdagar sedan förra utbetalningen och knappen "Request payout", och kontots utbetalningar. Har tradern flera konton väljs ett med `?account=`. |
 | `/admin/login` | Administratörer | Inloggning för firmans administratörer. |
-| `/admin` | Administratörer | Starta en challenge åt en trader, sök konton på e-post och status, och firmans challenges. |
+| `/admin` | Administratörer | Starta en challenge åt en trader och sök konton på e-post och status. Medan firmans server skapas visas det i stället. |
 | `/admin/accounts/{id}` | Administratörer | Kontots översikt, inbjudningslänk till portalen, godkännande av funded-kontot, annullering med orsak, kontots utbetalningar med firmans beslut och hela historiken. |
 | `/admin/payouts` | Administratörer | Utbetalningar som väntar på firman, eller alla. Firman godkänner, markerar som betald med en valfri referens, eller nekar med en orsak som tradern ser. |
+| `/admin/challenges` | Administratörer | Firmans challenges. En ny challenge utgår från mallen, och befintliga kan ändras: storlek, handelsdagens start och tidszon, och varje fas mål, handelsdagar, förlustgränser och vinstandel. En till tre faser före funded. |
+| `/admin/team` | Administratörer | Administratörerna, inbjudningar som väntar, en ny inbjudan med e-post, och borttagning av andra än sig själv. |
+| `/admin/settings` | Administratörer | Firman och dess status, logga och färger med förhandsvisning, nyckel för firmans API och webhookens adress och hemlighet. Nycklar och hemligheter visas bara en gång. |
+| `/admin/welcome?token=` | Alla | Engångslänken efter registreringen. Loggar in administratören och öppnar adminpanelen. |
+| `/admin/invite?token=` | Alla | En inbjuden administratör väljer lösenord och loggas in. |
+| `/signup`, `/verify?token=` | Plattformen | Registreringen och bekräftelsen av e-postadressen. Se [specen för registrering och sandlåda](registrering.md). |
 
 - Den som inte är inloggad skickas till rätt inloggning, och den som är inloggad med den andra rollen till sin egen startsida.
 - Kontots siffror uppdateras var femte sekund.
 - Knappen "Request payout" fungerar när regelmotorn säger att en utbetalning kan begäras. Annars visas orsaken. Tradern bekräftar först, eftersom hela vinsten tas från handelskontot direkt.
 - Knappen "Open terminal" fungerar när kontot är aktivt. Den hämtar en engångslänk och öppnar terminalen inloggad på fasens konto.
-- På en adress som ingen firma har visar portalen bara att ingen portal finns där.
+- På en adress som ingen firma har visar portalen bara att ingen portal finns där. På plattformens adress skickas firmans sidor till registreringen, och på en firmas adress finns inte plattformens sidor.
+- En firma i sandlådan visar en rad om att det är en testmiljö på alla sidor, så att ingen trader tror att den är på riktigt.
 
 ## Utseende
 
-Utseendet hämtas på servern med `GET /api/portal/branding` innan sidan visas. Färgerna blir CSS-variabler och kontrolleras en gång till i portalen innan de används.
+Utseendet hämtas på servern med `GET /api/portal/branding` innan sidan visas, tillsammans med firmans status. Färgerna blir CSS-variabler och kontrolleras en gång till i portalen innan de används. En registrerad firma ändrar logga och färger under Settings, och sidan ritas om med det nya utseendet när det sparas.
 
 | Färg | Används till |
 |---|---|
@@ -43,7 +50,7 @@ Alla vägar börjar med `/api/portal`. Firman känns igen på `X-Forwarded-Host`
 
 | Metod och väg | Roll | Beskrivning |
 |---|---|---|
-| `GET /branding` | Alla | Firmans namn, logga och färger. |
+| `GET /branding` | Alla | Firmans namn, logga, färger och status (`Provisioning`, `Sandbox` eller `Live`). |
 | `POST /login` | Alla | Traderns inloggning med `{ "email", "password" }`. 401 vid fel, och för en trader som inte har valt lösenord. |
 | `POST /invites/accept` | Alla | `{ "token", "password" }`. Sätter lösenordet och loggar in som trader. 422 för ett lösenord som är kortare än `Login:MinimumPasswordLength`, utan att inbjudan förbrukas. 401 för en okänd, använd, ersatt eller utgången inbjudan. |
 | `POST /admin/login` | Alla | Administratörens inloggning. |
@@ -67,6 +74,8 @@ Alla vägar börjar med `/api/portal`. Firman känns igen på `X-Forwarded-Host`
 | `POST /admin/payouts/{payoutId}/approve` | Admin | Godkänner en utbetalning som väntar. |
 | `POST /admin/payouts/{payoutId}/mark-paid` | Admin | Markerar en godkänd utbetalning som betald, med `{ "reference" }`. |
 | `POST /admin/payouts/{payoutId}/reject` | Admin | Nekar en utbetalning som väntar eller är godkänd, med `{ "reason" }`. |
+| `POST /admin/welcome`, `POST /admin/invites/accept` | Alla | Inloggning med länken efter registreringen, och en inbjuden administratörs val av lösenord. |
+| `GET /admin/firm` och vägarna under den, `GET /admin/challenge-templates`, `PUT /admin/challenges/{challengeId}`, `/admin/admins` | Admin | Firmans inställningar, challenges och administratörer. Se [specen för registrering och sandlåda](registrering.md). |
 
 Inloggningarna och inbjudningar har gemensamt en gräns på `Login:AttemptsPerMinute` försök i minuten per IP-adress, som standard 10. Svaret är då 429. Webbläsarens adress och protokoll tas från `X-Forwarded-For` och `X-Forwarded-Proto` när anropet kommer från en betrodd proxy, lokalt bara loopback. Annars skulle alla som når tjänsten genom portalen dela samma gräns.
 
@@ -76,6 +85,7 @@ Inloggningarna och inbjudningar har gemensamt en gräns på `Login:AttemptsPerMi
 - Cookies hör till värdnamnet. Lokalt kan en andra trader därför vara inloggad samtidigt på http://127.0.0.1:3002, medan den första är det på http://localhost:3002.
 - Cookierna är HttpOnly och SameSite Lax, och gäller tills de har varit oanvända i `Login:SessionLifetime`, som standard 12 timmar. De markeras Secure när webbläsaren använder HTTPS.
 - Nycklarna som skyddar cookierna sparas i tabellen `data_protection_keys`, så sessioner överlever en omstart.
+- En administratör som tas bort loggas ut direkt: varje anrop med administratörens cookie kontrollerar att administratören finns kvar.
 - Lösenord sparas som PBKDF2-hashar. En okänd e-postadress tar lika lång tid som ett fel lösenord.
 - En inbjudan gäller en gång i 7 dagar. Bara en SHA-256-hash av dess token sparas. En ny inbjudan tar bort traderns äldre oanvända.
 
@@ -93,7 +103,7 @@ Propfirm-tjänsten:
 |---|---|
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
-Per firma under `Firms`:
+Per konfigurerad firma under `Firms`. Firmor som registrerat sig ställer in samma saker i adminpanelen.
 
 | Inställning | Innehåll |
 |---|---|
@@ -109,15 +119,14 @@ I utveckling nås `demo-firm` på `localhost` och `127.0.0.1` med lila accentfä
 ## Begränsningar
 
 - Inget köp i portalen. Firman tar betalt själv och startar kontot via API:t eller adminpanelen.
-- Firman skickar inbjudan själv. Portalen skickar inga e-postmeddelanden.
+- Firman skickar inbjudan till traders själv. Plattformen mejlar bara bekräftelser och inbjudningar till administratörer.
 - Firman skickar pengarna till tradern själv. Portalen markerar bara utbetalningen som betald.
-- Firmans administratörer konfigureras. De kan inte bjuda in fler administratörer i portalen än.
-- Sessioner återkallas inte när ett lösenord byts.
+- Sessioner återkallas inte när ett lösenord byts. En borttagen administratör loggas ändå ut direkt.
 - Egen domän med TLS-certifikat sätts upp för hand.
 
 ## Tester
 
 - `prop/tests/Prop.Api.Tests/PortalApiTests`: utseende per värdnamn, inbjudan och inloggning, att inbjudan bara fungerar en gång, inte efter 7 dagar och ersätts av en ny, fel lösenord, att traders bara ser sina konton, siffror i realtid och när handelsplattformen inte svarar, bevis vid brott, att sessioner och inbjudningar bara gäller hos sin firma, att adminpanelen bara är för administratörer, adminpanelens flöden, att administratörer bara ser sin firma, att en session överlever en omstart, att gränsen för inloggning räknas per webbläsare bakom portalen, att en administratör och en trader kan vara inloggade samtidigt i samma webbläsare, att konfigurerade traders loggar in med sitt lösenord efter varje start och att reglerna för inloggning går att stänga av.
 - `prop/tests/Prop.Api.Tests/PayoutFlowTests`: traderns begäran och administratörens beslut i portalen, och att en trader inte når andras konton eller adminpanelens beslut.
-- `prop/portal/src/lib/*.test.ts`: förlopp mot vinstmålet, vilka golv som visas, när knapparna fungerar, vilka beslut som går att fatta om en utbetalning, utbetalningarnas texter och färgerna.
-- `prop/portal/e2e`: hela kedjan med handelsplattformen, propfirm-tjänsten och portalen. En konfigurerad trader loggar in med sitt korta lösenord. Administratören startar en challenge och skapar en inbjudan, tradern väljer lösenord i samma webbläsare, ser kontot och öppnar terminalen med en länk som handelsplattformen godtar, och administratören avbryter kontot. En trader klarar challengen `quick-test-100k` med handel och insättningar på handelsplattformen, begär en utbetalning i portalen, och administratören godkänner och markerar den som betald.
+- `prop/portal/src/lib/*.test.ts`: förlopp mot vinstmålet, vilka golv som visas, när knapparna fungerar, vilka beslut som går att fatta om en utbetalning, utbetalningarnas texter, färgerna och att standardfärgerna är de i `globals.css`, förslaget på kort namn och kontrollen av det, och challenge-redigeraren fram och tillbaka.
+- `prop/portal/e2e`: hela kedjan med handelsplattformen, propfirm-tjänsten och portalen. En konfigurerad trader loggar in med sitt korta lösenord. Administratören startar en challenge och skapar en inbjudan, tradern väljer lösenord i samma webbläsare, ser kontot och öppnar terminalen med en länk som handelsplattformen godtar, och administratören avbryter kontot. En trader klarar challengen `quick-test-100k` med handel och insättningar på handelsplattformen, begär en utbetalning i portalen, och administratören godkänner och markerar den som betald. En firma registrerar sig på `app.localhost`, hamnar i sin adminpanel på sin egen adress, ser att den är i sandlådan, får sin server och startar en challenge, byter färg och gör en egen challenge med en fas. Registreringen finns bara på plattformens adress, och tagna och reserverade korta namn visas medan de skrivs.

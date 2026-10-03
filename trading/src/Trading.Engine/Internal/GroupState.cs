@@ -24,4 +24,7 @@ internal sealed class GroupState
 
     public bool TryGetConditions(string symbol, [NotNullWhen(true)] out SymbolConditions? conditions) =>
         _symbols.TryGetValue(symbol, out conditions);
+
+    /// <summary>The group as a definition, with its symbols in symbol order.</summary>
+    public TradingGroup ToDefinition() => new(Id, Currency, StopOutLevelPercent, Symbols.ToList());
 }

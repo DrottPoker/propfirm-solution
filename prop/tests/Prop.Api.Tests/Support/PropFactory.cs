@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 
 using Prop.Api.Challenges;
+using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Trading;
 
@@ -39,6 +40,12 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     /// <summary>The password traders choose when they accept an invitation in the tests.</summary>
     public const string TraderPassword = "a-good-password";
 
+    /// <summary>Where firms sign up, from appsettings.Development.json.</summary>
+    public const string PlatformHost = "app.localhost";
+
+    /// <summary>The password an administrator chooses when signing up in the tests.</summary>
+    public const string SignupPassword = "a-signup-password";
+
     /// <summary>A Monday, 10:00 in Stockholm.</summary>
     public static readonly DateTimeOffset Start = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
@@ -55,9 +62,14 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     public FakeTimeProvider Time { get; }
 
+    /// <summary>The service's database, for a second service on it.</summary>
+    public string ConnectionString => _connectionString;
+
     public FakeTradingPlatform Trading { get; }
 
     public WebhookReceiver Webhooks { get; } = new();
+
+    public FakeEmailSender Emails { get; private init; } = new();
 
     /// <summary>Settings that give the development firm a webhook to <see cref="Webhooks"/>.</summary>
     public static Dictionary<string, string> WithWebhook() => new()
@@ -87,8 +99,62 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         return new PropFactory(connectionString, new FakeTradingPlatform(time), time, settings);
     }
 
-    /// <summary>A new service on the same database, trading platform and clock, as after a restart.</summary>
-    public PropFactory Restart() => new(_connectionString, Trading, Time, _settings);
+    /// <summary>A new service on the same database, trading platform, clock and mail, as after a restart.</summary>
+    public PropFactory Restart() => new(_connectionString, Trading, Time, _settings) { Emails = Emails };
+
+    /// <summary>The portal host of a firm that signed up, from the address template in appsettings.Development.json.</summary>
+    public static string HostOf(string firmId) => $"{firmId}.localhost";
+
+    /// <summary>A browser on the platform's own address, where firms sign up.</summary>
+    public HttpClient CreatePlatformClient() => CreatePortalClient(PlatformHost);
+
+    /// <summary>
+    /// Signs a firm up without email confirmation, as in development, and follows the link to its admin panel.
+    /// Returns the administrator's browser on the firm's portal.
+    /// </summary>
+    public async Task<HttpClient> SignUpAsync(string firmId, string email = "owner@firm.test")
+    {
+        using var platform = CreatePlatformClient();
+        using var response = await platform.PostAsJsonAsync(
+            new Uri("/api/portal/signup", UriKind.Relative),
+            new { firmName = $"Firm {firmId}", firmId, email, password = SignupPassword, acceptTerms = true });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var adminUrl = new Uri((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("adminUrl").GetString()!);
+        return await WelcomeAsync(adminUrl);
+    }
+
+    /// <summary>Opens the link that logs a new firm's administrator in. Returns the administrator's browser on the firm's portal.</summary>
+    public async Task<HttpClient> WelcomeAsync(Uri adminUrl)
+    {
+        var admin = CreatePortalClient(adminUrl.Host);
+        var token = System.Web.HttpUtility.ParseQueryString(adminUrl.Query)["token"];
+        using var welcome = await admin.PostAsJsonAsync(new Uri("/api/portal/admin/welcome", UriKind.Relative), new { token });
+        Assert.Equal(HttpStatusCode.OK, welcome.StatusCode);
+        return admin;
+    }
+
+    /// <summary>
+    /// Moves the clock a second at a time until the firm is in the sandbox, for when creating its server must be
+    /// tried again. The clock is moved again and again, since the retry may not be waiting yet the first time.
+    /// </summary>
+    public async Task AdvanceUntilProvisionedAsync(HttpClient admin)
+    {
+        await Eventually.ThatAsync(
+            async () =>
+            {
+                await AdvanceAsync(TimeSpan.FromSeconds(1));
+                return (await admin.GetFromJsonAsync<JsonElement>(new Uri("/api/portal/admin/firm", UriKind.Relative))).GetProperty("status").GetString() == "Sandbox";
+            },
+            "the firm to get its trading server");
+    }
+
+    /// <summary>Waits until the firm's server on the trading platform exists and the firm is in the sandbox.</summary>
+    public static async Task WaitUntilProvisionedAsync(HttpClient admin)
+    {
+        await Eventually.ThatAsync(
+            async () => (await admin.GetFromJsonAsync<JsonElement>(new Uri("/api/portal/admin/firm", UriKind.Relative))).GetProperty("status").GetString() == "Sandbox",
+            "the firm to get its trading server");
+    }
 
     public HttpClient CreateFirmClient(string apiKey = FirmApiKey)
     {
@@ -194,6 +260,8 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
             services.AddSingleton<IStartupFilter, LoopbackConnection>();
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ITradingPlatform>(Trading);
+            services.AddSingleton<ITradingPartner>(Trading);
+            services.AddSingleton<IEmailSender>(Emails);
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);
         });
     }

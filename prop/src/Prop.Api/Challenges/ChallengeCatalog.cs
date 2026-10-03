@@ -6,6 +6,7 @@ using Npgsql;
 
 using NpgsqlTypes;
 
+using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Rules;
 
@@ -32,6 +33,18 @@ internal sealed class ChallengeCatalog(NpgsqlDataSource dataSource, DatabaseSche
         return errors;
     }
 
+    /// <summary>What is wrong with the definition for the firm, which also needs it in the currency of the firm's accounts.</summary>
+    public static IReadOnlyList<string> Validate(ChallengeDefinition definition, Firm firm)
+    {
+        var errors = Validate(definition).ToList();
+        if (firm.Trading is { } trading && definition.Currency is { } currency && currency != trading.Currency)
+        {
+            errors.Add($"The challenge must be in {trading.Currency}, the currency of the firm's accounts.");
+        }
+
+        return errors;
+    }
+
     /// <summary>Creates or replaces the challenge. Validate it first.</summary>
     public Task SaveAsync(string firmId, ChallengeDefinition definition, CancellationToken cancellationToken) =>
         WriteAsync(
@@ -42,6 +55,22 @@ internal sealed class ChallengeCatalog(NpgsqlDataSource dataSource, DatabaseSche
             firmId,
             definition,
             cancellationToken);
+
+    /// <summary>Saves the challenge in the caller's transaction, unless the firm already has challenges. A new firm's first challenge.</summary>
+    public static async Task SaveFirstAsync(NpgsqlConnection connection, string firmId, ChallengeDefinition definition, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            insert into challenge_definitions (firm_id, id, definition, updated_at)
+            select $1, $2, $3, $4 where not exists (select 1 from challenge_definitions where firm_id = $1)
+            """,
+            connection);
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(definition.Id);
+        command.Parameters.Add(new NpgsqlParameter { Value = JsonSerializer.Serialize(definition, PropJson.Options), NpgsqlDbType = NpgsqlDbType.Jsonb });
+        command.Parameters.AddWithValue(now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<ChallengeDefinition>> ListAsync(string firmId, CancellationToken cancellationToken)
     {

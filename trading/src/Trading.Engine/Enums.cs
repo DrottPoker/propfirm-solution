@@ -52,6 +52,9 @@ public enum RejectReason
     UnknownSymbol,
     InvalidQuote,
     UnknownGroup,
+
+    /// <summary>A new group breaks a rule, for example an unknown symbol or a leverage of zero.</summary>
+    InvalidGroup,
     InvalidAmount,
     UnknownAccount,
     AccountDisabled,

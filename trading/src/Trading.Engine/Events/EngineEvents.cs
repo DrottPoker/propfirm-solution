@@ -14,6 +14,10 @@ public interface IAccountEvent
 public sealed record InputRejected(DateTimeOffset Timestamp, EngineInput Input, RejectReason Reason)
     : EngineEvent(Timestamp);
 
+/// <summary>A trading group was created. Its symbols are in symbol order.</summary>
+public sealed record GroupCreated(DateTimeOffset Timestamp, TradingGroup Group)
+    : EngineEvent(Timestamp);
+
 public sealed record AccountCreated(DateTimeOffset Timestamp, string AccountId, string GroupId, string Currency, decimal Balance)
     : EngineEvent(Timestamp), IAccountEvent;
 

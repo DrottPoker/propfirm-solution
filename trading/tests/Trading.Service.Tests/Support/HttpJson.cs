@@ -29,7 +29,7 @@ internal static class HttpJson
     public static List<string?> EventKinds(this JsonElement envelopes) =>
         envelopes.EnumerateArray().Select(e => e.GetProperty("event").GetProperty("kind").GetString()).ToList();
 
-    private static async Task<JsonElement> SendJsonAsync(this HttpClient client, HttpMethod method, string url, object? body, HttpStatusCode expected)
+    public static async Task<JsonElement> SendJsonAsync(this HttpClient client, HttpMethod method, string url, object? body, HttpStatusCode expected)
     {
         using var request = new HttpRequestMessage(method, new Uri(url, UriKind.Relative));
         if (body is not null)

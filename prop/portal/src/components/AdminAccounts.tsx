@@ -7,27 +7,27 @@ import { useState } from "react";
 import type { ChallengeStatus } from "@/lib/api/types";
 import { statusLabels } from "@/lib/challenge";
 import { formatDateTime, formatMoney } from "@/lib/format";
-import { useChallenges, useFirmAccounts, useStartAccount, type AccountFilter } from "@/lib/queries";
+import { useChallenges, useFirmAccounts, useFirmSettings, useStartAccount, type AccountFilter } from "@/lib/queries";
 
 import { StatusBadge } from "./AccountOverview";
 import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
 
 const statuses = Object.keys(statusLabels) as ChallengeStatus[];
 
-/** The firm's admin panel: start challenges for traders, find accounts and see the challenges it sells. */
+/** The firm's admin panel: start challenges for traders and find accounts. */
 export function AdminAccounts() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
       <NewAccount />
       <Accounts />
-      <Challenges />
     </main>
   );
 }
 
 function NewAccount() {
   const router = useRouter();
-  const challenges = useChallenges();
+  const settings = useFirmSettings();
+  const challenges = useChallenges(settings.data !== undefined && settings.data.status !== "Provisioning");
   const start = useStartAccount();
   const [email, setEmail] = useState("");
   const [chosenChallenge, setChosenChallenge] = useState("");
@@ -44,8 +44,26 @@ function NewAccount() {
     );
   };
 
+  // A firm that just signed up waits for its trading server, and for its first challenge with it.
+  if (settings.data?.status === "Provisioning") {
+    return (
+      <Panel title="Start a challenge">
+        <p role="status" className="text-sm text-muted">
+          Your trading server is being set up. This takes a few seconds.
+        </p>
+      </Panel>
+    );
+  }
+
   return (
-    <Panel title="Start a challenge">
+    <Panel
+      title="Start a challenge"
+      actions={
+        <Link href="/admin/challenges" className="text-sm text-accent hover:underline">
+          Manage challenges
+        </Link>
+      }
+    >
       <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
         <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm">
           <span className="text-muted">Trader email</span>
@@ -149,40 +167,6 @@ function Accounts() {
           </table>
         </div>
       )}
-    </Panel>
-  );
-}
-
-function Challenges() {
-  const challenges = useChallenges();
-
-  return (
-    <Panel title="Challenges">
-      <p className="text-sm text-muted">The challenges the firm sells. They are managed through the firm API.</p>
-      <ul className="grid gap-3 sm:grid-cols-2">
-        {(challenges.data ?? []).map((challenge) => (
-          <li key={challenge.id} className="flex flex-col gap-2 rounded border border-border p-4 text-sm">
-            <span className="font-medium">
-              {challenge.name} <span className="text-muted">({challenge.id})</span>
-            </span>
-            <span>
-              {formatMoney(challenge.initialBalance)} {challenge.currency} · trading days start at {challenge.tradingDay.start.slice(0, 5)}{" "}
-              {challenge.tradingDay.timeZone}
-            </span>
-            <ul className="text-muted">
-              {[...challenge.evaluation, challenge.funded].map((stage) => (
-                <li key={stage.name}>
-                  {stage.name}: {stage.profitTargetPercent === null ? "no target" : `${stage.profitTargetPercent}% target`},{" "}
-                  {stage.dailyLoss.percent}% daily loss, {stage.maxLoss.percent}% max loss ({stage.maxLoss.kind.toLowerCase()})
-                  {stage.minTradingDays > 0 &&
-                    `, at least ${stage.minTradingDays} trading days${stage.profitSplitPercent == null ? "" : " between payouts"}`}
-                  {stage.profitSplitPercent != null && `, ${stage.profitSplitPercent}% of the profit to the trader`}
-                </li>
-              ))}
-            </ul>
-          </li>
-        ))}
-      </ul>
     </Panel>
   );
 }

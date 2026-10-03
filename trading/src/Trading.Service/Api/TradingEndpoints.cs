@@ -46,8 +46,8 @@ internal static class TradingEndpoints
         EngineHost engine,
         MarketCatalog catalog,
         CancellationToken cancellationToken) =>
-        await GroupOfAsync(engine, accountId, cancellationToken) is { } groupId
-            ? TypedResults.Ok(catalog.InstrumentsFor(groupId))
+        await GroupConditionsOfAsync(engine, accountId, cancellationToken) is { } group
+            ? TypedResults.Ok(catalog.InstrumentsFor(group))
             : TypedResults.NotFound();
 
     private static async Task<Results<Ok<IReadOnlyList<SymbolPrice>>, NotFound>> GetPricesAsync(string accountId, EngineHost engine, CancellationToken cancellationToken)
@@ -71,8 +71,8 @@ internal static class TradingEndpoints
         CandleStore candles,
         CancellationToken cancellationToken)
     {
-        if (await GroupOfAsync(engine, accountId, cancellationToken) is not { } groupId
-            || !catalog.TryGet(groupId, symbol, out var instrument, out var conditions))
+        if (await GroupConditionsOfAsync(engine, accountId, cancellationToken) is not { } group
+            || !catalog.TryGet(group, symbol, out var instrument, out var conditions))
         {
             return TypedResults.NotFound();
         }
@@ -131,5 +131,9 @@ internal static class TradingEndpoints
             cancellationToken));
 
     private static Task<string?> GroupOfAsync(EngineHost engine, string accountId, CancellationToken cancellationToken) =>
-        engine.QueryAsync(e => e.GetAccount(accountId)?.GroupId, cancellationToken);
+        engine.QueryAsync(e => e.GetGroupId(accountId), cancellationToken);
+
+    // The engine knows every group, also those created while it runs.
+    private static Task<TradingGroup?> GroupConditionsOfAsync(EngineHost engine, string accountId, CancellationToken cancellationToken) =>
+        engine.QueryAsync(e => e.GetGroupId(accountId) is { } groupId ? e.GetGroup(groupId) : null, cancellationToken);
 }

@@ -10,11 +10,14 @@ namespace Prop.Api.Tests.Support;
 /// <summary>
 /// A trading platform in memory that behaves like ours for the prop platform: opening an account, setting a
 /// floor, closing an account and withdrawing become events in the stream of the firm whose group the account
-/// is in, in order. Tests trade on it, breach floors and make it unreachable.
+/// is in, in order. Its partner API creates servers for firms that sign up, and those servers accept only
+/// their newest key. Tests trade on it, breach floors and make it unreachable.
 /// </summary>
-internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
+internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform, ITradingPartner
 {
     private readonly Lock _lock = new();
+    private readonly Dictionary<string, (string Key, int Keys)> _servers = new(StringComparer.Ordinal);
+    private bool _loseNextCreateAnswer;
     private readonly Dictionary<string, Guid> _users = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Account> _accounts = new(StringComparer.Ordinal);
     private readonly List<(string Group, TradingEvent Event)> _events = [];
@@ -24,6 +27,81 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
 
     /// <summary>Every command that reached the platform, in order, such as "open demo-firm-1001-1".</summary>
     public List<string> Commands { get; } = [];
+
+    /// <summary>Servers someone else has on the platform.</summary>
+    public HashSet<string> TakenServers { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The next server is created, but the answer never arrives, as when the connection drops.</summary>
+    public void LoseNextCreateAnswer()
+    {
+        lock (_lock)
+        {
+            _loseNextCreateAnswer = true;
+        }
+    }
+
+    /// <summary>The key a server created through the partner API accepts now.</summary>
+    public string? KeyOf(string server)
+    {
+        lock (_lock)
+        {
+            return _servers.TryGetValue(server, out var created) ? created.Key : null;
+        }
+    }
+
+    public Task<bool> IsServerAvailableAsync(string server, CancellationToken cancellationToken) =>
+        Call($"server-name {server}", () => !_servers.ContainsKey(server) && !TakenServers.Contains(server));
+
+    public async Task<PartnerTenant?> CreateTenantAsync(string server, string name, CancellationToken cancellationToken)
+    {
+        var tenant = await Call<PartnerTenant?>($"create server {server}", () =>
+        {
+            if (_servers.ContainsKey(server) || TakenServers.Contains(server))
+            {
+                return null;
+            }
+
+            _servers[server] = ($"key-{server}-1", 1);
+            return new PartnerTenant(server, [new PartnerGroup(GroupOf(server), "USD")], $"key-{server}-1");
+        });
+
+        lock (_lock)
+        {
+            if (tenant is not null && _loseNextCreateAnswer)
+            {
+                _loseNextCreateAnswer = false;
+                throw new TradingPlatformUnavailableException("The answer from the fake trading platform was lost.");
+            }
+        }
+
+        return tenant;
+    }
+
+    public Task<PartnerTenant?> GetTenantAsync(string server, CancellationToken cancellationToken) =>
+        Call<PartnerTenant?>($"get server {server}", () => _servers.ContainsKey(server) ? new PartnerTenant(server, [new PartnerGroup(GroupOf(server), "USD")], null) : null);
+
+    public Task<string> ReplaceAdminKeyAsync(string server, CancellationToken cancellationToken) =>
+        Call($"replace key {server}", () =>
+        {
+            var keys = _servers[server].Keys + 1;
+            _servers[server] = ($"key-{server}-{keys}", keys);
+            return _servers[server].Key;
+        });
+
+    /// <summary>The group a server created through the partner API gets, as on ours.</summary>
+    public static string GroupOf(string server) => $"{server}-standard";
+
+    /// <summary>How many of the calls told to fail have not happened yet.</summary>
+    public int RemainingFailures
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _failures;
+            }
+        }
+    }
 
     /// <summary>The next calls fail as if the platform could not be reached.</summary>
     public void FailNext(int calls)
@@ -78,6 +156,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
     public Task<Guid> EnsureUserAsync(FirmTrading firm, string email, string password, CancellationToken cancellationToken) =>
         Call($"user {email}", () =>
         {
+            RequireKey(firm);
             if (!_users.TryGetValue(email, out var id))
             {
                 id = Guid.NewGuid();
@@ -89,7 +168,11 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
 
     public async Task OpenAccountAsync(FirmTrading firm, string accountId, decimal initialBalance, Guid ownerUserId, CancellationToken cancellationToken)
     {
-        var created = await Call($"open {accountId}", () => _accounts.TryAdd(accountId, new Account(initialBalance, ownerUserId, firm.Group)));
+        var created = await Call($"open {accountId}", () =>
+        {
+            RequireKey(firm);
+            return _accounts.TryAdd(accountId, new Account(initialBalance, ownerUserId, firm.Group));
+        });
         if (created)
         {
             Publish(accountId, "AccountCreated", a => new JsonObject { ["balance"] = a.Balance }, (s, t, id, raw, a) => new TradingAccountCreated(s, t, id, raw, a.Balance));
@@ -175,6 +258,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
             Task newEvents;
             lock (_lock)
             {
+                RequireKey(firm);
                 var events = _events.Where(e => e.Group == firm.Group && e.Event.Sequence > after).Select(e => e.Event).Take(limit).ToList();
                 if (events.Count > 0)
                 {
@@ -219,6 +303,15 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
 
     public Task<TradingLoginLink> CreateLoginLinkAsync(FirmTrading firm, Guid userId, string? accountId, CancellationToken cancellationToken) =>
         Call($"link {accountId}", () => new TradingLoginLink(new Uri($"https://trade.test/login/link?token=fake&account={accountId}"), time.GetUtcNow().AddMinutes(2)));
+
+    // Servers made through the partner API take only their newest key. Configured ones are not checked.
+    private void RequireKey(FirmTrading firm)
+    {
+        if (_servers.TryGetValue(firm.Server, out var server) && server.Key != firm.ApiKey)
+        {
+            throw new TradingPlatformRejectedException($"The fake trading platform refused the key for {firm.Server}.");
+        }
+    }
 
     private void Disable(string accountId)
     {

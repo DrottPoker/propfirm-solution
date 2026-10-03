@@ -15,10 +15,12 @@ using Npgsql;
 using Prop.Api.Api;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
+using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Api.Persistence;
 using Prop.Api.Portal;
+using Prop.Api.Signup;
 using Prop.Api.Trading;
 
 // The build-time OpenAPI generator loads the app only to read its endpoints.
@@ -31,15 +33,43 @@ var tradingPlatform = builder.Services.AddOptions<TradingPlatformOptions>()
     .Validate(
         o => o.Url is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/'),
         "TradingPlatform:Url must be the trading service's absolute address, ending with /.")
-    .Validate(o => o.EventWaitSeconds is >= 0 and <= 30 && o.EventsPerRequest is >= 1 and <= 1_000, "TradingPlatform event settings are out of range.");
+    .Validate(o => o.EventWaitSeconds is >= 0 and <= 30 && o.EventsPerRequest is >= 1 and <= 1_000, "TradingPlatform event settings are out of range.")
+    .Validate(o => o.PartnerApiKey.Length > 0, "TradingPlatform:PartnerApiKey is required, so firms that sign up get a trading server.");
+var platform = builder.Services.AddOptions<PlatformOptions>()
+    .Bind(builder.Configuration.GetSection(PlatformOptions.SectionName))
+    .Validate(
+        o => o.Url is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/'),
+        "Platform:Url must be the absolute address where firms sign up, ending with /.")
+    .Validate(
+        o => o.FirmPortalUrl.Contains("{firm}", StringComparison.Ordinal)
+            && Uri.TryCreate(o.FirmPortalUrl.Replace("{firm}", "firm", StringComparison.Ordinal), UriKind.Absolute, out var portal)
+            && portal.AbsolutePath.EndsWith('/'),
+        "Platform:FirmPortalUrl must be an absolute address with {firm} for the short name, ending with /.");
+var email = builder.Services.AddOptions<EmailOptions>()
+    .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
+    .Validate(
+        o => o.From.Contains('@', StringComparison.Ordinal) && o.Smtp.Host.Length > 0 && Enum.TryParse<MailKit.Security.SecureSocketOptions>(o.Smtp.Security, out _),
+        "Email needs From, Smtp:Host and Smtp:Security (None, StartTls or SslOnConnect).");
+builder.Services.AddOptions<SignupOptions>().Bind(builder.Configuration.GetSection(SignupOptions.SectionName));
+builder.Services.AddOptions<SandboxOptions>()
+    .Bind(builder.Configuration.GetSection(SandboxOptions.SectionName))
+    .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
+    .ValidateOnStart();
+builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
 if (!isOpenApiGeneration)
 {
     tradingPlatform.ValidateOnStart();
+    platform.ValidateOnStart();
+    email.ValidateOnStart();
 }
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton(sp => new FirmCatalog(
-    sp.GetRequiredService<IConfiguration>().GetSection(FirmOptions.SectionName).Get<List<FirmOptions>>() ?? []));
+builder.Services.AddSingleton<FirmCatalog>();
+builder.Services.AddSingleton<FirmStore>();
+builder.Services.AddSingleton<SecretProtector>();
+builder.Services.AddSingleton<FirmAdmins>();
+builder.Services.AddSingleton<SignupService>();
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 
 // Resolved lazily, so tools that only load the app (like the OpenAPI generator) need no database.
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
@@ -90,27 +120,30 @@ builder.Services.AddHttpClient(TradingPlatformClient.HttpClientName, (sp, client
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddSingleton<ITradingPlatform, TradingPlatformClient>();
+builder.Services.AddSingleton<ITradingPartner, TradingPartnerClient>();
 builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
 
 if (!isOpenApiGeneration)
 {
-    // The seeder runs first, so the firms' challenges exist before anything else starts.
+    // The seeders run first, so the firms and their challenges exist before anything else starts.
+    builder.Services.AddHostedService<FirmSeeder>();
     builder.Services.AddHostedService<ChallengeSeeder>();
     builder.Services.AddHostedService<PortalSeeder>();
     builder.Services.AddHostedService<TradingEventConsumer>();
     builder.Services.AddHostedService<TradingCommandWorker>();
     builder.Services.AddHostedService<TradingDayScheduler>();
     builder.Services.AddHostedService<WebhookWorker>();
+    builder.Services.AddHostedService<FirmProvisioner>();
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => PropJson.Configure(o.SerializerOptions));
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks().AddCheck<FirmsHealthCheck>("firms");
 
 var app = builder.Build();
 
-// Not yet hardened for production: HTTPS, secrets management and firm sign-up are missing.
+// Not yet hardened for production: HTTPS and secrets management are missing.
 // The OpenAPI generator never serves requests, so it is allowed.
 if (!app.Environment.IsDevelopment() && !isOpenApiGeneration)
 {
@@ -128,5 +161,6 @@ app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapFirmApi();
 app.MapPortalApi();
+app.MapSignupApi();
 
 app.Run();

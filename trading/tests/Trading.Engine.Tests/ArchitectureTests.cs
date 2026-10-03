@@ -56,17 +56,17 @@ public sealed class ArchitectureTests
         }
     }
 
-    // The service routes events and commands to accounts through these interfaces.
+    // The service routes events and commands to accounts through these interfaces. Prices and groups belong to no account.
     [Fact]
     public void EveryAccountEventAndCommandIsMarked()
     {
         var types = typeof(TradingEngine).Assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }).ToList();
 
         var unmarkedEvents = types
-            .Where(t => t.IsAssignableTo(typeof(Events.EngineEvent)) && t != typeof(Events.InputRejected))
+            .Where(t => t.IsAssignableTo(typeof(Events.EngineEvent)) && t != typeof(Events.InputRejected) && t != typeof(Events.GroupCreated))
             .Where(t => !t.IsAssignableTo(typeof(Events.IAccountEvent)));
         var unmarkedCommands = types
-            .Where(t => t.IsAssignableTo(typeof(Inputs.EngineInput)) && t != typeof(Inputs.Quote))
+            .Where(t => t.IsAssignableTo(typeof(Inputs.EngineInput)) && t != typeof(Inputs.Quote) && t != typeof(Inputs.CreateGroup))
             .Where(t => !t.IsAssignableTo(typeof(Inputs.IAccountCommand)));
 
         Assert.Empty(unmarkedEvents);

@@ -41,10 +41,19 @@ internal static class FirmEndpoints
     }
 
     /// <summary>Creates or replaces a challenge. Accounts already started keep the rules they were started with.</summary>
-    private static async Task<Results<Ok<ChallengeDefinition>, ProblemHttpResult>> SaveChallengeAsync(
+    private static Task<Results<Ok<ChallengeDefinition>, ProblemHttpResult>> SaveChallengeAsync(
         string challengeId,
         ChallengeDefinition definition,
         HttpContext context,
+        ChallengeCatalog catalog,
+        CancellationToken cancellationToken) =>
+        SaveChallengeOfAsync(FirmApiKeyFilter.FirmOf(context), challengeId, definition, catalog, cancellationToken);
+
+    /// <summary>Saves the firm's challenge if it is valid. Shared with the admin panel.</summary>
+    internal static async Task<Results<Ok<ChallengeDefinition>, ProblemHttpResult>> SaveChallengeOfAsync(
+        Firm firm,
+        string challengeId,
+        ChallengeDefinition definition,
         ChallengeCatalog catalog,
         CancellationToken cancellationToken)
     {
@@ -53,12 +62,12 @@ internal static class FirmEndpoints
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The id in the body must be the id in the address.");
         }
 
-        if (ChallengeCatalog.Validate(definition) is { Count: > 0 } errors)
+        if (ChallengeCatalog.Validate(definition, firm) is { Count: > 0 } errors)
         {
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The challenge is not valid.", errors);
         }
 
-        await catalog.SaveAsync(FirmApiKeyFilter.FirmOf(context).Id, definition, cancellationToken);
+        await catalog.SaveAsync(firm.Id, definition, cancellationToken);
         return TypedResults.Ok(definition);
     }
 

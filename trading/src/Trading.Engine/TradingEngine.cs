@@ -14,6 +14,9 @@ public sealed partial class TradingEngine
 {
     private readonly Dictionary<string, Instrument> _instruments = new(StringComparer.Ordinal);
     private readonly Dictionary<string, GroupState> _groups = new(StringComparer.Ordinal);
+
+    // Groups created by input, in creation order. Configured groups come from the configuration instead.
+    private readonly List<GroupState> _createdGroups = [];
     private readonly Dictionary<string, AccountState> _accountsById = new(StringComparer.Ordinal);
 
     // Creation order, for deterministic iteration.
@@ -61,6 +64,7 @@ public sealed partial class TradingEngine
         var rejection = input switch
         {
             Quote quote => ApplyQuote(quote, events),
+            CreateGroup command => ApplyCreateGroup(command, events),
             CreateAccount command => ApplyCreateAccount(command, events),
             PlaceOrder command => ApplyPlaceOrder(command, events),
             CancelOrder command => ApplyCancelOrder(command, events),
@@ -93,6 +97,13 @@ public sealed partial class TradingEngine
     {
         ArgumentNullException.ThrowIfNull(accountId);
         return _accountsById.TryGetValue(accountId, out var account) ? account.Group.Id : null;
+    }
+
+    /// <summary>The group's conditions, with its symbols in symbol order, or null if the group does not exist.</summary>
+    public TradingGroup? GetGroup(string groupId)
+    {
+        ArgumentNullException.ThrowIfNull(groupId);
+        return _groups.TryGetValue(groupId, out var group) ? group.ToDefinition() : null;
     }
 
     /// <summary>Latest prices after the group's markup, for each of the group's symbols that has a price. Null if the group does not exist.</summary>

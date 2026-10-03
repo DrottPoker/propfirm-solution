@@ -12,6 +12,91 @@ public sealed class TradingPlatformOptions
     public int EventWaitSeconds { get; init; } = 30;
 
     public int EventsPerRequest { get; init; } = 500;
+
+    /// <summary>The prop platform's key to the partner API, which creates the servers of firms that sign up. A secret.</summary>
+    public string PartnerApiKey { get; init; } = "";
+}
+
+/// <summary>Our own platform, where firms sign up, and where the portals of new firms are reached.</summary>
+public sealed class PlatformOptions
+{
+    public const string SectionName = "Platform";
+
+    /// <summary>A working name, shown when firms sign up and in emails, until the product is named.</summary>
+    public string Name { get; init; } = "Prop platform";
+
+    /// <summary>Where firms sign up, ending with /, for example https://app.example.com/.</summary>
+    public Uri? Url { get; init; }
+
+    /// <summary>The portal address of a new firm, with {firm} for its short name, for example https://{firm}.example.com/.</summary>
+    public string FirmPortalUrl { get; init; } = "";
+
+    /// <summary>The portal address of the firm with the short name.</summary>
+    public Uri PortalUrlOf(string firmId) => new(FirmPortalUrl.Replace("{firm}", firmId, StringComparison.Ordinal));
+}
+
+/// <summary>How firms sign up.</summary>
+public sealed class SignupOptions
+{
+    public const string SectionName = "Signup";
+
+    /// <summary>Whether the email address must be confirmed before the firm is created. Development turns it off.</summary>
+    public bool RequireEmailVerification { get; init; } = true;
+
+    /// <summary>The version of the terms and the data processing agreement that firms accept, recorded with each firm.</summary>
+    public string TermsVersion { get; init; } = "";
+
+    public Uri? TermsUrl { get; init; }
+
+    public Uri? DpaUrl { get; init; }
+
+    /// <summary>Short names firms may not choose, besides the built-in ones.</summary>
+    public IReadOnlyList<string> ReservedFirmIds { get; init; } = [];
+}
+
+/// <summary>What a firm in the sandbox may do before it goes live.</summary>
+public sealed class SandboxOptions
+{
+    public const string SectionName = "Sandbox";
+
+    /// <summary>The most challenge accounts a firm in the sandbox may have open at once.</summary>
+    public int MaxOpenAccounts { get; init; } = 10;
+}
+
+/// <summary>Email from the platform, such as confirmations and invitations for administrators.</summary>
+public sealed class EmailOptions
+{
+    public const string SectionName = "Email";
+
+    public string From { get; init; } = "";
+
+    public string FromName { get; init; } = "";
+
+    public SmtpOptions Smtp { get; init; } = new();
+}
+
+public sealed class SmtpOptions
+{
+    public string Host { get; init; } = "";
+
+    public int Port { get; init; } = 587;
+
+    public string UserName { get; init; } = "";
+
+    /// <summary>A secret: keep it out of files outside development.</summary>
+    public string Password { get; init; } = "";
+
+    /// <summary>None, StartTls or SslOnConnect. StartTls everywhere but a local test server.</summary>
+    public string Security { get; init; } = "StartTls";
+}
+
+/// <summary>The key that encrypts the firms' secrets in the database. Never kept in the database itself.</summary>
+public sealed class SecretsOptions
+{
+    public const string SectionName = "Secrets";
+
+    /// <summary>32 random bytes in base64. A secret: keep it out of files outside development, and never change it without encrypting the secrets again.</summary>
+    public string Key { get; init; } = "";
 }
 
 /// <summary>Rules for portal passwords, logins and sessions. Development turns them off; elsewhere the defaults hold.</summary>
@@ -29,7 +114,10 @@ public sealed class LoginOptions
     public TimeSpan SessionLifetime { get; init; } = TimeSpan.FromHours(12);
 }
 
-/// <summary>A firm on the prop platform. Configured for now; managed through an API when firms sign up themselves.</summary>
+/// <summary>
+/// A configured firm, saved to the database at every start and live from the beginning. For development and
+/// tests. Other firms sign up themselves (ADR 0017).
+/// </summary>
 public sealed class FirmOptions
 {
     public const string SectionName = "Firms";
@@ -89,6 +177,9 @@ public sealed class FirmTradingOptions
 
     /// <summary>The trading group new accounts are opened in.</summary>
     public string Group { get; init; } = "";
+
+    /// <summary>The group's account currency. Challenges must be in it.</summary>
+    public string Currency { get; init; } = "USD";
 }
 
 public sealed class FirmWebhookOptions

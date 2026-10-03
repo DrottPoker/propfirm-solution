@@ -7,6 +7,30 @@ namespace Trading.Engine;
 // Commands. Each handler validates everything before it changes state, and returns a reason when it rejects.
 public sealed partial class TradingEngine
 {
+    private RejectReason? ApplyCreateGroup(CreateGroup command, List<EngineEvent> events)
+    {
+        if (command.Group is null || string.IsNullOrEmpty(command.Group.Id))
+        {
+            return RejectReason.InvalidId;
+        }
+
+        if (_groups.ContainsKey(command.Group.Id))
+        {
+            return RejectReason.DuplicateId;
+        }
+
+        if (ConfigurationValidator.GroupProblem(command.Group, _instruments.Keys.ToHashSet(StringComparer.Ordinal)) is not null)
+        {
+            return RejectReason.InvalidGroup;
+        }
+
+        var group = new GroupState(command.Group);
+        _groups.Add(group.Id, group);
+        _createdGroups.Add(group);
+        events.Add(new GroupCreated(command.Timestamp, group.ToDefinition()));
+        return null;
+    }
+
     private RejectReason? ApplyCreateAccount(CreateAccount command, List<EngineEvent> events)
     {
         if (string.IsNullOrEmpty(command.AccountId))

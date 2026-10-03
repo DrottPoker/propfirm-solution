@@ -12,6 +12,9 @@ internal sealed class WorkSignals
 
     public WakeUp Webhooks { get; } = new();
 
+    /// <summary>A firm waits for its server on the trading platform.</summary>
+    public WakeUp Provisioning { get; } = new();
+
     public WakeUp CommandsOf(string firmId) => _commands.GetOrAdd(firmId, _ => new WakeUp());
 }
 

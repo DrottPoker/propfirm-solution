@@ -16,6 +16,10 @@ public interface IAccountCommand
 public sealed record Quote(DateTimeOffset Timestamp, string Symbol, decimal Bid, decimal Ask)
     : EngineInput(Timestamp);
 
+/// <summary>Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards.</summary>
+public sealed record CreateGroup(DateTimeOffset Timestamp, TradingGroup Group)
+    : EngineInput(Timestamp);
+
 public sealed record CreateAccount(DateTimeOffset Timestamp, string AccountId, string GroupId, decimal InitialBalance)
     : EngineInput(Timestamp), IAccountCommand;
 

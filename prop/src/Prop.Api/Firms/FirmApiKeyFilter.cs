@@ -10,6 +10,7 @@ internal sealed class FirmApiKeyFilter(FirmCatalog firms) : IEndpointFilter
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
+        await firms.Ready.WaitAsync(http.RequestAborted);
         if (firms.ByApiKey(http.Request.Headers[HeaderName]) is not { } firm)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: $"A valid {HeaderName} header is required.");

@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md) och [portalen](docs/spec/portal.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md) och [registreringen](docs/spec/registrering.md).
 
 ## Struktur
 
@@ -42,11 +42,11 @@ En produkt får bara använda kod från sin egen mapp, `contracts/` och `shared/
 - [.NET SDK 10](https://dotnet.microsoft.com/download) (versionen styrs av `global.json`)
 - [Node.js 22](https://nodejs.org/) eller senare
 - [pnpm](https://pnpm.io/installation) (versionen styrs av `packageManager` i `package.json`)
-- [Docker](https://www.docker.com/) för Postgres och NATS, och för testerna mot Postgres
+- [Docker](https://www.docker.com/) för Postgres, NATS och Mailpit, och för testerna mot Postgres
 
 ## Kom igång
 
-Starta Postgres och NATS:
+Starta Postgres, NATS och Mailpit:
 
 ```bash
 docker compose -f deploy/docker-compose.yml up -d
@@ -82,6 +82,7 @@ Kör tjänsterna lokalt:
 | Portalen | `pnpm dev:portal` | http://localhost:3002 |
 | Postgres | | localhost:5432, databaserna `trading` och `prop` |
 | NATS | | localhost:4222, övervakning på http://localhost:8222 |
+| Mailpit | | SMTP på localhost:1025. Mejlen från plattformen läses på http://localhost:8025 |
 
 Lösenorden i `deploy/` gäller bara lokal utveckling.
 
@@ -169,6 +170,17 @@ Lokalt finns inga krav på lösenordens längd, ingen gräns för antalet inlogg
 
 Portalen ser ut som firman vars adress den öppnas på. Lokalt hör `localhost` och `127.0.0.1` till `demo-firm`. Allt detta gäller bara lokal utveckling. Se [specen för portalen](docs/spec/portal.md).
 
+## Prova registreringen
+
+En firma kan registrera sig själv och prova allt i en sandlåda. Starta handelstjänsten, propfirm-tjänsten och portalen enligt ovan, och Mailpit med docker compose.
+
+1. Öppna http://app.localhost:3002/signup. Fyll i firmans namn, ett kort namn, din e-post och ett lösenord, och godkänn villkoren.
+2. Du hamnar inloggad i firmans adminpanel på dess egen adress, till exempel http://acme.localhost:3002/admin. Firmans server på handelsplattformen skapas på några sekunder, tillsammans med en tvåstegs-challenge på 100 000 USD.
+3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö.
+4. Under Settings ändrar du logga och färger, skapar en nyckel för firmans API och sätter en webhook. Under Challenges gör du egna challenges, och under Team bjuder du in fler administratörer. Mejlen syns i Mailpit på http://localhost:8025.
+
+Lokalt behöver e-postadressen inte bekräftas. Vill du prova bekräftelsen, sätt `Signup:RequireEmailVerification` till `true` i propfirm-tjänstens `appsettings.Development.json`, så kommer länken i Mailpit. Webbläsare skickar alla adresser som slutar på `.localhost` till den egna datorn, så inga DNS-inställningar behövs. Se [specen för registreringen](docs/spec/registrering.md).
+
 ## Prova utbetalningar
 
 Challengen `quick-test-100k` finns bara lokalt. Den har vinstmål på 0,1 % (100 USD) och inga krav på antal handelsdagar, så hela vägen till en utbetalning tar några minuter. Starta handelstjänsten, propfirm-tjänsten, portalen och terminalen enligt ovan.
@@ -200,7 +212,7 @@ Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara
 
 ## Tester av hela flödet
 
-Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.
+Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Portalens tester registrerar också firmor på http://app.localhost:3022. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.
 
 ```bash
 dotnet build trading/src/Trading.Service -c Release

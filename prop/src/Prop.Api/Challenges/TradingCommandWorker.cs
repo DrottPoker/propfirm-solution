@@ -36,14 +36,17 @@ internal sealed partial class TradingCommandWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await schema.EnsureAsync(stoppingToken);
-        await Task.WhenAll(firms.All.Select(firm => RunAsync(firm, stoppingToken)));
+
+        // A firm's commands wait until its server on the trading platform exists.
+        await FirmLoops.RunAsync(firms, f => f.Trading is not null, RunAsync, stoppingToken);
     }
 
-    private async Task RunAsync(Firm firm, CancellationToken cancellationToken)
+    private async Task RunAsync(string firmId, CancellationToken cancellationToken)
     {
         var retryDelay = TimeSpan.FromSeconds(1);
         while (!cancellationToken.IsCancellationRequested)
         {
+            var firm = firms.ById(firmId)!;
             QueuedCommand? current = null;
             try
             {
@@ -91,16 +94,16 @@ internal sealed partial class TradingCommandWorker(
         {
             case OpenTradingAccount open:
                 var userId = await TradingUserAsync(firm, open.TraderId, cancellationToken);
-                await trading.OpenAccountAsync(firm.Trading, open.AccountId, open.InitialBalance, userId, cancellationToken);
+                await trading.OpenAccountAsync(firm.Trading!, open.AccountId, open.InitialBalance, userId, cancellationToken);
                 break;
             case SetTradingFloor floor:
-                await trading.SetFloorAsync(firm.Trading, floor.AccountId, floor.FloorId, floor.Floor, cancellationToken);
+                await trading.SetFloorAsync(firm.Trading!, floor.AccountId, floor.FloorId, floor.Floor, cancellationToken);
                 break;
             case CloseTradingAccount close:
-                await trading.CloseAccountAsync(firm.Trading, close.AccountId, cancellationToken);
+                await trading.CloseAccountAsync(firm.Trading!, close.AccountId, cancellationToken);
                 break;
             case WithdrawFromTradingAccount withdraw:
-                await trading.WithdrawAsync(firm.Trading, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
+                await trading.WithdrawAsync(firm.Trading!, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown command {command.GetType().Name}.");
@@ -127,7 +130,7 @@ internal sealed partial class TradingCommandWorker(
             return reader.GetGuid(1);
         }
 
-        var userId = await trading.EnsureUserAsync(firm.Trading, email, RandomNumberGenerator.GetHexString(32), cancellationToken);
+        var userId = await trading.EnsureUserAsync(firm.Trading!, email, RandomNumberGenerator.GetHexString(32), cancellationToken);
         await using var write = dataSource.CreateCommand("update traders set trading_user_id = $2 where id = $1");
         write.Parameters.AddWithValue(traderId);
         write.Parameters.AddWithValue(userId);

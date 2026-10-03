@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, resultOf } from "./api/client";
-import type { ChallengeStatus, PayoutStatus } from "./api/types";
+import type { ChallengeDefinition, ChallengeStatus, PayoutStatus } from "./api/types";
 
 export type Role = "trader" | "admin";
 
@@ -128,9 +128,11 @@ export function useTerminalLink() {
   });
 }
 
-export function useChallenges() {
+/** The firm's challenges. Not asked while the firm's trading server is being set up, since its first challenge comes with it. */
+export function useChallenges(enabled = true) {
   return useQuery({
     queryKey: ["challenges"],
+    enabled,
     queryFn: async () => resultOf(await api.GET("/api/portal/admin/challenges"), "the challenges"),
   });
 }
@@ -247,4 +249,212 @@ export function useInvite(accountId: string) {
   return useMutation({
     mutationFn: async () => resultOf(await api.POST("/api/portal/admin/accounts/{accountId}/invite", accountPath(accountId)), "the invitation"),
   });
+}
+
+/** The firm's own settings. Asked again every few seconds while its trading server is being set up. */
+export function useFirmSettings() {
+  return useQuery({
+    queryKey: ["firm-settings"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/firm"), "the firm's settings"),
+    refetchInterval: (query) => (query.state.data?.status === "Provisioning" ? 2_000 : false),
+  });
+}
+
+/** The firm's logo and colors. The portal shows them after the next page load. */
+export function useSaveBranding() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { logoUrl: string | null; colors: Record<string, string> }) =>
+      resultOf(await api.PUT("/api/portal/admin/firm/branding", { body }), "the look"),
+    onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
+/** A new key for the firm API. It is shown once, and the old key stops working. */
+export function useNewApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/admin/firm/api-key"), "the API key").apiKey,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["firm-settings"] }),
+  });
+}
+
+/** Where webhooks go, or none. The first time, the answer has the secret that signs them. */
+export function useSaveWebhook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (url: string) => resultOf(await api.PUT("/api/portal/admin/firm/webhook", { body: { url: url.trim() || null } }), "the webhook"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["firm-settings"] }),
+  });
+}
+
+/** A new secret for webhooks, shown once. */
+export function useNewWebhookSecret() {
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/admin/firm/webhook/secret"), "the webhook secret").secret,
+  });
+}
+
+export function useChallengeTemplates() {
+  return useQuery({
+    queryKey: ["challenge-templates"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/challenge-templates"), "the challenge templates"),
+    staleTime: Infinity,
+  });
+}
+
+/** Creates or replaces one of the firm's challenges. Accounts already started keep their rules. */
+export function useSaveChallenge() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (definition: ChallengeDefinition) => {
+      const result = await api.PUT("/api/portal/admin/challenges/{challengeId}", { params: { path: { challengeId: definition.id } }, body: definition });
+      if (result.data) {
+        return result.data;
+      }
+
+      // An invalid challenge comes with what is wrong with it.
+      const problem = (result.error ?? {}) as { title?: unknown; errors?: unknown };
+      const errors = Array.isArray(problem.errors) ? problem.errors.filter((e): e is string => typeof e === "string") : [];
+      throw new ApiError(
+        [typeof problem.title === "string" ? problem.title : `Could not save the challenge (HTTP ${result.response.status}).`, ...errors].join(" "),
+        result.response.status,
+      );
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["challenges"] }),
+  });
+}
+
+export function useAdmins() {
+  return useQuery({
+    queryKey: ["admins"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/admins"), "the administrators"),
+  });
+}
+
+/** Emails an invitation to administer the firm. */
+export function useInviteAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => resultOf(await api.POST("/api/portal/admin/admins/invites", { body: { email } }), "the invitation"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admins"] }),
+  });
+}
+
+export function useRemoveAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (adminId: string) => {
+      const result = await api.DELETE("/api/portal/admin/admins/{adminId}", { params: { path: { adminId } } });
+      if (!result.response.ok) {
+        resultOf(result, "the removal");
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["admins"] }),
+  });
+}
+
+/** Logs the new firm's administrator in with the link from signing up. */
+export function useWelcome() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const result = await api.POST("/api/portal/admin/welcome", { body: { token } });
+      if (result.response.status === 401) {
+        throw new ApiError("This link has expired or was already used. Log in with your email and password.", 401);
+      }
+
+      return resultOf(result, "the login");
+    },
+    onSuccess: (me) => {
+      queryClient.clear();
+      queryClient.setQueryData(meKey("admin"), me);
+    },
+  });
+}
+
+/** An invited administrator chooses a password, and is logged in. */
+export function useAcceptAdminInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { token: string; password: string }) => {
+      const result = await api.POST("/api/portal/admin/invites/accept", { body });
+      if (result.response.status === 401) {
+        throw new ApiError("This invitation has expired or was already used. Ask for a new one.", 401);
+      }
+
+      if (result.response.status === 429) {
+        throw new LoginFailedError(true);
+      }
+
+      return resultOf(result, "the invitation");
+    },
+    onSuccess: (me) => {
+      queryClient.clear();
+      queryClient.setQueryData(meKey("admin"), me);
+    },
+  });
+}
+
+/** Whether the short name can be chosen. Asked while it is typed. */
+export function useAvailability(firmId: string) {
+  return useQuery({
+    queryKey: ["availability", firmId],
+    enabled: firmId.length > 0,
+    queryFn: async () => resultOf(await api.GET("/api/portal/signup/availability", { params: { query: { firmId } } }), "the name check"),
+  });
+}
+
+/** The sign-up was refused because of one of the fields, named as in the form. */
+export class SignupError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly field: string | null,
+  ) {
+    super(message, status);
+    this.name = "SignupError";
+  }
+}
+
+export type SignupForm = { firmName: string; firmId: string; email: string; password: string; acceptTerms: boolean };
+
+export function useSignUp() {
+  return useMutation({
+    mutationFn: async (body: SignupForm) => {
+      const result = await api.POST("/api/portal/signup", { body });
+      if (result.data) {
+        return result.data;
+      }
+
+      throw signupErrorOf(result.error, result.response.status);
+    },
+  });
+}
+
+/** Confirms the email address and creates the firm. Answers with the link into its admin panel. */
+export function useVerifySignup() {
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const result = await api.POST("/api/portal/signup/verify", { body: { token } });
+      if (result.data) {
+        return result.data;
+      }
+
+      if (result.response.status === 401) {
+        throw new ApiError("This link has expired or was already used. Sign up again to get a new one.", 401);
+      }
+
+      throw signupErrorOf(result.error, result.response.status);
+    },
+  });
+}
+
+function signupErrorOf(error: unknown, status: number): SignupError {
+  const problem = typeof error === "object" && error !== null ? (error as { title?: unknown; field?: unknown }) : {};
+  return new SignupError(
+    typeof problem.title === "string" ? problem.title : status === 429 ? "Too many attempts. Wait a minute and try again." : `Could not sign up (HTTP ${status}).`,
+    status,
+    typeof problem.field === "string" ? problem.field : null,
+  );
 }

@@ -224,7 +224,7 @@ public sealed class AuthTests
     {
         using var factory = new ServiceFactory(settings: new Dictionary<string, string> { [key] = value });
 
-        // The firms are loaded at startup, by the development account seeder.
+        // The configured firms are saved and loaded at startup.
         var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
 
         Assert.Contains("Invalid tenant configuration", exception.ToString(), StringComparison.Ordinal);

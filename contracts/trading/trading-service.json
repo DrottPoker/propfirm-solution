@@ -877,6 +877,122 @@
           }
         }
       }
+    },
+    "/api/partner/v1/server-names/{id}": {
+      "get": {
+        "tags": [
+          "Partner"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerNameResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/partner/v1/tenants": {
+      "post": {
+        "tags": [
+          "Partner"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedTenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/partner/v1/tenants/{id}": {
+      "get": {
+        "tags": [
+          "Partner"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/partner/v1/tenants/{id}/admin-key": {
+      "post": {
+        "tags": [
+          "Partner"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminApiKeyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -959,6 +1075,17 @@
           "Active",
           "Disabled"
         ]
+      },
+      "AdminApiKeyResponse": {
+        "required": [
+          "adminApiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "adminApiKey": {
+            "type": "string"
+          }
+        }
       },
       "BalanceOperationRequest": {
         "required": [
@@ -1084,6 +1211,37 @@
         },
         "description": "Creates a trading account owned by a user of the same firm."
       },
+      "CreatedTenantResponse": {
+        "required": [
+          "id",
+          "name",
+          "listed",
+          "groups",
+          "adminApiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantGroupResponse"
+            }
+          },
+          "adminApiKey": {
+            "type": "string"
+          }
+        },
+        "description": "A new firm, with the key to its admin API. The key is shown only once."
+      },
       "CreateLoginLinkRequest": {
         "required": [
           "accountId"
@@ -1098,6 +1256,28 @@
           }
         },
         "description": "A login link for the user. With an account id, the terminal opens that account."
+      },
+      "CreateTenantRequest": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A firm with its server Id, which traders log in to, and its name."
       },
       "CreateUserRequest": {
         "required": [
@@ -1151,6 +1331,9 @@
             "$ref": "#/components/schemas/EngineEventEquityFloorSet"
           },
           {
+            "$ref": "#/components/schemas/EngineEventGroupCreated"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventInputRejected"
           },
           {
@@ -1182,6 +1365,7 @@
             "EquityFloorBreached": "#/components/schemas/EngineEventEquityFloorBreached",
             "EquityFloorRemoved": "#/components/schemas/EngineEventEquityFloorRemoved",
             "EquityFloorSet": "#/components/schemas/EngineEventEquityFloorSet",
+            "GroupCreated": "#/components/schemas/EngineEventGroupCreated",
             "InputRejected": "#/components/schemas/EngineEventInputRejected",
             "OrderCancelled": "#/components/schemas/EngineEventOrderCancelled",
             "OrderPlaced": "#/components/schemas/EngineEventOrderPlaced",
@@ -1395,6 +1579,28 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineEventGroupCreated": {
+        "required": [
+          "group",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "GroupCreated"
+            ],
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/TradingGroup"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A trading group was created. Its symbols are in symbol order."
       },
       "EngineEventInputRejected": {
         "required": [
@@ -1752,6 +1958,9 @@
             "$ref": "#/components/schemas/EngineInputCreateAccount"
           },
           {
+            "$ref": "#/components/schemas/EngineInputCreateGroup"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputModifyPosition"
           },
           {
@@ -1776,6 +1985,7 @@
             "CloseAccount": "#/components/schemas/EngineInputCloseAccount",
             "ClosePosition": "#/components/schemas/EngineInputClosePosition",
             "CreateAccount": "#/components/schemas/EngineInputCreateAccount",
+            "CreateGroup": "#/components/schemas/EngineInputCreateGroup",
             "ModifyPosition": "#/components/schemas/EngineInputModifyPosition",
             "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
             "Quote": "#/components/schemas/EngineInputQuote",
@@ -1923,6 +2133,28 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineInputCreateGroup": {
+        "required": [
+          "group",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "CreateGroup"
+            ],
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/TradingGroup"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards."
       },
       "EngineInputModifyPosition": {
         "required": [
@@ -2641,6 +2873,7 @@
           "UnknownSymbol",
           "InvalidQuote",
           "UnknownGroup",
+          "InvalidGroup",
           "InvalidAmount",
           "UnknownAccount",
           "AccountDisabled",
@@ -2677,6 +2910,21 @@
         },
         "description": "A firm's server: the id traders log in with and the firm's name."
       },
+      "ServerNameResponse": {
+        "required": [
+          "id",
+          "available"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          }
+        }
+      },
       "SetFloorRequest": {
         "required": [
           "rule"
@@ -2708,6 +2956,46 @@
           "Sell"
         ]
       },
+      "SymbolConditions": {
+        "required": [
+          "symbol",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "leverage": {
+            "type": "integer",
+            "description": "Margin is the position value divided by this.",
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": "integer",
+            "description": "Points added to the raw spread. The bid is lowered by half, rounded down, and the ask raised by the rest.",
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": "number",
+            "description": "Commission in account currency, charged both on open and on close.",
+            "format": "double"
+          },
+          "bidMarkupPoints": {
+            "type": "integer",
+            "description": "Points the bid is lowered by.",
+            "format": "int32"
+          },
+          "askMarkupPoints": {
+            "type": "integer",
+            "description": "Points the ask is raised by.",
+            "format": "int32"
+          }
+        },
+        "description": "Conditions for one symbol within a group."
+      },
       "SymbolPrice": {
         "required": [
           "symbol",
@@ -2735,6 +3023,49 @@
         },
         "description": "Price after the group's spread markup, with the time the raw price arrived."
       },
+      "TenantGroupResponse": {
+        "required": [
+          "id",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "description": "A firm's trading group and its account currency."
+      },
+      "TenantResponse": {
+        "required": [
+          "id",
+          "name",
+          "listed",
+          "groups"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantGroupResponse"
+            }
+          }
+        },
+        "description": "A firm. Only Listed servers are on the list traders choose from."
+      },
       "Timeframe": {
         "enum": [
           "M1",
@@ -2745,6 +3076,37 @@
           "H4",
           "D1"
         ]
+      },
+      "TradingGroup": {
+        "required": [
+          "id",
+          "currency",
+          "stopOutLevelPercent",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "description": "Account currency for all accounts in the group."
+          },
+          "stopOutLevelPercent": {
+            "type": "number",
+            "description": "Positions are closed when the margin level falls below this. 0 disables stop out.",
+            "format": "double"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolConditions"
+            },
+            "description": "The symbols the group may trade, with their conditions."
+          }
+        },
+        "description": "Trading conditions shared by a group of accounts, set by the firm."
       },
       "UserResponse": {
         "required": [
@@ -2773,6 +3135,9 @@
     },
     {
       "name": "Admin"
+    },
+    {
+      "name": "Partner"
     }
   ]
 }

@@ -30,26 +30,69 @@ internal static class ConfigurationValidator
         {
             Require(group is not null, "Groups must not contain null.");
             Require(!string.IsNullOrEmpty(group.Id) && groupIds.Add(group.Id), $"Group id '{group.Id}' is empty or duplicated.");
-            Require(!string.IsNullOrEmpty(group.Currency), $"Group {group.Id}: currency is required.");
-            Require(group.StopOutLevelPercent >= 0m, $"Group {group.Id}: stop out level must not be negative.");
-            Require(group.Symbols is not null, $"Group {group.Id}: symbols are required.");
-
-            var groupSymbols = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var conditions in group.Symbols)
-            {
-                Require(conditions is not null, $"Group {group.Id}: symbols must not contain null.");
-                Require(conditions.Symbol is not null && symbols.Contains(conditions.Symbol), $"Group {group.Id}: unknown symbol '{conditions.Symbol}'.");
-                Require(groupSymbols.Add(conditions.Symbol), $"Group {group.Id}: symbol {conditions.Symbol} is listed twice.");
-                Require(conditions.Leverage > 0, $"Group {group.Id}, {conditions.Symbol}: leverage must be positive.");
-                Require(conditions.SpreadMarkupPoints >= 0, $"Group {group.Id}, {conditions.Symbol}: spread markup must not be negative.");
-                Require(conditions.CommissionPerLotPerSide >= 0m, $"Group {group.Id}, {conditions.Symbol}: commission must not be negative.");
-            }
+            var problem = GroupProblem(group, symbols);
+            Require(problem is null, problem!);
         }
 
         foreach (var (currency, decimals) in configuration.CurrencyDecimals)
         {
             Require(decimals is >= 0 and <= MaxCurrencyDecimals, $"Currency {currency}: decimals must be between 0 and {MaxCurrencyDecimals}.");
         }
+    }
+
+    /// <summary>What is wrong with the group's conditions, or null. Shared by configured groups and groups created by input.</summary>
+    public static string? GroupProblem(TradingGroup group, IReadOnlySet<string> symbols)
+    {
+        if (string.IsNullOrEmpty(group.Currency))
+        {
+            return $"Group {group.Id}: currency is required.";
+        }
+
+        if (group.StopOutLevelPercent < 0m)
+        {
+            return $"Group {group.Id}: stop out level must not be negative.";
+        }
+
+        if (group.Symbols is null)
+        {
+            return $"Group {group.Id}: symbols are required.";
+        }
+
+        var groupSymbols = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var conditions in group.Symbols)
+        {
+            if (conditions is null)
+            {
+                return $"Group {group.Id}: symbols must not contain null.";
+            }
+
+            if (conditions.Symbol is null || !symbols.Contains(conditions.Symbol))
+            {
+                return $"Group {group.Id}: unknown symbol '{conditions.Symbol}'.";
+            }
+
+            if (!groupSymbols.Add(conditions.Symbol))
+            {
+                return $"Group {group.Id}: symbol {conditions.Symbol} is listed twice.";
+            }
+
+            if (conditions.Leverage <= 0)
+            {
+                return $"Group {group.Id}, {conditions.Symbol}: leverage must be positive.";
+            }
+
+            if (conditions.SpreadMarkupPoints < 0)
+            {
+                return $"Group {group.Id}, {conditions.Symbol}: spread markup must not be negative.";
+            }
+
+            if (conditions.CommissionPerLotPerSide < 0m)
+            {
+                return $"Group {group.Id}, {conditions.Symbol}: commission must not be negative.";
+            }
+        }
+
+        return null;
     }
 
     private static void Require([DoesNotReturnIf(false)] bool condition, string message)

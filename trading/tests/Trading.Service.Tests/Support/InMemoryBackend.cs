@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.DataProtection.Repositories;
 
 using Trading.Service.Identity;
+using Trading.Service.Tenancy;
 
 namespace Trading.Service.Tests.Support;
 
@@ -17,8 +18,68 @@ internal sealed class InMemoryBackend
 
     public InMemoryLoginLinkStore LoginLinks { get; init; } = new();
 
-    /// <summary>What a crash leaves behind: the stored journal, users, keys and login links.</summary>
-    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys, LoginLinks = LoginLinks };
+    public InMemoryTenantStore Tenants { get; init; } = new();
+
+    /// <summary>What a crash leaves behind: the stored journal, users, keys, login links and firms.</summary>
+    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys, LoginLinks = LoginLinks, Tenants = Tenants };
+}
+
+internal sealed class InMemoryTenantStore : ITenantStore
+{
+    private readonly Lock _lock = new();
+    private readonly List<Tenant> _tenants = [];
+
+    public Task<IReadOnlyList<Tenant>> ListAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult<IReadOnlyList<Tenant>>([.. _tenants.OrderBy(t => t.Id, StringComparer.Ordinal)]);
+        }
+    }
+
+    public Task SaveConfiguredAsync(Tenant tenant, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (_tenants.Find(t => t.Id == tenant.Id) is { PartnerId: not null })
+            {
+                throw new InvalidOperationException($"Invalid tenant configuration: tenant {tenant.Id} was created by a partner.");
+            }
+
+            if (_tenants.Any(t => t.Id != tenant.Id && t.Groups.Intersect(tenant.Groups, StringComparer.Ordinal).Any()))
+            {
+                throw new InvalidOperationException($"Invalid tenant configuration: a group of tenant {tenant.Id} belongs to another tenant.");
+            }
+
+            _tenants.RemoveAll(t => t.Id == tenant.Id);
+            _tenants.Add(tenant);
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<bool> CreateAsync(Tenant tenant, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (_tenants.Any(t => t.Id == tenant.Id || t.Groups.Intersect(tenant.Groups, StringComparer.Ordinal).Any()))
+            {
+                return Task.FromResult(false);
+            }
+
+            _tenants.Add(tenant);
+            return Task.FromResult(true);
+        }
+    }
+
+    public Task SetAdminApiKeyAsync(string tenantId, byte[] adminApiKeyHash, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var index = _tenants.FindIndex(t => t.Id == tenantId);
+            _tenants[index] = _tenants[index] with { AdminApiKeyHash = adminApiKeyHash };
+            return Task.CompletedTask;
+        }
+    }
 }
 
 internal sealed class InMemoryUserStore : IUserStore

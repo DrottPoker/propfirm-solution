@@ -24,7 +24,7 @@ internal static class AuthEndpoints
         auth.MapPost("/link", LinkLoginAsync).RequireRateLimiting(LoginRateLimit);
         auth.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)LogoutAsync);
         auth.MapGet("/me", MeAsync).RequireAuthorization();
-        app.MapGet("/api/servers", GetServers).WithTags("Auth");
+        app.MapGet("/api/servers", GetServersAsync).WithTags("Auth");
         return app;
     }
 
@@ -36,6 +36,7 @@ internal static class AuthEndpoints
         IPasswordHasher<User> hasher,
         CancellationToken cancellationToken)
     {
+        await tenants.Ready.WaitAsync(cancellationToken);
         var tenant = tenants.ById(request.Server ?? "");
         var user = tenant is null ? null : await users.FindByEmailAsync(tenant.Id, request.Email ?? "", cancellationToken);
         var verified = hasher.VerifyHashedPassword(user!, user?.PasswordHash ?? UnknownUserHash.Value, request.Password ?? "");
@@ -58,6 +59,7 @@ internal static class AuthEndpoints
         TimeProvider time,
         CancellationToken cancellationToken)
     {
+        await tenants.Ready.WaitAsync(cancellationToken);
         var link = string.IsNullOrEmpty(request.Token)
             ? null
             : await links.UseAsync(LoginLinkTokens.Hash(request.Token), time.GetUtcNow(), cancellationToken);
@@ -91,21 +93,28 @@ internal static class AuthEndpoints
         return TypedResults.NoContent();
     }
 
-    // A firm that is no longer configured ends the sessions of its traders.
+    // A firm that no longer exists ends the sessions of its traders.
     private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult>> MeAsync(
         ClaimsPrincipal principal,
         TenantCatalog tenants,
         IUserStore users,
-        CancellationToken cancellationToken) =>
-        CurrentUser.IdOf(principal) is { } userId
-        && await users.FindByIdAsync(userId, cancellationToken) is { } user
-        && tenants.ById(user.TenantId) is { } tenant
-            ? TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken))
-            : TypedResults.Unauthorized();
+        CancellationToken cancellationToken)
+    {
+        await tenants.Ready.WaitAsync(cancellationToken);
+        return CurrentUser.IdOf(principal) is { } userId
+            && await users.FindByIdAsync(userId, cancellationToken) is { } user
+            && tenants.ById(user.TenantId) is { } tenant
+                ? TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken))
+                : TypedResults.Unauthorized();
+    }
 
-    /// <summary>The servers traders can log in to, ordered by name.</summary>
-    private static Ok<IReadOnlyList<ServerInfo>> GetServers(TenantCatalog tenants) =>
-        TypedResults.Ok<IReadOnlyList<ServerInfo>>([.. tenants.All.Select(ToServerInfo).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)]);
+    /// <summary>The listed servers traders can choose from, ordered by name. Firms in the sandbox are not listed.</summary>
+    private static async Task<Ok<IReadOnlyList<ServerInfo>>> GetServersAsync(TenantCatalog tenants, CancellationToken cancellationToken)
+    {
+        await tenants.Ready.WaitAsync(cancellationToken);
+        return TypedResults.Ok<IReadOnlyList<ServerInfo>>(
+            [.. tenants.All.Where(t => t.Listed).Select(ToServerInfo).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)]);
+    }
 
     private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, CancellationToken cancellationToken) =>
         new(user.Id, user.Email, ToServerInfo(tenant), await users.AccountsOfAsync(user.Id, cancellationToken));

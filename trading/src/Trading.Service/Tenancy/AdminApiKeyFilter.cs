@@ -10,6 +10,7 @@ internal sealed class AdminApiKeyFilter(TenantCatalog tenants) : IEndpointFilter
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
+        await tenants.Ready.WaitAsync(http.RequestAborted);
         if (tenants.ByAdminApiKey(http.Request.Headers[HeaderName]) is not { } tenant)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: $"A valid {HeaderName} header is required.");
@@ -19,6 +20,7 @@ internal sealed class AdminApiKeyFilter(TenantCatalog tenants) : IEndpointFilter
         return await next(context);
     }
 
+    // The firm as it was when the request began. A key that is replaced meanwhile ends only later requests.
     public static Tenant TenantOf(HttpContext context) =>
         context.Items[TenantKey] as Tenant ?? throw new InvalidOperationException("The admin API key filter did not run.");
 }

@@ -31,18 +31,19 @@ internal sealed partial class TradingEventConsumer(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await schema.EnsureAsync(stoppingToken);
-        await Task.WhenAll(firms.All.Select(firm => RunAsync(firm, stoppingToken)));
+        await FirmLoops.RunAsync(firms, f => f.Trading is not null, RunAsync, stoppingToken);
     }
 
-    private async Task RunAsync(Firm firm, CancellationToken cancellationToken)
+    private async Task RunAsync(string firmId, CancellationToken cancellationToken)
     {
         var retryDelay = TimeSpan.FromSeconds(1);
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
+                var firm = firms.ById(firmId)!;
                 var cursor = await CursorAsync(firm, cancellationToken);
-                var page = await trading.ReadEventsAsync(firm.Trading, cursor, options.Value.EventsPerRequest, options.Value.EventWaitSeconds, cancellationToken);
+                var page = await trading.ReadEventsAsync(firm.Trading!, cursor, options.Value.EventsPerRequest, options.Value.EventWaitSeconds, cancellationToken);
                 if (page.Events.Count > 0)
                 {
                     await HandleAsync(firm, page, cancellationToken);
@@ -57,7 +58,7 @@ internal sealed partial class TradingEventConsumer(
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 // The page is read again from the stored cursor, so nothing is skipped.
-                LogRetry(logger, firm.Id, retryDelay, exception);
+                LogRetry(logger, firmId, retryDelay, exception);
                 await Task.Delay(retryDelay, time, cancellationToken);
                 retryDelay = TimeSpan.FromTicks(Math.Min(retryDelay.Ticks * 2, MaxRetryDelay.Ticks));
             }

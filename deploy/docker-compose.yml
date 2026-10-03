@@ -32,6 +32,18 @@ services:
       timeout: 3s
       retries: 10
 
+  # Catches every email the platform sends. Read them at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   postgres-data:
   nats-data:

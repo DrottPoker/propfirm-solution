@@ -34,6 +34,13 @@ internal static class AccountActions
 
         var reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference;
         var result = await challenges.StartAsync(firm, request.Email, request.ChallengeId, reference, cancellationToken);
+        if (result.SandboxFull)
+        {
+            return Problem(
+                StatusCodes.Status409Conflict,
+                "The sandbox has room for no more open challenge accounts. Cancel one to start another, or go live.");
+        }
+
         if (result.Account is not { } account)
         {
             return Problem(StatusCodes.Status404NotFound, "The firm has no such challenge.");
@@ -82,11 +89,11 @@ internal static class AccountActions
         }
 
         LiveFigures? live = null;
-        if (view.Account.State is { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId })
+        if (view.Account.State is { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId } && firm.Trading is { } firmTrading)
         {
             try
             {
-                if (await trading.GetAccountAsync(firm.Trading, tradingAccountId, cancellationToken) is { } snapshot)
+                if (await trading.GetAccountAsync(firmTrading, tradingAccountId, cancellationToken) is { } snapshot)
                 {
                     live = new LiveFigures(snapshot.Balance, snapshot.Equity, [.. snapshot.Floors.Select(f => new FloorFigure(f.FloorId, f.Level, f.Headroom))]);
                 }
@@ -117,6 +124,7 @@ internal static class AccountActions
         }
 
         if (view.Account.State is not { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId }
+            || firm.Trading is not { } firmTrading
             || await queries.TradingUserOfAsync(view.Account.TraderId, cancellationToken) is not { } userId)
         {
             return Problem(StatusCodes.Status409Conflict, "The trader has no open trading account right now.");
@@ -124,7 +132,7 @@ internal static class AccountActions
 
         try
         {
-            var link = await trading.CreateLoginLinkAsync(firm.Trading, userId, tradingAccountId, cancellationToken);
+            var link = await trading.CreateLoginLinkAsync(firmTrading, userId, tradingAccountId, cancellationToken);
             return TypedResults.Ok(new LoginLinkResponse(link.Url, link.ExpiresAt));
         }
         catch (TradingPlatformUnavailableException)

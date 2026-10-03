@@ -968,6 +968,156 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner/v1/server-names/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ServerNameResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partner/v1/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateTenantRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreatedTenantResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partner/v1/tenants/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TenantResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/partner/v1/tenants/{id}/admin-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminApiKeyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -994,6 +1144,9 @@ export interface components {
         };
         /** @enum {unknown} */
         AccountStatus: "Active" | "Disabled";
+        AdminApiKeyResponse: {
+            adminApiKey: string;
+        };
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, unique per account, so a retry is answered 409 instead of being applied
@@ -1038,9 +1191,22 @@ export interface components {
             /** Format: uuid */
             ownerUserId: string;
         };
+        /** @description A new firm, with the key to its admin API. The key is shown only once. */
+        CreatedTenantResponse: {
+            id: string;
+            name: string;
+            listed: boolean;
+            groups: components["schemas"]["TenantGroupResponse"][];
+            adminApiKey: string;
+        };
         /** @description A login link for the user. With an account id, the terminal opens that account. */
         CreateLoginLinkRequest: {
             accountId: null | string;
+        };
+        /** @description A firm with its server Id, which traders log in to, and its name. */
+        CreateTenantRequest: {
+            id: null | string;
+            name: null | string;
         };
         CreateUserRequest: {
             email: null | string;
@@ -1049,7 +1215,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1113,6 +1279,14 @@ export interface components {
             rule: components["schemas"]["EquityFloorRule"];
             /** Format: double */
             level: number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description A trading group was created. Its symbols are in symbol order. */
+        EngineEventGroupCreated: {
+            /** @enum {string} */
+            kind?: "GroupCreated";
+            group: components["schemas"]["TradingGroup"];
             /** Format: date-time */
             timestamp: string;
         };
@@ -1230,7 +1404,7 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputSetEquityFloor"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputSetEquityFloor"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -1280,6 +1454,14 @@ export interface components {
             groupId: string;
             /** Format: double */
             initialBalance: number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards. */
+        EngineInputCreateGroup: {
+            /** @enum {string} */
+            kind?: "CreateGroup";
+            group: components["schemas"]["TradingGroup"];
             /** Format: date-time */
             timestamp: string;
         };
@@ -1516,11 +1698,15 @@ export interface components {
             margin: number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
         /** @description A firm's server: the id traders log in with and the firm's name. */
         ServerInfo: {
             id: string;
             name: string;
+        };
+        ServerNameResponse: {
+            id: string;
+            available: boolean;
         };
         SetFloorRequest: {
             rule: components["schemas"]["EquityFloorRule"];
@@ -1530,6 +1716,35 @@ export interface components {
         };
         /** @enum {unknown} */
         Side: "Buy" | "Sell";
+        /** @description Conditions for one symbol within a group. */
+        SymbolConditions: {
+            symbol: string;
+            /**
+             * Format: int32
+             * @description Margin is the position value divided by this.
+             */
+            leverage: number;
+            /**
+             * Format: int32
+             * @description Points added to the raw spread. The bid is lowered by half, rounded down, and the ask raised by the rest.
+             */
+            spreadMarkupPoints: number;
+            /**
+             * Format: double
+             * @description Commission in account currency, charged both on open and on close.
+             */
+            commissionPerLotPerSide: number;
+            /**
+             * Format: int32
+             * @description Points the bid is lowered by.
+             */
+            bidMarkupPoints?: number;
+            /**
+             * Format: int32
+             * @description Points the ask is raised by.
+             */
+            askMarkupPoints?: number;
+        };
         /** @description Price after the group's spread markup, with the time the raw price arrived. */
         SymbolPrice: {
             symbol: string;
@@ -1540,8 +1755,33 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /** @description A firm's trading group and its account currency. */
+        TenantGroupResponse: {
+            id: string;
+            currency: string;
+        };
+        /** @description A firm. Only Listed servers are on the list traders choose from. */
+        TenantResponse: {
+            id: string;
+            name: string;
+            listed: boolean;
+            groups: components["schemas"]["TenantGroupResponse"][];
+        };
         /** @enum {unknown} */
         Timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1";
+        /** @description Trading conditions shared by a group of accounts, set by the firm. */
+        TradingGroup: {
+            id: string;
+            /** @description Account currency for all accounts in the group. */
+            currency: string;
+            /**
+             * Format: double
+             * @description Positions are closed when the margin level falls below this. 0 disables stop out.
+             */
+            stopOutLevelPercent: number;
+            /** @description The symbols the group may trade, with their conditions. */
+            symbols: components["schemas"]["SymbolConditions"][];
+        };
         UserResponse: {
             /** Format: uuid */
             userId: string;

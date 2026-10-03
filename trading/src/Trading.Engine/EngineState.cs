@@ -9,10 +9,15 @@ namespace Trading.Engine;
 /// <param name="Clock">Timestamp of the last input. Later inputs may not be earlier.</param>
 /// <param name="LatestQuotes">The latest raw price per symbol.</param>
 /// <param name="Accounts">In creation order, which is the order accounts are processed in.</param>
+/// <param name="Groups">
+/// Groups created with <see cref="CreateGroup"/>, in creation order. Configured groups are not included.
+/// Missing in snapshots taken before groups could be created.
+/// </param>
 public sealed record EngineState(
     DateTimeOffset Clock,
     IReadOnlyList<Quote> LatestQuotes,
-    IReadOnlyList<AccountRecord> Accounts);
+    IReadOnlyList<AccountRecord> Accounts,
+    IReadOnlyList<TradingGroup>? Groups = null);
 
 /// <param name="UsedOperationIds">Missing in snapshots taken before balance operations existed.</param>
 public sealed record AccountRecord(

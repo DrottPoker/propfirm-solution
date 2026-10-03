@@ -582,7 +582,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Branding"
+                  "$ref": "#/components/schemas/BrandingResponse"
                 }
               }
             }
@@ -716,6 +716,64 @@
         "responses": {
           "204": {
             "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/welcome": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WelcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/invites/accept": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -1272,6 +1330,368 @@
           }
         }
       }
+    },
+    "/api/portal/admin/firm": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/branding": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/api-key": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/webhook": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/webhook/secret": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookSecretResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/challenge-templates": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengeTemplateResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/challenges/{challengeId}": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeDefinition"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/admins": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/admins/invites": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInviteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/admins/{adminId}": {
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "adminId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/platform": {
+      "get": {
+        "tags": [
+          "Signup"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/signup/availability": {
+      "get": {
+        "tags": [
+          "Signup"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailabilityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/signup": {
+      "post": {
+        "tags": [
+          "Signup"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/signup/verify": {
+      "post": {
+        "tags": [
+          "Signup"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifySignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifySignupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1467,11 +1887,149 @@
         },
         "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\nfor the current stage, which starts at InitialBalance. The figures are what the trading\nplatform last reported."
       },
-      "Branding": {
+      "AdminInviteRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AdminInviteResponse": {
+        "required": [
+          "email",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminResponse": {
+        "required": [
+          "id",
+          "email",
+          "createdAt",
+          "isYou"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isYou": {
+            "type": "boolean"
+          }
+        },
+        "description": "IsYou marks the administrator who asked."
+      },
+      "AdminsResponse": {
+        "required": [
+          "admins",
+          "invites"
+        ],
+        "type": "object",
+        "properties": {
+          "admins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminResponse"
+            }
+          },
+          "invites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminInviteResponse"
+            }
+          }
+        },
+        "description": "The firm's administrators, and the invitations that wait for a password."
+      },
+      "ApiKeyResponse": {
+        "required": [
+          "apiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string"
+          }
+        },
+        "description": "The key for the firm API. It is shown only once."
+      },
+      "AvailabilityResponse": {
+        "required": [
+          "firmId",
+          "available",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "BrandingRequest": {
+        "required": [
+          "logoUrl",
+          "colors"
+        ],
+        "type": "object",
+        "properties": {
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "colors": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb."
+      },
+      "BrandingResponse": {
         "required": [
           "name",
           "logoUrl",
-          "colors"
+          "colors",
+          "status"
         ],
         "type": "object",
         "properties": {
@@ -1489,9 +2047,12 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
           }
         },
-        "description": "What the portal needs to look like the firm's own."
+        "description": "What the portal needs to look like the firm's own, and whether the firm is still in the sandbox or being set up."
       },
       "BreachEvidence": {
         "required": [
@@ -1592,6 +2153,30 @@
           "Cancelled"
         ]
       },
+      "ChallengeTemplateResponse": {
+        "required": [
+          "id",
+          "name",
+          "description",
+          "definition"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/ChallengeDefinition"
+          }
+        },
+        "description": "A ready-made challenge with its default values, to adjust and save as the firm's own."
+      },
       "DailyLossReference": {
         "enum": [
           "Balance",
@@ -1622,6 +2207,87 @@
           "MaxLoss",
           "OtherFloor"
         ]
+      },
+      "FirmSettingsResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "portalUrl",
+          "logoUrl",
+          "colors",
+          "tradingServer",
+          "currency",
+          "hasApiKey",
+          "webhookUrl",
+          "sandboxMaxOpenAccounts"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
+          },
+          "portalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "colors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "tradingServer": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasApiKey": {
+            "type": "boolean"
+          },
+          "webhookUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "sandboxMaxOpenAccounts": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in the sandbox."
+      },
+      "FirmStatus": {
+        "enum": [
+          "Provisioning",
+          "Sandbox",
+          "Live"
+        ],
+        "description": "Where a firm is on its way from sign-up to live (ADR 0017)."
       },
       "FloorFigure": {
         "required": [
@@ -1912,6 +2578,51 @@
           "Failed"
         ]
       },
+      "PlatformResponse": {
+        "required": [
+          "name",
+          "termsVersion",
+          "termsUrl",
+          "dpaUrl",
+          "firmPortalUrl",
+          "minimumPasswordLength",
+          "emailVerification"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "termsVersion": {
+            "type": "string"
+          },
+          "termsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "dpaUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "firmPortalUrl": {
+            "type": "string"
+          },
+          "minimumPasswordLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "emailVerification": {
+            "type": "boolean"
+          }
+        },
+        "description": "The platform, for the sign-up page: its name, the terms firms accept, the address new portals get\n(FirmPortalUrl with {firm} for the short name), and whether the email is confirmed first."
+      },
       "PortalLoginRequest": {
         "required": [
           "email",
@@ -1971,6 +2682,70 @@
             ]
           }
         }
+      },
+      "SignupRequest": {
+        "required": [
+          "firmName",
+          "firmId",
+          "email",
+          "password",
+          "acceptTerms"
+        ],
+        "type": "object",
+        "properties": {
+          "firmName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "firmId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "acceptTerms": {
+            "type": "boolean"
+          }
+        },
+        "description": "FirmId is the short name: the portal's subdomain and the server on the trading platform."
+      },
+      "SignupResponse": {
+        "required": [
+          "verificationRequired",
+          "firmId",
+          "adminUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "verificationRequired": {
+            "type": "boolean"
+          },
+          "firmId": {
+            "type": "string"
+          },
+          "adminUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          }
+        },
+        "description": "Either the email with the confirmation link is sent, or the firm is created and AdminUrl logs its administrator in."
       },
       "StageRules": {
         "required": [
@@ -2093,6 +2868,100 @@
           }
         },
         "description": "When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days."
+      },
+      "VerifySignupRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "VerifySignupResponse": {
+        "required": [
+          "firmId",
+          "adminUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string"
+          },
+          "adminUrl": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "description": "Open AdminUrl once to be logged in to the new firm's admin panel."
+      },
+      "WebhookRequest": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "An https address for webhooks, or empty to turn them off."
+      },
+      "WebhookResponse": {
+        "required": [
+          "url",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "secret": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Secret is set only when it was just made, and is shown only once."
+      },
+      "WebhookSecretResponse": {
+        "required": [
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string"
+          }
+        }
+      },
+      "WelcomeRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       }
     }
   },
@@ -2102,6 +2971,9 @@
     },
     {
       "name": "Portal"
+    },
+    {
+      "name": "Signup"
     }
   ]
 }

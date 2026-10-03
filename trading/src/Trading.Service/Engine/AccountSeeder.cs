@@ -33,6 +33,7 @@ internal sealed class AccountSeeder(
             await engine.Ready;
         }
 
+        await tenants.Ready.WaitAsync(cancellationToken);
         foreach (var seed in options.Value.SeedAccounts)
         {
             var tenant = tenants.ByGroup(seed.GroupId)

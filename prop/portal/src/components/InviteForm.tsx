@@ -3,15 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { useAcceptInvite } from "@/lib/queries";
+import { useAcceptAdminInvite, useAcceptInvite, type Role } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
 
-/** The trader opens the firm's invitation and chooses a password for the portal. */
-export function InviteForm({ token }: { token: string | null }) {
+/** A trader, or a new administrator, opens the invitation and chooses a password for the portal. */
+export function InviteForm({ token, role = "trader" }: { token: string | null; role?: Role }) {
   const router = useRouter();
-  const accept = useAcceptInvite();
+  const acceptAsTrader = useAcceptInvite();
+  const acceptAsAdmin = useAcceptAdminInvite();
+  const accept = role === "admin" ? acceptAsAdmin : acceptAsTrader;
   const [password, setPassword] = useState("");
   const [repeated, setRepeated] = useState("");
   const [mismatch, setMismatch] = useState(false);
@@ -20,7 +22,7 @@ export function InviteForm({ token }: { token: string | null }) {
     event.preventDefault();
     setMismatch(password !== repeated);
     if (token && password === repeated) {
-      accept.mutate({ token, password }, { onSuccess: () => router.replace("/") });
+      accept.mutate({ token, password }, { onSuccess: () => router.replace(role === "admin" ? "/admin" : "/") });
     }
   };
 
@@ -29,7 +31,7 @@ export function InviteForm({ token }: { token: string | null }) {
       <form onSubmit={submit} className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-panel p-6">
         <div className="flex flex-col gap-1">
           <FirmName size="lg" />
-          <h1 className="text-sm text-muted">Choose a password for your account</h1>
+          <h1 className="text-sm text-muted">{role === "admin" ? "Choose a password to administer the firm" : "Choose a password for your account"}</h1>
         </div>
 
         {token ? (
@@ -66,7 +68,7 @@ export function InviteForm({ token }: { token: string | null }) {
           </>
         ) : (
           <p role="alert" className="text-sm text-loss">
-            This link has no invitation in it. Open the link in your firm&apos;s email again.
+            This link has no invitation in it. Open the link in the email again.
           </p>
         )}
       </form>

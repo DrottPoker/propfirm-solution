@@ -59,7 +59,22 @@ internal static class PortalAuth
     {
         services.AddAuthentication()
             .AddCookie(TraderScheme, options => ConfigureCookie(options, "prop_trader"))
-            .AddCookie(AdminScheme, options => ConfigureCookie(options, "prop_admin"));
+            .AddCookie(AdminScheme, options =>
+            {
+                ConfigureCookie(options, "prop_admin");
+
+                // A removed administrator's session stops working at once, not when the cookie expires.
+                options.Events.OnValidatePrincipal = async context =>
+                {
+                    var users = context.HttpContext.RequestServices.GetRequiredService<PortalUsers>();
+                    if (context.Principal is not { } principal
+                        || await users.FindByIdAsync(UserIdOf(principal), PortalRoles.Admin, context.HttpContext.RequestAborted) is null)
+                    {
+                        context.RejectPrincipal();
+                        await context.HttpContext.SignOutAsync(AdminScheme);
+                    }
+                };
+            });
         foreach (var scheme in new[] { TraderScheme, AdminScheme })
         {
             services.AddOptions<CookieAuthenticationOptions>(scheme)
@@ -105,6 +120,7 @@ internal sealed class PortalFirmFilter(FirmCatalog firms) : IEndpointFilter
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
+        await firms.Ready.WaitAsync(http.RequestAborted);
         if (firms.ByHost(PortalAuth.HostOf(http)) is not { } firm)
         {
             return TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: "No firm's portal is at this address.");
@@ -119,6 +135,7 @@ internal sealed class PortalFirmFilter(FirmCatalog firms) : IEndpointFilter
         return await next(context);
     }
 
+    // The firm as it was when the request began.
     public static Firm FirmOf(HttpContext context) =>
         context.Items[FirmKey] as Firm ?? throw new InvalidOperationException("The portal firm filter did not run.");
 }

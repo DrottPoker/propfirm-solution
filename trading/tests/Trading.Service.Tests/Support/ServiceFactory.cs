@@ -14,6 +14,7 @@ using Trading.Service.Engine;
 using Trading.Service.Feeds;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
+using Trading.Service.Tenancy;
 
 namespace Trading.Service.Tests.Support;
 
@@ -36,6 +37,9 @@ internal sealed class ServiceFactory(
 
     public const string TraderPassword = "test-password";
 
+    /// <summary>The prop platform's partner key, from appsettings.Development.json.</summary>
+    public const string PartnerApiKey = "dev-partner-key";
+
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero));
 
     public ManualPriceFeed Feed { get; } = new();
@@ -55,6 +59,8 @@ internal sealed class ServiceFactory(
         Feed.Push(symbol, bid, ask);
         await Eventually.ThatAsync(() => Engine.QuotesApplied >= target, "the engine to apply the price");
     }
+
+    public HttpClient CreatePartnerClient(string apiKey = PartnerApiKey) => CreateAdminClient(apiKey);
 
     public HttpClient CreateAdminClient(string apiKey = AdminApiKey)
     {
@@ -143,6 +149,7 @@ internal sealed class ServiceFactory(
                 services.AddSingleton<IUserStore>(Backend.Users);
                 services.AddSingleton<IXmlRepository>(Backend.Keys);
                 services.AddSingleton<ILoginLinkStore>(Backend.LoginLinks);
+                services.AddSingleton<ITenantStore>(Backend.Tenants);
             }
         });
     }
