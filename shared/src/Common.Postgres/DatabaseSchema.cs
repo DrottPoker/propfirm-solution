@@ -1,12 +1,14 @@
+using Microsoft.Extensions.Logging;
+
 using Npgsql;
 
-namespace Trading.Service.Persistence;
+namespace Common.Postgres;
 
 /// <summary>
-/// Brings the database schema up to date once, before any store first uses it. The stores start in no
-/// particular order: the login cookie keys, for example, are read before the engine starts.
+/// Brings the database schema up to date once, before any store first uses it. Stores start in no
+/// particular order, so each one waits for this before its first query.
 /// </summary>
-internal sealed class DatabaseSchema(NpgsqlDataSource dataSource, ILogger<DatabaseSchema> logger)
+public sealed class DatabaseSchema(NpgsqlDataSource dataSource, SqlMigrations migrations, ILogger<DatabaseSchema> logger)
 {
     private readonly Lock _lock = new();
     private Task? _migration;
@@ -19,7 +21,7 @@ internal sealed class DatabaseSchema(NpgsqlDataSource dataSource, ILogger<Databa
             if (_migration is null || _migration.IsFaulted || _migration.IsCanceled)
             {
                 // Shared by all callers, so one caller giving up does not cancel it for the others.
-                _migration = Migrations.ApplyAsync(dataSource, logger, CancellationToken.None);
+                _migration = migrations.ApplyAsync(dataSource, logger, CancellationToken.None);
             }
 
             return _migration.WaitAsync(cancellationToken);

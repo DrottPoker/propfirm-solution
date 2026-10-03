@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
+using Common.Postgres;
+
 using Microsoft.Extensions.Options;
 
 using Npgsql;

@@ -262,14 +262,16 @@ tradern begär -> vi kontrollerar och räknar ut -> firman godkänner
 Exempel:
 
 ```
-POST /v1/accounts        { "email": "...", "challenge_id": "100k-2-step" }
--> skapar ett simulerat konto och skickar inloggningsuppgifter till tradern
+POST /api/firm/v1/accounts   { "email": "...", "challengeId": "two-step-100k", "reference": "order-17" }
+-> startar challengen och öppnar kontot på handelsplattformen
 
 Webhooks till firman:
 account.passed       tradern klarade fasen
 account.breached     tradern bröt en regel
-payout.requested     tradern vill ta ut sin vinst
+payout.requested     tradern vill ta ut sin vinst (senare)
 ```
+
+API:t och webhooks som finns beskrivs i [specen för propfirm-tjänsten](spec/propfirm-tjanst.md).
 
 ## Gränssnitt mellan produkterna
 

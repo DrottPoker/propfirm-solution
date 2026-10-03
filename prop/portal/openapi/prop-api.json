@@ -1,0 +1,668 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Prop.Api | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/firm/v1/challenges/{challengeId}": {
+      "put": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "challengeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeDefinition"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/challenges": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengeDefinition"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts/{accountId}/history": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StepResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts/{accountId}/approve-funding": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts/{accountId}/cancel": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/firm/v1/accounts/{accountId}/login-link": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountResponse": {
+        "required": [
+          "id",
+          "number",
+          "email",
+          "challengeId",
+          "reference",
+          "status",
+          "stage",
+          "stageName",
+          "funded",
+          "tradingAccountId",
+          "tradingDays",
+          "minTradingDays",
+          "profitTarget",
+          "balance",
+          "openPositions",
+          "dailyFloor",
+          "maxLossFloor",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "challengeId": {
+            "type": "string"
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChallengeStatus"
+          },
+          "stage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "funded": {
+            "type": "boolean"
+          },
+          "tradingAccountId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "tradingDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minTradingDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "profitTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "balance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dailyFloor": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxLossFloor": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\r\nfor the current stage. The figures are what the trading platform last reported."
+      },
+      "CancelAccountRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "ChallengeDefinition": {
+        "required": [
+          "id",
+          "name",
+          "currency",
+          "initialBalance",
+          "tradingDay",
+          "evaluation",
+          "funded"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "initialBalance": {
+            "type": "number",
+            "format": "double"
+          },
+          "tradingDay": {
+            "$ref": "#/components/schemas/TradingDayDefinition"
+          },
+          "evaluation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StageRules"
+            }
+          },
+          "funded": {
+            "$ref": "#/components/schemas/StageRules"
+          },
+          "fundedStage": {
+            "type": "integer",
+            "description": "The index of the funded stage, after the evaluation stages.",
+            "format": "int32"
+          }
+        },
+        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\r\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\r\ndefinition it was bought with, so later changes by the firm never affect it."
+      },
+      "ChallengeStatus": {
+        "enum": [
+          "OpeningAccount",
+          "Active",
+          "AwaitingFunding",
+          "Failed",
+          "Cancelled"
+        ]
+      },
+      "DailyLossReference": {
+        "enum": [
+          "Balance",
+          "HigherOfBalanceAndEquity"
+        ],
+        "description": "Where the daily loss limit starts from when a trading day starts."
+      },
+      "DailyLossRule": {
+        "required": [
+          "percent",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "format": "double"
+          },
+          "reference": {
+            "$ref": "#/components/schemas/DailyLossReference"
+          }
+        },
+        "description": "Equity may not fall more than Percent of the initial balance below the day's starting point."
+      },
+      "JsonElement": { },
+      "LoginLinkResponse": {
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Open Url once before ExpiresAt to be logged in to the trading terminal."
+      },
+      "MaxLossKind": {
+        "enum": [
+          "Fixed",
+          "Trailing"
+        ]
+      },
+      "MaxLossRule": {
+        "required": [
+          "percent",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "percent": {
+            "type": "number",
+            "format": "double"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MaxLossKind"
+          }
+        },
+        "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
+      },
+      "StageRules": {
+        "required": [
+          "name",
+          "profitTargetPercent",
+          "minTradingDays",
+          "dailyLoss",
+          "maxLoss"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "profitTargetPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "minTradingDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dailyLoss": {
+            "$ref": "#/components/schemas/DailyLossRule"
+          },
+          "maxLoss": {
+            "$ref": "#/components/schemas/MaxLossRule"
+          }
+        },
+        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\r\ntarget with no open positions after at least MinTradingDays trading days.\r\nThe funded stage has no profit target."
+      },
+      "StartAccountRequest": {
+        "required": [
+          "email",
+          "challengeId"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "challengeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Starts a challenge for the trader with the email. Reference is the firm's own id, for\r\nexample its order number: repeating it returns the account already started instead of a second one."
+      },
+      "StepResponse": {
+        "required": [
+          "step",
+          "recordedAt",
+          "input",
+          "outputs",
+          "sourceEvent"
+        ],
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "input": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "outputs": {
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "sourceEvent": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        },
+        "description": "One input to the account and what the rule engine decided, with the trading platform's event behind it."
+      },
+      "TradingDayDefinition": {
+        "required": [
+          "timeZone",
+          "start"
+        ],
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "format": "time"
+          }
+        },
+        "description": "When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Firm"
+    }
+  ]
+}

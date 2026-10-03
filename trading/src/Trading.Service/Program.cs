@@ -1,18 +1,18 @@
 using System.Reflection;
 using System.Threading.RateLimiting;
 
+using Common.Postgres;
+
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Identity;
-
 using Microsoft.Extensions.Options;
 
 using Npgsql;
 
 using Trading.Engine;
-
 using Trading.Service.Api;
 using Trading.Service.Candles;
 using Trading.Service.Configuration;
@@ -60,6 +60,7 @@ builder.Services.AddSingleton<EventLog>();
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
     sp.GetRequiredService<IConfiguration>().GetConnectionString("Trading")
     ?? throw new InvalidOperationException("The connection string Trading is missing.")));
+builder.Services.AddSingleton(TradingMigrations.All);
 builder.Services.AddSingleton<DatabaseSchema>();
 builder.Services.AddSingleton<IEngineJournal, PostgresEngineJournal>();
 builder.Services.AddSingleton<IUserStore, PostgresUserStore>();

@@ -39,12 +39,12 @@ internal static class ReplayScenario
             }
 
             Apply(new PositionOpened(At(d, 9), "C1-0", ++sequence, day.AddDays(d)));
-            Apply(new AccountUpdated(At(d, 9), "C1-0", ++sequence, 100_000m + (d * 4_000m), 100_000m + (d * 4_000m) - 50m, 1));
-            Apply(new AccountUpdated(At(d, 15), "C1-0", ++sequence, 100_000m + ((d + 1) * 4_000m), 100_000m + ((d + 1) * 4_000m), 0));
+            Apply(new AccountUpdated(At(d, 9), "C1-0", ++sequence, 100_000m + (d * 4_000m), 1));
+            Apply(new AccountUpdated(At(d, 15), "C1-0", ++sequence, 100_000m + ((d + 1) * 4_000m), 0));
         }
 
         // A repeated fact and a fact about the passed account arrive late.
-        Apply(new AccountUpdated(At(3, 15), "C1-0", sequence, 116_000m, 116_000m, 0));
+        Apply(new AccountUpdated(At(3, 15), "C1-0", sequence, 116_000m, 0));
         Apply(new AccountDisabled(At(3, 16), "C1-0", ++sequence));
 
         // Phase 2 opens the next day and is passed after four more trading days.
@@ -60,7 +60,7 @@ internal static class ReplayScenario
             Apply(new PositionOpened(At(d, 10), "C1-1", ++sequence, day.AddDays(d)));
         }
 
-        Apply(new AccountUpdated(At(7, 16), "C1-1", ++sequence, 105_250.40m, 105_250.40m, 0));
+        Apply(new AccountUpdated(At(7, 16), "C1-1", ++sequence, 105_250.40m, 0));
 
         // The firm approves funding, and the funded account breaches its daily floor.
         Apply(new ApproveFunding(At(8, 9)));

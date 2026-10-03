@@ -1,10 +1,10 @@
 using System.Xml.Linq;
 
+using Common.Postgres;
+
 using Microsoft.AspNetCore.DataProtection.Repositories;
 
 using Npgsql;
-
-using Trading.Service.Persistence;
 
 namespace Trading.Service.Identity;
 

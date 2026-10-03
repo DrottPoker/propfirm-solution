@@ -69,7 +69,7 @@ public static class ChallengeRules
             AccountId = input.AccountId,
             CurrentDay = state.CurrentDay is { } current && current > input.Day ? current : input.Day,
             TradingDays = ImmutableSortedSet<DateOnly>.Empty,
-            Account = new AccountFigures(initial, initial, 0),
+            Account = new AccountFigures(initial, 0),
             LastSequence = Math.Max(state.LastSequence, input.Sequence),
         };
         return new ChallengeStep(
@@ -124,7 +124,7 @@ public static class ChallengeRules
 
     private static ChallengeStep OnAccountUpdated(ChallengeState state, AccountUpdated input)
     {
-        var updated = state with { Account = new AccountFigures(input.Balance, input.Equity, input.OpenPositions) };
+        var updated = state with { Account = new AccountFigures(input.Balance, input.OpenPositions) };
         return IsTargetReached(updated) ? Pass(updated, input.Time) : Unchanged(updated);
     }
 

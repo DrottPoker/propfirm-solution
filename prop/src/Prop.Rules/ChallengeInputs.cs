@@ -26,8 +26,8 @@ public sealed record CancelChallenge(DateTimeOffset Time, string Reason) : Chall
 /// </summary>
 public abstract record AccountFact(DateTimeOffset Time, string AccountId, long Sequence) : ChallengeInput(Time);
 
-/// <summary>Balance, equity and the number of open positions after a change on the account.</summary>
-public sealed record AccountUpdated(DateTimeOffset Time, string AccountId, long Sequence, decimal Balance, decimal Equity, int OpenPositions)
+/// <summary>The balance and the number of open positions after a position was closed.</summary>
+public sealed record AccountUpdated(DateTimeOffset Time, string AccountId, long Sequence, decimal Balance, int OpenPositions)
     : AccountFact(Time, AccountId, Sequence);
 
 /// <summary>A position was opened during trading day <paramref name="Day"/>, which makes it a trading day.</summary>

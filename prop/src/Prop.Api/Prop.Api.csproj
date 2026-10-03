@@ -1,3 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- The OpenAPI document is generated on build and committed. The portal generates its TypeScript types from it. -->
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../portal/openapi</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name prop-api</OpenApiGenerateDocumentsOptions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\shared\src\Common.Postgres\Common.Postgres.csproj" />
+    <ProjectReference Include="..\Prop.Rules\Prop.Rules.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Persistence/Migrations/*.sql" LogicalName="Migrations/%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Prop.Api.Tests" />
+  </ItemGroup>
+
 </Project>

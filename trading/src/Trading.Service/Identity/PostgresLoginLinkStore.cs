@@ -1,6 +1,6 @@
-using Npgsql;
+using Common.Postgres;
 
-using Trading.Service.Persistence;
+using Npgsql;
 
 namespace Trading.Service.Identity;
 

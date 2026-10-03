@@ -90,8 +90,8 @@ public sealed class ChallengeRulesTests
         driver.OpenAccount("A1", Monday);
         driver.TradeOnDays(Monday, 4);
 
-        var withOpenPosition = driver.Update(110_000m, 110_400m, openPositions: 1);
-        var closed = driver.Update(110_000m, 110_000m);
+        var withOpenPosition = driver.Update(110_000m, openPositions: 1);
+        var closed = driver.Update(110_000m);
 
         Assert.Empty(withOpenPosition);
         Assert.Equal(
@@ -105,14 +105,13 @@ public sealed class ChallengeRulesTests
     }
 
     [Fact]
-    public void EquityAboveTheTargetIsNotEnough()
+    public void ABalanceJustBelowTheTargetIsNotEnough()
     {
         var driver = new ChallengeDriver();
         driver.OpenAccount("A1", Monday);
         driver.TradeOnDays(Monday, 4);
 
-        Assert.Empty(driver.Update(105_000m, 112_000m, openPositions: 1));
-        Assert.Empty(driver.Update(109_999.99m, 109_999.99m));
+        Assert.Empty(driver.Update(109_999.99m));
         Assert.Equal(ChallengeStatus.Active, driver.State.Status);
     }
 
@@ -123,11 +122,11 @@ public sealed class ChallengeRulesTests
         driver.OpenAccount("A1", Monday);
         driver.TradeOnDays(Monday, 2);
 
-        var afterTwoDays = driver.Update(111_000m, 111_000m);
+        var afterTwoDays = driver.Update(111_000m);
         driver.TradeOnDays(Monday.AddDays(2), 1);
-        var afterThreeDays = driver.Update(111_010m, 111_010m);
+        var afterThreeDays = driver.Update(111_010m);
         driver.TradeOnDays(Monday.AddDays(3), 1);
-        var afterFourDays = driver.Update(111_020m, 111_020m);
+        var afterFourDays = driver.Update(111_020m);
 
         Assert.Empty(afterTwoDays);
         Assert.Empty(afterThreeDays);
@@ -193,7 +192,7 @@ public sealed class ChallengeRulesTests
         driver.OpenAccount("A1", Monday);
 
         var outputs = driver.Breach(floorId, 95_000m, 94_980.50m);
-        var afterwards = driver.Update(120_000m, 120_000m);
+        var afterwards = driver.Update(120_000m);
 
         Assert.Equal([new ChallengeFailed(T, 0, "A1", reason, floorId, 95_000m, 94_980.50m)], WithoutTime(outputs));
         Assert.Equal(ChallengeStatus.Failed, driver.State.Status);

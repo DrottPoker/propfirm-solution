@@ -6,7 +6,7 @@
 
 ## Syfte
 
-Regelmotorn avgör hur det går för en trader i en challenge: när ett konto ska öppnas, vilka förlustgränser som gäller, vilka dagar som räknas som handelsdagar, när en fas är klar och när challengen är underkänd. Den är deterministisk: samma indata ger alltid samma beslut (se [ADR 0011](../adr/0011-regelmotorn-satter-golv.md)). Tjänsten runt den byggs i fas 4c.
+Regelmotorn avgör hur det går för en trader i en challenge: när ett konto ska öppnas, vilka förlustgränser som gäller, vilka dagar som räknas som handelsdagar, när en fas är klar och när challengen är underkänd. Den är deterministisk: samma indata ger alltid samma beslut (se [ADR 0011](../adr/0011-regelmotorn-satter-golv.md)). Propfirm-tjänsten kör den mot handelsplattformen (se [specen för propfirm-tjänsten](propfirm-tjanst.md)).
 
 ## Vem gör vad
 
@@ -66,7 +66,7 @@ alla utom slut -> Cancelled  (firman avbröt, eller kontot stängdes av på hand
 | `TradingDayStarted` | Tjänsten | En ny handelsdag har börjat. |
 | `ApproveFunding` | Firman | Tradern får ett funded-konto efter firmans kontroller, till exempel KYC och avtal. |
 | `CancelChallenge` | Firman | Challengen avbryts. |
-| `AccountUpdated` | Handelsplattformen | Saldo, equity och antal öppna positioner. |
+| `AccountUpdated` | Handelsplattformen | Saldo och antal öppna positioner efter att en position stängts. |
 | `PositionOpened` | Handelsplattformen | En position öppnades under en viss handelsdag. |
 | `FloorBreached` | Handelsplattformen | Ett golv bröts, med nivå och equity från bevisen. |
 | `AccountDisabled` | Handelsplattformen | Kontot stängdes av av någon annan anledning. |
@@ -104,6 +104,6 @@ Testerna ligger i `prop/tests/Prop.Rules.Tests`:
 
 ## Begränsningar
 
-- Tjänsten som kopplar regelmotorn till handelsplattformen byggs i fas 4c. Den gör `StartOfDayFloor` till handelsplattformens `AnchoredFloor`.
+- Regelmotorn används av propfirm-tjänsten (se [specen för propfirm-tjänsten](propfirm-tjanst.md)), som gör `StartOfDayFloor` till handelsplattformens `AnchoredFloor`.
 - Ingen regel för jämna resultat, inaktivitet eller nyhetshandel än.
 - Utbetalningar och skalning av funded-konton kommer senare.

@@ -17,8 +17,8 @@ public enum ChallengeStatus
     Cancelled,
 }
 
-/// <summary>The latest balance, equity and number of open positions reported by the trading platform.</summary>
-public sealed record AccountFigures(decimal Balance, decimal Equity, int OpenPositions);
+/// <summary>The latest balance and number of open positions reported by the trading platform.</summary>
+public sealed record AccountFigures(decimal Balance, int OpenPositions);
 
 /// <summary>
 /// Where a challenge stands. Created by <see cref="ChallengeRules.Start"/> and changed only by

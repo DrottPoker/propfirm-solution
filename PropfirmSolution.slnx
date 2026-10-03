@@ -8,6 +8,10 @@
     <Project Path="prop/tests/Prop.Api.Tests/Prop.Api.Tests.csproj" />
     <Project Path="prop/tests/Prop.Rules.Tests/Prop.Rules.Tests.csproj" />
   </Folder>
+  <Folder Name="/shared/" />
+  <Folder Name="/shared/src/">
+    <Project Path="shared/src/Common.Postgres/Common.Postgres.csproj" />
+  </Folder>
   <Folder Name="/trading/" />
   <Folder Name="/trading/src/">
     <Project Path="trading/src/Trading.Engine/Trading.Engine.csproj" />

@@ -34,9 +34,9 @@ jobs:
       - name: Build
         run: dotnet build PropfirmSolution.slnx --configuration Release --no-restore
 
-      # The build regenerates the OpenAPI document. A diff means it was not committed after an API change.
-      - name: Check that the OpenAPI document is up to date
-        run: git diff --exit-code -- contracts/trading
+      # The build regenerates the OpenAPI documents. A diff means one was not committed after an API change.
+      - name: Check that the OpenAPI documents are up to date
+        run: git diff --exit-code -- contracts/trading prop/portal/openapi
 
       - name: Test
         run: dotnet test --solution PropfirmSolution.slnx --configuration Release --no-build

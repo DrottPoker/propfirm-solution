@@ -1,5 +1,7 @@
 using System.Xml.Linq;
 
+using Common.Postgres;
+
 using Microsoft.Extensions.Logging.Abstractions;
 
 using Npgsql;
@@ -128,7 +130,7 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal(2L, (long)(await count.ExecuteScalarAsync(TestContext.Current.CancellationToken))!);
     }
 
-    private static DatabaseSchema Schema(NpgsqlDataSource dataSource) => new(dataSource, NullLogger<DatabaseSchema>.Instance);
+    private static DatabaseSchema Schema(NpgsqlDataSource dataSource) => new(dataSource, TradingMigrations.All, NullLogger<DatabaseSchema>.Instance);
 
     private async Task<NpgsqlDataSource> CreateDatabaseAsync() => NpgsqlDataSource.Create(await postgres.CreateDatabaseAsync());
 }

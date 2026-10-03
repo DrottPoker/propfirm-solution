@@ -18,6 +18,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["trading/terminal/node_modules/next/dist/bin/next", "dev", "trading/terminal", "--port", "3001"],
       "port": 3001
+    },
+    {
+      "name": "prop-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "prop/src/Prop.Api"],
+      "port": 5201
     }
   ]
 }

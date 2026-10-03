@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\shared\src\Common.Postgres\Common.Postgres.csproj" />
     <ProjectReference Include="..\Trading.Engine\Trading.Engine.csproj" />
   </ItemGroup>
 

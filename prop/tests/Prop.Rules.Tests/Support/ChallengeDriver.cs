@@ -40,8 +40,8 @@ internal sealed class ChallengeDriver
     public IReadOnlyList<ChallengeOutput> OpenPosition(DateOnly day) =>
         Apply(new PositionOpened(NextTime(), State.AccountId!, NextSequence(), day));
 
-    public IReadOnlyList<ChallengeOutput> Update(decimal balance, decimal equity, int openPositions = 0) =>
-        Apply(new AccountUpdated(NextTime(), State.AccountId!, NextSequence(), balance, equity, openPositions));
+    public IReadOnlyList<ChallengeOutput> Update(decimal balance, int openPositions = 0) =>
+        Apply(new AccountUpdated(NextTime(), State.AccountId!, NextSequence(), balance, openPositions));
 
     public IReadOnlyList<ChallengeOutput> Breach(string floorId, decimal level, decimal equity) =>
         Apply(new FloorBreached(NextTime(), State.AccountId!, NextSequence(), floorId, level, equity));
@@ -61,7 +61,7 @@ internal sealed class ChallengeDriver
     {
         OpenAccount(accountId, firstDay);
         TradeOnDays(firstDay, 4);
-        return Update(balance, balance);
+        return Update(balance);
     }
 
     /// <summary>The outputs without their times, to compare with expected outputs created with a default time.</summary>

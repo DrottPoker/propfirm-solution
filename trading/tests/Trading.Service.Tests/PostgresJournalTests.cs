@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
 
+using Common.Postgres;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -203,7 +205,7 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
     private static PostgresEngineJournal CreateJournal(NpgsqlDataSource dataSource, int snapshotsToKeep = 3) =>
         new(
             dataSource,
-            new DatabaseSchema(dataSource, NullLogger<DatabaseSchema>.Instance),
+            new DatabaseSchema(dataSource, TradingMigrations.All, NullLogger<DatabaseSchema>.Instance),
             Options.Create(new JournalOptions { SnapshotsToKeep = snapshotsToKeep }));
 
     private static string ToJson(EventEnvelope envelope) => JsonSerializer.Serialize(envelope, Json);
