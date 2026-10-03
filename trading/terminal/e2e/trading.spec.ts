@@ -100,6 +100,22 @@ test("a trader only sees their own account", async ({ page, request }) => {
   await expect(page.getByText(theirs.accountId, { exact: true })).toHaveCount(0);
 });
 
+test("a trader with several accounts switches between them", async ({ page, request }) => {
+  const trader = await createTrader(request, "several");
+  const second = `${trader.accountId}-2`;
+  const account = await request.post(`${serviceUrl}/api/admin/v1/accounts`, {
+    headers: adminHeaders,
+    data: { accountId: second, groupId: "standard", initialBalance: 50_000, ownerUserId: trader.userId },
+  });
+  expect(account.ok()).toBeTruthy();
+
+  await logIn(page, trader.email);
+  await page.getByLabel("Account").selectOption(second);
+
+  await expect(page).toHaveURL(new RegExp(`account=${second}$`));
+  await expect(page.getByText("50,000.00 USD")).toBeVisible();
+});
+
 test("a link from the firm's portal logs the trader straight in, once", async ({ page, request }) => {
   const trader = await createTrader(request, "linked");
   const response = await request.post(`${serviceUrl}/api/admin/v1/users/${trader.userId}/login-links`, {

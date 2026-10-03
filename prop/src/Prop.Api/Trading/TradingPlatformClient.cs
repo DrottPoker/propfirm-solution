@@ -79,6 +79,27 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
     }
 
+    public async Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}", null, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        await EnsureSuccessAsync(response, cancellationToken);
+        var account = await ReadJsonAsync(response, cancellationToken);
+        return new TradingAccountSnapshot(
+            account.GetProperty("balance").GetDecimal(),
+            account.GetProperty("equity").GetDecimal(),
+            [
+                .. account.GetProperty("floors").EnumerateArray().Select(f => new TradingFloorSnapshot(
+                    f.GetProperty("floorId").GetString()!,
+                    f.GetProperty("level").GetDecimal(),
+                    f.GetProperty("headroom").GetDecimal())),
+            ]);
+    }
+
     public async Task<TradingEventPage> ReadEventsAsync(FirmTrading firm, long after, int limit, int waitSeconds, CancellationToken cancellationToken)
     {
         var query = string.Create(CultureInfo.InvariantCulture, $"{Admin}events?after={after}&limit={limit}&wait={waitSeconds}");

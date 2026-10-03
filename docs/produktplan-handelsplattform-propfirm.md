@@ -283,7 +283,8 @@ API:t och webhooks som finns beskrivs i [specen för propfirm-tjänsten](spec/pr
 Flöde:
 
 ```
-Trader -> traderportal -> köp -> propfirm-plattformen skapar konto i handelsplattformen
+Firman (kassa, API eller adminpanel) -> propfirm-plattformen skapar konto i handelsplattformen
+Trader -> inbjudan -> traderportal -> "Open terminal" -> handelsplattformen med en engångslänk
 Trader -> handelsplattform -> affärer och kontovärde -> regelmotor
 regelmotor -> beslut (fas klar eller regelbrott) -> propfirm-plattformen stänger kontot eller byter fas
 ```
@@ -296,6 +297,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - **Webb, traderportal och adminpanel:** Next.js med TypeScript.
 - **Backend (handelsmotor, regelmotor och API):** C# på .NET 10 med Postgres. Inbyggda decimaltal gör pengaberäkningarna exakta (ADR 0002).
 - **Inloggning:** handelsplattformen har egna användare per firma, så samma e-postadress kan finnas hos flera firmor. Tradern väljer firmans server när den loggar in (ADR 0009).
+- **Portalen:** en installation för alla firmor, där firman känns igen på adressen. Webbläsaren pratar bara med portalens adress, och inloggningen hålls av propfirm-tjänsten (ADR 0014).
 - **Handelsmotor och regelmotor:** egna tjänster som körs hela tiden, inte serverless, eftersom de håller öppna anslutningar och aktuellt tillstånd i minnet. Kärnan i handelsmotorn är deterministisk (ADR 0005) och beskrivs i [specen för handelsmotorn](spec/handelsmotor.md).
 - **Aktuellt tillstånd och kö:** motorn håller tillståndet i minnet och sparar ögonblicksbilder i Postgres. Händelser mellan produkterna läses från handelsplattformens händelseström (ADR 0012). Inget Redis i början (ADR 0003). Alla indata och händelser sparas i en journal i Postgres, så att tillståndet kan byggas upp igen efter en omstart (ADR 0008).
 - **Kontrakt mellan produkterna:** handelsplattformens publika admin-API under `/api/admin/v1`. OpenAPI-dokumentet i `contracts/` är kontraktet (ADR 0012).

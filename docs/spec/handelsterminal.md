@@ -15,7 +15,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 - **Inloggning med länk** på `/login/link?token=...&account=...`. Firmans portal skapar länken via admin-API:t. Länken fungerar en gång i 2 minuter, tas bort ur adressen när den har använts, och sidan skickar ingen referer.
 - **Vald server:** i första hand den i länken från firmans portal (`/login?server=nordic-prop`), sedan den som senast användes på enheten och annars den enda som finns.
 - **Spärr:** den som inte är inloggad skickas till `/login`.
-- **Konto:** terminalen visar det första kontot tradern äger, eller det som anges med `?account=` om tradern äger det.
+- **Konto:** terminalen visar det första kontot tradern äger, eller det som anges med `?account=` om tradern äger det. Har tradern flera konton, till exempel ett per fas i en challenge, byter den konto i listan i kontoraden.
 - **Utloggning** finns i kontoraden, bredvid traderns e-postadress.
 
 ## Layout

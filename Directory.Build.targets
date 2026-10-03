@@ -25,4 +25,36 @@
            Text="Product boundary violation: '$(MSBuildProjectName)' in area '$(ProductArea)' references @(_ForbiddenProjectReference->'%(Identity) (area %(Area))', ', '). Products may only depend on each other through contracts." />
   </Target>
 
+  <!--
+    The OpenAPI generator joins multi-line doc comments with the platform's line break, so a document built
+    on Windows differs from one built on Linux. Committed documents are checked in CI, so line breaks are
+    made the same everywhere.
+  -->
+  <UsingTask TaskName="NormalizeOpenApiLineBreaks" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        foreach (var file in Files)
+        {
+            var text = System.IO.File.ReadAllText(file.ItemSpec);
+            // The JSON escape \r\n inside strings, not a line break in the file.
+            var normalized = text.Replace(@"\r\n", @"\n");
+            if (normalized != text)
+            {
+                System.IO.File.WriteAllText(file.ItemSpec, normalized);
+            }
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="NormalizeOpenApiDocuments" AfterTargets="GenerateOpenApiDocuments" Condition="'$(OpenApiDocumentsDirectory)' != ''">
+    <ItemGroup>
+      <_GeneratedOpenApiDocument Include="$(OpenApiDocumentsDirectory)/*.json" />
+    </ItemGroup>
+    <NormalizeOpenApiLineBreaks Files="@(_GeneratedOpenApiDocument)" />
+  </Target>
+
 </Project>

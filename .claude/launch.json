@@ -24,6 +24,12 @@
       "runtimeExecutable": "dotnet",
       "runtimeArgs": ["run", "--project", "prop/src/Prop.Api"],
       "port": 5201
+    },
+    {
+      "name": "prop-portal",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["prop/portal/node_modules/next/dist/bin/next", "dev", "prop/portal", "--port", "3002"],
+      "port": 3002
     }
   ]
 }

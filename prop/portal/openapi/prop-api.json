@@ -296,10 +296,614 @@
           }
         }
       }
+    },
+    "/api/firm/v1/accounts/{accountId}/invite": {
+      "post": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/branding": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Branding"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/login": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/invites/accept": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/logout": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/me": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/login": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/logout": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/accounts": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/accounts/{accountId}/terminal-link": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/me": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/challenges": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengeDefinition"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ChallengeStatus"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDetailsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/history": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StepResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/approve-funding": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/cancel": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/invite": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AcceptInviteRequest": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AccountDetailsResponse": {
+        "required": [
+          "account",
+          "live",
+          "breach"
+        ],
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/AccountResponse"
+          },
+          "live": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LiveFigures"
+              }
+            ]
+          },
+          "breach": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BreachEvidence"
+              }
+            ]
+          }
+        },
+        "description": "An account with its trading account right now, and the evidence if it failed."
+      },
       "AccountResponse": {
         "required": [
           "id",
@@ -314,6 +918,8 @@
           "tradingAccountId",
           "tradingDays",
           "minTradingDays",
+          "initialBalance",
+          "currency",
           "profitTarget",
           "balance",
           "openPositions",
@@ -370,6 +976,13 @@
             "type": "integer",
             "format": "int32"
           },
+          "initialBalance": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
           "profitTarget": {
             "type": [
               "null",
@@ -407,7 +1020,64 @@
             "format": "date-time"
           }
         },
-        "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\r\nfor the current stage. The figures are what the trading platform last reported."
+        "description": "A trader's challenge account. TradingAccountId is the account on the trading platform\nfor the current stage, which starts at InitialBalance. The figures are what the trading\nplatform last reported."
+      },
+      "Branding": {
+        "required": [
+          "name",
+          "logoUrl",
+          "colors"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "colors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "What the portal needs to look like the firm's own."
+      },
+      "BreachEvidence": {
+        "required": [
+          "time",
+          "floorId",
+          "level",
+          "equity",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/FailureReason"
+          }
+        },
+        "description": "What the trading platform recorded when a floor was breached."
       },
       "CancelAccountRequest": {
         "required": [
@@ -466,7 +1136,7 @@
             "format": "int32"
           }
         },
-        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\r\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\r\ndefinition it was bought with, so later changes by the firm never affect it."
+        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it."
       },
       "ChallengeStatus": {
         "enum": [
@@ -501,7 +1171,79 @@
         },
         "description": "Equity may not fall more than Percent of the initial balance below the day's starting point."
       },
+      "FailureReason": {
+        "enum": [
+          "DailyLoss",
+          "MaxLoss",
+          "OtherFloor"
+        ]
+      },
+      "FloorFigure": {
+        "required": [
+          "floorId",
+          "level",
+          "headroom"
+        ],
+        "type": "object",
+        "properties": {
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "headroom": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A loss limit and how far equity can fall before it is breached."
+      },
+      "InviteResponse": {
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Open Url once before ExpiresAt to choose a password for the portal."
+      },
       "JsonElement": { },
+      "LiveFigures": {
+        "required": [
+          "balance",
+          "equity",
+          "floors"
+        ],
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "floors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FloorFigure"
+            }
+          }
+        },
+        "description": "The trading account valued at the latest prices. Missing when the trading platform cannot be reached."
+      },
       "LoginLinkResponse": {
         "required": [
           "url",
@@ -543,6 +1285,52 @@
         },
         "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
       },
+      "PortalLoginRequest": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PortalMeResponse": {
+        "required": [
+          "userId",
+          "email",
+          "role",
+          "firmName"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "firmName": {
+            "type": "string"
+          }
+        },
+        "description": "Who is logged in to the portal. Role is trader or admin."
+      },
       "StageRules": {
         "required": [
           "name",
@@ -574,7 +1362,7 @@
             "$ref": "#/components/schemas/MaxLossRule"
           }
         },
-        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\r\ntarget with no open positions after at least MinTradingDays trading days.\r\nThe funded stage has no profit target."
+        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days.\nThe funded stage has no profit target."
       },
       "StartAccountRequest": {
         "required": [
@@ -602,7 +1390,7 @@
             ]
           }
         },
-        "description": "Starts a challenge for the trader with the email. Reference is the firm's own id, for\r\nexample its order number: repeating it returns the account already started instead of a second one."
+        "description": "Starts a challenge for the trader with the email. Reference is the firm's own id, for\nexample its order number: repeating it returns the account already started instead of a second one."
       },
       "StepResponse": {
         "required": [
@@ -663,6 +1451,9 @@
   "tags": [
     {
       "name": "Firm"
+    },
+    {
+      "name": "Portal"
     }
   ]
 }

@@ -21,6 +21,9 @@ internal interface ITradingPlatform
     /// <summary>Closes the account. Done if it is already disabled.</summary>
     Task CloseAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
+    /// <summary>The account valued at the latest prices, as the trader sees it. Null if the firm has no such account.</summary>
+    Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
+
     /// <summary>The firm's events after the cursor, oldest first, waiting up to <paramref name="waitSeconds"/> for new ones.</summary>
     Task<TradingEventPage> ReadEventsAsync(FirmTrading firm, long after, int limit, int waitSeconds, CancellationToken cancellationToken);
 
@@ -29,6 +32,11 @@ internal interface ITradingPlatform
 }
 
 internal sealed record TradingEventPage(IReadOnlyList<TradingEvent> Events, long Cursor);
+
+internal sealed record TradingAccountSnapshot(decimal Balance, decimal Equity, IReadOnlyList<TradingFloorSnapshot> Floors);
+
+/// <summary>A floor and how far equity can fall before it is breached.</summary>
+internal sealed record TradingFloorSnapshot(string FloorId, decimal Level, decimal Headroom);
 
 internal sealed record TradingLoginLink(Uri Url, DateTimeOffset ExpiresAt);
 

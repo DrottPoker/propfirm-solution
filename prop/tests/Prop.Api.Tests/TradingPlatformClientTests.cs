@@ -72,6 +72,25 @@ public sealed class TradingPlatformClientTests
     }
 
     [Fact]
+    public async Task AnAccountIsValuedWithItsFloors()
+    {
+        var platform = new StubPlatform(
+            (HttpStatusCode.OK, """{"accountId":"A1","balance":100000,"equity":99250.5,"floors":[{"floorId":"daily","level":95000,"headroom":4250.5}]}"""),
+            (HttpStatusCode.NotFound, "{}"));
+        var client = Client(platform);
+
+        var account = await client.GetAccountAsync(Firm, "A1", TestContext.Current.CancellationToken);
+        var missing = await client.GetAccountAsync(Firm, "A2", TestContext.Current.CancellationToken);
+
+        Assert.NotNull(account);
+        Assert.Equal(100_000m, account.Balance);
+        Assert.Equal(99_250.5m, account.Equity);
+        Assert.Equal(new TradingFloorSnapshot("daily", 95_000m, 4_250.5m), Assert.Single(account.Floors));
+        Assert.Null(missing);
+        Assert.Equal(["GET api/admin/v1/accounts/A1", "GET api/admin/v1/accounts/A2"], platform.Requests);
+    }
+
+    [Fact]
     public async Task EventsAreReadInOrderAndUnknownKindsOnlyMoveTheCursor()
     {
         var page = """
@@ -167,6 +186,12 @@ public sealed class TradingContractTests
     [InlineData("CreateAccountRequest", "groupId")]
     [InlineData("CreateAccountRequest", "initialBalance")]
     [InlineData("CreateAccountRequest", "ownerUserId")]
+    [InlineData("AccountSnapshot", "balance")]
+    [InlineData("AccountSnapshot", "equity")]
+    [InlineData("AccountSnapshot", "floors")]
+    [InlineData("FloorSnapshot", "floorId")]
+    [InlineData("FloorSnapshot", "level")]
+    [InlineData("FloorSnapshot", "headroom")]
     [InlineData("AccountCreated", "balance")]
     [InlineData("PositionOpened", "balanceAfter")]
     [InlineData("PositionClosed", "balanceAfter")]

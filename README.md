@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md) och [propfirm-tjänsten](docs/spec/propfirm-tjanst.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md) och [portalen](docs/spec/portal.md).
 
 ## Struktur
 
@@ -24,11 +24,11 @@ propfirm-solution/
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
 │   │   ├── Prop.Rules/        # regelmotorn: deterministisk, ingen I/O
-│   │   └── Prop.Api/          # firmans API, regelmotorn mot handelsplattformen, utkorg och webhooks
+│   │   └── Prop.Api/          # firmans och portalens API, regelmotorn mot handelsplattformen, utkorg och webhooks
 │   ├── tests/
 │   │   ├── Prop.Rules.Tests/  # regler, livscykel, uppspelning mot facit, arkitektur
 │   │   └── Prop.Api.Tests/    # tjänsten mot Postgres med en låtsad handelsplattform och styrd klocka
-│   └── portal/           # traderportal, adminpanel och uppstart (Next.js)
+│   └── portal/           # vitmärkt traderportal och adminpanel (Next.js), med genererade API-typer
 ├── shared/               # generell kod utan affärslogik, till exempel migreringar för Postgres
 └── deploy/               # docker compose för lokal utveckling
 ```
@@ -85,7 +85,7 @@ Kör tjänsterna lokalt:
 
 Lösenorden i `deploy/` gäller bara lokal utveckling.
 
-I Claude Code-appen kan handelsplattformen och propfirm-tjänsten startas i förhandsvisningen med konfigurationerna i `.claude/launch.json`. Starta Postgres med docker compose först.
+I Claude Code-appen kan handelsplattformen och propfirm-plattformen startas i förhandsvisningen med konfigurationerna i `.claude/launch.json`. Starta Postgres med docker compose först.
 
 | Konfiguration | Startar |
 |---|---|
@@ -93,6 +93,7 @@ I Claude Code-appen kan handelsplattformen och propfirm-tjänsten startas i för
 | `trading-service-synthetic` | Handelstjänsten med syntetiska priser, till exempel när valutamarknaden är stängd |
 | `trading-terminal` | Handelsterminalen |
 | `prop-api` | Propfirm-tjänsten. Behöver handelstjänsten. |
+| `prop-portal` | Portalen. Behöver propfirm-tjänsten. |
 
 ## Prova handelstjänsten
 
@@ -122,7 +123,7 @@ Starta handelstjänsten enligt ovan och starta sedan terminalen i en annan termi
 pnpm dev:terminal
 ```
 
-Öppna http://localhost:3001, välj servern Demo Firm och logga in med `demo@example.com` och `demo-password`, eller med `test@test.com` och `test`. Har tradern flera konton väljs ett med `?account=`, till exempel http://localhost:3001/?account=demo.
+Öppna http://localhost:3001, välj servern Demo Firm och logga in med `demo@example.com` och `demo-password`, eller med `test@test.com` och `test`. Har tradern flera konton byter den i listan i kontoraden, eller väljer ett med `?account=`, till exempel http://localhost:3001/?account=demo.
 
 ## Prova propfirm-tjänsten
 
@@ -146,6 +147,28 @@ curl -X POST http://localhost:5201/api/firm/v1/accounts/KONTO-ID/login-link -H "
 
 Följ kontot med `GET /api/firm/v1/accounts/KONTO-ID` och varje beslut med `/history`. Alla vägar finns i [specen för propfirm-tjänsten](docs/spec/propfirm-tjanst.md).
 
+## Prova portalen
+
+Portalen använder propfirm-tjänsten, som använder handelstjänsten. Starta båda enligt ovan och sedan portalen:
+
+```bash
+pnpm dev:portal
+```
+
+| Inloggning | Adress | E-post och lösenord |
+|---|---|---|
+| Administratör | http://localhost:3002/admin/login | `admin@test.com` och `admin` |
+| Trader | http://localhost:3002/login | `anna@test.com` och `anna`, eller `test@test.com` och `test` |
+
+1. Logga in som administratör och starta en challenge åt en trader, till exempel `anna@test.com`.
+2. Logga in som trader i en ny flik och se kontot. Administratören är fortfarande inloggad, eftersom rollerna har var sin session.
+3. Klicka på Open terminal för att handla på kontot. Starta terminalen först (`pnpm dev:terminal`).
+4. Andra traders får en inbjudningslänk från kontots sida i adminpanelen.
+
+Lokalt finns inga krav på lösenordens längd, ingen gräns för antalet inloggningar och sessionerna gäller i 30 dagar (`Login` i `appsettings.Development.json` för båda tjänsterna). Vill du vara inloggad som två traders samtidigt, använd http://localhost:3002 för den ena och http://127.0.0.1:3002 för den andra. Webbläsaren håller isär inloggningarna per värdnamn.
+
+Portalen ser ut som firman vars adress den öppnas på. Lokalt hör `localhost` och `127.0.0.1` till `demo-firm`. Allt detta gäller bara lokal utveckling. Se [specen för portalen](docs/spec/portal.md).
+
 ## Riktiga priser från Tiingo
 
 Tjänsten använder syntetiska priser som standard. För riktiga priser under utvecklingen (ADR 0010):
@@ -165,10 +188,14 @@ Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara
 
 ## Tester av hela flödet
 
-Playwright startar en egen tjänst och terminal mot databasen `trading_e2e`, så testerna kan köras medan du utvecklar. Postgres måste vara igång och tjänsten byggd i Release.
+Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.
 
 ```bash
 dotnet build trading/src/Trading.Service -c Release
+```
+
+```bash
+dotnet build prop/src/Prop.Api -c Release
 ```
 
 ```bash
@@ -179,15 +206,17 @@ pnpm --filter @trading/terminal exec playwright install chromium
 pnpm --filter @trading/terminal e2e
 ```
 
+```bash
+pnpm --filter @prop/portal e2e
+```
+
 ## När API:t ändras
 
-Handelstjänsten skriver OpenAPI-dokumentet till `contracts/trading/` när den byggs. Det är kontraktet mot firmornas system och propfirm-plattformen (ADR 0012). Generera sedan terminalens typer:
+Handelstjänsten skriver OpenAPI-dokumentet till `contracts/trading/` när den byggs. Det är kontraktet mot firmornas system och propfirm-plattformen (ADR 0012). Propfirm-tjänsten skriver sitt till `prop/portal/openapi/` på samma sätt, för portalen. Generera sedan terminalens och portalens typer:
 
 ```bash
 pnpm generate:api
 ```
-
-Propfirm-tjänsten skriver sitt OpenAPI-dokument till `prop/portal/openapi/` på samma sätt, för portalen.
 
 Committa filerna. CI stoppar ändringar där de inte är aktuella.
 
@@ -198,4 +227,4 @@ Vid varje push till `main` och varje pull request körs:
 - **Backend:** formatering (`dotnet format`), bygge med varningar som fel, kontroll att OpenAPI-dokumenten är aktuella, tester. Testerna mot Postgres kör i en container.
 - **Webb:** kontroll att API-typerna är aktuella, lint, typkontroll, tester och bygge.
 - **Infrastruktur:** validering av docker compose.
-- **Hela flödet:** Playwright mot tjänsten, terminalen och Postgres.
+- **Hela flödet:** Playwright mot handelstjänsten och terminalen, och mot hela kedjan med handelstjänsten, propfirm-tjänsten och portalen.

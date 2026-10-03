@@ -118,6 +118,11 @@ internal sealed class ServiceFactory(
             }
         });
 
+        // Development turns the login rules off. The tests check the rules that hold everywhere else.
+        builder.UseSetting("Login:MinimumPasswordLength", "10");
+        builder.UseSetting("Login:AttemptsPerMinute", "10");
+        builder.UseSetting("Login:SessionLifetime", "12:00:00");
+
         foreach (var (key, value) in settings ?? new Dictionary<string, string>())
         {
             builder.UseSetting(key, value);

@@ -109,6 +109,28 @@ public sealed class AuthTests
         Assert.Equal(HttpStatusCode.TooManyRequests, statuses[10]);
     }
 
+    [Fact]
+    public async Task TheLoginRulesCanBeTurnedOffForDevelopment()
+    {
+        using var factory = new ServiceFactory(settings: new Dictionary<string, string> { ["Login:MinimumPasswordLength"] = "1", ["Login:AttemptsPerMinute"] = "0" });
+        using var client = factory.CreateClient();
+        using var admin = factory.CreateAdminClient();
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 15; i++)
+        {
+            using var response = await client.PostAsJsonAsync(
+                new Uri("/api/auth/login", UriKind.Relative),
+                new { server = ServiceFactory.DemoServer, email = "someone@test.example", password = "wrong" },
+                TestContext.Current.CancellationToken);
+            statuses.Add(response.StatusCode);
+        }
+
+        Assert.All(statuses, s => Assert.Equal(HttpStatusCode.Unauthorized, s));
+        await admin.PostJsonAsync("/api/admin/v1/users", new { email = "a@test.example", password = "a" });
+        await admin.PostJsonAsync("/api/admin/v1/users", new { email = "b@test.example", password = "" }, HttpStatusCode.UnprocessableEntity);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("wrong-key")]

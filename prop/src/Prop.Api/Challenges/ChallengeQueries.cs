@@ -4,6 +4,10 @@ using Common.Postgres;
 
 using Npgsql;
 
+using Prop.Api.Api;
+using Prop.Api.Json;
+using Prop.Rules;
+
 namespace Prop.Api.Challenges;
 
 /// <summary>A challenge account with what the trading platform last reported for its current trading account.</summary>
@@ -28,6 +32,40 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
 
     public async Task<AccountView?> GetAsync(string firmId, Guid id, CancellationToken cancellationToken) =>
         (await ReadAsync($"{SelectView} where a.firm_id = $1 and a.id = $2", [firmId, id], cancellationToken)).SingleOrDefault();
+
+    /// <summary>The firm's newest accounts, optionally only one trader's or only those with a status.</summary>
+    public Task<List<AccountView>> ListAsync(string firmId, string? email, ChallengeStatus? status, int limit, CancellationToken cancellationToken) =>
+        ReadAsync(
+            $"{SelectView} where a.firm_id = $1 and ($2::text is null or t.normalized_email = $2) and ($3::text is null or a.status = $3) order by a.number desc limit $4",
+            [firmId, email is null ? DBNull.Value : Emails.Normalize(email), status is { } s ? s.ToString() : DBNull.Value, limit],
+            cancellationToken);
+
+    /// <summary>The breach that failed the account, from its steps. Null if it did not fail on a floor.</summary>
+    public async Task<BreachEvidence?> LastBreachAsync(string firmId, Guid id, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            select s.input, s.outputs
+            from challenge_steps s join challenge_accounts a on a.id = s.challenge_account_id
+            where a.firm_id = $1 and a.id = $2 and s.input ->> 'kind' = 'FloorBreached'
+            order by s.step desc limit 1
+            """);
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(id);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
+        }
+
+        var breach = (FloorBreached)JsonSerializer.Deserialize<ChallengeInput>(reader.GetString(0), PropJson.Options)!;
+        var failed = JsonSerializer.Deserialize<List<ChallengeOutput>>(reader.GetString(1), PropJson.Options)!.OfType<ChallengeFailed>().FirstOrDefault();
+        return failed is null ? null : new BreachEvidence(breach.Time, breach.FloorId, breach.Level, breach.Equity, failed.Reason);
+    }
+
+    public Task<List<AccountView>> ListByTraderAsync(string firmId, Guid traderId, CancellationToken cancellationToken) =>
+        ReadAsync($"{SelectView} where a.firm_id = $1 and a.trader_id = $2 order by a.number", [firmId, traderId], cancellationToken);
 
     public Task<List<AccountView>> ListByEmailAsync(string firmId, string email, CancellationToken cancellationToken) =>
         ReadAsync($"{SelectView} where a.firm_id = $1 and t.normalized_email = $2 order by a.number", [firmId, Emails.Normalize(email)], cancellationToken);

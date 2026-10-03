@@ -1,26 +1,34 @@
 @import "tailwindcss";
 
+/* The portal's default look. A firm overrides these tokens with its own colors. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0e14;
+  --panel: #11151c;
+  --border: #1f2530;
+  --foreground: #d6d9e0;
+  --muted: #7d8590;
+  --accent: #3b82f6;
+  --profit: #22c55e;
+  --loss: #ef4444;
+  --warning: #f59e0b;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-panel: var(--panel);
+  --color-border: var(--border);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-warning: var(--warning);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }

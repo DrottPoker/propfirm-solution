@@ -19,6 +19,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0011](0011-regelmotorn-satter-golv.md) | Regelmotorn sätter golv och avgör faserna | Föreslagen |
 | [0012](0012-publikt-admin-api-som-kontrakt.md) | Handelsplattformens publika admin-API är kontraktet mellan produkterna | Föreslagen |
 | [0013](0013-journal-och-utkorg-i-propfirm-tjansten.md) | Journal och utkorg i propfirm-tjänsten | Föreslagen |
+| [0014](0014-vitmarkt-portal-pa-firmans-adress.md) | Vitmärkt portal på firmans adress med sessioner i propfirm-tjänsten | Föreslagen |
 
 ## Så skriver du en ny ADR
 

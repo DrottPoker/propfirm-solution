@@ -16,8 +16,8 @@ Den första versionen avgjorde firman av adressen tradern gick till, med firmans
 - **Firmor (tenants)** konfigureras med id, namn, handelsgrupper och en API-nyckel. Id:t är firmans server, med små bokstäver, siffror och bindestreck, till exempel `nordic-prop`. Konfigurationen kontrolleras vid start. Firmor flyttas till databasen när de ska kunna registrera sig själva.
 - **Traders loggar in med server, e-post och lösenord**, som i MetaTrader och TradeLocker. Tradern får uppgifterna från firmans portal. E-postadressen är unik inom en firma, inte mellan firmor, så samma e-post hos två firmor är två traders med var sitt lösenord.
 - **Servrarna listas öppet** med id och namn, så att inloggningssidan kan visa dem. Firmans portal kan länka med servern vald, till exempel `/login?server=nordic-prop`. Terminalen kommer ihåg den senast använda servern på enheten.
-- **Fel server, e-post eller lösenord** ger samma svar och tar lika lång tid. Inloggning begränsas till 10 försök per minut och IP-adress.
-- **Sessioner** är en HttpOnly-cookie (SameSite=Lax) med 12 timmars glidande giltighet. Nycklarna som skyddar cookien sparas i Postgres, så att sessioner överlever omstarter och fungerar på flera instanser. En firma som tas bort ur konfigurationen avslutar sina traders sessioner.
+- **Fel server, e-post eller lösenord** ger samma svar och tar lika lång tid. Inloggning begränsas till 10 försök per minut och IP-adress (en inställning, avstängd i utveckling).
+- **Sessioner** är en HttpOnly-cookie (SameSite=Lax) med 12 timmars glidande giltighet (en inställning, 30 dagar i utveckling). Nycklarna som skyddar cookien sparas i Postgres, så att sessioner överlever omstarter och fungerar på flera instanser. En firma som tas bort ur konfigurationen avslutar sina traders sessioner.
 - **Lösenord** hashas med ASP.NET Core Identitys `PasswordHasher` (PBKDF2).
 - **Konton har en ägare.** Bara ägaren kommer åt kontot via API:t och realtid. Andras konton svarar 404, så att det inte avslöjas att de finns.
 - **Firmans system** använder headern `X-Api-Key`. Bara nyckelns SHA-256 sparas. Nyckeln ger bara åtkomst till firmans egna grupper, användare och konton.

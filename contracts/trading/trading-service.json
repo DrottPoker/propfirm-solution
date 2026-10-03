@@ -1658,7 +1658,7 @@
             "$ref": "#/components/schemas/EngineInputSetEquityFloor"
           }
         ],
-        "description": "Input to the engine. The timestamp is set by the service when the input arrives\r\nand must never be earlier than the previous input.",
+        "description": "Input to the engine. The timestamp is set by the service when the input arrives\nand must never be earlier than the previous input.",
         "discriminator": {
           "propertyName": "kind",
           "mapping": {
@@ -1985,7 +1985,7 @@
             "$ref": "#/components/schemas/EquityFloorRuleTrailingFloor"
           }
         ],
-        "description": "Rule for an equity floor. When equity falls below the floor, all positions are closed,\r\nall pending orders are cancelled and the account is disabled.",
+        "description": "Rule for an equity floor. When equity falls below the floor, all positions are closed,\nall pending orders are cancelled and the account is disabled.",
         "discriminator": {
           "propertyName": "kind",
           "mapping": {
@@ -2015,7 +2015,7 @@
             "$ref": "#/components/schemas/FloorAnchor"
           }
         },
-        "description": "A floor Distance below the account as it is when the floor is set: its balance, or\r\nthe higher of balance and equity. The level then stays fixed. Setting it again at the start of every\r\ntrading day gives a daily loss limit, with the level taken in the same step as the prices."
+        "description": "A floor Distance below the account as it is when the floor is set: its balance, or\nthe higher of balance and equity. The level then stays fixed. Setting it again at the start of every\ntrading day gives a daily loss limit, with the level taken in the same step as the prices."
       },
       "EquityFloorRuleFixedFloor": {
         "required": [

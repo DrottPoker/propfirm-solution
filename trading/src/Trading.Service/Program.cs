@@ -41,6 +41,13 @@ if (!isOpenApiGeneration)
     terminalOptions.ValidateOnStart();
 }
 
+builder.Services.AddOptions<LoginOptions>()
+    .Bind(builder.Configuration.GetSection(LoginOptions.SectionName))
+    .Validate(
+        o => o.MinimumPasswordLength >= 1 && o.AttemptsPerMinute >= 0 && o.SessionLifetime > TimeSpan.Zero,
+        "Login needs a password length of at least 1, attempts per minute of 0 or more and a positive session lifetime.")
+    .ValidateOnStart();
+
 builder.Services.AddOptions<PriceFeedOptions>()
     .Bind(builder.Configuration.GetSection(PriceFeedOptions.SectionName))
     .Validate(
@@ -83,7 +90,6 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-    options.ExpireTimeSpan = TimeSpan.FromHours(12);
     options.SlidingExpiration = true;
 
     // An API answers with status codes instead of redirecting to a login page.
@@ -98,13 +104,20 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         return Task.CompletedTask;
     };
 });
+builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
+    .Configure<IOptions<LoginOptions>>((options, login) => options.ExpireTimeSpan = login.Value.SessionLifetime);
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy(AuthEndpoints.LoginRateLimit, context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+    options.AddPolicy(AuthEndpoints.LoginRateLimit, context =>
+    {
+        var address = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var attempts = context.RequestServices.GetRequiredService<IOptions<LoginOptions>>().Value.AttemptsPerMinute;
+        return attempts == 0
+            ? RateLimitPartition.GetNoLimiter(address)
+            : RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions { PermitLimit = attempts, Window = TimeSpan.FromMinutes(1) });
+    });
 });
 builder.Services.AddSingleton(_ => new CandleStore(CandleStore.DefaultCapacity));
 if (builder.Configuration.GetValue<string>($"{PriceFeedOptions.SectionName}:Provider") == PriceFeedOptions.TiingoProvider)

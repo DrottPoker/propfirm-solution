@@ -63,7 +63,7 @@ jobs:
       - name: Check that the API types are up to date
         run: |
           pnpm generate:api
-          git diff --exit-code -- trading/terminal/src/lib/api/schema.ts
+          git diff --exit-code -- trading/terminal/src/lib/api/schema.ts prop/portal/src/lib/api/schema.ts
 
       - name: Lint
         run: pnpm lint
@@ -110,8 +110,10 @@ jobs:
       - name: Start Postgres
         run: docker compose -f deploy/docker-compose.yml up -d --wait postgres
 
-      - name: Build the trading service
-        run: dotnet build trading/src/Trading.Service --configuration Release
+      - name: Build the services
+        run: |
+          dotnet build trading/src/Trading.Service --configuration Release
+          dotnet build prop/src/Prop.Api --configuration Release
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -119,10 +121,14 @@ jobs:
       - name: Install Chromium
         run: pnpm --filter @trading/terminal exec playwright install --with-deps chromium
 
-      - name: Run end-to-end tests
+      - name: Run the terminal's end-to-end tests
         run: pnpm --filter @trading/terminal e2e
 
-      - name: Upload the report
+      # The whole chain: the trading platform, Prop.Api and the portal.
+      - name: Run the portal's end-to-end tests
+        run: pnpm --filter @prop/portal e2e
+
+      - name: Upload the reports
         if: failure()
         uses: actions/upload-artifact@v7
         with:
@@ -130,3 +136,5 @@ jobs:
           path: |
             trading/terminal/playwright-report
             trading/terminal/test-results
+            prop/portal/playwright-report
+            prop/portal/test-results

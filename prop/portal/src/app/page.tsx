@@ -1,7 +1,9 @@
-export default function Home() {
-  return (
-    <main className="flex flex-1 items-center justify-center p-8">
-      <h1 className="text-2xl font-semibold">Prop portal</h1>
-    </main>
-  );
+import { Dashboard } from "@/components/Dashboard";
+import { RequireRole } from "@/components/RequireRole";
+
+// A trader with several accounts opens one directly, for example /?account=<id>.
+export default async function Page({ searchParams }: PageProps<"/">) {
+  const { account } = await searchParams;
+  const requested = typeof account === "string" && account.length > 0 ? account : null;
+  return <RequireRole role="trader"><Dashboard requestedAccountId={requested} /></RequireRole>;
 }

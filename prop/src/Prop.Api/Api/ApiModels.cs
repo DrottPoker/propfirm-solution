@@ -15,7 +15,8 @@ public sealed record CancelAccountRequest(string? Reason);
 
 /// <summary>
 /// A trader's challenge account. <paramref name="TradingAccountId"/> is the account on the trading platform
-/// for the current stage. The figures are what the trading platform last reported.
+/// for the current stage, which starts at <paramref name="InitialBalance"/>. The figures are what the trading
+/// platform last reported.
 /// </summary>
 public sealed record AccountResponse(
     Guid Id,
@@ -30,6 +31,8 @@ public sealed record AccountResponse(
     string? TradingAccountId,
     int TradingDays,
     int MinTradingDays,
+    decimal InitialBalance,
+    string Currency,
     decimal? ProfitTarget,
     decimal? Balance,
     int OpenPositions,
@@ -56,6 +59,8 @@ public sealed record AccountResponse(
             state.AccountId,
             state.TradingDays.Count,
             rules.MinTradingDays,
+            definition.InitialBalance,
+            definition.Currency,
             rules.ProfitTargetPercent is { } target ? definition.InitialBalance + definition.PercentOfInitialBalance(target) : null,
             trading?.Balance,
             trading?.OpenPositions ?? 0,
@@ -70,3 +75,25 @@ public sealed record StepResponse(int Step, DateTimeOffset RecordedAt, JsonEleme
 
 /// <summary>Open <paramref name="Url"/> once before <paramref name="ExpiresAt"/> to be logged in to the trading terminal.</summary>
 public sealed record LoginLinkResponse(Uri Url, DateTimeOffset ExpiresAt);
+
+/// <summary>An account with its trading account right now, and the evidence if it failed.</summary>
+public sealed record AccountDetailsResponse(AccountResponse Account, LiveFigures? Live, BreachEvidence? Breach);
+
+/// <summary>The trading account valued at the latest prices. Missing when the trading platform cannot be reached.</summary>
+public sealed record LiveFigures(decimal Balance, decimal Equity, IReadOnlyList<FloorFigure> Floors);
+
+/// <summary>A loss limit and how far equity can fall before it is breached.</summary>
+public sealed record FloorFigure(string FloorId, decimal Level, decimal Headroom);
+
+/// <summary>What the trading platform recorded when a floor was breached.</summary>
+public sealed record BreachEvidence(DateTimeOffset Time, string FloorId, decimal Level, decimal Equity, FailureReason Reason);
+
+/// <summary>Open <paramref name="Url"/> once before <paramref name="ExpiresAt"/> to choose a password for the portal.</summary>
+public sealed record InviteResponse(Uri Url, DateTimeOffset ExpiresAt);
+
+public sealed record PortalLoginRequest(string? Email, string? Password);
+
+public sealed record AcceptInviteRequest(string? Token, string? Password);
+
+/// <summary>Who is logged in to the portal. <paramref name="Role"/> is trader or admin.</summary>
+public sealed record PortalMeResponse(Guid UserId, string Email, string Role, string FirmName);

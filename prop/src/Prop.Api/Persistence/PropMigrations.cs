@@ -8,5 +8,5 @@ internal static class PropMigrations
     // Serializes migrations if several instances start at once.
     private const long LockKey = 8_402_115_377;
 
-    public static readonly SqlMigrations All = new(typeof(PropMigrations).Assembly, ["0001_prop.sql"], LockKey);
+    public static readonly SqlMigrations All = new(typeof(PropMigrations).Assembly, ["0001_prop.sql", "0002_portal.sql"], LockKey);
 }

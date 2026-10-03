@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
+using Prop.Api.Portal;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -14,6 +15,8 @@ namespace Prop.Api.Api;
 /// </summary>
 internal static class FirmEndpoints
 {
+    private const string Accounts = "/api/firm/v1/accounts";
+
     public static IEndpointRouteBuilder MapFirmApi(this IEndpointRouteBuilder app)
     {
         var firm = app.MapGroup("/api/firm/v1").WithTags("Firm").AddEndpointFilter<FirmApiKeyFilter>();
@@ -26,6 +29,7 @@ internal static class FirmEndpoints
         firm.MapPost("/accounts/{accountId:guid}/approve-funding", ApproveFundingAsync);
         firm.MapPost("/accounts/{accountId:guid}/cancel", CancelAsync);
         firm.MapPost("/accounts/{accountId:guid}/login-link", CreateLoginLinkAsync);
+        firm.MapPost("/accounts/{accountId:guid}/invite", CreateInviteAsync);
         return app;
     }
 
@@ -39,12 +43,12 @@ internal static class FirmEndpoints
     {
         if (definition.Id != challengeId)
         {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "The id in the body must be the id in the address.");
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The id in the body must be the id in the address.");
         }
 
         if (ChallengeCatalog.Validate(definition) is { Count: > 0 } errors)
         {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "The challenge is not valid.", errors);
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The challenge is not valid.", errors);
         }
 
         await catalog.SaveAsync(FirmApiKeyFilter.FirmOf(context).Id, definition, cancellationToken);
@@ -57,34 +61,13 @@ internal static class FirmEndpoints
         CancellationToken cancellationToken) =>
         TypedResults.Ok(await catalog.ListAsync(FirmApiKeyFilter.FirmOf(context).Id, cancellationToken));
 
-    private static async Task<Results<Created<AccountResponse>, Ok<AccountResponse>, ProblemHttpResult>> StartAccountAsync(
+    private static Task<Results<Created<AccountResponse>, Ok<AccountResponse>, ProblemHttpResult>> StartAccountAsync(
         StartAccountRequest request,
         HttpContext context,
         ChallengeService challenges,
         ChallengeQueries queries,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@', StringComparison.Ordinal))
-        {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "A valid email address is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.ChallengeId))
-        {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "A challenge id is required.");
-        }
-
-        var firm = FirmApiKeyFilter.FirmOf(context);
-        var reference = string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference;
-        var result = await challenges.StartAsync(firm, request.Email, request.ChallengeId, reference, cancellationToken);
-        if (result.Account is not { } account)
-        {
-            return Problem(StatusCodes.Status404NotFound, "The firm has no such challenge.");
-        }
-
-        var response = AccountResponse.From((await queries.GetAsync(firm.Id, account.Id, cancellationToken))!);
-        return result.Created ? TypedResults.Created($"/api/firm/v1/accounts/{account.Id}", response) : TypedResults.Ok(response);
-    }
+        CancellationToken cancellationToken) =>
+        AccountActions.StartAsync(FirmApiKeyFilter.FirmOf(context), request, Accounts, challenges, queries, cancellationToken);
 
     private static async Task<Results<Ok<List<AccountResponse>>, ProblemHttpResult>> ListAccountsAsync(
         string? email,
@@ -94,7 +77,7 @@ internal static class FirmEndpoints
     {
         if (string.IsNullOrWhiteSpace(email))
         {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "An email address is required.");
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "An email address is required.");
         }
 
         var views = await queries.ListByEmailAsync(FirmApiKeyFilter.FirmOf(context).Id, email, cancellationToken);
@@ -108,20 +91,15 @@ internal static class FirmEndpoints
         CancellationToken cancellationToken) =>
         await queries.GetAsync(FirmApiKeyFilter.FirmOf(context).Id, accountId, cancellationToken) is { } view
             ? TypedResults.Ok(AccountResponse.From(view))
-            : UnknownAccount();
+            : AccountActions.UnknownAccount();
 
     /// <summary>Every input and decision, in order: the audit trail, including the evidence of a breach.</summary>
-    private static async Task<Results<Ok<List<StepResponse>>, ProblemHttpResult>> GetHistoryAsync(
+    private static Task<Results<Ok<List<StepResponse>>, ProblemHttpResult>> GetHistoryAsync(
         Guid accountId,
         HttpContext context,
         ChallengeQueries queries,
-        CancellationToken cancellationToken)
-    {
-        var steps = await queries.HistoryAsync(FirmApiKeyFilter.FirmOf(context).Id, accountId, cancellationToken);
-        return steps.Count == 0
-            ? UnknownAccount()
-            : TypedResults.Ok(steps.Select(s => new StepResponse(s.Step, s.RecordedAt, s.Input, s.Outputs, s.SourceEvent)).ToList());
-    }
+        CancellationToken cancellationToken) =>
+        HistoryAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, cancellationToken);
 
     /// <summary>The firm has done its checks, for example KYC and agreement, and the trader gets the funded account.</summary>
     private static Task<Results<Ok<AccountResponse>, ProblemHttpResult>> ApproveFundingAsync(
@@ -131,7 +109,7 @@ internal static class FirmEndpoints
         ChallengeQueries queries,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        ApplyAsync(context, accountId, new ApproveFunding(time.GetUtcNow()), challenges, queries, cancellationToken);
+        AccountActions.ApplyAsync(FirmApiKeyFilter.FirmOf(context), accountId, new ApproveFunding(time.GetUtcNow()), challenges, queries, cancellationToken);
 
     private static Task<Results<Ok<AccountResponse>, ProblemHttpResult>> CancelAsync(
         Guid accountId,
@@ -141,74 +119,38 @@ internal static class FirmEndpoints
         ChallengeQueries queries,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        ApplyAsync(
-            context,
-            accountId,
-            new CancelChallenge(time.GetUtcNow(), string.IsNullOrWhiteSpace(request.Reason) ? "Cancelled by the firm." : request.Reason),
-            challenges,
-            queries,
-            cancellationToken);
+        AccountActions.ApplyAsync(FirmApiKeyFilter.FirmOf(context), accountId, Cancel(request, time), challenges, queries, cancellationToken);
 
-    /// <summary>A one-time link that logs the trader in to the trading terminal on the current stage's account.</summary>
-    private static async Task<Results<Ok<LoginLinkResponse>, ProblemHttpResult>> CreateLoginLinkAsync(
+    private static Task<Results<Ok<LoginLinkResponse>, ProblemHttpResult>> CreateLoginLinkAsync(
         Guid accountId,
         HttpContext context,
         ChallengeQueries queries,
         ITradingPlatform trading,
-        CancellationToken cancellationToken)
-    {
-        var firm = FirmApiKeyFilter.FirmOf(context);
-        if (await queries.GetAsync(firm.Id, accountId, cancellationToken) is not { } view)
-        {
-            return UnknownAccount();
-        }
+        CancellationToken cancellationToken) =>
+        AccountActions.TerminalLinkAsync(FirmApiKeyFilter.FirmOf(context), accountId, null, queries, trading, cancellationToken);
 
-        var state = view.Account.State;
-        if (state is not { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId }
-            || await queries.TradingUserOfAsync(view.Account.TraderId, cancellationToken) is not { } userId)
-        {
-            return Problem(StatusCodes.Status409Conflict, "The trader has no open trading account right now.");
-        }
-
-        try
-        {
-            var link = await trading.CreateLoginLinkAsync(firm.Trading, userId, tradingAccountId, cancellationToken);
-            return TypedResults.Ok(new LoginLinkResponse(link.Url, link.ExpiresAt));
-        }
-        catch (TradingPlatformUnavailableException)
-        {
-            return Problem(StatusCodes.Status503ServiceUnavailable, "The trading platform cannot be reached. Try again shortly.");
-        }
-    }
-
-    private static async Task<Results<Ok<AccountResponse>, ProblemHttpResult>> ApplyAsync(
-        HttpContext context,
+    /// <summary>An invitation for the trader to choose a password for the firm's portal, for the firm to send.</summary>
+    private static Task<Results<Ok<InviteResponse>, ProblemHttpResult>> CreateInviteAsync(
         Guid accountId,
-        ChallengeInput input,
-        ChallengeService challenges,
+        HttpContext context,
+        ChallengeQueries queries,
+        PortalUsers users,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        AccountActions.InviteAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, users, time, cancellationToken);
+
+    internal static CancelChallenge Cancel(CancelAccountRequest request, TimeProvider time) =>
+        new(time.GetUtcNow(), string.IsNullOrWhiteSpace(request.Reason) ? "Cancelled by the firm." : request.Reason);
+
+    internal static async Task<Results<Ok<List<StepResponse>>, ProblemHttpResult>> HistoryAsync(
+        Firm firm,
+        Guid accountId,
         ChallengeQueries queries,
         CancellationToken cancellationToken)
     {
-        var firm = FirmApiKeyFilter.FirmOf(context);
-        var step = await challenges.ApplyAsync(firm, accountId, input, cancellationToken);
-        if (step is null)
-        {
-            return UnknownAccount();
-        }
-
-        if (step.Outputs.OfType<InputIgnored>().FirstOrDefault() is { } ignored)
-        {
-            return Problem(StatusCodes.Status409Conflict, ignored.Reason);
-        }
-
-        return TypedResults.Ok(AccountResponse.From((await queries.GetAsync(firm.Id, accountId, cancellationToken))!));
+        var steps = await queries.HistoryAsync(firm.Id, accountId, cancellationToken);
+        return steps.Count == 0
+            ? AccountActions.UnknownAccount()
+            : TypedResults.Ok(steps.Select(s => new StepResponse(s.Step, s.RecordedAt, s.Input, s.Outputs, s.SourceEvent)).ToList());
     }
-
-    private static ProblemHttpResult UnknownAccount() => Problem(StatusCodes.Status404NotFound, "The firm has no such account.");
-
-    private static ProblemHttpResult Problem(int statusCode, string title, IReadOnlyList<string>? errors = null) =>
-        TypedResults.Problem(
-            statusCode: statusCode,
-            title: title,
-            extensions: errors is null ? null : new Dictionary<string, object?> { ["errors"] = errors });
 }

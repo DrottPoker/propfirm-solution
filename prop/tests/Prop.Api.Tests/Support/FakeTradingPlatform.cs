@@ -154,6 +154,30 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
         }
     }
 
+    /// <summary>Open positions are now worth this much, so the account's equity differs from its balance.</summary>
+    public void SetEquity(string accountId, decimal equity)
+    {
+        lock (_lock)
+        {
+            _accounts[accountId].Equity = equity;
+        }
+    }
+
+    public Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken) =>
+        Call($"get {accountId}", () =>
+        {
+            if (!_accounts.TryGetValue(accountId, out var account))
+            {
+                return null;
+            }
+
+            var equity = account.Equity ?? account.Balance;
+            return (TradingAccountSnapshot?)new TradingAccountSnapshot(
+                account.Balance,
+                equity,
+                [.. account.Floors.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => new TradingFloorSnapshot(f.Key, f.Value, equity - f.Value))]);
+        });
+
     public Task<TradingLoginLink> CreateLoginLinkAsync(FirmTrading firm, Guid userId, string? accountId, CancellationToken cancellationToken) =>
         Call($"link {accountId}", () => new TradingLoginLink(new Uri($"https://trade.test/login/link?token=fake&account={accountId}"), time.GetUtcNow().AddMinutes(2)));
 
@@ -207,6 +231,8 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform
         public decimal Balance { get; set; } = balance;
 
         public Guid OwnerUserId { get; } = ownerUserId;
+
+        public decimal? Equity { get; set; }
 
         public bool Disabled { get; set; }
 

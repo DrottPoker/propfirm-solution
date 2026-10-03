@@ -1,15 +1,16 @@
 using System.Xml.Linq;
 
-using Common.Postgres;
-
 using Microsoft.AspNetCore.DataProtection.Repositories;
 
 using Npgsql;
 
-namespace Trading.Service.Identity;
+namespace Common.Postgres;
 
-/// <summary>Keeps the keys that protect login cookies in Postgres, so logins survive restarts and work on every instance.</summary>
-internal sealed class PostgresXmlRepository(NpgsqlDataSource dataSource, DatabaseSchema schema) : IXmlRepository
+/// <summary>
+/// Keeps the keys that protect login cookies in Postgres, so logins survive restarts and work on every
+/// instance. The product's migrations create the table <c>data_protection_keys</c>.
+/// </summary>
+public sealed class PostgresXmlRepository(NpgsqlDataSource dataSource, DatabaseSchema schema) : IXmlRepository
 {
     public IReadOnlyCollection<XElement> GetAllElements()
     {

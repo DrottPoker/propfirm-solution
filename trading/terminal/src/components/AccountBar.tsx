@@ -14,8 +14,11 @@ const connectionStyles: Record<ConnectionState, { label: string; dot: string }> 
   disconnected: { label: "Offline", dot: "bg-loss" },
 };
 
-/** Account figures and the distance to every equity floor, so the trader always sees the limits. */
-export function AccountBar({ email, serverName }: { email: string; serverName: string }) {
+/**
+ * Account figures and the distance to every equity floor, so the trader always sees the limits. A trader
+ * with several accounts, such as one per challenge stage, switches between them here.
+ */
+export function AccountBar({ accounts, email, serverName }: { accounts: string[]; email: string; serverName: string }) {
   const account = useTradingStore((s) => s.account);
   const connection = connectionStyles[useTradingStore((s) => s.connection)];
   const logout = useLogout();
@@ -31,9 +34,26 @@ export function AccountBar({ email, serverName }: { email: string; serverName: s
 
       {account && (
         <>
-          <span>
-            <span className="font-medium">{account.accountId}</span>
-            <span className="text-muted" title="The firm's server"> {serverName}</span>
+          <span className="flex items-center gap-1">
+            {accounts.length > 1 ? (
+              <select
+                aria-label="Account"
+                value={account.accountId}
+                onChange={(e) => router.push(`/?account=${encodeURIComponent(e.target.value)}`)}
+                className="rounded border border-border bg-background px-1 py-0.5 font-medium"
+              >
+                {accounts.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="font-medium">{account.accountId}</span>
+            )}
+            <span className="text-muted" title="The firm's server">
+              {serverName}
+            </span>
           </span>
           {account.status === "Disabled" && <span className="rounded bg-loss/20 px-2 py-0.5 text-loss">Disabled</span>}
           <Figure label="Balance" value={`${formatMoney(account.balance)} ${account.currency}`} />

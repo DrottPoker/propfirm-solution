@@ -26,6 +26,16 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     public const string WebhookSecret = "a-webhook-secret-of-at-least-32-characters";
 
+    public const string OtherFirmKey = "other-prop-key";
+
+    /// <summary>Where the second firm's portal is reached.</summary>
+    public const string OtherFirmHost = "portal.other.test";
+
+    /// <summary>The development firm's administrator, from appsettings.Development.json.</summary>
+    public const string AdminEmail = "admin@test.com";
+
+    public const string AdminPassword = "admin";
+
     /// <summary>A Monday, 10:00 in Stockholm.</summary>
     public static readonly DateTimeOffset Start = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
@@ -53,6 +63,21 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         ["Firms:0:Webhook:Secret"] = WebhookSecret,
     };
 
+    /// <summary>Settings that add a second firm with its own key, portal and server on the trading platform.</summary>
+    public static Dictionary<string, string> WithOtherFirm() => new()
+    {
+        ["Firms:1:Id"] = "other-firm",
+        ["Firms:1:Name"] = "Other Firm",
+        ["Firms:1:ApiKeySha256"] = FirmCatalog.HashApiKey(OtherFirmKey),
+        ["Firms:1:Trading:Server"] = "other-firm",
+        ["Firms:1:Trading:ApiKey"] = "other-admin-key",
+        ["Firms:1:Trading:Group"] = "other",
+        ["Firms:1:Portal:Url"] = $"https://{OtherFirmHost}/",
+        ["Firms:1:Portal:Hosts:0"] = OtherFirmHost,
+        ["Firms:1:SeedAdmins:0:Email"] = AdminEmail,
+        ["Firms:1:SeedAdmins:0:Password"] = "other-admin-password",
+    };
+
     public static PropFactory Create(string connectionString, IReadOnlyDictionary<string, string>? settings = null)
     {
         var time = new FakeTimeProvider(Start);
@@ -67,6 +92,28 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         var client = CreateClient();
         client.DefaultRequestHeaders.Add(FirmApiKeyFilter.HeaderName, apiKey);
         return client;
+    }
+
+    /// <summary>A browser on a firm's portal: it keeps the session cookie, and is on the development firm's host unless told otherwise.</summary>
+    public HttpClient CreatePortalClient(string? host = null)
+    {
+        var client = CreateClient();
+        if (host is not null)
+        {
+            client.DefaultRequestHeaders.Add("X-Forwarded-Host", host);
+        }
+
+        return client;
+    }
+
+    /// <summary>The firm invites the account's trader to its portal. Returns the invitation's token.</summary>
+    public async Task<string> InviteAsync(Guid accountId, string apiKey = FirmApiKey)
+    {
+        using var firm = CreateFirmClient(apiKey);
+        using var response = await firm.PostAsync(new Uri($"/api/firm/v1/accounts/{accountId}/invite", UriKind.Relative), null);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var url = new Uri((await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("url").GetString()!);
+        return System.Web.HttpUtility.ParseQueryString(url.Query)["token"]!;
     }
 
     /// <summary>Starts the challenge for the email and waits until its first trading account is open.</summary>
@@ -110,6 +157,11 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     {
         builder.UseSetting("ConnectionStrings:Prop", _connectionString);
         builder.UseSetting("TradingPlatform:Url", "https://trading.test/");
+
+        // Development turns the login rules off. The tests check the rules that hold everywhere else.
+        builder.UseSetting("Login:MinimumPasswordLength", "10");
+        builder.UseSetting("Login:AttemptsPerMinute", "10");
+        builder.UseSetting("Login:SessionLifetime", "12:00:00");
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);
@@ -117,6 +169,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<IStartupFilter, LoopbackConnection>();
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ITradingPlatform>(Trading);
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);

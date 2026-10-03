@@ -72,7 +72,7 @@ Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `POST /api/auth/login` | Loggar in med `{ "server", "email", "password" }`, där `server` är firmans id. Sätter sessionscookien. Fel server, e-post eller lösenord ger samma svar. Högst 10 försök per minut och IP-adress. |
+| `POST /api/auth/login` | Loggar in med `{ "server", "email", "password" }`, där `server` är firmans id. Sätter sessionscookien. Fel server, e-post eller lösenord ger samma svar. Högst `Login:AttemptsPerMinute` försök per minut och IP-adress, som standard 10. |
 | `POST /api/auth/link` | Loggar in med `{ "token" }` från en inloggningslänk. Länken fungerar en gång. Samma begränsning av försök som vid inloggning. |
 | `POST /api/auth/logout` | Loggar ut. |
 | `GET /api/auth/me` | Den inloggade tradern, firmans server och kontona tradern äger. |
@@ -100,7 +100,7 @@ För firmans egna system, till exempel propfirm-plattformen (ADR 0012). Alla vä
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `POST /users` | Skapar en trader med `{ "email", "password" }`. Lösenordet ska ha minst 10 tecken. E-postadressen är unik inom firman. |
+| `POST /users` | Skapar en trader med `{ "email", "password" }`. Lösenordet ska ha minst `Login:MinimumPasswordLength` tecken, som standard 10. E-postadressen är unik inom firman. |
 | `GET /users?email=` | Hittar en av firmans traders via e-post. |
 | `PUT /users/{userId}/password` | Byter traderns lösenord med `{ "password" }`. |
 | `POST /users/{userId}/login-links` | Skapar en inloggningslänk till terminalen, valfritt med `{ "accountId" }` för kontot som ska öppnas. Svarar med `url` och `expiresAt`. Länken fungerar en gång i 2 minuter. |
@@ -141,6 +141,7 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 | `Terminal:Url` | Terminalens adress, till exempel `http://localhost:3001/`. Används i inloggningslänkar. |
+| `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
 I utveckling finns firman `demo-firm` (Demo Firm) med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
 

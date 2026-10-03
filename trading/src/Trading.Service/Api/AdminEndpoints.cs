@@ -22,8 +22,6 @@ namespace Trading.Service.Api;
 /// </summary>
 internal static class AdminEndpoints
 {
-    public const int MinimumPasswordLength = 10;
-
     public const int MaxEventsPerRequest = 1_000;
 
     public static readonly TimeSpan MaxEventWait = TimeSpan.FromSeconds(30);
@@ -49,6 +47,7 @@ internal static class AdminEndpoints
         HttpContext context,
         IUserStore users,
         IPasswordHasher<User> hasher,
+        IOptions<LoginOptions> login,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@', StringComparison.Ordinal))
@@ -56,9 +55,9 @@ internal static class AdminEndpoints
             return Problem(StatusCodes.Status422UnprocessableEntity, "A valid email address is required.");
         }
 
-        if (!IsLongEnough(request.Password))
+        if (PasswordProblem(request.Password, login.Value) is { } problem)
         {
-            return PasswordTooShort();
+            return problem;
         }
 
         var tenant = AdminApiKeyFilter.TenantOf(context);
@@ -90,11 +89,12 @@ internal static class AdminEndpoints
         HttpContext context,
         IUserStore users,
         IPasswordHasher<User> hasher,
+        IOptions<LoginOptions> login,
         CancellationToken cancellationToken)
     {
-        if (!IsLongEnough(request.Password))
+        if (PasswordProblem(request.Password, login.Value) is { } problem)
         {
-            return PasswordTooShort();
+            return problem;
         }
 
         if (await FirmUserAsync(context, users, userId, cancellationToken) is not { } user)
@@ -269,10 +269,12 @@ internal static class AdminEndpoints
     private static async Task<User?> FirmUserAsync(HttpContext context, IUserStore users, Guid userId, CancellationToken cancellationToken) =>
         await users.FindByIdAsync(userId, cancellationToken) is { } user && user.TenantId == AdminApiKeyFilter.TenantOf(context).Id ? user : null;
 
-    private static bool IsLongEnough(string? password) => password is { Length: >= MinimumPasswordLength };
-
-    private static ProblemHttpResult PasswordTooShort() =>
-        Problem(StatusCodes.Status422UnprocessableEntity, $"The password needs at least {MinimumPasswordLength} characters.");
+    private static ProblemHttpResult? PasswordProblem(string? password, LoginOptions login) =>
+        password is null || password.Length < login.MinimumPasswordLength
+            ? Problem(
+                StatusCodes.Status422UnprocessableEntity,
+                login.MinimumPasswordLength == 1 ? "A password is required." : $"The password needs at least {login.MinimumPasswordLength} characters.")
+            : null;
 
     private static ProblemHttpResult UnknownUser() => Problem(StatusCodes.Status404NotFound, "The firm has no such user.");
 

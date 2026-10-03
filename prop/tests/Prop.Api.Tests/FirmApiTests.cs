@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-using Prop.Api.Firms;
 using Prop.Api.Tests.Support;
 
 namespace Prop.Api.Tests;
@@ -10,19 +9,6 @@ namespace Prop.Api.Tests;
 /// <summary>The API the firm's own systems use: its challenges and its traders' accounts.</summary>
 public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
-    private const string OtherFirmKey = "other-prop-key";
-
-    // A second firm with its own key and its own server on the trading platform.
-    private static readonly Dictionary<string, string> TwoFirms = new()
-    {
-        ["Firms:1:Id"] = "other-firm",
-        ["Firms:1:Name"] = "Other Firm",
-        ["Firms:1:ApiKeySha256"] = FirmCatalog.HashApiKey(OtherFirmKey),
-        ["Firms:1:Trading:Server"] = "other-firm",
-        ["Firms:1:Trading:ApiKey"] = "other-admin-key",
-        ["Firms:1:Trading:Group"] = "other",
-    };
-
     [Theory]
     [InlineData(null)]
     [InlineData("wrong-key")]
@@ -144,9 +130,9 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
     [Fact]
     public async Task FirmsCannotSeeEachOthersAccounts()
     {
-        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), TwoFirms);
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), PropFactory.WithOtherFirm());
         var account = await factory.StartActiveAccountAsync();
-        using var other = factory.CreateFirmClient(OtherFirmKey);
+        using var other = factory.CreateFirmClient(PropFactory.OtherFirmKey);
         var id = account.GetProperty("id").GetGuid();
 
         using var get = await other.GetAsync(new Uri($"/api/firm/v1/accounts/{id}", UriKind.Relative), TestContext.Current.CancellationToken);
@@ -170,6 +156,24 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
             TestContext.Current.CancellationToken)).Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
 
         Assert.EndsWith("account=demo-firm-1001-1", link.GetProperty("url").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnInvitationLeadsToTheFirmsPortal()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var account = await factory.StartActiveAccountAsync();
+        using var firm = factory.CreateFirmClient();
+
+        using var response = await firm.PostAsync(
+            new Uri($"/api/firm/v1/accounts/{account.GetProperty("id").GetGuid()}/invite", UriKind.Relative),
+            null,
+            TestContext.Current.CancellationToken);
+        var invite = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.StartsWith("http://localhost:3002/invite?token=", invite.GetProperty("url").GetString(), StringComparison.Ordinal);
+        Assert.Equal(PropFactory.Start.AddDays(7), invite.GetProperty("expiresAt").GetDateTimeOffset());
     }
 
     private static async Task<Guid> IdOf(HttpResponseMessage response) =>
