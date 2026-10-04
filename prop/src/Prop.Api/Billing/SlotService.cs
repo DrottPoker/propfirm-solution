@@ -33,19 +33,24 @@ public enum StartRefusal
 
     /// <summary>The firm's month is not paid.</summary>
     Unpaid,
+
+    /// <summary>We have suspended the firm.</summary>
+    Suspended,
 }
 
 /// <summary>
 /// How a firm uses its slots. <paramref name="Used"/> counts challenges that have not ended, and
 /// <paramref name="Reserved"/> orders in the portal that wait for payment, which hold a slot each so a buyer never
-/// pays for a challenge that cannot start. <paramref name="Slots"/> is null when there is no limit.
+/// pays for a challenge that cannot start. <paramref name="Slots"/> is null when there is no limit. Nothing can
+/// start while the firm is <paramref name="Suspended"/>.
 /// </summary>
-internal sealed record SlotUsage(SlotLimit Limit, int? Slots, int Used, int Reserved, bool Paid)
+internal sealed record SlotUsage(SlotLimit Limit, int? Slots, int Used, int Reserved, bool Paid, bool Suspended)
 {
     public int? Free => Slots is { } slots ? Math.Max(0, slots - Used - Reserved) : null;
 
     public StartRefusal? Refusal =>
-        !Paid ? StartRefusal.Unpaid
+        Suspended ? StartRefusal.Suspended
+        : !Paid ? StartRefusal.Unpaid
         : Free == 0 ? Limit == SlotLimit.Sandbox ? StartRefusal.SandboxFull : StartRefusal.NoFreeSlots
         : null;
 
@@ -66,6 +71,7 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
     {
         StartRefusal.SandboxFull => "The sandbox has room for no more open challenge accounts. Cancel one to start another, or go live.",
         StartRefusal.NoFreeSlots => "Every slot is taken. Buy more slots in the admin panel, or wait until a challenge ends.",
+        StartRefusal.Suspended => "The firm is suspended, so no challenges can start.",
         _ => "This month is not paid, so no challenges can start. Pay it in the admin panel.",
     };
 
@@ -74,6 +80,7 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
     {
         StartRefusal.SandboxFull => "The sandbox had no room for another open challenge account, so none was started.",
         StartRefusal.NoFreeSlots => "Every slot was taken when the payment came, so no account was started. Start it when a slot is free.",
+        StartRefusal.Suspended => "The firm was suspended when the payment came, so no account was started.",
         _ => "The firm's month was not paid when the payment came, so no account was started. Start it once the month is paid.",
     };
 
@@ -107,31 +114,25 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
             [firm.Id, now, new NpgsqlParameter { Value = (object?)exceptOrder ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Uuid }],
             cancellationToken);
 
-        // As saved, since the firm may have gone live a moment ago.
-        if (await StatusAsync(connection, firm.Id, cancellationToken) != FirmStatus.Live)
+        // As saved, since the firm may have gone live or been suspended a moment ago.
+        var state = await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken);
+        if (state.Status != FirmStatus.Live)
         {
-            return new SlotUsage(SlotLimit.Sandbox, sandbox.Value.MaxOpenAccounts, used, reserved, Paid: true);
+            return new SlotUsage(SlotLimit.Sandbox, sandbox.Value.MaxOpenAccounts, used, reserved, Paid: true, state.Suspended);
         }
 
         var billing = await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken);
         switch (billing)
         {
             case null or { Plan: BillingPlan.Complimentary, Slots: null }:
-                return new SlotUsage(SlotLimit.Unlimited, null, used, reserved, Paid: true);
+                return new SlotUsage(SlotLimit.Unlimited, null, used, reserved, Paid: true, state.Suspended);
             case { Plan: BillingPlan.Complimentary, Slots: { } slots }:
-                return new SlotUsage(SlotLimit.Complimentary, slots, used, reserved, Paid: true);
+                return new SlotUsage(SlotLimit.Complimentary, slots, used, reserved, Paid: true, state.Suspended);
             default:
                 var month = BillingRules.MonthOf(now);
                 var latest = await BillingStore.LatestPeriodAsync(connection, firm.Id, month, cancellationToken);
-                return new SlotUsage(SlotLimit.Paid, latest?.Slots ?? billing.Slots ?? 0, used, reserved, Paid: latest?.Month == month);
+                return new SlotUsage(SlotLimit.Paid, latest?.Slots ?? billing.Slots ?? 0, used, reserved, Paid: latest?.Month == month, state.Suspended);
         }
-    }
-
-    private static async Task<FirmStatus> StatusAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
-    {
-        await using var command = new NpgsqlCommand("select status from firms where id = $1", connection);
-        command.Parameters.AddWithValue(firmId);
-        return Enum.Parse<FirmStatus>((string)(await command.ExecuteScalarAsync(cancellationToken))!);
     }
 
     private static async Task<int> CountAsync(NpgsqlConnection connection, string sql, object[] parameters, CancellationToken cancellationToken)

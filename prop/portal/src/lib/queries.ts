@@ -1,7 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, resultOf } from "./api/client";
-import type { ChallengeDefinition, ChallengeStatus, OrderStatus, PaymentProvider, PayoutStatus } from "./api/types";
+import type {
+  ChallengeDefinition,
+  ChallengeStatus,
+  FirmApplication,
+  FirmDocument,
+  OrderStatus,
+  PaymentProvider,
+  PayoutStatus,
+  Verification,
+  VerificationResponse,
+} from "./api/types";
 
 export type Role = "trader" | "admin";
 
@@ -688,4 +698,117 @@ export function useCompleteTestBillingCheckout(checkoutId: string) {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["billing"] }),
   });
+}
+
+/** Our review of the firm: its application, documents and deposit. Asked every two seconds while the deposit is being confirmed. */
+export function useVerification(waitingForPayment = false) {
+  return useQuery({
+    queryKey: ["verification"],
+    queryFn: async () => verificationOf(resultOf(await api.GET("/api/portal/admin/verification"), "the review")),
+    refetchInterval: (query) => (waitingForPayment && query.state.data?.deposit.paid === false ? 2_000 : false),
+  });
+}
+
+/** The service said no because of one of the application's fields, named as in the application. */
+export class FieldError extends ApiError {
+  constructor(
+    message: string,
+    status: number,
+    readonly field: string | null,
+  ) {
+    super(message, status);
+    this.name = "FieldError";
+  }
+}
+
+/** Saves the application as a draft. */
+export function useSaveApplication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (application: FirmApplication) => saveApplication(application),
+    onSuccess: (verification) => queryClient.setQueryData(["verification"], verification),
+  });
+}
+
+/**
+ * Saves the application and sends it, so what is sent is what the form shows. The answer has the page where the
+ * firm pays the deposit, or none when the application was sent at once.
+ */
+export function useSubmitApplication() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (application: FirmApplication) => {
+      queryClient.setQueryData(["verification"], await saveApplication(application));
+      const result = await api.POST("/api/portal/admin/verification/submit");
+      if (result.data) {
+        return result.data;
+      }
+
+      throw fieldErrorOf(result.error, result.response.status, "the application");
+    },
+    onSuccess: async (submitted) => {
+      if (!submitted.checkoutUrl) {
+        await Promise.all([queryClient.invalidateQueries({ queryKey: ["verification"] }), queryClient.invalidateQueries({ queryKey: ["billing"] })]);
+      }
+    },
+  });
+}
+
+/** Adds a document to the application. The service knows its format from its content. */
+export function useUploadDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File): Promise<FirmDocument> => {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/portal/admin/verification/documents", { method: "POST", body, credentials: "same-origin" });
+      const answer: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw fieldErrorOf(answer, response.status, "the document");
+      }
+
+      return answer as FirmDocument;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["verification"] }),
+  });
+}
+
+export function useRemoveDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (documentId: string) => {
+      const result = await api.DELETE("/api/portal/admin/verification/documents/{documentId}", { params: { path: { documentId } } });
+      if (!result.response.ok) {
+        resultOf(result, "the removal");
+      }
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["verification"] }),
+  });
+}
+
+// A firm always has a review status here; the schema allows none only because it is shared.
+function verificationOf(response: VerificationResponse): Verification {
+  return { ...response, status: response.status ?? "Draft" };
+}
+
+async function saveApplication(application: FirmApplication): Promise<Verification> {
+  const result = await api.PUT("/api/portal/admin/verification/application", { body: application });
+  if (result.data) {
+    return verificationOf(result.data);
+  }
+
+  throw fieldErrorOf(result.error, result.response.status, "the application");
+}
+
+export function fieldErrorOf(error: unknown, status: number, what: string): FieldError {
+  const problem = typeof error === "object" && error !== null ? (error as { title?: unknown; field?: unknown }) : {};
+  return new FieldError(
+    typeof problem.title === "string"
+      ? problem.title
+      : status === 413
+        ? "The file is too large. A document can be at most 10 MB."
+        : `Could not save ${what} (HTTP ${status}).`,
+    status,
+    typeof problem.field === "string" ? problem.field : null,
+  );
 }

@@ -19,9 +19,11 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Json;
+using Prop.Api.Ops;
 using Prop.Api.Payments;
 using Prop.Api.Persistence;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 using Prop.Api.Signup;
 using Prop.Api.Trading;
 
@@ -49,7 +51,11 @@ var platform = builder.Services.AddOptions<PlatformOptions>()
         "Platform:FirmPortalUrl must be an absolute address with {firm} for the short name, ending with /.")
     .Validate(
         o => o.ApiUrl is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/'),
-        "Platform:ApiUrl must be the absolute address where the internet reaches this service, ending with /.");
+        "Platform:ApiUrl must be the absolute address where the internet reaches this service, ending with /.")
+    .Validate(
+        o => o.OpsUrl is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/')
+            && !string.Equals(url.Host, o.Url?.Host, StringComparison.OrdinalIgnoreCase),
+        "Platform:OpsUrl must be the absolute address of our admin view, on its own host, ending with /.");
 var email = builder.Services.AddOptions<EmailOptions>()
     .Bind(builder.Configuration.GetSection(EmailOptions.SectionName))
     .Validate(
@@ -61,6 +67,7 @@ builder.Services.AddOptions<SandboxOptions>()
     .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
+builder.Services.AddOptions<StaffOptions>().Bind(builder.Configuration.GetSection(StaffOptions.SectionName));
 builder.Services.AddOptions<PaymentsOptions>()
     .Bind(builder.Configuration.GetSection(PaymentsOptions.SectionName))
     .Validate(
@@ -69,7 +76,9 @@ builder.Services.AddOptions<PaymentsOptions>()
     .ValidateOnStart();
 var billingOptions = builder.Services.AddOptions<BillingOptions>()
     .Bind(builder.Configuration.GetSection(BillingOptions.SectionName))
-    .Validate(o => BillingTerms.From(o).Problems().Count == 0, "Billing has invalid prices or slot rules. Check Billing:Currency, StartupFee, SlotPrices, MinSlots, MaxSlots and ChargeDaysBeforeMonth.")
+    .Validate(
+        o => BillingTerms.From(o).Problems().Count == 0,
+        "Billing has invalid prices or slot rules. Check Billing:Currency, StartupFee, ReviewDeposit, SlotPrices, MinSlots, MaxSlots and ChargeDaysBeforeMonth.")
     .Validate(
         o => o.RetryInterval > TimeSpan.Zero && o.MaxAttempts >= 1 && o.WarningPercent is >= 1 and <= 100
             && o.CheckoutLifetime >= TimeSpan.FromMinutes(30) && o.CheckoutLifetime <= TimeSpan.FromHours(23),
@@ -118,6 +127,12 @@ builder.Services.AddSingleton<IBillingGateway>(sp =>
         : ActivatorUtilities.CreateInstance<StripeBillingGateway>(sp));
 builder.Services.AddSingleton<PortalUsers>();
 builder.Services.AddSingleton<IPasswordHasher<PortalUser>, PasswordHasher<PortalUser>>();
+builder.Services.AddSingleton<StaffUsers>();
+builder.Services.AddSingleton<IPasswordHasher<StaffUser>, PasswordHasher<StaffUser>>();
+builder.Services.AddSingleton<StaffNotifier>();
+builder.Services.AddSingleton<ReviewStore>();
+builder.Services.AddSingleton<ReviewService>();
+builder.Services.AddSingleton<OpsFirms>();
 
 // Portal sessions survive restarts and work across instances, since the keys that protect them are in the database.
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
@@ -134,6 +149,7 @@ builder.Services.AddOptions<LoginOptions>()
         "Login needs a password length of at least 1, attempts per minute of 0 or more and a positive session lifetime.")
     .ValidateOnStart();
 builder.Services.AddPortalAuth();
+builder.Services.AddStaffAuth();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -168,6 +184,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<FirmSeeder>();
     builder.Services.AddHostedService<ChallengeSeeder>();
     builder.Services.AddHostedService<PortalSeeder>();
+    builder.Services.AddHostedService<StaffSeeder>();
     builder.Services.AddHostedService<TradingEventConsumer>();
     builder.Services.AddHostedService<TradingCommandWorker>();
     builder.Services.AddHostedService<TradingDayScheduler>();
@@ -194,6 +211,7 @@ if (!app.Environment.IsDevelopment() && !isOpenApiGeneration)
 // adds their address and scheme. The login limit counts each browser, and the session cookie is secure behind
 // HTTPS. Only loopback proxies are trusted until production networks are configured.
 app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto });
+app.UseOpsHost();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -202,6 +220,7 @@ app.MapHealthChecks("/health");
 app.MapFirmApi();
 app.MapPortalApi();
 app.MapSignupApi();
+app.MapOpsApi();
 app.MapPaymentWebhooks();
 app.MapBillingWebhooks();
 

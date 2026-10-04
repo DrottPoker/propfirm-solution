@@ -10,6 +10,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
 using Prop.Api.Payments;
+using Prop.Api.Review;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -72,6 +73,7 @@ internal static class PortalEndpoints
         admin.MapAdminSettings();
         admin.MapAdminOrders();
         admin.MapAdminBilling();
+        admin.MapAdminVerification();
         return app;
     }
 

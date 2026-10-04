@@ -5,6 +5,7 @@ export const chargeKindLabels: Record<ChargeKind, string> = {
   Activation: "Going live",
   Renewal: "Month",
   Slots: "More slots",
+  Deposit: "Deposit",
 };
 
 export const chargeStatusLabels: Record<ChargeStatus, string> = {
@@ -55,6 +56,8 @@ export function chargeLabel(charge: Charge): string {
       return "Startup fee and the first month";
     case "Renewal":
       return `Slots for ${monthName(charge.month)}`;
+    case "Deposit":
+      return "Deposit for the review, taken off the startup fee";
     default:
       return `More slots, ${monthName(charge.month)}`;
   }
@@ -70,10 +73,19 @@ export function unpaidCharges(billing: Billing): Charge[] {
   return billing.charges.filter((c) => c.canPay && (c.failure !== null || c.status === "Failed")).reverse();
 }
 
-export type BillingNotice = { tone: "loss" | "warning"; text: string };
+/** billingLink is false when the billing page cannot help. */
+export type BillingNotice = { tone: "loss" | "warning"; text: string; billingLink?: false };
 
 /** What the firm's administrators must know about the billing on every page, or null when all is well. */
 export function billingNotice(billing: Billing): BillingNotice | null {
+  if (billing.suspension !== null) {
+    return {
+      tone: "loss",
+      text: `Your firm is suspended: ${billing.suspension.reason} No new challenges can start, and your traders' accounts are paused until we lift it. Reply to our email to talk to us.`,
+      billingLink: false,
+    };
+  }
+
   if (billing.unpaidSince !== null) {
     return {
       tone: "loss",

@@ -93,7 +93,8 @@ internal sealed partial class FirmSeeder(FirmStore store, BillingStore billing, 
                 provider,
                 hasStripeKeys ? new StripeKeys(payments.StripeSecretKey, payments.StripeWebhookSecret) : null,
                 payments.CheckoutUrl,
-                payments.TermsUrl));
+                payments.TermsUrl),
+            null);
     }
 
     private static void Require(bool condition, string message)

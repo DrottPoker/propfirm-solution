@@ -7,7 +7,7 @@
 
 Produktplanen säger att firman alltid betalar i förskott för ett antal platser, alltså hur många challenges den kan ha aktiva samtidigt (se Affärsmodell och prissättning). Vi fakturerar aldrig i efterhand, så en firma som läggs ner kan inte lämna obetalda skulder. En challenge som aldrig tar slut får inte äta upp firmans intäkt, så planen lägger också till en regel om inaktivitet och en valfri tidsgräns per fas.
 
-Hittills har firman inte betalat oss något, och en firma som registrerat sig kan inte gå live. Kontrollen av bolag och ägare innan live kommer i fas 9.
+Hittills har firman inte betalat oss något, och en firma som registrerat sig kan inte gå live. Kontrollen av bolag och ägare innan live beskrivs i ADR 0021.
 
 ## Beslut
 
@@ -23,7 +23,7 @@ Hittills har firman inte betalat oss något, och en firma som registrerat sig ka
 - **Handelsplattformen får pausade konton** (`Suspended`). Väntande ordrar tas bort när kontot pausas, eftersom de annars skulle öppna positioner. Admin-API:t har `suspend` och `resume`, som går att upprepa.
 - **En challenge tar bara slut på tid när firmans händelser är lästa.** Dagen som avslutar den väntar tills handelsplattformens händelser från före dagen är hanterade, så att en affär gjord i sista stund räknas även när händelsen kommer sent, till exempel efter en omstart.
 - **Inaktivitet och tidsgräns är regler i regelmotorn.** En challenge där ingen ny position öppnats på `InactivityDays` dagar tar slut, i alla faser. Mallen har 30 dagar. En fas kan ha en tidsgräns i dagar efter dagen den började. Båda kontrolleras när en handelsdag börjar och ger utdatan `ChallengeExpired`, webhooken `account.expired` och status `Failed`, och frigör platsen.
-- **Firman går live genom att betala.** Den första betalningen är startavgiften och platserna för resten av månaden, och för nästa månad också om den redan ska debiteras. När den är betald blir firman live, dess testkonton från sandlådan avslutas och dess obetalda testordrar går ut. Tills kontrollen av firman finns (fas 9) går det bara när `Billing:AllowGoLiveWithoutVerification` är på, vilket bara är i utveckling.
+- **Firman går live genom att betala.** Den första betalningen är startavgiften och platserna för resten av månaden, och för nästa månad också om den redan ska debiteras. När den är betald blir firman live, dess testkonton från sandlådan avslutas och dess obetalda testordrar går ut. Det går först när vi har granskat och godkänt firman, och handpenningen den betalade för granskningen dras av från startavgiften (ADR 0021).
 - **Automatisk utökning** köper `AutoExpandStep` platser till med kortet när den sista lediga platsen tas, om firman har slagit på det.
 - **Administratörerna varnas** en gång per mejl när `WarningPercent` av platserna är tagna (standard 80), och igen först när användningen har sjunkit under gränsen.
 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 
 using Microsoft.Extensions.Options;
@@ -8,7 +9,9 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Ops;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 using Prop.Rules;
 
 namespace Prop.Api.Billing;
@@ -52,11 +55,12 @@ internal abstract record AttemptOutcome
 }
 
 /// <summary>
-/// What firms pay us for their slots (ADR 0020). A firm in the sandbox goes live by paying the startup fee and its
-/// first month on a checkout page, which saves its card. Each month is then charged to the card some days before
-/// it starts. More slots are paid at once for the rest of the month, fewer apply from the next unpaid month. A
-/// month that starts unpaid pauses the firm's challenges until it is paid. Every change to a charge happens in
-/// one transaction with what it pays for, so a payment is never counted twice or lost.
+/// What firms pay us for their slots (ADR 0020). A firm in the sandbox pays a deposit when it sends its application
+/// for our review, and once approved goes live by paying the startup fee less the deposit and its first month on a
+/// checkout page, which saves its card (ADR 0021). Each month is then charged to the card some days before it
+/// starts. More slots are paid at once for the rest of the month, fewer apply from the next unpaid month. A month
+/// that starts unpaid, or our suspension of the firm, pauses its challenges until neither holds. Every change to a
+/// charge happens in one transaction with what it pays for, so a payment is never counted twice or lost.
 /// </summary>
 internal sealed partial class BillingService(
     BillingStore store,
@@ -65,6 +69,7 @@ internal sealed partial class BillingService(
     FirmStore firmStore,
     FirmCatalog firms,
     FirmAdmins admins,
+    StaffNotifier staff,
     IEmailSender email,
     IBillingGateway gateway,
     WorkSignals signals,
@@ -73,6 +78,9 @@ internal sealed partial class BillingService(
     TimeProvider time,
     ILogger<BillingService> logger)
 {
+    // One change of a firm's paused challenges at a time, so the last decision always wins.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _standing = new(StringComparer.Ordinal);
+
     /// <summary>How long after the provider could not be reached a charge is tried again.</summary>
     public static readonly TimeSpan UnavailableRetry = TimeSpan.FromMinutes(5);
 
@@ -86,14 +94,20 @@ internal sealed partial class BillingService(
 
     public BillingProvider Provider => gateway.Provider;
 
-    /// <summary>Why the firm cannot go live by paying now. Null when it can.</summary>
-    public string? GoLiveProblem(Firm firm) => firm.Status switch
+    /// <summary>Why the firm cannot go live by paying now. Null when it can: in the sandbox, approved by us and not suspended.</summary>
+    public static string? GoLiveProblem(GoLiveState state) => state switch
     {
-        FirmStatus.Live => "The firm is already live.",
-        FirmStatus.Provisioning => "The firm's trading server is still being set up. Try again in a minute.",
-        _ when !options.Value.AllowGoLiveWithoutVerification => "Going live needs a check of the company and its owners, which is not available yet.",
-        _ => null,
+        { Status: FirmStatus.Live } => "The firm is already live.",
+        { Status: FirmStatus.Provisioning } => "The firm's trading server is still being set up. Try again in a minute.",
+        { Suspended: true } => "The firm is suspended, so it cannot go live.",
+        { Review: ReviewStatus.Approved } => null,
+        { Review: ReviewStatus.Submitted } => "We are reviewing your application. You can go live once it is approved.",
+        { Review: ReviewStatus.Rejected } => "Your application was not approved, so the firm cannot go live.",
+        _ => "We review your company before you go live. Send your application under Verification.",
     };
+
+    /// <summary>Where a checkout page sends the firm back to: its application for the deposit, otherwise its billing.</summary>
+    public static string ReturnPathOf(ChargeKind? kind) => kind == ChargeKind.Deposit ? "admin/verification" : "admin/billing";
 
     public string? SlotsProblem(int slots) =>
         slots < Terms.MinSlots || slots > Terms.MaxSlots
@@ -104,35 +118,32 @@ internal sealed partial class BillingService(
         step is null or (>= 1 and <= MaxAutoExpandStep) ? null : FormattableString.Invariant($"Buy 1 to {MaxAutoExpandStep:N0} slots at a time, or turn automatic expansion off.");
 
     /// <summary>
-    /// Starts the first payment of a firm in the sandbox: the startup fee and its slots for the rest of the month.
-    /// The firm pays on a checkout page, which saves the card, and goes live once the provider says it is paid.
-    /// An earlier first payment that was never finished is void.
+    /// Starts the first payment of a firm in the sandbox that we approved: the startup fee less the deposit it paid,
+    /// and its slots for the rest of the month. The firm pays on a checkout page, which saves the card, and goes live
+    /// once the provider says it is paid. An earlier first payment that was never finished is void.
     /// </summary>
     public async Task<BillingResult> StartActivationAsync(Firm firm, int slotCount, int? autoExpandStep, string adminEmail, CancellationToken cancellationToken)
     {
-        if (GoLiveProblem(firm) is { } problem)
-        {
-            return new BillingResult.Refused(StatusCodes.Status409Conflict, problem);
-        }
-
         if ((SlotsProblem(slotCount) ?? AutoExpandProblem(autoExpandStep)) is { } invalid)
         {
             return new BillingResult.Refused(StatusCodes.Status422UnprocessableEntity, invalid);
         }
 
         var now = time.GetUtcNow();
-        var lines = BillingRules.Activation(now, slotCount, Terms);
         var months = BillingRules.IsNextMonthDue(now, Terms) ? 2 : 1;
         Charge charge;
+        string? customerId;
         List<string> abandoned = [];
         await using (var connection = await store.OpenAsync(cancellationToken))
         {
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            if (await BillingStore.LockFirmStatusAsync(connection, firm.Id, cancellationToken) != FirmStatus.Sandbox)
+            if (GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: true, cancellationToken)) is { } problem)
             {
-                return new BillingResult.Refused(StatusCodes.Status409Conflict, "The firm is already live, or its trading server is still being set up.");
+                return new BillingResult.Refused(StatusCodes.Status409Conflict, problem);
             }
 
+            var lines = BillingRules.Activation(now, slotCount, Terms, await BillingStore.DepositPaidAsync(connection, firm.Id, Terms.Currency, cancellationToken));
+            customerId = (await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken))?.Card?.CustomerId;
             await BillingStore.SavePaidPlanAsync(connection, firm.Id, gateway.Provider, slotCount, autoExpandStep, now, cancellationToken);
             foreach (var earlier in (await BillingStore.OpenChargesAsync(connection, firm.Id, cancellationToken)).Where(c => c.Kind == ChargeKind.Activation))
             {
@@ -140,6 +151,48 @@ internal sealed partial class BillingService(
             }
 
             charge = await InsertChargeAsync(connection, firm.Id, ChargeKind.Activation, BillingRules.MonthOf(now), months, slotCount, lines, null, now, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        foreach (var checkoutId in abandoned)
+        {
+            await gateway.ExpireCheckoutAsync(checkoutId, cancellationToken);
+        }
+
+        return await OpenCheckoutAsync(firm, CheckoutPurpose.Payment, charge, adminEmail, customerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts the deposit for our review, when the firm sends its application. The firm pays on a checkout page,
+    /// which saves the card, and the application is sent once the provider says it is paid. An earlier deposit
+    /// that was never finished is void.
+    /// </summary>
+    public async Task<BillingResult> StartDepositAsync(Firm firm, string adminEmail, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        Charge charge;
+        List<string> abandoned = [];
+        await using (var connection = await store.OpenAsync(cancellationToken))
+        {
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            var state = await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: true, cancellationToken);
+            if (state.Status == FirmStatus.Live || state.Suspended)
+            {
+                return new BillingResult.Refused(StatusCodes.Status409Conflict, state.Suspended ? "The firm is suspended." : "The firm is already live.");
+            }
+
+            if (await BillingStore.DepositPaidAsync(connection, firm.Id, Terms.Currency, cancellationToken) > 0)
+            {
+                return new BillingResult.Refused(StatusCodes.Status409Conflict, "The deposit is already paid.");
+            }
+
+            await BillingStore.EnsurePaidPlanAsync(connection, firm.Id, gateway.Provider, now, cancellationToken);
+            foreach (var earlier in (await BillingStore.OpenChargesAsync(connection, firm.Id, cancellationToken)).Where(c => c.Kind == ChargeKind.Deposit))
+            {
+                abandoned.AddRange(await VoidAsync(connection, earlier, "started_again", BillingSources.Admin, now, cancellationToken) ?? []);
+            }
+
+            charge = await InsertChargeAsync(connection, firm.Id, ChargeKind.Deposit, BillingRules.MonthOf(now), 0, 0, BillingRules.Deposit(Terms), null, now, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -380,11 +433,16 @@ internal sealed partial class BillingService(
                 return CompletionOutcome.AlreadyDone;
             }
 
-            // A charge paid in another way, a void one, or a first payment for a firm that is already live, was paid
-            // twice. The extra payment is refunded by hand. A first payment started again still takes the firm live.
-            var liveAlready = charge.Kind == ChargeKind.Activation
-                && await BillingStore.LockFirmStatusAsync(connection, firm.Id, cancellationToken) == FirmStatus.Live;
-            if (charge.Status == ChargeStatus.Paid || (charge.Status == ChargeStatus.Void && charge.Kind != ChargeKind.Activation) || liveAlready)
+            // A charge paid in another way, a void one, a first payment for a firm that is already live, or a second
+            // deposit, was paid twice. The extra payment is refunded by hand. A first payment or a deposit started
+            // again still counts.
+            var paidAlready = charge.Kind switch
+            {
+                ChargeKind.Activation => await BillingStore.LockFirmStatusAsync(connection, firm.Id, cancellationToken) == FirmStatus.Live,
+                ChargeKind.Deposit => await BillingStore.DepositPaidAsync(connection, firm.Id, charge.Currency, cancellationToken) > 0,
+                _ => false,
+            };
+            if (charge.Status == ChargeStatus.Paid || (charge.Status == ChargeStatus.Void && !IsStartedByFirm(charge.Kind)) || paidAlready)
             {
                 await BillingStore.AddEventAsync(connection, firm.Id, charge.Id, "paid_twice", completion.Source, completion.Detail, now, cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
@@ -400,7 +458,7 @@ internal sealed partial class BillingService(
         return CompletionOutcome.Done;
     }
 
-    /// <summary>The checkout page was not completed in time. A first payment on it is void, so the firm starts again.</summary>
+    /// <summary>The checkout page was not completed in time. A first payment or a deposit on it is void, so the firm starts again.</summary>
     public async Task ExpireCheckoutAsync(string checkoutId, string source, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
@@ -414,9 +472,10 @@ internal sealed partial class BillingService(
         await BillingStore.SetCheckoutStatusAsync(connection, checkout.Id, CheckoutStatus.Expired, now, cancellationToken);
         await BillingStore.AddEventAsync(connection, checkout.FirmId, checkout.ChargeId, "checkout_expired", source, null, now, cancellationToken);
         if (checkout.ChargeId is { } chargeId
-            && await BillingStore.GetChargeAsync(connection, chargeId, forUpdate: true, cancellationToken) is { Kind: ChargeKind.Activation, Status: ChargeStatus.Pending } activation)
+            && await BillingStore.GetChargeAsync(connection, chargeId, forUpdate: true, cancellationToken) is { Status: ChargeStatus.Pending } started
+            && IsStartedByFirm(started.Kind))
         {
-            await VoidAsync(connection, activation, "not_paid_in_time", source, now, cancellationToken);
+            await VoidAsync(connection, started, "not_paid_in_time", source, now, cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -435,7 +494,7 @@ internal sealed partial class BillingService(
         {
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             var charge = await BillingStore.GetChargeAsync(connection, chargeId, forUpdate: true, cancellationToken);
-            if (charge is null or { Kind: ChargeKind.Activation } || firms.ById(charge.FirmId) is not { } found)
+            if (charge is null || IsStartedByFirm(charge.Kind) || firms.ById(charge.FirmId) is not { } found)
             {
                 return;
             }
@@ -601,8 +660,8 @@ internal sealed partial class BillingService(
     }
 
     /// <summary>
-    /// Pauses the firm's challenges while this month is unpaid, and resumes them once it is paid. Challenges that
-    /// started or ended in between are caught up the next time.
+    /// Marks when this month began unpaid and emails the administrators, then pauses or resumes the firm's
+    /// challenges. Challenges that started or ended in between are caught up the next time.
     /// </summary>
     private async Task KeepStandingAsync(Firm firm, FirmBilling billing, bool paid, CancellationToken cancellationToken)
     {
@@ -628,29 +687,68 @@ internal sealed partial class BillingService(
             await BillingStore.AddEventAsync(connection, firm.Id, null, "resumed", BillingSources.Platform, null, now, cancellationToken);
         }
 
-        List<(Guid Id, bool Paused)> accounts;
-        await using (var connection = await store.OpenAsync(cancellationToken))
-        {
-            accounts = await BillingStore.OpenAccountsAsync(connection, firm.Id, cancellationToken);
-        }
+        await KeepChallengesStandingAsync(firm, cancellationToken);
+    }
 
-        foreach (var (accountId, _) in accounts.Where(a => a.Paused == paid))
+    /// <summary>
+    /// Pauses the firm's challenges while we have suspended it or its month is unpaid, and resumes them once neither
+    /// holds. One firm at a time, and what holds is read again before each challenge, so the latest decision wins.
+    /// </summary>
+    public async Task KeepChallengesStandingAsync(Firm firm, CancellationToken cancellationToken)
+    {
+        var gate = _standing.GetOrAdd(firm.Id, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
         {
-            if (!paid && await IsMonthPaidAsync(firm, cancellationToken))
+            List<(Guid Id, bool Paused)> accounts;
+            bool run;
+            await using (var connection = await store.OpenAsync(cancellationToken))
             {
-                return;
+                run = await ShouldRunAsync(connection, firm.Id, cancellationToken);
+                accounts = await BillingStore.OpenAccountsAsync(connection, firm.Id, cancellationToken);
             }
 
-            await challenges.ApplyAsync(
-                firm,
-                accountId,
-                state =>
+            foreach (var (accountId, _) in accounts.Where(a => a.Paused == run))
+            {
+                await using (var connection = await store.OpenAsync(cancellationToken))
                 {
-                    var day = TradingDays.DayOf(now, state.Definition.TradingDay);
-                    return paid ? new ResumeChallenge(now, day) : new PauseChallenge(now, day);
-                },
-                cancellationToken);
+                    if (await ShouldRunAsync(connection, firm.Id, cancellationToken) != run)
+                    {
+                        // Decided again meanwhile. Whoever changed it runs this again.
+                        return;
+                    }
+                }
+
+                var now = time.GetUtcNow();
+                await challenges.ApplyAsync(
+                    firm,
+                    accountId,
+                    state =>
+                    {
+                        var day = TradingDays.DayOf(now, state.Definition.TradingDay);
+                        return run ? new ResumeChallenge(now, day) : new PauseChallenge(now, day);
+                    },
+                    cancellationToken);
+            }
         }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    // Whether the firm's challenges may run: it is not suspended, and a firm that pays by card has paid this month.
+    private async Task<bool> ShouldRunAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
+    {
+        var state = await BillingStore.GoLiveStateAsync(connection, firmId, forUpdate: false, cancellationToken);
+        if (state.Suspended)
+        {
+            return false;
+        }
+
+        return state.Status != FirmStatus.Live
+            || await BillingStore.GetBillingAsync(connection, firmId, forUpdate: false, cancellationToken) is not { Plan: BillingPlan.Paid, ActivatedAt: not null }
+            || await BillingStore.GetPeriodAsync(connection, firmId, BillingRules.MonthOf(time.GetUtcNow()), cancellationToken) is not null;
     }
 
     /// <summary>
@@ -700,9 +798,9 @@ internal sealed partial class BillingService(
     }
 
     /// <summary>
-    /// Marks the charge as paid in the caller's transaction and applies what it pays for. A first payment takes the
-    /// firm live, ends its sandbox accounts, lets its unpaid sandbox orders expire and voids other first payments
-    /// that were started.
+    /// Marks the charge as paid in the caller's transaction and applies what it pays for. A deposit sends the firm's
+    /// application. A first payment takes the firm live, ends its sandbox accounts, lets its unpaid sandbox orders
+    /// expire and voids other first payments that were started.
     /// </summary>
     private async Task<PaidEffects> MarkPaidAsync(
         NpgsqlConnection connection,
@@ -721,9 +819,15 @@ internal sealed partial class BillingService(
             [now, BillingStore.Text(reference)],
             cancellationToken);
         await BillingStore.AddEventAsync(connection, firm.Id, charge.Id, "paid", source, detail, now, cancellationToken);
-        await BillingStore.PayMonthsAsync(connection, firm.Id, charge.Month, charge.Months, charge.Slots, now, cancellationToken);
+        if (charge.Months > 0)
+        {
+            await BillingStore.PayMonthsAsync(connection, firm.Id, charge.Month, charge.Months, charge.Slots, now, cancellationToken);
+        }
+
         switch (charge.Kind)
         {
+            case ChargeKind.Deposit:
+                return new PaidEffects(WentLive: false, [], await ReviewStore.SubmitPaidDraftAsync(connection, firm.Id, charge.Number, now, cancellationToken));
             case ChargeKind.Activation:
                 await SlotService.LockAsync(connection, firm.Id, cancellationToken);
                 if (await BillingStore.LockFirmStatusAsync(connection, firm.Id, cancellationToken) == FirmStatus.Live)
@@ -792,13 +896,19 @@ internal sealed partial class BillingService(
         return abandoned;
     }
 
-    // After the payment is saved: the firm as saved, so every request sees that it is live, and the workers woken.
+    // After the payment is saved: the firm as saved, so every request sees that it is live, our staff told about a
+    // new application, and the workers woken.
     private async Task AfterPaidAsync(Firm firm, PaidEffects effects, CancellationToken cancellationToken)
     {
         if (effects.WentLive)
         {
             firms.Put(await firmStore.GetAsync(firm.Id, cancellationToken) ?? firm);
             challenges.Notify(firm);
+        }
+
+        if (effects.Submitted)
+        {
+            await staff.ApplicationSubmittedAsync(firm, cancellationToken);
         }
 
         foreach (var checkoutId in effects.Abandoned)
@@ -817,13 +927,13 @@ internal sealed partial class BillingService(
         try
         {
             page = await gateway.CreateCheckoutAsync(
-                new CheckoutRequest(firm.Id, adminEmail, purpose, charge?.ToPay(), customerId, firm.Portal.Url, expiresAt),
+                new CheckoutRequest(firm.Id, adminEmail, purpose, charge?.ToPay(), customerId, firm.Portal.Url, ReturnPathOf(charge?.Kind), expiresAt),
                 cancellationToken);
         }
         catch (BillingProviderUnavailableException exception)
         {
             LogCheckoutNotStarted(logger, exception, firm.Id);
-            if (charge is { Kind: ChargeKind.Activation })
+            if (charge is not null && IsStartedByFirm(charge.Kind))
             {
                 await using var voiding = await store.OpenAsync(cancellationToken);
                 await VoidAsync(voiding, charge, "checkout_not_started", BillingSources.Platform, now, cancellationToken);
@@ -930,6 +1040,9 @@ internal sealed partial class BillingService(
     private static async Task<bool> HasOpenSlotsChargeAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken) =>
         (await BillingStore.OpenChargesAsync(connection, firmId, cancellationToken)).Any(c => c.Kind == ChargeKind.Slots);
 
+    // Paid only on a checkout page the firm opened, never by charging the saved card, and void when it is not paid in time.
+    private static bool IsStartedByFirm(ChargeKind kind) => kind is ChargeKind.Activation or ChargeKind.Deposit;
+
     // Best effort: the admin panel shows the same, and a failed email is only logged.
     private async Task EmailAdminsAsync(Firm firm, Func<string, EmailMessage> message, CancellationToken cancellationToken)
     {
@@ -958,8 +1071,11 @@ internal sealed partial class BillingService(
 
     private static BillingResult.Refused UnknownCharge() => new(StatusCodes.Status404NotFound, "The firm has no such charge.");
 
-    /// <summary>What paying a charge changed beyond the charge: whether the firm went live, and checkout pages no longer wanted.</summary>
-    private sealed record PaidEffects(bool WentLive, IReadOnlyList<string> Abandoned);
+    /// <summary>
+    /// What paying a charge changed beyond the charge: whether the firm went live, checkout pages no longer wanted,
+    /// and whether the firm's application was sent.
+    /// </summary>
+    private sealed record PaidEffects(bool WentLive, IReadOnlyList<string> Abandoned, bool Submitted = false);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The billing provider did not start a checkout for firm {FirmId}")]
     private static partial void LogCheckoutNotStarted(ILogger logger, Exception exception, string firmId);

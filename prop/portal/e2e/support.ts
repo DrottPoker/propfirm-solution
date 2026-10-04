@@ -1,10 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 
-import { platformUrl, portalPort } from "../playwright.config";
+import { opsUrl, platformUrl, portalPort } from "../playwright.config";
 
-// The development firm and its administrator, from Prop.Api's appsettings.Development.json.
+// The development firm and its administrator, and our staff member, from Prop.Api's appsettings.Development.json.
 export const firmName = "Demo Firm";
 export const admin = { email: "admin@test.com", password: "admin" };
+export const staff = { email: "ops@test.com", password: "ops" };
 
 export const traderPassword = "e2e-trader-password";
 
@@ -37,4 +38,56 @@ export async function acceptInvitation(page: Page, invitation: string) {
   await page.getByLabel("Repeat password").fill(traderPassword);
   await page.getByRole("button", { name: "Save password and continue" }).click();
   await expect(page).toHaveURL(/\/$/);
+}
+
+/** The firm fills in its application on the Verification page. */
+export async function fillApplication(page: Page, companyName: string) {
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Verification" }).click();
+  await page.getByLabel("Legal name").fill(companyName);
+  await page.getByLabel("Registration number").fill("559000-1234");
+  await page.getByLabel("Country of registration").selectOption("SE");
+  await page.getByLabel("Registered address").fill("Storgatan 1\n111 22 Stockholm");
+  await page.getByLabel("Contact person").fill("Anna Andersson");
+  await page.getByRole("button", { name: "Add owner" }).click();
+  await page.getByLabel("Name of owner 1").fill("Anna Andersson");
+  await page.getByLabel("Share of owner 1").fill("100");
+  await page.getByLabel("Your terms for traders").fill("https://example.com/terms");
+}
+
+/** The firm sends its application, paying the deposit on the test payment page. */
+export async function sendApplication(page: Page) {
+  await page.getByRole("button", { name: /^Pay .* and send for review$/ }).click();
+  await expect(page).toHaveURL(/\/admin\/billing\/checkout\/test_[0-9a-f]+$/);
+  await page.getByRole("button", { name: /^Pay / }).click();
+  await expect(page).toHaveURL(/\/admin\/verification\?checkout=done$/);
+  await expect(page.getByText("Thank you. The deposit is paid and your application is sent.")).toBeVisible();
+}
+
+/** Our staff member opens the firm in our admin view, in a page of its own, logging in first when needed. */
+export async function openAsStaff(page: Page, shortName: string): Promise<Page> {
+  const ops = await page.context().newPage();
+  await ops.goto(`${opsUrl}/ops/firms/${shortName}`);
+  const login = ops.getByRole("heading", { name: "Staff login" });
+  const review = ops.getByRole("heading", { name: "Review", exact: true });
+  await expect(login.or(review)).toBeVisible();
+  if (await login.isVisible()) {
+    await ops.getByLabel("Email").fill(staff.email);
+    await ops.getByLabel("Password", { exact: true }).fill(staff.password);
+    await ops.getByRole("button", { name: "Log in" }).click();
+    await expect(ops).toHaveURL(`${opsUrl}/ops`);
+    await ops.goto(`${opsUrl}/ops/firms/${shortName}`);
+  }
+
+  await expect(review).toBeVisible();
+  return ops;
+}
+
+/** The firm sends a complete application with the deposit, and our staff approve it, so it can go live. */
+export async function getApproved(page: Page, shortName: string) {
+  await fillApplication(page, `${shortName} Ltd`);
+  await sendApplication(page);
+  const ops = await openAsStaff(page, shortName);
+  await ops.getByRole("button", { name: "Approve" }).click();
+  await expect(ops.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await ops.close();
 }

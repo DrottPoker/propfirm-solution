@@ -174,6 +174,106 @@ internal static class PlatformEmails
             {platform}
             """);
 
+    /// <summary>To our staff: a firm sent its application and waits for our review.</summary>
+    public static EmailMessage ApplicationSubmitted(string platform, string firmName, string firmId, string to, Uri reviewUrl) =>
+        new(
+            to,
+            $"{firmName} is waiting for review",
+            $"""
+            Hi,
+
+            {firmName} ({firmId}) sent its application to go live. Review it here:
+
+            {reviewUrl}
+
+            {platform}
+            """);
+
+    /// <summary>We need the firm to change its application before we can approve it.</summary>
+    public static EmailMessage ChangesRequested(string platform, string firmName, string to, string message, Uri verificationUrl) =>
+        new(
+            to,
+            $"Changes needed for {firmName}",
+            $"""
+            Hi,
+
+            We have looked at the application for {firmName} and need a few changes before we can approve it:
+
+            {message}
+
+            Change your application and send it again in your admin panel. You do not pay the deposit again.
+
+            {verificationUrl}
+
+            {platform}
+            """);
+
+    /// <summary>The firm is approved and can go live by paying.</summary>
+    public static EmailMessage ApplicationApproved(string platform, string firmName, string to, string? message, Uri billingUrl) =>
+        new(
+            to,
+            $"{firmName} is approved",
+            $"""
+            Hi,
+
+            {firmName} is approved to go live.{(message is null ? "" : $" {message}")} Choose your slots and pay to go live in your admin panel. The deposit you paid is taken off the startup fee.
+
+            {billingUrl}
+
+            {platform}
+            """);
+
+    /// <summary>The firm was not approved, and cannot go live.</summary>
+    public static EmailMessage ApplicationRejected(string platform, string firmName, string to, string message) =>
+        new(
+            to,
+            $"{firmName} was not approved",
+            $"""
+            Hi,
+
+            We have reviewed the application for {firmName}, and we cannot approve it:
+
+            {message}
+
+            The firm cannot go live on {platform}, and the deposit is not paid back. Reply to this email if you have questions.
+
+            {platform}
+            """);
+
+    /// <summary>We suspended the firm.</summary>
+    public static EmailMessage FirmSuspended(string platform, string firmName, string to, string reason, Uri adminUrl) =>
+        new(
+            to,
+            $"{firmName} is suspended",
+            $"""
+            Hi,
+
+            We have suspended {firmName} on {platform}:
+
+            {reason}
+
+            Until we lift the suspension, no new challenges can start, your shop is closed, and your traders' accounts are paused: they cannot open new trades, but they can close the ones they have, and their days do not count. Reply to this email to talk to us.
+
+            {adminUrl}
+
+            {platform}
+            """);
+
+    /// <summary>We lifted the firm's suspension.</summary>
+    public static EmailMessage SuspensionLifted(string platform, string firmName, string to, Uri adminUrl) =>
+        new(
+            to,
+            $"{firmName} is no longer suspended",
+            $"""
+            Hi,
+
+            We have lifted the suspension of {firmName}, so your challenges, your shop and your traders' accounts go on as before.
+
+            {adminUrl}
+
+            {platform}
+            """);
+
     public static EmailMessage InviteAdmin(string platform, string firmName, string invitedBy, string to, Uri link, TimeSpan lifetime) =>
         new(
             to,

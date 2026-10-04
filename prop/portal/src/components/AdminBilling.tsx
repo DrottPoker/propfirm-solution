@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -19,6 +20,7 @@ import {
   useSetSlots,
 } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
+import { reviewStatusLabels } from "@/lib/verification";
 
 import { buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
 
@@ -121,6 +123,7 @@ function GoLive({ billing }: { billing: Billing }) {
 
   return (
     <Panel title="Go live">
+      {billing.review !== "Approved" && <ReviewSteps billing={billing} />}
       <p className="text-sm text-muted">
         Choose how many challenges you want open at once. Each one takes a slot from when it starts until it ends. You pay the startup fee and the
         slots for the rest of this month now, and each month in advance from then on. Your card is saved for that. Your test accounts from the sandbox
@@ -130,6 +133,9 @@ function GoLive({ billing }: { billing: Billing }) {
         {prices.startupFee > 0 && (
           <li>
             Startup fee: {formatMoney(prices.startupFee)} {prices.currency}, once
+            {billing.depositPaid > 0
+              ? `, less the ${formatMoney(billing.depositPaid)} ${prices.currency} deposit you paid`
+              : prices.reviewDeposit > 0 && `, of which ${formatMoney(prices.reviewDeposit)} ${prices.currency} is a deposit paid when you send your application`}
           </li>
         )}
         {priceTiers(prices).map((tier) => (
@@ -145,7 +151,16 @@ function GoLive({ billing }: { billing: Billing }) {
           <AutoExpandFields enabled={autoExpand} step={step} onEnabled={setAutoExpand} onStep={setStep} />
         </div>
         <QuoteView quote={quote.data} />
-        <ErrorText error={billing.goLiveProblem ? new Error(billing.goLiveProblem) : problem ? new Error(problem) : (activate.error ?? quote.error)} />
+        {/* The price says the same as the billing when the firm cannot go live, so it is said once. */}
+        <ErrorText
+          error={
+            billing.goLiveProblem && quote.data?.problem !== billing.goLiveProblem
+              ? new Error(billing.goLiveProblem)
+              : problem
+                ? new Error(problem)
+                : (activate.error ?? quote.error)
+          }
+        />
         <button
           type="submit"
           disabled={billing.goLiveProblem !== null || !quote.data || quote.data.problem !== null || activate.isPending || activate.isSuccess}
@@ -156,6 +171,23 @@ function GoLive({ billing }: { billing: Billing }) {
         {billing.provider === "Test" && <p className="text-xs text-warning">Test payments: you pay on a test page, and no money is taken.</p>}
       </form>
     </Panel>
+  );
+}
+
+/** The way to live before we have approved the firm, and where it is on that way. */
+function ReviewSteps({ billing }: { billing: Billing }) {
+  return (
+    <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
+      <li>
+        Send your company&apos;s details for review under{" "}
+        <Link href="/admin/verification" className="text-accent hover:underline">
+          Verification
+        </Link>
+        {billing.review && <span className="text-muted"> ({reviewStatusLabels[billing.review]})</span>}.
+      </li>
+      <li>We review your firm, usually within a day, and email you.</li>
+      <li>Choose your slots below and pay to go live.</li>
+    </ol>
   );
 }
 

@@ -26,6 +26,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0018](0018-domaner-och-underdomaner.md) | Domäner och underdomäner för produkterna | Föreslagen |
 | [0019](0019-kop-i-portalen-med-firmans-betalningsleverantor.md) | Köp i portalen med firmans egen betalningsleverantör | Föreslagen |
 | [0020](0020-forbetalda-platser-for-aktiva-challenges.md) | Förbetalda platser för aktiva challenges | Föreslagen |
+| [0021](0021-vi-granskar-firmor-innan-de-gar-live.md) | Vi granskar firmor själva innan de går live | Föreslagen |
 
 ## Så skriver du en ny ADR
 

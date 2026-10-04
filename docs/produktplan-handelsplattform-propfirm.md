@@ -116,14 +116,14 @@ registrera -> välj challenge-mall -> portalens logga och färger
 
 Mål: sandlådan på några minuter, live inom ett dygn.
 
-Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Firman betalar oss i förskott med kort för platser för aktiva challenges, och går live genom att betala startavgiften och första månaden (fas 7, se [specen för platser och betalning](spec/platser-och-betalning.md)). Kvar är kontrollen innan live, som gör att en firma bara kan gå live i utveckling än, och egen domän.
+Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Firman betalar oss i förskott med kort för platser för aktiva challenges, och går live genom att betala startavgiften och första månaden (fas 7, se [specen för platser och betalning](spec/platser-och-betalning.md)). Innan dess skickar firman uppgifter om bolaget, ägarna och sina villkor och betalar en handpenning, och vi granskar och godkänner den i vår egen adminvy, där vi också kan stänga av en firma (fas 9a, se [specen för granskning och avstängning](spec/granskning.md)). Kvar är egen domän.
 
 ### Krav
 
 - **Färdiga mallar** för vanliga challenges, till exempel 100k i två steg, som firman kan justera.
 - **Varumärke och domän för portalen.** Underdomän direkt. Egen domän med automatiskt TLS-certifikat. Handelsplattformen behåller vårt varumärke, och firman syns där som server och namn vid kontot.
 - **Sandlåda med hela kedjan.** Firman skapar en challenge, handlar och ser regelmotorn godkänna eller stänga ett konto. Bara firmans egna testanvändare, så att kostnaden för prisdata hålls nere.
-- **Kontroll innan live.** Sandlådan kräver ingen kontroll. Innan firman får ta emot riktiga traders kontrolleras bolag och ägare automatiskt, med manuell granskning inom ett dygn. Det skyddar mot firmor som tar avgifter och aldrig betalar ut, vilket annars skadar vårt rykte.
+- **Kontroll innan live.** Sandlådan kräver ingen kontroll. Innan firman får ta emot riktiga traders granskar vi bolag, ägare och villkor själva, inom ett dygn. Firman betalar en handpenning när den skickar sin ansökan, som dras av från startavgiften och inte betalas tillbaka om den nekas. En automatisk kontroll kan läggas till före vår granskning. Det skyddar mot firmor som tar avgifter och aldrig betalar ut, vilket annars skadar vårt rykte.
 - **Avtal i portalen.** Användarvillkor och personuppgiftsbiträdesavtal godkänns vid registrering.
 - **Betalning i förskott** med kort: startavgift och platser för aktiva challenges (se Affärsmodell och prissättning).
 - **Hjälp med det som tar längst tid.** Plattformen är sannolikt inte det enda som försenar en ny firma. Erbjud färdiga integrationer mot betalleverantörer som accepterar propfirms, och guider för KYC-leverantör, villkor och bolag.
@@ -324,7 +324,7 @@ Besluten beskrivs i detalj i [docs/adr](adr/README.md).
 - Vi hanterar aldrig kundernas pengar (se Utbetalningar).
 - GDPR: vi är personuppgiftsbiträde åt firmorna. Personuppgiftsbiträdesavtal krävs, och data bör lagras inom EU. Avtalet godkänns digitalt vid registrering.
 - Ansvarsbegränsning i avtalen. En bugg som felaktigt stänger konton eller räknar fel på utbetalningar kan kosta kunden mycket.
-- Kontrollera kunderna innan de går live: ägare, bolag och vilka villkor de har mot sina traders. Med självbetjäning sker det automatiskt med manuell granskning (se Kom igång själv). Avtalet ska ge rätt att stänga av kunder som lurar sina traders.
+- Kontrollera kunderna innan de går live: ägare, bolag och vilka villkor de har mot sina traders. Vi granskar själva i vår adminvy (se Kom igång själv). Avtalet ska ge rätt att stänga av kunder som lurar sina traders, och vår adminvy kan göra det.
 - Brokers som kunder senare: DORA-krav på IT-leverantörer.
 
 ## Affärsmodell och prissättning
@@ -416,7 +416,7 @@ Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva
 - Vilka plattformar adaptrarna ska stödja först, utöver vår egen handelsplattform.
 - Behövs en gratis eller mycket billig nivå för de minsta firmorna, som hos Fintatech?
 - Ska startavgiften tas bort?
-- Hur görs kontrollen av kunden automatiskt, och med vilken leverantör?
+- Ska kontrollen av kunden bli automatisk före vår granskning, och med vilken leverantör?
 
 ## Källor
 

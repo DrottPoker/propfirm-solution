@@ -8,7 +8,8 @@ namespace Prop.Api.Billing;
 /// <summary>
 /// The billing's background work: checkout pages that ran out of time, saved cards that are due to be charged,
 /// and for every firm that pays, the coming month's charge, pausing or resuming its challenges, automatic
-/// expansion and the slots warning. Runs every minute and when a payment or a taken slot wakes it.
+/// expansion and the slots warning. Firms we suspended, and firms with paused challenges, are caught up too. Runs
+/// every minute and when a payment or a taken slot wakes it.
 /// </summary>
 internal sealed partial class BillingWorker(
     BillingService billing,
@@ -48,25 +49,36 @@ internal sealed partial class BillingWorker(
         }
 
         await AttemptDueChargesAsync(cancellationToken);
-        foreach (var firmId in await store.PaidFirmsAsync(cancellationToken))
+        var paying = await store.PaidFirmsAsync(cancellationToken);
+        foreach (var firmId in paying)
         {
-            if (firms.ById(firmId) is not { } firm)
-            {
-                continue;
-            }
+            await RunForFirmAsync(firmId, billing.RunFirmAsync, cancellationToken);
+        }
 
-            try
-            {
-                await billing.RunFirmAsync(firm, cancellationToken);
-            }
-            catch (Exception exception) when (exception is not OperationCanceledException)
-            {
-                LogFirmFailed(logger, firmId, exception);
-            }
+        foreach (var firmId in (await store.FirmsToKeepStandingAsync(cancellationToken)).Except(paying))
+        {
+            await RunForFirmAsync(firmId, billing.KeepChallengesStandingAsync, cancellationToken);
         }
 
         // The months that just became due.
         await AttemptDueChargesAsync(cancellationToken);
+    }
+
+    private async Task RunForFirmAsync(string firmId, Func<Firm, CancellationToken, Task> work, CancellationToken cancellationToken)
+    {
+        if (firms.ById(firmId) is not { } firm)
+        {
+            return;
+        }
+
+        try
+        {
+            await work(firm, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogFirmFailed(logger, firmId, exception);
+        }
     }
 
     private async Task AttemptDueChargesAsync(CancellationToken cancellationToken)

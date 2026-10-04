@@ -3,11 +3,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createContext, useContext, useState } from "react";
 
-import type { Branding, Platform } from "@/lib/api/types";
+import type { Branding, OpsSite, Platform } from "@/lib/api/types";
 
 const BrandingContext = createContext<Branding | null>(null);
 
 const PlatformContext = createContext<Platform | null>(null);
+
+const OpsContext = createContext<OpsSite | null>(null);
 
 /** The firm whose portal this is. */
 export function useBranding(): Branding {
@@ -27,6 +29,16 @@ export function usePlatform(): Platform {
   }
 
   return platform;
+}
+
+/** Our own admin view, where our staff review firms. */
+export function useOps(): OpsSite {
+  const ops = useContext(OpsContext);
+  if (!ops) {
+    throw new Error("useOps must be used inside OpsProviders.");
+  }
+
+  return ops;
 }
 
 function QueryProvider({ children }: { children: React.ReactNode }) {
@@ -49,5 +61,14 @@ export function PlatformProviders({ platform, children }: { platform: Platform; 
     <PlatformContext.Provider value={platform}>
       <QueryProvider>{children}</QueryProvider>
     </PlatformContext.Provider>
+  );
+}
+
+/** For our own admin view. */
+export function OpsProviders({ ops, children }: { ops: OpsSite; children: React.ReactNode }) {
+  return (
+    <OpsContext.Provider value={ops}>
+      <QueryProvider>{children}</QueryProvider>
+    </OpsContext.Provider>
   );
 }

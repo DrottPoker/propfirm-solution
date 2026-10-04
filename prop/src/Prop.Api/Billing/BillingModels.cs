@@ -1,17 +1,18 @@
 using Prop.Api.Firms;
+using Prop.Api.Review;
 
 namespace Prop.Api.Billing;
 
 /// <summary>
 /// The firm's slots: <paramref name="Used"/> by challenges that have not ended and <paramref name="Reserved"/> by
 /// orders waiting for payment. <paramref name="Slots"/> and <paramref name="Free"/> are null when there is no
-/// limit. No challenge can start when nothing is free or <paramref name="Paid"/> is false. <paramref name="Warning"/>
-/// is set when most slots are taken.
+/// limit. No challenge can start when nothing is free, <paramref name="Paid"/> is false or the firm is
+/// <paramref name="Suspended"/>. <paramref name="Warning"/> is set when most slots are taken.
 /// </summary>
-public sealed record SlotsResponse(SlotLimit Limit, int? Slots, int Used, int Reserved, int? Free, bool Paid, bool Warning)
+public sealed record SlotsResponse(SlotLimit Limit, int? Slots, int Used, int Reserved, int? Free, bool Paid, bool Suspended, bool Warning)
 {
     internal static SlotsResponse From(SlotUsage usage, int warningPercent) =>
-        new(usage.Limit, usage.Slots, usage.Used, usage.Reserved, usage.Free, usage.Paid, usage.IsNearlyFull(warningPercent));
+        new(usage.Limit, usage.Slots, usage.Used, usage.Reserved, usage.Free, usage.Paid, usage.Suspended, usage.IsNearlyFull(warningPercent));
 }
 
 /// <summary>The saved card. Only its brand, last digits and expiry are known.</summary>
@@ -63,20 +64,29 @@ public sealed record NextChargeResponse(DateOnly Month, DateTimeOffset ChargeAt,
 /// <summary>Each slot's monthly price from slot number <paramref name="From"/> on.</summary>
 public sealed record SlotPriceResponse(int From, decimal Price);
 
-/// <summary>What firms pay: the startup fee, the slot prices and the rules for slots. The prices are examples until they are decided.</summary>
+/// <summary>
+/// What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules
+/// for slots. The prices are examples until they are decided.
+/// </summary>
 public sealed record PricesResponse(
     string Currency,
     decimal StartupFee,
+    decimal ReviewDeposit,
     IReadOnlyList<SlotPriceResponse> SlotPrices,
     int MinSlots,
     int MaxSlots,
     int ChargeDaysBeforeMonth,
     int WarningPercent);
 
+/// <summary>We suspended the firm, for a reason its administrators see.</summary>
+public sealed record SuspensionResponse(DateTimeOffset At, string Reason);
+
 /// <summary>
 /// The firm's billing for its admin panel. <paramref name="Plan"/> is null until the firm has started paying.
 /// <paramref name="NextMonthSlots"/> is what a paying firm is charged for from the next unpaid month.
-/// <paramref name="GoLiveProblem"/> says why a firm in the sandbox cannot go live by paying now.
+/// <paramref name="GoLiveProblem"/> says why a firm in the sandbox cannot go live by paying now, and
+/// <paramref name="Review"/> where our review of it is. <paramref name="DepositPaid"/> is taken off the startup fee.
+/// <paramref name="Suspension"/> is set while we have suspended the firm.
 /// </summary>
 public sealed record BillingResponse(
     FirmStatus Status,
@@ -90,7 +100,10 @@ public sealed record BillingResponse(
     NextChargeResponse? NextCharge,
     IReadOnlyList<ChargeResponse> Charges,
     PricesResponse Prices,
-    string? GoLiveProblem);
+    string? GoLiveProblem,
+    ReviewStatus? Review,
+    decimal DepositPaid,
+    SuspensionResponse? Suspension);
 
 public enum QuoteKind
 {
@@ -131,7 +144,10 @@ public sealed record AutoExpandRequest(int? Step);
 /// <summary>Where the firm goes to pay or to save its card.</summary>
 public sealed record CheckoutResponse(Uri CheckoutUrl);
 
-/// <summary>A test checkout page in the portal: what it is for and, for a payment, what is paid.</summary>
+/// <summary>
+/// A test checkout page in the portal: what it is for and, for a payment, what is paid. <paramref name="ReturnPath"/>
+/// is the page in the admin panel the firm comes back to.
+/// </summary>
 public sealed record TestCheckoutResponse(
     string Id,
     CheckoutPurpose Purpose,
@@ -139,7 +155,8 @@ public sealed record TestCheckoutResponse(
     IReadOnlyList<ChargeLine> Lines,
     decimal Amount,
     string Currency,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    string ReturnPath);
 
 /// <summary>Completes a test checkout page with a test card that pays, or one that declines.</summary>
 public sealed record TestCheckoutRequest(bool Declines);

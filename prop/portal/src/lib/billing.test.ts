@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Billing, Charge, Slots } from "./api/types";
 import { billingNotice, cardLabel, chargeLabel, priceTiers, slotsSummary, slotsTaken, unpaidCharges } from "./billing";
 
-const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, warning: true };
+const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, suspended: false, warning: true };
 
 const renewal: Charge = {
   id: "0199a000-0000-7000-8000-000000000002",
@@ -37,6 +37,7 @@ const billing: Billing = {
   prices: {
     currency: "USD",
     startupFee: 500,
+    reviewDeposit: 100,
     slotPrices: [
       { from: 1, price: 5 },
       { from: 101, price: 4.5 },
@@ -47,6 +48,9 @@ const billing: Billing = {
     warningPercent: 80,
   },
   goLiveProblem: null,
+  review: null,
+  depositPaid: 0,
+  suspension: null,
 };
 
 describe("slots", () => {
@@ -75,12 +79,24 @@ describe("prices and cards", () => {
   it("say what a charge was for", () => {
     expect(chargeLabel(renewal)).toBe("Slots for November 2026");
     expect(chargeLabel({ ...renewal, kind: "Activation" })).toBe("Startup fee and the first month");
+    expect(chargeLabel({ ...renewal, kind: "Deposit" })).toBe("Deposit for the review, taken off the startup fee");
   });
 });
 
 describe("billingNotice", () => {
   it("is quiet when all is well", () => {
     expect(billingNotice(billing)).toBeNull();
+  });
+
+  it("says first of all that we suspended the firm, without sending it to billing", () => {
+    const notice = billingNotice({
+      ...billing,
+      unpaidSince: "2026-11-01T00:00:01Z",
+      suspension: { at: "2026-11-02T10:00:00Z", reason: "Traders report payouts that were never paid." },
+    });
+
+    expect(notice).toMatchObject({ tone: "loss", billingLink: false });
+    expect(notice?.text).toMatch(/^Your firm is suspended: Traders report payouts that were never paid\. No new challenges can start/);
   });
 
   it("says first that the month is unpaid and the challenges paused", () => {

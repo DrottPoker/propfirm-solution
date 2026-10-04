@@ -87,7 +87,7 @@ internal static class PortalAuth
         return services;
     }
 
-    private static void ConfigureCookie(CookieAuthenticationOptions options, string name)
+    internal static void ConfigureCookie(CookieAuthenticationOptions options, string name)
     {
         options.Cookie.Name = name;
         options.Cookie.HttpOnly = true;

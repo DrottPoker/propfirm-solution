@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
+using Prop.Api.Billing;
 using Prop.Api.Tests.Support;
 
 namespace Prop.Api.Tests;
@@ -64,16 +65,19 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     }
 
     [Fact]
-    public async Task GoingLiveNeedsTheCheckOfTheFirmWhenItIsNotAllowedWithout()
+    public async Task GoingLiveNeedsOurApprovalOfTheFirm()
     {
-        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), new Dictionary<string, string> { ["Billing:AllowGoLiveWithoutVerification"] = "false" });
-        using var admin = await SandboxFirmAsync(factory, "acme");
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme", approved: false);
 
         using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
         var billing = await GetAsync(admin, "admin/billing");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=20");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.StartsWith("Going live needs a check of the company", billing.GetProperty("goLiveProblem").GetString(), StringComparison.Ordinal);
+        Assert.StartsWith("We review your company before you go live", billing.GetProperty("goLiveProblem").GetString(), StringComparison.Ordinal);
+        Assert.Equal("Draft", billing.GetProperty("review").GetString());
+        Assert.Equal(billing.GetProperty("goLiveProblem").GetString(), quote.GetProperty("problem").GetString());
     }
 
     [Fact]
@@ -166,6 +170,34 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         await Eventually.ThatAsync(() => !factory.Trading.AccountOf("acme-1001-1").Suspended, "the trading account to be resumed");
         await Eventually.ThatAsync(() => factory.Webhooks.Delivered("account.resumed").Count == 1, "the resumed webhook");
         Assert.Single(factory.Webhooks.Delivered("account.paused"));
+    }
+
+    [Fact]
+    public async Task ASuspensionAndAnUnpaidMonthBothKeepTheChallengesPaused()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        var accountId = await StartAsync(admin, "anna@test.example");
+        await WaitForAccountAsync(admin, accountId, a => a.GetProperty("account").GetProperty("status").GetString() == "Active");
+        await NewCardAsync(admin, declines: true);
+        await AdvanceToAsync(factory, admin, new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero));
+        await AdvanceToAsync(factory, admin, new DateTimeOffset(2026, 11, 1, 0, 0, 1, TimeSpan.Zero));
+        await WaitForAccountAsync(admin, accountId, a => a.GetProperty("account").GetProperty("paused").GetBoolean());
+        using var ops = await factory.LogInAsStaffAsync();
+
+        // Paid while suspended: the challenges stay paused.
+        using var suspended = await PostAsync(ops, "ops/firms/acme/suspend", new { reason = "We need to talk about your payouts." });
+        await NewCardAsync(admin, declines: false);
+        await WaitForBillingAsync(admin, b => b.GetProperty("unpaidSince").ValueKind == JsonValueKind.Null, "the firm to be paid");
+        await factory.AdvanceAsync(BillingWorker.PollInterval);
+        var whileSuspended = await GetAsync(admin, $"admin/accounts/{accountId}");
+
+        using var lifted = await PostAsync(ops, "ops/firms/acme/unsuspend", null);
+        await WaitForAccountAsync(admin, accountId, a => !a.GetProperty("account").GetProperty("paused").GetBoolean());
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (suspended.StatusCode, lifted.StatusCode));
+        Assert.True(whileSuspended.GetProperty("account").GetProperty("paused").GetBoolean());
+        await Eventually.ThatAsync(() => !factory.Trading.AccountOf("acme-1001-1").Suspended, "the trading account to be resumed");
     }
 
     [Fact]
@@ -307,11 +339,16 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     private static Task<HttpResponseMessage> PostAsync(HttpClient client, string path, object? body) =>
         body is null ? client.PostAsync(Url(path), null, TestContext.Current.CancellationToken) : client.PostAsJsonAsync(Url(path), body, TestContext.Current.CancellationToken);
 
-    /// <summary>A firm that signed up and has its server. Returns its administrator's browser.</summary>
-    private static async Task<HttpClient> SandboxFirmAsync(PropFactory factory, string firmId, string email = Owner)
+    /// <summary>A firm that signed up and has its server, and that we approved unless told not to. Returns its administrator's browser.</summary>
+    private static async Task<HttpClient> SandboxFirmAsync(PropFactory factory, string firmId, string email = Owner, bool approved = true)
     {
         var admin = await factory.SignUpAsync(firmId, email);
         await PropFactory.WaitUntilProvisionedAsync(admin);
+        if (approved)
+        {
+            await factory.ApproveAsync(admin, firmId);
+        }
+
         return admin;
     }
 

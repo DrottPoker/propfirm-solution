@@ -22,7 +22,8 @@ internal sealed record SavedCard(string? CustomerId, string PaymentMethodId, str
 
 /// <summary>
 /// A checkout page to make for the firm. <paramref name="Charge"/> is what it pays, for a payment. The firm's
-/// customer at the provider is reused when it has one.
+/// customer at the provider is reused when it has one. <paramref name="ReturnPath"/> is the page in the firm's
+/// admin panel the firm comes back to.
 /// </summary>
 internal sealed record CheckoutRequest(
     string FirmId,
@@ -31,6 +32,7 @@ internal sealed record CheckoutRequest(
     ChargeToPay? Charge,
     string? CustomerId,
     Uri PortalUrl,
+    string ReturnPath,
     DateTimeOffset ExpiresAt);
 
 /// <summary>A charge as the provider needs it: its id, a description and the total.</summary>

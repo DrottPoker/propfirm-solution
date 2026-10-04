@@ -1,17 +1,18 @@
 # Spec: platser och betalning
 
-- Fas: 7
+- Fas: 7, handpenningen och godkännandet innan live i 9a
 - Status: Implementerad i `prop/src/Prop.Api/Billing`, `prop/src/Prop.Rules`, handelsplattformen och `prop/portal`
 - Datum: 2026-10-03
 
 ## Syfte
 
-Firman betalar oss i förskott för platser, alltså hur många challenges den kan ha aktiva samtidigt. Den går live genom att betala startavgiften och första månaden, och betalar sedan varje månad innan den börjar. En månad som inte är betald när den börjar pausar firmans challenges tills den är betald. Vi levererar aldrig något som inte är betalt och har aldrig en skuld att driva in. Besluten finns i [ADR 0020](../adr/0020-forbetalda-platser-for-aktiva-challenges.md). Inaktivitetsregeln och tidsgränsen per fas, som frigör platser, beskrivs i [specen för regelmotorn](regelmotor.md).
+Firman betalar oss i förskott för platser, alltså hur många challenges den kan ha aktiva samtidigt. Den betalar en handpenning när den skickar sin ansökan till vår granskning, och när vi har godkänt den går den live genom att betala startavgiften minus handpenningen och första månaden (se [specen för granskning och avstängning](granskning.md)). Sedan betalar den varje månad innan den börjar. En månad som inte är betald när den börjar pausar firmans challenges tills den är betald. Vi levererar aldrig något som inte är betalt och har aldrig en skuld att driva in. Besluten finns i [ADR 0020](../adr/0020-forbetalda-platser-for-aktiva-challenges.md). Inaktivitetsregeln och tidsgränsen per fas, som frigör platser, beskrivs i [specen för regelmotorn](regelmotor.md).
 
 ## Flöde
 
 ```
-sandlådan -> /admin/billing: antal platser och automatisk utökning, priset just nu
+sandlådan -> /admin/verification: ansökan -> debitering Deposit på en betalsida -> vår granskning -> godkänd
+-> /admin/billing: antal platser och automatisk utökning, priset just nu
 -> POST /admin/billing/activate -> debitering Activation och en betalsida (Stripe Checkout eller testsidan)
 -> leverantören bekräftar -> i en transaktion: debiteringen betald, månaden betald, firman live,
    testkontona från sandlådan avslutas och obetalda testordrar går ut
@@ -42,6 +43,7 @@ Priserna är inställningar under `Billing`, och exemplen nedan är inte bestäm
 | Del | Exempel |
 |---|---|
 | Startavgift, en gång | 500 USD |
+| Handpenning för granskningen, dras av från startavgiften | 100 USD |
 | Plats 1 till 100 | 5 USD per månad |
 | Plats 101 till 500 | 4,50 USD per månad |
 | Plats 501 och uppåt | 4 USD per månad |
@@ -55,7 +57,8 @@ Priserna är inställningar under `Billing`, och exemplen nedan är inte bestäm
 
 | Sort | När | Vad |
 |---|---|---|
-| `Activation` | Firman går live | Startavgiften och platserna för resten av månaden. Från den dag nästa månad debiteras också nästa månad. Betalas på en betalsida, som sparar kortet. |
+| `Deposit` | Firman skickar sin ansökan första gången | Handpenningen för vår granskning. Betalas på en betalsida, som sparar kortet. Betalas aldrig tillbaka. |
+| `Activation` | Firman går live, när vi har godkänt den | Startavgiften minus handpenningen som betalats, och platserna för resten av månaden. Från den dag nästa månad debiteras också nästa månad. Betalas på en betalsida, som sparar kortet. |
 | `Renewal` | `ChargeDaysBeforeMonth` (5) dagar innan månaden börjar | Månadens platser: firmans valda antal, eller så många som är tagna om de är fler. Dras från det sparade kortet. |
 | `Slots` | Firman köper fler, eller automatisk utökning | Skillnaden i pris för resten av månaden, och för nästa månad om den redan är betald med färre. Dras från kortet direkt. |
 
@@ -64,7 +67,7 @@ Priserna är inställningar under `Billing`, och exemplen nedan är inte bestäm
 | `Pending` | Inte betald än. Kortet dras vid nästa försök, eller firman betalar på en betalsida. |
 | `Paid` | Betald, och det den betalar för gäller. |
 | `Failed` | En månad som nekades `MaxAttempts` (5) gånger. Kortet dras inte igen av sig självt, men firman kan betala den. |
-| `Void` | Ska inte betalas: en go-live som startades om eller inte betalades i tid, platser som nekades, eller en månad som gjordes om med fler platser. |
+| `Void` | Ska inte betalas: en go-live eller handpenning som startades om eller inte betalades i tid, platser som nekades, eller en månad som gjordes om med fler platser. |
 
 - **En nekad månad** försöks igen efter `RetryInterval` (1 dygn). Administratörerna mejlas varje gång, med när den försöks igen och när månaden börjar.
 - **Nekade platser** köps inte. Administratören får Stripes orsak direkt. Nekas automatisk utökning mejlas administratörerna, och nästa försök görs med en ny debitering först efter `RetryInterval`.
@@ -88,7 +91,7 @@ När månaden är betald tas `unpaid_since` bort, varje pausad challenge får `R
 
 | Leverantör | Betalsida | Kortet dras |
 |---|---|---|
-| `Stripe` | Stripe Checkout med vårt konto. En betalning har `mode=payment`, bara kort (`payment_method_types[0]=card`), en rad per del, `customer_creation=always` första gången och annars firmans kund, och `payment_intent_data[setup_future_usage]=off_session`, så att kortet sparas. Ett nytt kort sparas med `mode=setup`. `success_url` är `/admin/billing?checkout={CHECKOUT_SESSION_ID}` på firmans adress. | `POST /v1/payment_intents` med firmans kund och kort, `off_session=true`, `confirm=true` och `metadata[source]=card_on_file`. `Idempotency-Key` är `charge-{id}-{försök}-{kort}`. Ett fel från Stripe räknas som ett försök, så nästa försök får en ny nyckel. Svarar Stripe inte görs samma försök igen. |
+| `Stripe` | Stripe Checkout med vårt konto. En betalning har `mode=payment`, bara kort (`payment_method_types[0]=card`), en rad per del, `customer_creation=always` första gången och annars firmans kund, och `payment_intent_data[setup_future_usage]=off_session`, så att kortet sparas. Ett nytt kort sparas med `mode=setup`. `success_url` är `/admin/billing?checkout={CHECKOUT_SESSION_ID}` på firmans adress, och för handpenningen `/admin/verification?checkout={CHECKOUT_SESSION_ID}`. Har firman redan en kund hos Stripe, till exempel från handpenningen, används den. | `POST /v1/payment_intents` med firmans kund och kort, `off_session=true`, `confirm=true` och `metadata[source]=card_on_file`. `Idempotency-Key` är `charge-{id}-{försök}-{kort}`. Ett fel från Stripe räknas som ett försök, så nästa försök får en ny nyckel. Svarar Stripe inte görs samma försök igen. |
 | `Test` | `/admin/billing/checkout/{id}` i portalen. Ett testkort som betalar (slutar på 4242) eller nekas (0002). | Testkortet som betalar betalar, det andra nekas. Bara för utveckling. |
 
 Stripes webhook till `/api/payments/v1/billing/stripe` kräver `Stripe-Signature` med `Billing:StripeWebhookSecret`, högst 5 minuter gammal.
@@ -109,23 +112,23 @@ Vägarna börjar med `/api/portal/admin` och kräver en administratör.
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /billing` | Firmans status, sätt att betala (`Paid`, `Complimentary` eller inget i sandlådan), leverantör, platser (`limit`, `slots`, `used`, `reserved`, `free`, `paid`, `warning`), platser från nästa obetalda månad, automatisk utökning, kortet, `unpaidSince`, nästa debitering, de 24 senaste debiteringarna med rader, priserna och varför firman inte kan gå live. |
-| `GET /billing/quote?slots=` | Vad ett antal platser kostar: `Activation` i sandlådan, `MoreSlots`, `FewerSlots` eller `Unchanged`, raderna som betalas nu, månadspriset och från vilken månad, och vad som är fel med valet. |
-| `POST /billing/activate` | `{ "slots", "autoExpandStep" }`. Startar go-live och svarar med `checkoutUrl`. 409 för en firma som inte är i sandlådan eller inte får gå live än, 422 för fel antal, 503 när leverantören inte svarar. En tidigare go-live som inte betalats blir `Void`. |
+| `GET /billing` | Firmans status, sätt att betala (`Paid`, `Complimentary` eller inget i sandlådan), leverantör, platser (`limit`, `slots`, `used`, `reserved`, `free`, `paid`, `suspended`, `warning`), platser från nästa obetalda månad, automatisk utökning, kortet, `unpaidSince`, nästa debitering, de 24 senaste debiteringarna med rader, priserna med handpenningen, varför firman inte kan gå live, granskningens status, handpenningen som betalats och avstängningen. |
+| `GET /billing/quote?slots=` | Vad ett antal platser kostar: `Activation` i sandlådan med handpenningen avdragen, `MoreSlots`, `FewerSlots` eller `Unchanged`, raderna som betalas nu, månadspriset och från vilken månad, och vad som är fel med valet. |
+| `POST /billing/activate` | `{ "slots", "autoExpandStep" }`. Startar go-live och svarar med `checkoutUrl`. 409 för en firma som inte är i sandlådan, inte är godkänd eller är avstängd, 422 för fel antal, 503 när leverantören inte svarar. En tidigare go-live som inte betalats blir `Void`. |
 | `PUT /billing/slots` | `{ "slots" }`. Fler dras från kortet direkt, färre gäller från nästa obetalda månad. Svarar med `GET /billing`. 402 med orsaken när kortet nekas, 409 när månaden är obetald, när platser köps just nu, för en firma utan kort eller för färre platser än de tagna, 503 när leverantören inte svarar. |
 | `PUT /billing/auto-expand` | `{ "step" }`, 1 till 1 000, eller null för av. |
 | `POST /billing/card` | En betalsida som sparar ett nytt kort. Svarar med `checkoutUrl`. |
 | `POST /billing/charges/{id}/checkout` | En betalsida för en obetald månad. |
 | `POST /billing/charges/{id}/retry` | Drar en obetald månad från kortet nu. 402 med orsaken när det nekas. |
-| `GET /billing/checkouts/{id}` | Testsidan: vad den är till och vad den betalar. Bara med testleverantören och bara firmans egna. |
+| `GET /billing/checkouts/{id}` | Testsidan: vad den är till, vad den betalar och vilken sida firman kommer tillbaka till. Bara med testleverantören och bara firmans egna. |
 | `POST /billing/checkouts/{id}/complete` | `{ "declines" }`. Betalar eller sparar ett testkort. Ett kort som nekas en betalning svarar 402 och sidan är fortfarande öppen. 409 när sidan inte är öppen. |
 
 ### Firmans API
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /api/firm/v1/slots` | Platserna som i adminpanelen, så att firmans egen butik kan sluta sälja när de är slut. |
-| `POST /api/firm/v1/accounts` | 409 med orsaken när ingen plats är ledig, när sandlådan är full eller när månaden är obetald. |
+| `GET /api/firm/v1/slots` | Platserna som i adminpanelen, så att firmans egen butik kan sluta sälja när de är slut eller firman är avstängd. |
+| `POST /api/firm/v1/accounts` | 409 med orsaken när ingen plats är ledig, när sandlådan är full, när månaden är obetald eller när firman är avstängd. |
 
 ## E-post till administratörerna
 
@@ -141,7 +144,7 @@ Mejlen skickas från plattformens adress. Ett mejl som inte går iväg loggas, o
 
 | Sida | Innehåll |
 |---|---|
-| `/admin/billing` | I sandlådan: priserna, antal platser, automatisk utökning, priset just nu och knappen som betalar och går live. Live: platserna med en stapel, ändring av platser med priset, automatisk utökning, kortet och nästa betalning, obetalda månader med nytt försök och betalsida, och debiteringarna. Efter en betalsida väntar sidan tills betalningen är bekräftad. |
+| `/admin/billing` | I sandlådan: stegen till live med länk till granskningen tills firman är godkänd, priserna, antal platser, automatisk utökning, priset just nu och knappen som betalar och går live. Live: platserna med en stapel, ändring av platser med priset, automatisk utökning, kortet och nästa betalning, obetalda månader med nytt försök och betalsida, och debiteringarna. Efter en betalsida väntar sidan tills betalningen är bekräftad. |
 | `/admin/billing/checkout/{id}` | Testsidan för betalningar och kort. |
 
 Varje sida i adminpanelen visar en rad när månaden är obetald, när en betalning nekats, när alla platser är tagna eller när de flesta är det.
@@ -152,7 +155,7 @@ Varje sida i adminpanelen visar en rad när månaden är obetald, när en betaln
 |---|---|
 | `firm_billing` | Hur firman betalar (`Paid` eller `Complimentary`), platserna från nästa obetalda månad, automatisk utökning, leverantören och det sparade kortet (kund, betalningsmetod, märke, sista siffror och utgång), när varningen skickades, sedan när månaden är obetald och när firman gick live. |
 | `billing_periods` | Månaderna firman har betalat, med platserna i dem. En månad utan rad är obetald. |
-| `billing_charges` | Debiteringarna med nummer, sort, status, månad, antal månader, platser, rader, belopp, leverantörens referens, senaste nej, försök och nästa försök. |
+| `billing_charges` | Debiteringarna med nummer, sort, status, månad, antal månader (0 för handpenningen), platser, rader, belopp, leverantörens referens, senaste nej, försök och nästa försök. |
 | `billing_checkouts` | Betalsidorna med syfte (`Payment` eller `Card`), debitering, adress och status. |
 | `billing_events` | Allt som hänt med firmans betalning, med vem som sa det och leverantörens meddelande. Rader läggs bara till. |
 
@@ -163,22 +166,21 @@ Varje sida i adminpanelen visar en rad när månaden är obetald, när en betaln
 | Inställning | Innehåll |
 |---|---|
 | `Billing:Provider` | `Stripe` (standard) eller `Test`, bara för utveckling. |
-| `Billing:Currency`, `StartupFee`, `SlotPrices` | Valuta, startavgift och priset per plats från varje steg (`From`, `Price`). Exemplen ligger i `appsettings.json`. |
+| `Billing:Currency`, `StartupFee`, `ReviewDeposit`, `SlotPrices` | Valuta, startavgift, handpenningen för granskningen (0 för ingen, högst startavgiften) och priset per plats från varje steg (`From`, `Price`). Exemplen ligger i `appsettings.json`. |
 | `Billing:MinSlots`, `MaxSlots` | Minst och högst antal platser. Standard 10 och 10 000. |
 | `Billing:ChargeDaysBeforeMonth` | Hur många dagar innan månaden den debiteras. Standard 5. |
 | `Billing:RetryInterval`, `MaxAttempts` | Hur länge till nästa försök efter ett nej, och hur många försök en månad får. Standard 1 dygn och 5. |
 | `Billing:WarningPercent` | När administratörerna varnas. Standard 80. |
 | `Billing:CheckoutLifetime` | Hur länge en betalsida är öppen, 30 minuter till 23 timmar som Stripe tillåter. Standard 1 timme. |
-| `Billing:AllowGoLiveWithoutVerification` | Om en firma får gå live innan kontrollen av bolag och ägare finns. Bara i utveckling. |
 | `Billing:StripeSecretKey`, `StripeWebhookSecret` | Vårt Stripe-kontos nyckel och webhookens signeringshemlighet. Hemligheter. |
 | `Firms:N:Slots` | En konfigurerad firmas platser utan betalning. Tomt för ingen gräns. |
 
-I utveckling används testleverantören, och en firma som registrerat sig går live på http://{firma}.localhost:3002/admin/billing. `demo-firm` har ingen gräns.
+I utveckling används testleverantören. En firma som registrerat sig skickar sin ansökan på http://{firma}.localhost:3002/admin/verification, godkänns på vår adminvy http://ops.localhost:3002 och går live på http://{firma}.localhost:3002/admin/billing. `demo-firm` har ingen gräns.
 
 ## Begränsningar
 
 - Ingen moms, inga kvitton eller fakturor från oss. Stripe kan skicka kvitton.
-- En firma kan bara gå live i utveckling, tills kontrollen av bolag och ägare finns (fas 9).
+- Handpenningen betalas tillbaka bara för hand.
 - En firma som slutar betala förblir pausad. Ingen regel avslutar dess challenges efter en tid.
 - En debitering som betalats två gånger betalas tillbaka för hand.
 - Bara Stripe har en färdig adapter.
@@ -186,9 +188,9 @@ I utveckling används testleverantören, och en firma som registrerat sig går l
 
 ## Tester
 
-- `prop/tests/Prop.Api.Tests/BillingRulesTests`: priset per steg, att fler platser aldrig blir billigare, del av en månad, när en månad debiteras, raderna för go-live, månaden och fler platser, och att fel inställningar hittas.
+- `prop/tests/Prop.Api.Tests/BillingRulesTests`: priset per steg, att fler platser aldrig blir billigare, del av en månad, när en månad debiteras, raderna för handpenningen, go-live med och utan avdrag, månaden och fler platser, och att fel inställningar hittas.
 - `prop/tests/Prop.Api.Tests/SlotTests`: ingen gräns, en full firma som inte kan starta förrän en challenge tar slut, en order som håller den sista platsen åt sin köpare, en order som går ut och lämnar tillbaka platsen, och en betalning utan plats.
-- `prop/tests/Prop.Api.Tests/BillingFlowTests`: go-live med testbetalning, kort som nekas och sandlådans konto som avslutas, go-live som inte är tillåten, go-live som startas om eller går ut, fler och färre platser, månaden som dras i förskott, en månad som börjar obetald och pausar challenges på handelsplattformen tills ett nytt kort betalar, en obetald månad som betalas på en betalsida, färre platser som gäller efter månaden som väntar på betalning, automatisk utökning och en nekad utökning som väntar ett dygn, varningen, att testsidan bara är firmans egen och konfigurerade firmors platser.
-- `prop/tests/Prop.Api.Tests/StripeBillingTests`: Stripe Checkout med vår nyckel och bara kort, och webhooken som tar firman live en gång, en förfalskad signatur, dragningen av kortet med en nyckel per försök och kort, ett nekat kort med Stripes orsak, ett nytt kort från en setup-sida, en go-live som startas om och stänger den första sidan, en dragning som Stripe rapporterar, en betalning till som sparas för återbetalning, och platser som Stripe fördröjer förbi nästa månads debitering och ändå gäller nästa månad. Stripe är en låtsad version (`FakeStripe`).
-- `prop/portal/src/lib/billing.test.ts`: platserna i text och stapel, prisstegen, kortet, debiteringarnas namn och raden i adminpanelen.
-- `prop/portal/e2e/billing.spec.ts`: en firma går live med testbetalning efter ett kort som nekas, ser sina platser och kort, och köper fler platser.
+- `prop/tests/Prop.Api.Tests/BillingFlowTests`: att go-live kräver vårt godkännande, go-live med testbetalning, kort som nekas och sandlådans konto som avslutas, go-live som inte är tillåten, go-live som startas om eller går ut, fler och färre platser, månaden som dras i förskott, en månad som börjar obetald och pausar challenges på handelsplattformen tills ett nytt kort betalar, en avstängning som håller challengerna pausade fast månaden betalas, en obetald månad som betalas på en betalsida, färre platser som gäller efter månaden som väntar på betalning, automatisk utökning och en nekad utökning som väntar ett dygn, varningen, att testsidan bara är firmans egen och konfigurerade firmors platser.
+- `prop/tests/Prop.Api.Tests/StripeBillingTests`: handpenningen på Stripe Checkout och samma kund när firman går live, Stripe Checkout med vår nyckel och bara kort, och webhooken som tar firman live en gång, en förfalskad signatur, dragningen av kortet med en nyckel per försök och kort, ett nekat kort med Stripes orsak, ett nytt kort från en setup-sida, en go-live som startas om och stänger den första sidan, en dragning som Stripe rapporterar, en betalning till som sparas för återbetalning, och platser som Stripe fördröjer förbi nästa månads debitering och ändå gäller nästa månad. Stripe är en låtsad version (`FakeStripe`).
+- `prop/portal/src/lib/billing.test.ts`: platserna i text och stapel, prisstegen, kortet, debiteringarnas namn och raden i adminpanelen, också för en avstängd firma.
+- `prop/portal/e2e/billing.spec.ts`: en godkänd firma går live med testbetalning efter ett kort som nekas, ser sina platser och kort, och köper fler platser.

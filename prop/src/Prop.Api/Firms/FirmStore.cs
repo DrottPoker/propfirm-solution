@@ -21,7 +21,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
         select f.id, f.name, f.status, f.api_key_sha256, f.trading_server, f.trading_api_key, f.trading_group, f.trading_currency,
                f.webhook_url, f.webhook_secret, f.portal_url, f.logo_url, f.colors,
                coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
-               f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url
+               f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url,
+               f.suspended_at, f.suspension_reason
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -148,6 +149,19 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
     public static Task SetLiveAsync(NpgsqlConnection connection, string firmId, DateTimeOffset now, CancellationToken cancellationToken) =>
         ExecuteAsync(connection, "update firms set status = $2, updated_at = $3 where id = $1", [firmId, FirmStatus.Live.ToString(), now], cancellationToken);
 
+    /// <summary>Suspends the firm, or lifts its suspension when <paramref name="suspension"/> is null. Done in the caller's transaction.</summary>
+    public static Task SetSuspensionAsync(NpgsqlConnection connection, string firmId, FirmSuspension? suspension, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            connection,
+            "update firms set suspended_at = $2, suspension_reason = $3, updated_at = $4 where id = $1",
+            [
+                firmId,
+                new NpgsqlParameter { Value = (object?)suspension?.At ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.TimestampTz },
+                Text(suspension?.Reason),
+                now,
+            ],
+            cancellationToken);
+
     /// <summary>How the firm's portal takes payment. Stripe's keys are kept when <paramref name="payments"/> has none.</summary>
     public Task SetPaymentsAsync(string firmId, FirmPayments payments, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -253,7 +267,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 trading,
                 webhook,
                 new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, reader.IsDBNull(11) ? null : reader.GetString(11), colors)),
-                payments));
+                payments,
+                reader.IsDBNull(19) ? null : new FirmSuspension(reader.GetFieldValue<DateTimeOffset>(19), reader.GetString(20))));
         }
 
         return firms;

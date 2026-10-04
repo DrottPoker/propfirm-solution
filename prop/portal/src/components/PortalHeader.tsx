@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { useBranding } from "@/app/providers";
+
 import type { Me } from "@/lib/api/types";
 import { useLogout, useShop, type Role } from "@/lib/queries";
 
@@ -12,6 +14,7 @@ import { FirmName } from "./FirmName";
 export function PortalHeader({ me, role }: { me: Me; role: Role }) {
   const logout = useLogout(role);
   const shop = useShop(role === "trader");
+  const branding = useBranding();
   const router = useRouter();
   const loginPage = role === "admin" ? "/admin/login" : "/login";
 
@@ -42,6 +45,11 @@ export function PortalHeader({ me, role }: { me: Me; role: Role }) {
             <Link href="/admin/billing" className="hover:text-accent">
               Billing
             </Link>
+            {branding.status !== "Live" && (
+              <Link href="/admin/verification" className="hover:text-accent">
+                Verification
+              </Link>
+            )}
             <Link href="/admin/settings" className="hover:text-accent">
               Settings
             </Link>

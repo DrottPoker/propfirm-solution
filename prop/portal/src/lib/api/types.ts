@@ -43,3 +43,18 @@ export type Card = Schemas["CardResponse"];
 export type Prices = Schemas["PricesResponse"];
 export type Quote = Schemas["QuoteResponse"];
 export type TestBillingCheckout = Schemas["TestCheckoutResponse"];
+export type Suspension = Schemas["SuspensionResponse"];
+export type VerificationResponse = Schemas["VerificationResponse"];
+// The review's status is never null here, though the schema shares it with places where a firm has no review.
+export type Verification = Omit<VerificationResponse, "status"> & { status: ReviewStatus };
+export type FirmApplication = Schemas["FirmApplication"];
+export type FirmOwner = Schemas["FirmOwner"];
+export type FirmDocument = Schemas["DocumentResponse"];
+// Nullable where a firm has no review, so the status itself is taken without null.
+export type ReviewStatus = NonNullable<Schemas["ReviewStatus"]>;
+export type OpsSite = Schemas["OpsSiteResponse"];
+export type OpsMe = Schemas["OpsMeResponse"];
+export type OpsFirmSummary = Schemas["OpsFirmSummaryResponse"];
+export type OpsFirm = Schemas["OpsFirmResponse"];
+export type OpsEvent = Schemas["OpsEventResponse"];
+export type FirmFilter = NonNullable<Schemas["FirmFilter"]>;

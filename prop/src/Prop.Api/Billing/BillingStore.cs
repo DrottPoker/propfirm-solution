@@ -7,6 +7,7 @@ using Npgsql;
 using NpgsqlTypes;
 
 using Prop.Api.Json;
+using Prop.Api.Review;
 
 namespace Prop.Api.Billing;
 
@@ -29,6 +30,9 @@ public enum ChargeKind
 
     /// <summary>More slots during a month.</summary>
     Slots,
+
+    /// <summary>The deposit for our review, paid when the firm sends its application and taken off the startup fee (ADR 0021).</summary>
+    Deposit,
 }
 
 public enum ChargeStatus
@@ -102,11 +106,15 @@ internal sealed record Charge(
     {
         ChargeKind.Activation => $"Going live, charge {Number}",
         ChargeKind.Renewal => $"Slots for {BillingRules.NameOf(Month)}, charge {Number}",
+        ChargeKind.Deposit => $"Review deposit, charge {Number}",
         _ => $"More slots, charge {Number}",
     };
 
     public ChargeToPay ToPay() => new(Id, Number, Description, Lines, Amount, Currency);
 }
+
+/// <summary>What decides whether a firm may go live: its status, whether we suspended it, and our review of it.</summary>
+internal sealed record GoLiveState(Firms.FirmStatus Status, bool Suspended, ReviewStatus? Review);
 
 /// <summary>A page where the firm pays a charge or saves a card at the provider.</summary>
 internal sealed record BillingCheckout(
@@ -198,6 +206,27 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
             """,
             [firmId, BillingPlan.Complimentary.ToString(), Int(slots), now],
             cancellationToken);
+    }
+
+    /// <summary>
+    /// A billing row for a firm in the sandbox that starts paying us, so the card it pays with is saved. Keeps the
+    /// row the firm already has.
+    /// </summary>
+    public static Task<int> EnsurePaidPlanAsync(NpgsqlConnection connection, string firmId, BillingProvider provider, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            connection,
+            "insert into firm_billing (firm_id, plan, provider, created_at, updated_at) values ($1, $2, $3, $4, $4) on conflict (firm_id) do nothing",
+            [firmId, BillingPlan.Paid.ToString(), provider.ToString(), now],
+            cancellationToken);
+
+    /// <summary>What the firm has paid as deposit for our review, in the currency. 0 when nothing.</summary>
+    public static async Task<decimal> DepositPaidAsync(NpgsqlConnection connection, string firmId, string currency, CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            "select coalesce(sum(amount), 0) from billing_charges where firm_id = $1 and kind = 'Deposit' and status = 'Paid' and currency = $2",
+            [firmId, currency]);
+        return (decimal)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     /// <summary>The slots and automatic expansion a firm in the sandbox chose when it started paying to go live.</summary>
@@ -445,6 +474,47 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
     {
         await using var command = Command(connection, "select status from firms where id = $1 for update", [firmId]);
         return Enum.Parse<Firms.FirmStatus>((string)(await command.ExecuteScalarAsync(cancellationToken))!);
+    }
+
+    /// <summary>The firm's status, suspension and review as saved, with the firm locked until the caller's transaction ends when <paramref name="forUpdate"/> is set.</summary>
+    public static async Task<GoLiveState> GoLiveStateAsync(NpgsqlConnection connection, string firmId, bool forUpdate, CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            $"select f.status, f.suspended_at is not null, r.status from firms f left join firm_reviews r on r.firm_id = f.id where f.id = $1{(forUpdate ? " for update of f" : "")}",
+            [firmId]);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return new GoLiveState(
+            Enum.Parse<Firms.FirmStatus>(reader.GetString(0)),
+            reader.GetBoolean(1),
+            reader.IsDBNull(2) ? null : Enum.Parse<ReviewStatus>(reader.GetString(2)));
+    }
+
+    /// <summary>
+    /// The firms whose challenges may need pausing or resuming beyond the firms that pay by card: those we have
+    /// suspended, and those with paused challenges.
+    /// </summary>
+    public async Task<List<string>> FirmsToKeepStandingAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        await using var command = Command(
+            connection,
+            """
+            select id from firms where suspended_at is not null
+            union
+            select firm_id from challenge_accounts where paused and status not in ('Failed', 'Cancelled')
+            order by 1
+            """,
+            []);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var firms = new List<string>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            firms.Add(reader.GetString(0));
+        }
+
+        return firms;
     }
 
     /// <summary>The first month from <paramref name="month"/> that is neither paid nor has a monthly charge waiting to be paid.</summary>

@@ -7,7 +7,7 @@ namespace Prop.Api.Tests;
 /// <summary>The arithmetic of billing: graduated slot prices, parts of months and the lines of each charge.</summary>
 public sealed class BillingRulesTests
 {
-    private static readonly BillingTerms Terms = new("USD", 500m, [new SlotPrice(1, 5m), new SlotPrice(101, 4.5m), new SlotPrice(501, 4m)], 10, 10_000, 5);
+    private static readonly BillingTerms Terms = new("USD", 500m, [new SlotPrice(1, 5m), new SlotPrice(101, 4.5m), new SlotPrice(501, 4m)], 10, 10_000, 5, 100m);
 
     // Monday 5 October 2026: 27 of October's 31 days are left, counting the day itself.
     private static readonly DateTimeOffset October5 = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
@@ -82,6 +82,28 @@ public sealed class BillingRulesTests
     }
 
     [Fact]
+    public void TheDepositForTheReviewIsOneLine()
+    {
+        Assert.Equal([new ChargeLine("Review deposit, taken off the startup fee", 1, 100m)], BillingRules.Deposit(Terms));
+    }
+
+    [Fact]
+    public void TheDepositPaidIsTakenOffTheStartupFee()
+    {
+        Assert.Equal(
+            [new ChargeLine("Startup fee, less the deposit of 100.00 USD", 1, 400m), new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)],
+            BillingRules.Activation(October5, 50, Terms, depositPaid: 100m));
+    }
+
+    [Fact]
+    public void ADepositAsLargeAsTheStartupFeeLeavesOnlyTheSlots()
+    {
+        Assert.Equal(
+            [new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)],
+            BillingRules.Activation(October5, 50, Terms with { ReviewDeposit = 500m }, depositPaid: 500m));
+    }
+
+    [Fact]
     public void MoreSlotsPayTheDifferenceForTheRestOfTheMonth()
     {
         Assert.Equal([new ChargeLine("10 more slots, October 2026 (27 of 31 days)", 10, 43.55m)], BillingRules.MoreSlots(October5, 50, 60, null, Terms));
@@ -117,6 +139,8 @@ public sealed class BillingRulesTests
     [InlineData("fractions of cents")]
     [InlineData("min slots")]
     [InlineData("charge days")]
+    [InlineData("deposit above the startup fee")]
+    [InlineData("negative deposit")]
     public void InvalidTermsAreFound(string problem)
     {
         var terms = problem switch
@@ -129,6 +153,8 @@ public sealed class BillingRulesTests
             "fractions of cents" => Terms with { SlotPrices = [new SlotPrice(1, 4.999m)] },
             "min slots" => Terms with { MinSlots = 0 },
             "charge days" => Terms with { ChargeDaysBeforeMonth = 28 },
+            "deposit above the startup fee" => Terms with { ReviewDeposit = 500.01m },
+            "negative deposit" => Terms with { ReviewDeposit = -1m },
             _ => throw new ArgumentOutOfRangeException(nameof(problem)),
         };
 

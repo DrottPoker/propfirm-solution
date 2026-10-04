@@ -32,16 +32,7 @@ internal sealed class SecretProtector
         _key = key;
     }
 
-    public string Protect(string secret, string purpose)
-    {
-        var plaintext = Encoding.UTF8.GetBytes(secret);
-        var sealedBox = new byte[NonceSize + plaintext.Length + TagSize];
-        var nonce = sealedBox.AsSpan(0, NonceSize);
-        RandomNumberGenerator.Fill(nonce);
-        using var aes = new AesGcm(_key, TagSize);
-        aes.Encrypt(nonce, plaintext, sealedBox.AsSpan(NonceSize, plaintext.Length), sealedBox.AsSpan(NonceSize + plaintext.Length), Encoding.UTF8.GetBytes(purpose));
-        return Prefix + Base64Url.EncodeToString(sealedBox);
-    }
+    public string Protect(string secret, string purpose) => Prefix + Base64Url.EncodeToString(Seal(Encoding.UTF8.GetBytes(secret), purpose));
 
     /// <summary>The secret. Throws if it was protected with another key or purpose, or changed.</summary>
     public string Unprotect(string protectedSecret, string purpose)
@@ -51,7 +42,28 @@ internal sealed class SecretProtector
             throw new CryptographicException("The secret is not in a known format.");
         }
 
-        var sealedBox = Base64Url.DecodeFromChars(protectedSecret.AsSpan(Prefix.Length));
+        return Encoding.UTF8.GetString(Open(Base64Url.DecodeFromChars(protectedSecret.AsSpan(Prefix.Length)), purpose));
+    }
+
+    /// <summary>Encrypts a file, such as a firm's document, for the database.</summary>
+    public byte[] ProtectBytes(ReadOnlySpan<byte> content, string purpose) => Seal(content, purpose);
+
+    /// <summary>The file. Throws if it was protected with another key or purpose, or changed.</summary>
+    public byte[] UnprotectBytes(byte[] protectedContent, string purpose) => Open(protectedContent, purpose);
+
+    // The nonce, the ciphertext and the tag, one after the other.
+    private byte[] Seal(ReadOnlySpan<byte> plaintext, string purpose)
+    {
+        var sealedBox = new byte[NonceSize + plaintext.Length + TagSize];
+        var nonce = sealedBox.AsSpan(0, NonceSize);
+        RandomNumberGenerator.Fill(nonce);
+        using var aes = new AesGcm(_key, TagSize);
+        aes.Encrypt(nonce, plaintext, sealedBox.AsSpan(NonceSize, plaintext.Length), sealedBox.AsSpan(NonceSize + plaintext.Length), Encoding.UTF8.GetBytes(purpose));
+        return sealedBox;
+    }
+
+    private byte[] Open(byte[] sealedBox, string purpose)
+    {
         if (sealedBox.Length < NonceSize + TagSize)
         {
             throw new CryptographicException("The secret is too short.");
@@ -65,7 +77,7 @@ internal sealed class SecretProtector
             sealedBox.AsSpan(NonceSize + plaintext.Length),
             plaintext,
             Encoding.UTF8.GetBytes(purpose));
-        return Encoding.UTF8.GetString(plaintext);
+        return plaintext;
     }
 
     private static byte[]? TryDecode(string key)

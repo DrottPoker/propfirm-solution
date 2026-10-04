@@ -20,6 +20,7 @@ public enum FirmStatus
 /// <summary>
 /// A firm on the prop platform. <paramref name="ApiKeyHash"/> is empty until the firm makes a key for its own
 /// systems, and <paramref name="Trading"/> until its server on the trading platform exists.
+/// <paramref name="Suspension"/> is set while we have suspended the firm.
 /// </summary>
 internal sealed record Firm(
     string Id,
@@ -29,7 +30,11 @@ internal sealed record Firm(
     FirmTrading? Trading,
     FirmWebhook? Webhook,
     FirmPortal Portal,
-    FirmPayments Payments);
+    FirmPayments Payments,
+    FirmSuspension? Suspension);
+
+/// <summary>We suspended the firm, for a reason its administrators see (ADR 0021).</summary>
+internal sealed record FirmSuspension(DateTimeOffset At, string Reason);
 
 /// <summary>The firm's server on the trading platform, the key the prop platform uses there, and the group new accounts open in.</summary>
 internal sealed record FirmTrading(string Server, string ApiKey, string Group, string Currency);
@@ -56,7 +61,7 @@ internal static partial class FirmRules
     public static readonly IReadOnlySet<string> ReservedIds = new HashSet<string>(StringComparer.Ordinal)
     {
         "account", "accounts", "admin", "api", "app", "assets", "auth", "billing", "blog", "cdn", "dashboard", "demo", "dev",
-        "docs", "email", "help", "login", "mail", "ns1", "ns2", "platform", "portal", "secure", "signup", "smtp", "staging",
+        "docs", "email", "help", "login", "mail", "ns1", "ns2", "ops", "platform", "portal", "secure", "signup", "smtp", "staging",
         "static", "status", "support", "terminal", "test", "trade", "trading", "www",
     };
 

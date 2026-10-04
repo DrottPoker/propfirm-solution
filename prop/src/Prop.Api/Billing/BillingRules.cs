@@ -10,8 +10,18 @@ internal sealed record SlotPrice(int From, decimal Price);
 /// <summary>One line of a charge: what is paid for, how many, and the amount for all of them.</summary>
 public sealed record ChargeLine(string Description, int Quantity, decimal Amount);
 
-/// <summary>What a firm pays us, from the configuration: the currency, the startup fee and the slot prices.</summary>
-internal sealed record BillingTerms(string Currency, decimal StartupFee, IReadOnlyList<SlotPrice> SlotPrices, int MinSlots, int MaxSlots, int ChargeDaysBeforeMonth)
+/// <summary>
+/// What a firm pays us, from the configuration: the currency, the startup fee, the slot prices and the deposit
+/// paid for our review, which is taken off the startup fee.
+/// </summary>
+internal sealed record BillingTerms(
+    string Currency,
+    decimal StartupFee,
+    IReadOnlyList<SlotPrice> SlotPrices,
+    int MinSlots,
+    int MaxSlots,
+    int ChargeDaysBeforeMonth,
+    decimal ReviewDeposit)
 {
     public static BillingTerms From(BillingOptions options) =>
         new(
@@ -20,7 +30,8 @@ internal sealed record BillingTerms(string Currency, decimal StartupFee, IReadOn
             [.. options.SlotPrices.Select(p => new SlotPrice(p.From, p.Price))],
             options.MinSlots,
             options.MaxSlots,
-            options.ChargeDaysBeforeMonth);
+            options.ChargeDaysBeforeMonth,
+            options.ReviewDeposit);
 
     /// <summary>What is wrong with the terms. Empty when they work.</summary>
     public IReadOnlyList<string> Problems()
@@ -34,6 +45,11 @@ internal sealed record BillingTerms(string Currency, decimal StartupFee, IReadOn
         if (StartupFee < 0 || decimal.Round(StartupFee, 2) != StartupFee)
         {
             problems.Add("Billing:StartupFee must be 0 or more, in whole cents.");
+        }
+
+        if (ReviewDeposit < 0 || ReviewDeposit > StartupFee || decimal.Round(ReviewDeposit, 2) != ReviewDeposit)
+        {
+            problems.Add("Billing:ReviewDeposit must be 0 to Billing:StartupFee, in whole cents.");
         }
 
         if (SlotPrices.Count == 0 || SlotPrices[0].From != 1
@@ -109,19 +125,26 @@ internal static class BillingRules
     public static bool IsNextMonthDue(DateTimeOffset time, BillingTerms terms) =>
         time >= ChargeTimeOf(MonthOf(time).AddMonths(1), terms.ChargeDaysBeforeMonth);
 
+    /// <summary>The deposit for our review, paid when the firm sends its application.</summary>
+    public static IReadOnlyList<ChargeLine> Deposit(BillingTerms terms) =>
+        [new ChargeLine("Review deposit, taken off the startup fee", 1, terms.ReviewDeposit)];
+
     /// <summary>
-    /// The first payment, which takes the firm live: the startup fee and the slots for the rest of the month, and
-    /// for the next month too when it is already due.
+    /// The first payment, which takes the firm live: the startup fee less the deposit the firm paid for our review,
+    /// and the slots for the rest of the month, and for the next month too when it is already due.
     /// </summary>
-    public static IReadOnlyList<ChargeLine> Activation(DateTimeOffset now, int slots, BillingTerms terms)
+    public static IReadOnlyList<ChargeLine> Activation(DateTimeOffset now, int slots, BillingTerms terms, decimal depositPaid = 0)
     {
         var month = MonthOf(now);
         var monthly = MonthlyPrice(slots, terms.SlotPrices);
         var (left, inMonth) = DaysLeft(now);
+        var deposit = Math.Min(depositPaid, terms.StartupFee);
         List<ChargeLine> lines = [];
-        if (terms.StartupFee > 0)
+        if (terms.StartupFee - deposit > 0)
         {
-            lines.Add(new ChargeLine("Startup fee", 1, terms.StartupFee));
+            lines.Add(deposit > 0
+                ? new ChargeLine(Invariant($"Startup fee, less the deposit of {deposit:N2} {terms.Currency}"), 1, terms.StartupFee - deposit)
+                : new ChargeLine("Startup fee", 1, terms.StartupFee));
         }
 
         lines.Add(new ChargeLine(Invariant($"{slots} slots, {NameOf(month)} ({left} of {inMonth} days)"), slots, ForRestOfMonth(monthly, now)));

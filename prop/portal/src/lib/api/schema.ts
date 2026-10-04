@@ -3066,6 +3066,210 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VerificationResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/verification/application": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FirmApplication"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VerificationResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/verification/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        file?: components["schemas"]["IFormFile"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DocumentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/verification/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    documentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    documentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/verification/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SubmitResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/platform": {
         parameters: {
             query?: never;
@@ -3225,6 +3429,459 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/ops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsSiteResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PortalLoginRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsMeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    filter?: components["schemas"]["FirmFilter"];
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmSummaryResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/documents/{documentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                    documentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/request-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DecisionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/suspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SuspendRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/unsuspend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsFirmResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3345,7 +4002,9 @@ export interface components {
         /**
          * @description The firm's billing for its admin panel. Plan is null until the firm has started paying.
          *     NextMonthSlots is what a paying firm is charged for from the next unpaid month.
-         *     GoLiveProblem says why a firm in the sandbox cannot go live by paying now.
+         *     GoLiveProblem says why a firm in the sandbox cannot go live by paying now, and
+         *     Review where our review of it is. DepositPaid is taken off the startup fee.
+         *     Suspension is set while we have suspended the firm.
          */
         BillingResponse: {
             status: components["schemas"]["FirmStatus"];
@@ -3363,6 +4022,10 @@ export interface components {
             charges: components["schemas"]["ChargeResponse"][];
             prices: components["schemas"]["PricesResponse"];
             goLiveProblem: null | string;
+            review: null | components["schemas"]["ReviewStatus"];
+            /** Format: double */
+            depositPaid: number;
+            suspension: null | components["schemas"]["SuspensionResponse"];
         };
         /** @description The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb. */
         BrandingRequest: {
@@ -3472,7 +4135,7 @@ export interface components {
             definition: components["schemas"]["ChallengeDefinition"];
         };
         /** @enum {unknown} */
-        ChargeKind: "Activation" | "Renewal" | "Slots";
+        ChargeKind: "Activation" | "Renewal" | "Slots" | "Deposit";
         /** @description One line of a charge: what is paid for, how many, and the amount for all of them. */
         ChargeLine: {
             description: string;
@@ -3554,6 +4217,28 @@ export interface components {
             percent: number;
             reference: components["schemas"]["DailyLossReference"];
         };
+        /** @description Our word to the firm with a decision. Required when we ask for changes or reject. */
+        DecisionRequest: {
+            message: null | string;
+        };
+        /** @description The deposit for our review: what the firm paid, or else what it pays when it sends its application. Taken off the startup fee. */
+        DepositResponse: {
+            /** Format: double */
+            amount: number;
+            currency: string;
+            paid: boolean;
+        };
+        /** @description A document added to the application. Its content is fetched on its own. */
+        DocumentResponse: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            contentType: string;
+            /** Format: int32 */
+            size: number;
+            /** Format: date-time */
+            uploadedAt: string;
+        };
         /** @description The challenge ran out of time when trading day Day started, after its time limit or the days allowed without a new position. */
         ExpiryEvidence: {
             /** Format: date-time */
@@ -3566,6 +4251,31 @@ export interface components {
         ExpiryReason: "TimeLimit" | "Inactivity";
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
+        /**
+         * @description The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be
+         *     empty in a draft. What is required is checked when the application is sent.
+         */
+        FirmApplication: {
+            companyName: null | string;
+            registrationNumber: null | string;
+            country: null | string;
+            address: null | string;
+            website: null | string;
+            contactName: null | string;
+            contactPhone: null | string;
+            owners: null | components["schemas"]["FirmOwner"][];
+            termsUrl: null | string;
+            links: null | string[];
+            description: null | string;
+        };
+        /** @enum {unknown} */
+        FirmFilter: "ToReview" | "Suspended" | "All" | null;
+        /** @description One of the firm's owners, with the share of the company in percent. */
+        FirmOwner: {
+            name: null | string;
+            /** Format: double */
+            sharePercent: null | number;
+        };
         /**
          * @description The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in
          *     the sandbox. Payments is how its portal takes payment.
@@ -3602,6 +4312,8 @@ export interface components {
             /** Format: double */
             headroom: number;
         };
+        /** Format: binary */
+        IFormFile: string;
         /** @description Open Url once before ExpiresAt to choose a password for the portal. */
         InviteResponse: {
             /** Format: uri */
@@ -3651,6 +4363,82 @@ export interface components {
             slots: number;
             /** Format: double */
             amount: number;
+        };
+        /** @description How the firm pays us, in short. */
+        OpsBillingResponse: {
+            plan: null | components["schemas"]["BillingPlan"];
+            /** Format: int32 */
+            slots: null | number;
+            /** Format: int32 */
+            openChallenges: number;
+            /** Format: double */
+            depositPaid: number;
+            currency: string;
+            /** Format: date-time */
+            activatedAt: null | string;
+            /** Format: date-time */
+            unpaidSince: null | string;
+        };
+        /**
+         * @description Something that happened in the firm's review or with its suspension. Detail has the message
+         *     or reason, and the application as it was sent.
+         */
+        OpsEventResponse: {
+            /** Format: int64 */
+            id: number;
+            type: string;
+            /** Format: date-time */
+            recordedAt: string;
+            actor: string;
+            detail: null | components["schemas"]["JsonElement"];
+        };
+        /** @description A firm for our staff: who it is, its application and documents, our review, its billing, its suspension and its events. */
+        OpsFirmResponse: {
+            id: string;
+            name: string;
+            status: components["schemas"]["FirmStatus"];
+            configured: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: uri */
+            portalUrl: string;
+            admins: string[];
+            review: null | components["schemas"]["ReviewStatus"];
+            application: components["schemas"]["FirmApplication"];
+            documents: components["schemas"]["DocumentResponse"][];
+            message: null | string;
+            /** Format: date-time */
+            submittedAt: null | string;
+            /** Format: date-time */
+            decidedAt: null | string;
+            decidedBy: null | string;
+            billing: components["schemas"]["OpsBillingResponse"];
+            suspension: null | components["schemas"]["SuspensionResponse"];
+            events: components["schemas"]["OpsEventResponse"][];
+        };
+        /** @description A firm in our staff's list, with its review and whether we suspended it. */
+        OpsFirmSummaryResponse: {
+            id: string;
+            name: string;
+            status: components["schemas"]["FirmStatus"];
+            configured: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            review: null | components["schemas"]["ReviewStatus"];
+            /** Format: date-time */
+            submittedAt: null | string;
+            /** Format: date-time */
+            suspendedAt: null | string;
+        };
+        /** @description The staff member who is logged in. */
+        OpsMeResponse: {
+            /** Format: uuid */
+            userId: string;
+            email: string;
+        };
+        /** @description Our admin view's address: the platform's name. */
+        OpsSiteResponse: {
+            name: string;
         };
         /** @description An order with everything that happened to it, oldest first. */
         OrderDetailsResponse: {
@@ -3833,11 +4621,16 @@ export interface components {
             currency: null | string;
             forSale: boolean;
         };
-        /** @description What firms pay: the startup fee, the slot prices and the rules for slots. The prices are examples until they are decided. */
+        /**
+         * @description What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules
+         *     for slots. The prices are examples until they are decided.
+         */
         PricesResponse: {
             currency: string;
             /** Format: double */
             startupFee: number;
+            /** Format: double */
+            reviewDeposit: number;
             slotPrices: components["schemas"]["SlotPriceResponse"][];
             /** Format: int32 */
             minSlots: number;
@@ -3871,6 +4664,8 @@ export interface components {
         RejectPayoutRequest: {
             reason: null | string;
         };
+        /** @enum {unknown} */
+        ReviewStatus: "Draft" | "Submitted" | "ChangesRequested" | "Approved" | "Rejected" | null;
         ShopItemResponse: {
             challenge: components["schemas"]["ChallengeDefinition"];
             /** Format: double */
@@ -3924,8 +4719,8 @@ export interface components {
         /**
          * @description The firm's slots: Used by challenges that have not ended and Reserved by
          *     orders waiting for payment. Slots and Free are null when there is no
-         *     limit. No challenge can start when nothing is free or Paid is false. Warning
-         *     is set when most slots are taken.
+         *     limit. No challenge can start when nothing is free, Paid is false or the firm is
+         *     Suspended. Warning is set when most slots are taken.
          */
         SlotsResponse: {
             limit: components["schemas"]["SlotLimit"];
@@ -3938,6 +4733,7 @@ export interface components {
             /** Format: int32 */
             free: null | number;
             paid: boolean;
+            suspended: boolean;
             warning: boolean;
         };
         /**
@@ -3979,11 +4775,29 @@ export interface components {
             outputs: components["schemas"]["JsonElement"];
             sourceEvent: null | components["schemas"]["JsonElement"];
         };
+        /** @description Where the firm pays the deposit, or null when the application was sent at once. */
+        SubmitResponse: {
+            /** Format: uri */
+            checkoutUrl: null | string;
+        };
+        /** @description Why we suspend the firm. Its administrators see it. */
+        SuspendRequest: {
+            reason: null | string;
+        };
+        /** @description We suspended the firm, for a reason its administrators see. */
+        SuspensionResponse: {
+            /** Format: date-time */
+            at: string;
+            reason: string;
+        };
         /** @description Completes a test checkout page with a test card that pays, or one that declines. */
         TestCheckoutRequest: {
             declines: boolean;
         };
-        /** @description A test checkout page in the portal: what it is for and, for a payment, what is paid. */
+        /**
+         * @description A test checkout page in the portal: what it is for and, for a payment, what is paid. ReturnPath
+         *     is the page in the admin panel the firm comes back to.
+         */
         TestCheckoutResponse: {
             id: string;
             purpose: components["schemas"]["CheckoutPurpose"];
@@ -3994,12 +4808,34 @@ export interface components {
             currency: string;
             /** Format: date-time */
             expiresAt: string;
+            returnPath: string;
         };
         /** @description When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days. */
         TradingDayDefinition: {
             timeZone: string;
             /** Format: time */
             start: string;
+        };
+        /**
+         * @description The firm's review for its admin panel. Message is our latest word: the changes we need, or why
+         *     it was not approved. SubmitProblem says why the application cannot be sent now.
+         */
+        VerificationResponse: {
+            status: components["schemas"]["ReviewStatus"];
+            application: components["schemas"]["FirmApplication"];
+            documents: components["schemas"]["DocumentResponse"][];
+            message: null | string;
+            /** Format: date-time */
+            submittedAt: null | string;
+            /** Format: date-time */
+            decidedAt: null | string;
+            deposit: components["schemas"]["DepositResponse"];
+            canEdit: boolean;
+            submitProblem: null | string;
+            /** Format: int32 */
+            maxDocuments: number;
+            /** Format: int32 */
+            maxDocumentBytes: number;
         };
         VerifySignupRequest: {
             token: null | string;

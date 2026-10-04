@@ -1,19 +1,19 @@
 # Spec: propfirm-tjänsten
 
-- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8
+- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a
 - Status: Implementerad i `prop/src/Prop.Api`
 - Datum: 2026-10-03
 
 ## Syfte
 
-Tjänsten driver firmornas challenges. Den har firmans API och portalens API, kör regelmotorn (se [specen för regelmotorn](regelmotor.md)) för varje challenge-konto och kopplar den till handelsplattformen genom dess publika admin-API (ADR 0012). Besluten om hur det hålls korrekt finns i [ADR 0013](../adr/0013-journal-och-utkorg-i-propfirm-tjansten.md). Portalen och dess API beskrivs i [specen för portalen](portal.md), hur firmor registrerar sig själva i [specen för registrering och sandlåda](registrering.md), köp av challenges i portalen i [specen för köp i portalen](kop.md) och vad firman betalar oss i [specen för platser och betalning](platser-och-betalning.md).
+Tjänsten driver firmornas challenges. Den har firmans API och portalens API, kör regelmotorn (se [specen för regelmotorn](regelmotor.md)) för varje challenge-konto och kopplar den till handelsplattformen genom dess publika admin-API (ADR 0012). Besluten om hur det hålls korrekt finns i [ADR 0013](../adr/0013-journal-och-utkorg-i-propfirm-tjansten.md). Portalen och dess API beskrivs i [specen för portalen](portal.md), hur firmor registrerar sig själva i [specen för registrering och sandlåda](registrering.md), köp av challenges i portalen i [specen för köp i portalen](kop.md), vad firman betalar oss i [specen för platser och betalning](platser-och-betalning.md) och vår granskning av firmor och avstängning i [specen för granskning och avstängning](granskning.md).
 
 ## Delar
 
 | Del | Ansvar |
 |---|---|
-| `FirmCatalog`, `FirmApiKeyFilter` | Firmorna i minnet: id, namn, status, hash av nyckeln för firmans API, server och nyckel på handelsplattformen, webhook och portal. Den som ändrar en firma lägger in den nya versionen (ADR 0017). |
-| `FirmStore`, `SecretProtector` | Firmorna i databasen. Handelsplattformens nyckel och webhook-hemligheten krypteras med AES-GCM och `Secrets:Key`. |
+| `FirmCatalog`, `FirmApiKeyFilter` | Firmorna i minnet: id, namn, status, hash av nyckeln för firmans API, server och nyckel på handelsplattformen, webhook, portal och avstängning. Den som ändrar en firma lägger in den nya versionen (ADR 0017). |
+| `FirmStore`, `SecretProtector` | Firmorna i databasen. Handelsplattformens nyckel, webhook-hemligheten och firmornas dokument krypteras med AES-GCM och `Secrets:Key`. |
 | `FirmSeeder` | Sparar de konfigurerade firmorna i databasen vid start och laddar alla firmor. Stoppar starten om konfigurationen är fel, eller om en konfigurerad firma har samma id som en som registrerat sig. |
 | `FirmProvisioner` | Skapar servern på handelsplattformen för varje firma som registrerat sig, och flyttar firman till sandlådan med en första challenge. Försöker igen tills det lyckas. |
 | `FirmLoops` | Startar bakgrundsjobben per firma när firman har en server, även för firmor som blir klara medan tjänsten kör. |
@@ -42,6 +42,9 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `IBillingGateway`, `StripeBillingGateway`, `TestBillingGateway` | Betalsidor och dragningar av det sparade kortet hos Stripe med vårt konto, eller testbetalningar i utveckling. |
 | `BillingWorker` | Varje minut och när något ändras: betalsidor som gått ut, kort som ska dras, nästa månad, paus och återupptagande, automatisk utökning och varningen om platserna. |
 | `BillingEndpoints` | Adminpanelens betalning, firmans API för platserna och Stripes webhook för våra egna betalningar. |
+| `ReviewService`, `ReviewStore`, `ReviewEndpoints` | Vår granskning av firman: ansökan, dokumenten, att skicka den med handpenningen, våra beslut och avstängning (ADR 0021). |
+| `StaffUsers`, `StaffAuth`, `StaffSeeder`, `OpsHost` | Vår personal, dess session på vår adminvys adress och att vår adminvy bara finns där. |
+| `OpsEndpoints`, `OpsFirms`, `StaffNotifier` | Vår adminvys API, firman som personalen ser den och mejlet till personalen när en ansökan kommer. |
 
 ## Flöde
 
@@ -169,15 +172,16 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `TradingPlatform:PartnerApiKey`, `Platform`, `Signup`, `Sandbox`, `Email`, `Secrets` | Registreringen och sandlådan. Se [specen för registrering och sandlåda](registrering.md). |
 | `Platform:ApiUrl`, `Payments`, `Firms:N:Payments`, `Firms:N:SeedChallenges:M:Price` | Köp i portalen. Se [specen för köp i portalen](kop.md). |
 | `Billing`, `Firms:N:Slots` | Platser och vad firman betalar oss. Se [specen för platser och betalning](platser-och-betalning.md). |
+| `Platform:OpsUrl`, `Billing:ReviewDeposit`, `Staff` | Vår granskning och vår adminvy. Se [specen för granskning och avstängning](granskning.md). |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
-I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan bekräftelse av e-postadressen, får sin portal på till exempel http://acme.localhost:3002 och går live med testbetalning på http://acme.localhost:3002/admin/billing. Mejl hamnar i Mailpit på http://localhost:8025. Firman `demo-firm` har nyckeln `dev-prop-key` och ingen gräns för platser. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, som säljs för 499 och 9 USD med testbetalningar på http://localhost:3002/buy, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
+I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan bekräftelse av e-postadressen, får sin portal på till exempel http://acme.localhost:3002, skickar sin ansökan med testbetalning på http://acme.localhost:3002/admin/verification, godkänns av `ops@test.com` med lösenordet `ops` på vår adminvy http://ops.localhost:3002 och går live med testbetalning på http://acme.localhost:3002/admin/billing. Mejl hamnar i Mailpit på http://localhost:8025. Firman `demo-firm` har nyckeln `dev-prop-key` och ingen gräns för platser. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, som säljs för 499 och 9 USD med testbetalningar på http://localhost:3002/buy, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 
 - Tjänsten startar bara i miljön Development. Före produktion behövs HTTPS och hantering av hemligheter, till exempel för handelsplattformens nyckel och webhook-hemligheten.
 - Tjänsten körs som en instans. Läsningen av händelseströmmen och kommandona har ännu inga lås mellan instanser, och firmorna hålls i minnet.
-- En firma kan bara gå live i utveckling tills kontrollen av bolag och ägare finns, och kan inte byta namn eller kort namn, eller tas bort än.
+- En firma går live först när vi har granskat och godkänt den. Den kan inte byta namn eller kort namn, eller tas bort än.
 - Ett kommando som handelsplattformen avvisar läggs åt sidan som misslyckat och syns bara i databasen och loggen. Ett nekat uttag gör dessutom utbetalningen `Failed`.
 - Utbetalningar som firman har godkänt betalas av firman själv. Tjänsten hanterar aldrig pengar.
 - Köp i portalen betalas till firmans egen leverantör. Tjänsten ser bara att betalningen är gjord.
@@ -194,6 +198,7 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `OrderFlowTests`: köp i portalen med testbetalning, Stripe och firmans egen betalsida. Se [specen för köp i portalen](kop.md).
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).
+- `ReviewTests` och `SuspensionTests`: vår granskning, vår adminvy och avstängning. Se [specen för granskning och avstängning](granskning.md).
 - `ExpiryTests`: en challenge utan ny position i 30 dagar som tar slut och stänger kontot med webhooken och orsaken, en affär på sista dagen som räknas fast händelsen kommer efter att dagen tagit slut, en ny position som flyttar sista dagen, en fas med tidsgräns som tar slut, och en tidsgräns som är kortare än fasens handelsdagar.
 - `ChallengeFlowTests`: dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa, brott med bevis, godkänd finansiering, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
 - `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv, att ett uttag bara dras en gång och bär plattformens orsak vid nej, och att konton pausas och återupptas.

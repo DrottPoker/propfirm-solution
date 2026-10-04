@@ -6,11 +6,16 @@ import { getSite } from "@/lib/site";
 
 import { Providers } from "../providers";
 
-// A firm's portal. On the platform's own address there is no firm, so visitors go to the sign-up instead.
+// A firm's portal. On the platform's own address and our admin view's there is no firm, so visitors go to the
+// sign-up or our admin view instead.
 export default async function FirmLayout({ children }: LayoutProps<"/">) {
   const site = await getSite();
   if (site.kind === "platform") {
     redirect("/signup");
+  }
+
+  if (site.kind === "ops") {
+    redirect("/ops");
   }
 
   if (site.kind !== "firm") {

@@ -18,6 +18,7 @@ Vi behöver bestämma hur adresserna fördelas innan första servern sätts upp,
 - **Propfirm-plattformen.**
   - `propbrand.com`: säljsidan.
   - `app.propbrand.com`: registreringen för nya firmor (`Platform:Url`).
+  - `ops.propbrand.com`: vår adminvy, där vår personal granskar och stänger av firmor (`Platform:OpsUrl`, ADR 0021).
   - `api.propbrand.com`: firmornas API (`/api/firm/v1`) och betalningsleverantörernas meddelanden (`/api/payments/v1`, ADR 0019).
 - **Firmornas portaler.**
   - `{firma}.propbrand.app`: firmans portal direkt efter registreringen (`Platform:FirmPortalUrl`). Adminpanelen ligger på samma adress under `/admin`.
@@ -27,12 +28,12 @@ Vi behöver bestämma hur adresserna fördelas innan första servern sätts upp,
   - `trade.tradebrand.com`: terminalen, gemensam för alla firmor. Firman syns som server på inloggningssidan.
   - `api.tradebrand.com`: handels-API:t, admin-API:t (`/api/admin/v1`) och partner-API:t (`/api/partner/v1`).
 - **Portalerna ligger inte på vår huvuddomän.** Blir en firmas sida svartlistad, till exempel av Google eller av mejlfilter, ska det inte drabba vår säljsida, registreringen eller mejlen från oss. Shopify gör likadant med `myshopify.com`.
-- **Testservern** har samma upplägg med `test.` före domänen, till exempel `app.test.propbrand.com`, `acme.test.propbrand.app` och `trade.test.tradebrand.com`.
+- **Testservern** har samma upplägg med `test.` före domänen, till exempel `app.test.propbrand.com`, `ops.test.propbrand.com`, `acme.test.propbrand.app` och `trade.test.tradebrand.com`.
 - **Det här når inte internet:** Postgres, NATS och propfirm-tjänstens portal-API (`/api/portal`). Portal-API:t nås bara genom portalen, eftersom tjänsten litar på värdnamnet som portalen skickar med (ADR 0014). `api.propbrand.com` släpper därför bara igenom `/api/firm/v1` och `/api/payments/v1`.
 
 ## Konsekvenser
 
-- Ingen kod behöver ändras. Adresserna är redan inställningar (`Platform:Url`, `Platform:FirmPortalUrl`, `Platform:ApiUrl`, `Terminal:Url`, `Cors:AllowedOrigins`, `NEXT_PUBLIC_TRADING_API_URL`, `PROP_API_URL`).
+- Ingen kod behöver ändras. Adresserna är redan inställningar (`Platform:Url`, `Platform:OpsUrl`, `Platform:FirmPortalUrl`, `Platform:ApiUrl`, `Terminal:Url`, `Cors:AllowedOrigins`, `NEXT_PUBLIC_TRADING_API_URL`, `PROP_API_URL`).
 - Portalerna behöver ett wildcard-certifikat för `*.propbrand.app`, och testservern ett för `*.test.propbrand.app`. Ett wildcard-certifikat täcker bara en nivå, så de två kan inte dela certifikat.
 - Firmornas egna domäner kräver ett certifikat per domän som hämtas automatiskt när firman har lagt in sin DNS-post. Det hör till fas 9.
 - Terminalen och handels-API:t ligger på olika värdnamn, så `Cors:AllowedOrigins` måste innehålla terminalens adress.

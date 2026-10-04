@@ -5,7 +5,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 1. **Handelsplattform** för simulerad handel med riktiga livepriser.
 2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md) och [registreringen](docs/spec/registrering.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md), [registreringen](docs/spec/registrering.md), [platserna och betalningen](docs/spec/platser-och-betalning.md), [köp i portalen](docs/spec/kop.md) och [granskningen av firmor](docs/spec/granskning.md).
 
 ## Struktur
 
@@ -160,6 +160,7 @@ pnpm dev:portal
 |---|---|---|
 | Administratör | http://localhost:3002/admin/login | `admin@test.com` och `admin` |
 | Trader | http://localhost:3002/login | `anna@test.com` och `anna`, eller `test@test.com` och `test` |
+| Vår personal | http://ops.localhost:3002/ops/login | `ops@test.com` och `ops` |
 
 1. Logga in som administratör och starta en challenge åt en trader, till exempel `anna@test.com`.
 2. Logga in som trader i en ny flik och se kontot. Administratören är fortfarande inloggad, eftersom rollerna har var sin session.
@@ -176,16 +177,27 @@ En firma kan registrera sig själv och prova allt i en sandlåda. Starta handels
 
 1. Öppna http://app.localhost:3002/signup. Fyll i firmans namn, ett kort namn, din e-post och ett lösenord, och godkänn villkoren.
 2. Du hamnar inloggad i firmans adminpanel på dess egen adress, till exempel http://acme.localhost:3002/admin. Firmans server på handelsplattformen skapas på några sekunder, tillsammans med en tvåstegs-challenge på 100 000 USD.
-3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö. Under Billing går firman live, se nedan.
+3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö. Under Verification och Billing går firman live, se nedan.
 4. Under Settings ändrar du logga och färger, skapar en nyckel för firmans API och sätter en webhook. Under Challenges gör du egna challenges, och under Team bjuder du in fler administratörer. Mejlen syns i Mailpit på http://localhost:8025.
 
 Lokalt behöver e-postadressen inte bekräftas. Vill du prova bekräftelsen, sätt `Signup:RequireEmailVerification` till `true` i propfirm-tjänstens `appsettings.Development.json`, så kommer länken i Mailpit. Webbläsare skickar alla adresser som slutar på `.localhost` till den egna datorn, så inga DNS-inställningar behövs. Se [specen för registreringen](docs/spec/registrering.md).
 
+## Prova granskningen och vår adminvy
+
+Innan en firma går live granskar vi den i vår egen adminvy. Firman skickar uppgifter om bolaget, ägarna och sina villkor, och betalar en handpenning som dras av från startavgiften. Lokalt är det testbetalningar, så inga pengar dras.
+
+1. Registrera en firma enligt ovan och öppna Verification i dess adminpanel, till exempel http://acme.localhost:3002/admin/verification.
+2. Fyll i bolagets uppgifter, lägg gärna till ett dokument och klicka på knappen som betalar handpenningen och skickar. Klicka på Pay på testsidan.
+3. Öppna vår adminvy på http://ops.localhost:3002 och logga in med `ops@test.com` och `ops`. Firman väntar under To review. Öppna den och godkänn, be om ändringar eller neka. Firmans administratörer får ett mejl, som syns i Mailpit på http://localhost:8025.
+4. På samma sida stänger du av en firma med en orsak. Dess challenges pausas och butiken stänger tills du slår på den igen.
+
+Se [specen för granskningen](docs/spec/granskning.md).
+
 ## Prova att gå live och betala för platser
 
-En firma som har registrerat sig går live genom att betala startavgiften och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är exempel.
+En firma som vi har godkänt går live genom att betala startavgiften minus handpenningen och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är exempel.
 
-1. Registrera en firma enligt ovan och öppna Billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
+1. Låt en firma bli godkänd enligt ovan och öppna Billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
 2. Välj antal platser och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, och dess konton från sandlådan avslutas.
 3. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler på Billing, eller slå på automatisk utökning.
 4. Under Change card sparar du ett testkort som nekas, för att se vad som händer när en månad inte går att dra. Månaden dras 5 dagar innan den börjar, och är den obetald när den börjar pausas firmans challenges tills ett kort som fungerar betalar den.
@@ -234,7 +246,7 @@ Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara
 
 ## Tester av hela flödet
 
-Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Portalens tester registrerar också firmor på http://app.localhost:3022. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.
+Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Portalens tester registrerar också firmor på http://app.localhost:3022 och granskar dem på http://ops.localhost:3022. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.
 
 ```bash
 dotnet build trading/src/Trading.Service -c Release

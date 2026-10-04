@@ -2482,6 +2482,151 @@
         }
       }
     },
+    "/api/portal/admin/verification": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/verification/application": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirmApplication"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/verification/documents": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/verification/documents/{documentId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/verification/submit": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/platform": {
       "get": {
         "tags": [
@@ -2590,6 +2735,361 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VerifySignupResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsSiteResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/login": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortalLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/logout": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/ops/me": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "filter",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/FirmFilter"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OpsFirmSummaryResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/documents/{documentId}": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/approve": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/request-changes": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/reject": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/suspend": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/unsuspend": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsFirmResponse"
                 }
               }
             }
@@ -2997,7 +3497,10 @@
           "nextCharge",
           "charges",
           "prices",
-          "goLiveProblem"
+          "goLiveProblem",
+          "review",
+          "depositPaid",
+          "suspension"
         ],
         "type": "object",
         "properties": {
@@ -3075,9 +3578,33 @@
               "null",
               "string"
             ]
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewStatus"
+              }
+            ]
+          },
+          "depositPaid": {
+            "type": "number",
+            "format": "double"
+          },
+          "suspension": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SuspensionResponse"
+              }
+            ]
           }
         },
-        "description": "The firm's billing for its admin panel. Plan is null until the firm has started paying.\nNextMonthSlots is what a paying firm is charged for from the next unpaid month.\nGoLiveProblem says why a firm in the sandbox cannot go live by paying now."
+        "description": "The firm's billing for its admin panel. Plan is null until the firm has started paying.\nNextMonthSlots is what a paying firm is charged for from the next unpaid month.\nGoLiveProblem says why a firm in the sandbox cannot go live by paying now, and\nReview where our review of it is. DepositPaid is taken off the startup fee.\nSuspension is set while we have suspended the firm."
       },
       "BrandingRequest": {
         "required": [
@@ -3401,7 +3928,8 @@
         "enum": [
           "Activation",
           "Renewal",
-          "Slots"
+          "Slots",
+          "Deposit"
         ]
       },
       "ChargeLine": {
@@ -3623,6 +4151,73 @@
         },
         "description": "Equity may not fall more than Percent of the initial balance below the day's starting point."
       },
+      "DecisionRequest": {
+        "required": [
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Our word to the firm with a decision. Required when we ask for changes or reject."
+      },
+      "DepositResponse": {
+        "required": [
+          "amount",
+          "currency",
+          "paid"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "paid": {
+            "type": "boolean"
+          }
+        },
+        "description": "The deposit for our review: what the firm paid, or else what it pays when it sends its application. Taken off the startup fee."
+      },
+      "DocumentResponse": {
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "size",
+          "uploadedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A document added to the application. Its content is fetched on its own."
+      },
       "ExpiryEvidence": {
         "required": [
           "time",
@@ -3657,6 +4252,128 @@
           "MaxLoss",
           "OtherFloor"
         ]
+      },
+      "FirmApplication": {
+        "required": [
+          "companyName",
+          "registrationNumber",
+          "country",
+          "address",
+          "website",
+          "contactName",
+          "contactPhone",
+          "owners",
+          "termsUrl",
+          "links",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "registrationNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "website": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "contactPhone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "owners": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FirmOwner"
+            }
+          },
+          "termsUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "links": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be\nempty in a draft. What is required is checked when the application is sent."
+      },
+      "FirmFilter": {
+        "enum": [
+          "ToReview",
+          "Suspended",
+          "All",
+          null
+        ]
+      },
+      "FirmOwner": {
+        "required": [
+          "name",
+          "sharePercent"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sharePercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "One of the firm's owners, with the share of the company in percent."
       },
       "FirmSettingsResponse": {
         "required": [
@@ -3764,6 +4481,10 @@
           }
         },
         "description": "A loss limit and how far equity can fall before it is breached."
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
       },
       "InviteResponse": {
         "required": [
@@ -3907,6 +4628,300 @@
           }
         },
         "description": "The month charged next: when, for how many slots and how much."
+      },
+      "OpsBillingResponse": {
+        "required": [
+          "plan",
+          "slots",
+          "openChallenges",
+          "depositPaid",
+          "currency",
+          "activatedAt",
+          "unpaidSince"
+        ],
+        "type": "object",
+        "properties": {
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BillingPlan"
+              }
+            ]
+          },
+          "slots": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "openChallenges": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "depositPaid": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "activatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "unpaidSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "How the firm pays us, in short."
+      },
+      "OpsEventResponse": {
+        "required": [
+          "id",
+          "type",
+          "recordedAt",
+          "actor",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "type": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "detail": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          }
+        },
+        "description": "Something that happened in the firm's review or with its suspension. Detail has the message\nor reason, and the application as it was sent."
+      },
+      "OpsFirmResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "configured",
+          "createdAt",
+          "portalUrl",
+          "admins",
+          "review",
+          "application",
+          "documents",
+          "message",
+          "submittedAt",
+          "decidedAt",
+          "decidedBy",
+          "billing",
+          "suspension",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "portalUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "admins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewStatus"
+              }
+            ]
+          },
+          "application": {
+            "$ref": "#/components/schemas/FirmApplication"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentResponse"
+            }
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submittedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "billing": {
+            "$ref": "#/components/schemas/OpsBillingResponse"
+          },
+          "suspension": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SuspensionResponse"
+              }
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsEventResponse"
+            }
+          }
+        },
+        "description": "A firm for our staff: who it is, its application and documents, our review, its billing, its suspension and its events."
+      },
+      "OpsFirmSummaryResponse": {
+        "required": [
+          "id",
+          "name",
+          "status",
+          "configured",
+          "createdAt",
+          "review",
+          "submittedAt",
+          "suspendedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewStatus"
+              }
+            ]
+          },
+          "submittedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "suspendedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "A firm in our staff's list, with its review and whether we suspended it."
+      },
+      "OpsMeResponse": {
+        "required": [
+          "userId",
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          }
+        },
+        "description": "The staff member who is logged in."
+      },
+      "OpsSiteResponse": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "description": "Our admin view's address: the platform's name."
       },
       "OrderDetailsResponse": {
         "required": [
@@ -4481,6 +5496,7 @@
         "required": [
           "currency",
           "startupFee",
+          "reviewDeposit",
           "slotPrices",
           "minSlots",
           "maxSlots",
@@ -4493,6 +5509,10 @@
             "type": "string"
           },
           "startupFee": {
+            "type": "number",
+            "format": "double"
+          },
+          "reviewDeposit": {
             "type": "number",
             "format": "double"
           },
@@ -4519,7 +5539,7 @@
             "format": "int32"
           }
         },
-        "description": "What firms pay: the startup fee, the slot prices and the rules for slots. The prices are examples until they are decided."
+        "description": "What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules\nfor slots. The prices are examples until they are decided."
       },
       "QuoteKind": {
         "enum": [
@@ -4595,6 +5615,16 @@
             ]
           }
         }
+      },
+      "ReviewStatus": {
+        "enum": [
+          "Draft",
+          "Submitted",
+          "ChangesRequested",
+          "Approved",
+          "Rejected",
+          null
+        ]
       },
       "ShopItemResponse": {
         "required": [
@@ -4762,6 +5792,7 @@
           "reserved",
           "free",
           "paid",
+          "suspended",
           "warning"
         ],
         "type": "object",
@@ -4794,11 +5825,14 @@
           "paid": {
             "type": "boolean"
           },
+          "suspended": {
+            "type": "boolean"
+          },
           "warning": {
             "type": "boolean"
           }
         },
-        "description": "The firm's slots: Used by challenges that have not ended and Reserved by\norders waiting for payment. Slots and Free are null when there is no\nlimit. No challenge can start when nothing is free or Paid is false. Warning\nis set when most slots are taken."
+        "description": "The firm's slots: Used by challenges that have not ended and Reserved by\norders waiting for payment. Slots and Free are null when there is no\nlimit. No challenge can start when nothing is free, Paid is false or the firm is\nSuspended. Warning is set when most slots are taken."
       },
       "StageRules": {
         "required": [
@@ -4912,6 +5946,54 @@
         },
         "description": "One input to the account and what the rule engine decided, with the trading platform's event behind it."
       },
+      "SubmitResponse": {
+        "required": [
+          "checkoutUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "checkoutUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          }
+        },
+        "description": "Where the firm pays the deposit, or null when the application was sent at once."
+      },
+      "SuspendRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Why we suspend the firm. Its administrators see it."
+      },
+      "SuspensionResponse": {
+        "required": [
+          "at",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "description": "We suspended the firm, for a reason its administrators see."
+      },
       "TestCheckoutRequest": {
         "required": [
           "declines"
@@ -4932,7 +6014,8 @@
           "lines",
           "amount",
           "currency",
-          "expiresAt"
+          "expiresAt",
+          "returnPath"
         ],
         "type": "object",
         "properties": {
@@ -4961,9 +6044,12 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "returnPath": {
+            "type": "string"
           }
         },
-        "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid."
+        "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid. ReturnPath\nis the page in the admin panel the firm comes back to."
       },
       "TradingDayDefinition": {
         "required": [
@@ -4981,6 +6067,77 @@
           }
         },
         "description": "When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days."
+      },
+      "VerificationResponse": {
+        "required": [
+          "status",
+          "application",
+          "documents",
+          "message",
+          "submittedAt",
+          "decidedAt",
+          "deposit",
+          "canEdit",
+          "submitProblem",
+          "maxDocuments",
+          "maxDocumentBytes"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          },
+          "application": {
+            "$ref": "#/components/schemas/FirmApplication"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentResponse"
+            }
+          },
+          "message": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submittedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deposit": {
+            "$ref": "#/components/schemas/DepositResponse"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "submitProblem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "maxDocuments": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxDocumentBytes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now."
       },
       "VerifySignupRequest": {
         "required": [
@@ -5087,6 +6244,9 @@
     },
     {
       "name": "Signup"
+    },
+    {
+      "name": "Ops"
     }
   ]
 }

@@ -20,7 +20,7 @@ Propfirmor använder många olika betalningsleverantörer. Stripe är vanligast 
 - **Fler färdiga adaptrar läggs till efter hand.** En ny leverantör kräver en adapter som startar betalningen och läser leverantörens meddelanden. Resten av köpet är detsamma.
 - **Priset ligger utanför challengen.** Pris, valuta och om challengen säljs i portalen sparas för sig. Regelmotorns definition handlar bara om regler. Ordern behåller priset den skapades med.
 - **Firmans nycklar krypteras** med `Secrets:Key`, som de andra hemligheterna (ADR 0017), och visas aldrig igen efter att de sparats.
-- **I sandlådan dras inga riktiga pengar genom oss.** En firma i sandlådan får bara använda Stripes testnycklar. Det skyddar traders tills kontrollen av firman finns (fas 9).
+- **I sandlådan dras inga riktiga pengar genom oss.** En firma i sandlådan får bara använda Stripes testnycklar. Det skyddar traders tills vi har granskat och godkänt firman och den har gått live (ADR 0021).
 - **Exakt ett konto per betald order.** Ordern låses när den markeras som betald. Samma meddelande flera gånger, eller en betalning som kommer efter att ordern gått ut, ger aldrig fler konton.
 - **Återbetalningar och bestridanden markeras på ordern.** Stripes meddelanden om återbetalning och bestridande sätter en tid på ordern och skickar webhooks till firman. Kontot rörs inte. Firman avgör själv om det ska avbrytas.
 - **Tradern kommer in i portalen med en inbjudan per e-post.** Är köparen inte inloggad, och har tradern inget lösenord, mejlar plattformen en inbjudan i firmans namn när ordern är betald. Inbjudan till e-postadressen visar att köparen äger den, så att ingen kan köpa sig in på någon annans konton. En inloggad trader köper med sin egen e-postadress.

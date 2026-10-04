@@ -19,7 +19,14 @@ const geistMono = Geist_Mono({
 export async function generateMetadata(): Promise<Metadata> {
   const site = await getSite();
   return {
-    title: site.kind === "firm" ? site.branding.name : site.kind === "platform" ? `Sign up - ${site.platform.name}` : "Portal",
+    title:
+      site.kind === "firm"
+        ? site.branding.name
+        : site.kind === "platform"
+          ? `Sign up - ${site.platform.name}`
+          : site.kind === "ops"
+            ? `Admin - ${site.ops.name}`
+            : "Portal",
     description: "Challenge accounts and the trading terminal",
   };
 }

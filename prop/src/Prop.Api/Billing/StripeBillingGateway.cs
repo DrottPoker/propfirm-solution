@@ -30,8 +30,8 @@ internal sealed partial class StripeBillingGateway(IHttpClientFactory httpClient
             new("client_reference_id", request.FirmId),
             new("metadata[firm_id]", request.FirmId),
             new("metadata[purpose]", request.Purpose.ToString()),
-            new("success_url", new Uri(request.PortalUrl, "admin/billing?checkout={CHECKOUT_SESSION_ID}").ToString()),
-            new("cancel_url", new Uri(request.PortalUrl, "admin/billing").ToString()),
+            new("success_url", new Uri(request.PortalUrl, $"{request.ReturnPath}?checkout={{CHECKOUT_SESSION_ID}}").ToString()),
+            new("cancel_url", new Uri(request.PortalUrl, request.ReturnPath).ToString()),
             new("expires_at", request.ExpiresAt.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)),
         ];
         if (request.CustomerId is { } customerId)

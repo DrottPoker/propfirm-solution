@@ -37,8 +37,23 @@ public sealed class PlatformOptions
     /// </summary>
     public Uri? ApiUrl { get; init; }
 
+    /// <summary>
+    /// Our own admin view, where our staff review firms, ending with /, for example https://ops.example.com/. On its
+    /// own host, so its session never reaches the sign-up or a firm's portal (ADR 0021).
+    /// </summary>
+    public Uri? OpsUrl { get; init; }
+
     /// <summary>The portal address of the firm with the short name.</summary>
     public Uri PortalUrlOf(string firmId) => new(FirmPortalUrl.Replace("{firm}", firmId, StringComparison.Ordinal));
+}
+
+/// <summary>Our own staff, who review firms in our admin view (ADR 0021).</summary>
+public sealed class StaffOptions
+{
+    public const string SectionName = "Staff";
+
+    /// <summary>Staff created at startup, or given the configured password. For development, until staff are invited.</summary>
+    public IReadOnlyList<SeedLoginOptions> SeedUsers { get; init; } = [];
 }
 
 /// <summary>How firms sign up.</summary>
@@ -105,6 +120,12 @@ public sealed class BillingOptions
     public decimal StartupFee { get; init; }
 
     /// <summary>
+    /// Paid when the firm sends its application for our review, and taken off the startup fee when it goes live.
+    /// Never paid back. 0 for none. At most the startup fee (ADR 0021).
+    /// </summary>
+    public decimal ReviewDeposit { get; init; }
+
+    /// <summary>
     /// The monthly price of a slot, from the slot each tier starts at. Every slot costs the price of its own tier,
     /// so the price per slot falls with more slots and never jumps.
     /// </summary>
@@ -129,12 +150,6 @@ public sealed class BillingOptions
 
     /// <summary>How long a checkout page for a payment or a card stays open. Stripe needs 30 minutes to 24 hours.</summary>
     public TimeSpan CheckoutLifetime { get; init; } = TimeSpan.FromHours(1);
-
-    /// <summary>
-    /// Whether a firm in the sandbox may go live by paying, before the check of its company and owners exists. For
-    /// development only, until that check is built.
-    /// </summary>
-    public bool AllowGoLiveWithoutVerification { get; init; }
 
     /// <summary>Our own Stripe account's secret key. A secret: keep it out of files outside development.</summary>
     public string StripeSecretKey { get; init; } = "";

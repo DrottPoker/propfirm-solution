@@ -47,6 +47,14 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     /// <summary>The password an administrator chooses when signing up in the tests.</summary>
     public const string SignupPassword = "a-signup-password";
 
+    /// <summary>Our admin view, from appsettings.Development.json.</summary>
+    public const string OpsHost = "ops.localhost";
+
+    /// <summary>Our staff member, from appsettings.Development.json.</summary>
+    public const string StaffEmail = "ops@test.com";
+
+    public const string StaffPassword = "ops";
+
     /// <summary>A Monday, 10:00 in Stockholm.</summary>
     public static readonly DateTimeOffset Start = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
 
@@ -110,6 +118,47 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     /// <summary>A browser on the platform's own address, where firms sign up.</summary>
     public HttpClient CreatePlatformClient() => CreatePortalClient(PlatformHost);
+
+    /// <summary>A complete application for our review, as a firm sends it.</summary>
+    public static object Application(string companyName = "Acme Trading Ltd") => new
+    {
+        companyName,
+        registrationNumber = "559000-1234",
+        country = "SE",
+        address = "Storgatan 1, 111 22 Stockholm",
+        website = "https://acme.test",
+        contactName = "Anna Andersson",
+        contactPhone = "+46 70 123 45 67",
+        owners = new[] { new { name = "Anna Andersson", sharePercent = 60m }, new { name = "Bert Berg", sharePercent = 40m } },
+        termsUrl = "https://acme.test/terms",
+        links = new[] { "https://x.com/acme" },
+        description = "We sell two-step challenges and pay out every two weeks.",
+    };
+
+    /// <summary>Our staff member logs in to our admin view. Returns the staff member's browser.</summary>
+    public async Task<HttpClient> LogInAsStaffAsync()
+    {
+        var ops = CreatePortalClient(OpsHost);
+        using var login = await ops.PostAsJsonAsync(new Uri("/api/portal/ops/login", UriKind.Relative), new { email = StaffEmail, password = StaffPassword });
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        return ops;
+    }
+
+    /// <summary>
+    /// The firm sends a complete application, without a deposit as in most tests, and our staff approve it, so the
+    /// firm can go live by paying.
+    /// </summary>
+    public async Task ApproveAsync(HttpClient admin, string firmId)
+    {
+        using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/verification/application", UriKind.Relative), Application());
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        using var submitted = await admin.PostAsync(new Uri("/api/portal/admin/verification/submit", UriKind.Relative), null);
+        Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
+        Assert.Equal(JsonValueKind.Null, (await submitted.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("checkoutUrl").ValueKind);
+        using var ops = await LogInAsStaffAsync();
+        using var approved = await ops.PostAsJsonAsync(new Uri($"/api/portal/ops/firms/{firmId}/approve", UriKind.Relative), new { message = (string?)null });
+        Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+    }
 
     /// <summary>
     /// Signs a firm up without email confirmation, as in development, and follows the link to its admin panel.
@@ -253,6 +302,9 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         builder.UseSetting("Login:MinimumPasswordLength", "10");
         builder.UseSetting("Login:AttemptsPerMinute", "10");
         builder.UseSetting("Login:SessionLifetime", "12:00:00");
+
+        // Most tests are about other things than the deposit for our review. The review tests pay it.
+        builder.UseSetting("Billing:ReviewDeposit", "0");
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);

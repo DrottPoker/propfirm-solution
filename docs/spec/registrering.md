@@ -27,13 +27,13 @@ Lokalt ligger plattformen på http://app.localhost:3002 och en ny firma på till
 |---|---|
 | `Provisioning` | Firman finns, men servern på handelsplattformen skapas fortfarande. Konton kan inte startas än. |
 | `Sandbox` | Allt fungerar, men firman kan ha högst `Sandbox:MaxOpenAccounts` öppna challenge-konton (standard 10). Portalen visar att det är en testmiljö. |
-| `Live` | Firman har platser för sina challenges. Firmor i konfigurationen är live och betalar inte. En registrerad firma går live genom att betala startavgiften och första månaden (se [specen för platser och betalning](platser-och-betalning.md)), men bara i utveckling tills kontrollen av bolag och ägare finns (fas 9). |
+| `Live` | Firman har platser för sina challenges. Firmor i konfigurationen är live och betalar inte. En registrerad firma går live när vi har granskat och godkänt den (se [specen för granskning och avstängning](granskning.md)), genom att betala startavgiften och första månaden (se [specen för platser och betalning](platser-och-betalning.md)). |
 
 ## Det korta namnet
 
 - 2 till 40 tecken: små bokstäver, siffror och bindestreck, inte först eller sist.
 - Är firmans id, underdomänen för portalen och servern på handelsplattformen. Det kan inte bytas.
-- Reserverade namn, till exempel `www`, `app`, `api`, `admin`, `portal`, `mail` och `status`, kan inte väljas. Fler kan läggas till i `Signup:ReservedFirmIds`.
+- Reserverade namn, till exempel `www`, `app`, `api`, `admin`, `ops`, `portal`, `mail` och `status`, kan inte väljas. Fler kan läggas till i `Signup:ReservedFirmIds`.
 - Ett namn är upptaget om en firma har det, eller om en obekräftad registrering från en annan e-postadress har det. Vid registreringen frågas också handelsplattformen om servern är ledig. Svarar den inte fortsätter registreringen, eftersom servern ändå skapas senare.
 
 ## Handelsplattformen: partner-API
@@ -130,7 +130,6 @@ Handelstjänsten:
 
 ## Begränsningar
 
-- En firma kan bara gå live i utveckling. Kontrollen av bolag och ägare kommer i fas 9.
 - Egen domän sätts fortfarande upp för hand.
 - Firman kan inte byta namn eller kort namn.
 - Mejl till traders skickas av firman själv.

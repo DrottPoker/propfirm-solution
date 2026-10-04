@@ -25,9 +25,9 @@ export function TestBillingCheckout({ checkoutId }: { checkoutId: string }) {
     return <Message text="Loading..." />;
   }
 
-  const { purpose, status, lines, amount, currency } = checkout.data;
+  const { purpose, status, lines, amount, currency, returnPath } = checkout.data;
   const payment = purpose === "Payment";
-  const done = () => router.replace("/admin/billing?checkout=done");
+  const done = () => router.replace(`/${returnPath}?checkout=done`);
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <section className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-warning/40 bg-panel p-6">
@@ -65,8 +65,8 @@ export function TestBillingCheckout({ checkoutId }: { checkoutId: string }) {
             {payment ? "Try a card that declines" : "Save a card that declines"}
           </button>
         </div>
-        <Link href="/admin/billing" className="text-sm text-muted hover:text-foreground">
-          Back to billing
+        <Link href={`/${returnPath}`} className="text-sm text-muted hover:text-foreground">
+          Back
         </Link>
       </section>
     </main>

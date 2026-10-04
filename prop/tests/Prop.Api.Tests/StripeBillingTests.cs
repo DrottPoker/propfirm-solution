@@ -51,6 +51,35 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
     }
 
     [Fact]
+    public async Task TheDepositIsPaidOnAStripeCheckoutAndItsCustomerPaysToGoLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), new Dictionary<string, string>(WithStripe) { ["Billing:ReviewDeposit"] = "100" });
+        using var admin = await factory.SignUpAsync("acme");
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+        using var saved = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application(), TestContext.Current.CancellationToken);
+
+        using var submitted = await PostAsync(admin, "admin/verification/submit", null);
+        var deposit = Assert.Single(factory.Stripe.Requests);
+        using var completed = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.BillingCheckoutEvent("checkout.session.completed", deposit));
+        var verification = await GetAsync(admin, "admin/verification");
+        using var ops = await factory.LogInAsStaffAsync();
+        using var approved = await PostAsync(ops, "ops/firms/acme/approve", new { message = (string?)null });
+        using var activated = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        var goLive = factory.Stripe.Requests[^1];
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (saved.StatusCode, submitted.StatusCode));
+        Assert.Equal(("payment", "always", "10000"), (deposit.Form["mode"], deposit.Form["customer_creation"], deposit.Form["line_items[0][price_data][unit_amount]"]));
+        Assert.Equal("http://acme.localhost:3002/admin/verification?checkout={CHECKOUT_SESSION_ID}", deposit.Form["success_url"]);
+        Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
+        Assert.Equal(("Submitted", true), (verification.GetProperty("status").GetString(), verification.GetProperty("deposit").GetProperty("paid").GetBoolean()));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (approved.StatusCode, activated.StatusCode));
+        Assert.Equal((FakeStripe.Customer, "Startup fee, less the deposit of 100.00 USD", "40000"), (
+            goLive.Form["customer"],
+            goLive.Form["line_items[0][price_data][product_data][name]"],
+            goLive.Form["line_items[0][price_data][unit_amount]"]));
+    }
+
+    [Fact]
     public async Task TheMonthIsChargedToTheSavedCardWithAKeyForEachAttempt()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
@@ -184,10 +213,12 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
     private static Task<HttpResponseMessage> PostAsync(HttpClient client, string path, object? body) =>
         body is null ? client.PostAsync(Url(path), null, TestContext.Current.CancellationToken) : client.PostAsJsonAsync(Url(path), body, TestContext.Current.CancellationToken);
 
+    /// <summary>A firm that signed up, has its server and was approved by us.</summary>
     private static async Task<HttpClient> SandboxFirmAsync(PropFactory factory)
     {
         var admin = await factory.SignUpAsync("acme");
         await PropFactory.WaitUntilProvisionedAsync(admin);
+        await factory.ApproveAsync(admin, "acme");
         return admin;
     }
 

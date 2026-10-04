@@ -10,6 +10,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Firms;
 using Prop.Api.Payments;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 
 namespace Prop.Api.Billing;
 
@@ -78,14 +79,15 @@ internal static partial class BillingEndpoints
         var now = time.GetUtcNow();
         var monthly = BillingRules.MonthlyPrice(slots, terms.SlotPrices);
         var month = BillingRules.MonthOf(now);
+        await using var connection = await store.OpenAsync(cancellationToken);
         if (firm.Status != FirmStatus.Live)
         {
-            var lines = BillingRules.Activation(now, slots, terms);
+            var lines = BillingRules.Activation(now, slots, terms, await BillingStore.DepositPaidAsync(connection, firm.Id, terms.Currency, cancellationToken));
             var from = BillingRules.IsNextMonthDue(now, terms) ? month.AddMonths(2) : month.AddMonths(1);
-            return Quote(QuoteKind.Activation, slots, lines, monthly, from, terms, billing.GoLiveProblem(firm) ?? billing.SlotsProblem(slots));
+            var goLiveProblem = BillingService.GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken));
+            return Quote(QuoteKind.Activation, slots, lines, monthly, from, terms, goLiveProblem ?? billing.SlotsProblem(slots));
         }
 
-        await using var connection = await store.OpenAsync(cancellationToken);
         var plan = await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken);
         if (plan is not { Plan: BillingPlan.Paid })
         {
@@ -214,7 +216,8 @@ internal static partial class BillingEndpoints
             charge?.Lines ?? [],
             charge?.Amount ?? 0m,
             charge?.Currency ?? billing.Terms.Currency,
-            checkout.ExpiresAt));
+            checkout.ExpiresAt,
+            BillingService.ReturnPathOf(charge?.Kind)));
     }
 
     /// <summary>
@@ -355,6 +358,8 @@ internal static partial class BillingEndpoints
         }
 
         var charges = await store.ListChargesAsync(firm.Id, ChargesShown, cancellationToken);
+        var state = await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken);
+        var depositPaid = await BillingStore.DepositPaidAsync(connection, firm.Id, terms.Currency, cancellationToken);
         return new BillingResponse(
             firm.Status,
             plan?.Plan == BillingPlan.Complimentary || paying ? plan!.Plan : null,
@@ -369,12 +374,16 @@ internal static partial class BillingEndpoints
             new PricesResponse(
                 terms.Currency,
                 terms.StartupFee,
+                terms.ReviewDeposit,
                 [.. terms.SlotPrices.Select(p => new SlotPriceResponse(p.From, p.Price))],
                 terms.MinSlots,
                 terms.MaxSlots,
                 terms.ChargeDaysBeforeMonth,
                 options.WarningPercent),
-            firm.Status == FirmStatus.Live ? null : billing.GoLiveProblem(firm));
+            state.Status == FirmStatus.Live ? null : BillingService.GoLiveProblem(state),
+            state.Review ?? (state.Status == FirmStatus.Live ? null : ReviewStatus.Draft),
+            depositPaid,
+            firm.Suspension is { } suspension ? new SuspensionResponse(suspension.At, suspension.Reason) : null);
     }
 
     private static Ok<QuoteResponse> Quote(QuoteKind kind, int slots, IReadOnlyList<ChargeLine> lines, decimal monthly, DateOnly? from, BillingTerms terms, string? problem) =>

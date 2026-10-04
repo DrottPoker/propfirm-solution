@@ -1,15 +1,16 @@
 import { expect, test } from "@playwright/test";
 
-import { signUp } from "./support";
+import { getApproved, signUp } from "./support";
 
-test("a firm in the sandbox goes live by paying, and buys more slots", async ({ page }) => {
+test("an approved firm in the sandbox goes live by paying, and buys more slots", async ({ page }) => {
   await signUp(page, "Billing E2E Firm", "billing-e2e-firm");
   await expect(page.getByRole("option", { name: /two-step-100k/ })).toBeAttached({ timeout: 20_000 });
+  await getApproved(page, "billing-e2e-firm");
 
   await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
   await expect(page.getByRole("heading", { name: "Go live" })).toBeVisible();
   await page.getByLabel("Slots", { exact: true }).fill("20");
-  await expect(page.getByRole("cell", { name: "Startup fee" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 100.00 USD" })).toBeVisible();
   await page.getByRole("button", { name: /and go live$/ }).click();
 
   // The test payment page: a card that declines first, then one that pays.
