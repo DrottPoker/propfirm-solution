@@ -299,6 +299,37 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
+    /// Moves the clock by <paramref name="by"/>, then a step at a time until the condition holds, for work on a timer
+    /// such as the billing worker. It waits from when it last finished, so it may still be busy when the clock first
+    /// moves, and would then wait for a clock that never moves again. The clock never passes <paramref name="latest"/>.
+    /// </summary>
+    public Task AdvanceUntilAsync(TimeSpan by, Func<bool> condition, string what, TimeSpan? step = null, DateTimeOffset? latest = null) =>
+        AdvanceUntilAsync(by, () => Task.FromResult(condition()), what, step, latest);
+
+    /// <inheritdoc cref="AdvanceUntilAsync(TimeSpan, Func{bool}, string, TimeSpan?, DateTimeOffset?)"/>
+    public async Task AdvanceUntilAsync(TimeSpan by, Func<Task<bool>> condition, string what, TimeSpan? step = null, DateTimeOffset? latest = null)
+    {
+        await AdvanceAsync(by);
+        var stepBy = step ?? TimeSpan.FromSeconds(10);
+        await Eventually.ThatAsync(
+            async () =>
+            {
+                if (await condition())
+                {
+                    return true;
+                }
+
+                if (latest is null || Time.GetUtcNow() + stepBy <= latest)
+                {
+                    await AdvanceAsync(stepBy);
+                }
+
+                return await condition();
+            },
+            what);
+    }
+
+    /// <summary>
     /// Starts the service. When it fails at once, the host can be disposed before the factory waits for it, which
     /// hides the reason behind a disposed object. The reason is then taken from the host's log.
     /// </summary>

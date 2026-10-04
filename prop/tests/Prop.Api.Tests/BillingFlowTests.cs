@@ -92,8 +92,10 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         var first = await ActivateAsync(admin, 30);
         var second = await ActivateAsync(admin, 40);
 
-        await factory.AdvanceAsync(TimeSpan.FromHours(1));
-        await Eventually.ThatAsync(async () => (await GetAsync(admin, $"admin/billing/checkouts/{second}")).GetProperty("status").GetString() == "Expired", "the checkout to expire");
+        await factory.AdvanceUntilAsync(
+            TimeSpan.FromHours(1),
+            async () => (await GetAsync(admin, $"admin/billing/checkouts/{second}")).GetProperty("status").GetString() == "Expired",
+            "the checkout to expire");
         var third = await ActivateAsync(admin, 35);
         using var paid = await CompleteAsync(admin, third, declines: false);
         var billing = await GetAsync(admin, "admin/billing");

@@ -177,8 +177,10 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var first = await PostAsync(admin, "admin/verification/submit", null);
         var firstCheckout = CheckoutIdOf(await first.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken));
 
-        await factory.AdvanceAsync(TimeSpan.FromHours(1));
-        await Eventually.ThatAsync(async () => (await GetAsync(admin, $"admin/billing/checkouts/{firstCheckout}")).GetProperty("status").GetString() == "Expired", "the checkout to expire");
+        await factory.AdvanceUntilAsync(
+            TimeSpan.FromHours(1),
+            async () => (await GetAsync(admin, $"admin/billing/checkouts/{firstCheckout}")).GetProperty("status").GetString() == "Expired",
+            "the checkout to expire");
         using var second = await PostAsync(admin, "admin/verification/submit", null);
         using var paid = await CompleteAsync(admin, CheckoutIdOf(await second.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)));
         var billing = await GetAsync(admin, "admin/billing");

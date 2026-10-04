@@ -87,8 +87,8 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
         using var admin = await LiveFirmAsync(factory);
 
-        await factory.AdvanceAsync(new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow());
-        await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 1, "November's charge");
+        await factory.AdvanceUntilAsync(
+            new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow(), () => factory.Stripe.Charges.Count == 1, "November's charge");
         var charge = factory.Stripe.Charges[0];
 
         Assert.Equal(("52500", "usd", FakeStripe.Customer, "pm_card_visa"), (charge.Form["amount"], charge.Form["currency"], charge.Form["customer"], charge.Form["payment_method"]));
@@ -148,8 +148,8 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
         using var admin = await LiveFirmAsync(factory);
         factory.Stripe.DeclineCharges(true);
-        await factory.AdvanceAsync(new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow());
-        await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 1, "November's charge");
+        await factory.AdvanceUntilAsync(
+            new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow(), () => factory.Stripe.Charges.Count == 1, "November's charge");
         var chargeId = Guid.Parse(factory.Stripe.Charges[0].Form["metadata[charge_id]"]);
 
         // A payment that is not ours, and one for another amount, change nothing.
@@ -175,10 +175,10 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         using var login = await PostAsync(admin, "admin/login", new { email = "owner@firm.test", password = PropFactory.SignupPassword });
         factory.Stripe.FailNextCharges(1);
         using var purchase = await admin.PutAsJsonAsync(Url("admin/billing/slots"), new { slots = 40 }, TestContext.Current.CancellationToken);
-        await factory.AdvanceAsync(TimeSpan.FromMinutes(3));
-        await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 2, "November's charge");
-        await factory.AdvanceAsync(TimeSpan.FromMinutes(5));
-        await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 4, "the purchase and the rest for November");
+        // November is charged at midnight, and the purchase is tried again at 00:03.
+        await factory.AdvanceUntilAsync(
+            TimeSpan.FromMinutes(3), () => factory.Stripe.Charges.Count == 2, "November's charge", latest: new DateTimeOffset(2026, 10, 27, 0, 2, 50, TimeSpan.Zero));
+        await factory.AdvanceUntilAsync(TimeSpan.FromMinutes(5), () => factory.Stripe.Charges.Count == 4, "the purchase and the rest for November");
         var billing = await GetAsync(admin, "admin/billing");
 
         var charges = factory.Stripe.Charges;
@@ -195,8 +195,8 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
         using var admin = await LiveFirmAsync(factory);
-        await factory.AdvanceAsync(new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow());
-        await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 1, "November's charge");
+        await factory.AdvanceUntilAsync(
+            new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero) - factory.Time.GetUtcNow(), () => factory.Stripe.Charges.Count == 1, "November's charge");
         var chargeId = Guid.Parse(factory.Stripe.Charges[0].Form["metadata[charge_id]"]);
         await Eventually.ThatAsync(() => Reference(factory, chargeId) is not null, "November to be paid");
 
