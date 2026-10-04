@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 
 using Prop.Api.Challenges;
@@ -60,6 +62,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     private readonly string _connectionString;
     private readonly IReadOnlyDictionary<string, string> _settings;
+    private readonly StartupFailureLog _startupFailures = new();
 
     private PropFactory(string connectionString, FakeTradingPlatform trading, FakeTimeProvider time, IReadOnlyDictionary<string, string>? settings)
     {
@@ -295,6 +298,22 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         await Task.Delay(50);
     }
 
+    /// <summary>
+    /// Starts the service. When it fails at once, the host can be disposed before the factory waits for it, which
+    /// hides the reason behind a disposed object. The reason is then taken from the host's log.
+    /// </summary>
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        try
+        {
+            return base.CreateHost(builder);
+        }
+        catch (ObjectDisposedException disposed) when (_startupFailures.Failure is { } failure)
+        {
+            throw new InvalidOperationException("The service failed to start.", new AggregateException(failure, disposed));
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Prop", _connectionString);
@@ -314,6 +333,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<ILoggerProvider>(_startupFailures);
             services.AddSingleton<IStartupFilter, LoopbackConnection>();
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<ITradingPlatform>(Trading);

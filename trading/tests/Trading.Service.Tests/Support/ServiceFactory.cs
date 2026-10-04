@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 
 using Trading.Service.Engine;
@@ -39,6 +41,8 @@ internal sealed class ServiceFactory(
 
     /// <summary>The prop platform's partner key, from appsettings.Development.json.</summary>
     public const string PartnerApiKey = "dev-partner-key";
+
+    private readonly StartupFailureLog _startupFailures = new();
 
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero));
 
@@ -113,6 +117,22 @@ internal sealed class ServiceFactory(
             })
             .Build();
 
+    /// <summary>
+    /// Starts the service. When it fails at once, the host can be disposed before the factory waits for it, which
+    /// hides the reason behind a disposed object. The reason is then taken from the host's log.
+    /// </summary>
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        try
+        {
+            return base.CreateHost(builder);
+        }
+        catch (ObjectDisposedException disposed) when (_startupFailures.Failure is { } failure)
+        {
+            throw new InvalidOperationException("The service failed to start.", new AggregateException(failure, disposed));
+        }
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         // Tests must not depend on the developer's user secrets, such as a real price feed.
@@ -141,6 +161,7 @@ internal sealed class ServiceFactory(
 
         builder.ConfigureTestServices(services =>
         {
+            services.AddSingleton<ILoggerProvider>(_startupFailures);
             services.AddSingleton<TimeProvider>(Time);
             services.AddSingleton<IPriceFeed>(Feed);
             if (postgresConnectionString is null)
