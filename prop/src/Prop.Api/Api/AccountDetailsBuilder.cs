@@ -1,6 +1,7 @@
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.History;
+using Prop.Api.Payments;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -8,10 +9,17 @@ namespace Prop.Api.Api;
 
 /// <summary>
 /// Builds accounts as the portal shows them, for one account or all of a trader's at once: the trading accounts
-/// valued right now, the stages, the results and the payouts. The database is asked once per kind of data, not once
-/// per account, since the trader's dashboard asks every few seconds.
+/// valued right now, the stages, the results, the payouts, what a breach closed and how a failed challenge can be tried
+/// again. The database is asked once per kind of data, not once per account, since the trader's dashboard asks every
+/// few seconds.
 /// </summary>
-internal sealed class AccountDetailsBuilder(PayoutQueries payouts, TradingHistoryQueries history, ITradingPlatform trading, TimeProvider time)
+internal sealed class AccountDetailsBuilder(
+    PayoutQueries payouts,
+    TradingHistoryQueries history,
+    ITradingPlatform trading,
+    OrderService orders,
+    DiscountStore discounts,
+    TimeProvider time)
 {
     public async Task<List<AccountDetailsResponse>> BuildAsync(Firm firm, IReadOnlyList<AccountView> views, CancellationToken cancellationToken)
     {
@@ -29,6 +37,8 @@ internal sealed class AccountDetailsBuilder(PayoutQueries payouts, TradingHistor
         var dayStarts = await history.DayStartsAsync(
             [.. views.Where(IsTrading).Select(v => (v.Account.State.AccountId!, DayStartedAt(v.Account.State.Definition, now)))],
             cancellationToken);
+        var breaches = await history.BreachClosesAsync([.. views.Select(v => v.Ending).OfType<ChallengeFailed>().Select(f => f.AccountId).Distinct()], cancellationToken);
+        var retries = await RetriesAsync(firm, views, now, cancellationToken);
         var live = await valuing;
         return
         [
@@ -39,8 +49,40 @@ internal sealed class AccountDetailsBuilder(PayoutQueries payouts, TradingHistor
                 accountPayouts[view.Account.Id],
                 sequences.GetValueOrDefault(view.Account.Id),
                 IsTrading(view) ? dayStarts.GetValueOrDefault(view.Account.State.AccountId!) : null,
+                breaches,
+                retries.GetValueOrDefault(view.Account.State.Definition.Id),
                 now)),
         ];
+    }
+
+    // A failed challenge that is still for sale can be bought again, with the firm's best code for retries on it.
+    private async Task<Dictionary<string, RetryOffer>> RetriesAsync(Firm firm, IReadOnlyList<AccountView> views, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var failed = views.Where(v => v.Account.State.Status == ChallengeStatus.Failed).Select(v => v.Account.State.Definition.Id).ToHashSet(StringComparer.Ordinal);
+        if (failed.Count == 0)
+        {
+            return [];
+        }
+
+        var shop = (await orders.ShopAsync(firm, cancellationToken)).Where(i => failed.Contains(i.Challenge.Id)).ToList();
+        if (shop.Count == 0)
+        {
+            return [];
+        }
+
+        var codes = (await discounts.ListAsync(firm.Id, now, cancellationToken)).Where(c => c.ForRetries).ToList();
+        return shop.ToDictionary(
+            i => i.Challenge.Id,
+            i =>
+            {
+                var best = codes
+                    .Select(c => (Code: c, DiscountRules.Apply(c, i.Price, now).Price))
+                    .Where(c => c.Price is not null)
+                    .OrderByDescending(c => c.Price!.Discount)
+                    .FirstOrDefault();
+                return new RetryOffer(i.Challenge.Id, i.Price.Amount, i.Price.Currency, best.Code?.Code, best.Price?.Amount);
+            },
+            StringComparer.Ordinal);
     }
 
     private static AccountDetailsResponse Build(
@@ -50,6 +92,8 @@ internal sealed class AccountDetailsBuilder(PayoutQueries payouts, TradingHistor
         IEnumerable<PayoutView> payoutViews,
         long lastSequence,
         DayStart? dayStart,
+        Dictionary<string, (List<BreachClose> Closes, decimal? BalanceAfter)> breaches,
+        RetryOffer? retry,
         DateTimeOffset now)
     {
         var account = view.Account;
@@ -86,11 +130,18 @@ internal sealed class AccountDetailsBuilder(PayoutQueries payouts, TradingHistor
             live,
             Stages(state, [.. stageRecords]),
             results,
-            view.Ending is ChallengeFailed failed ? new BreachEvidence(failed.Time, failed.FloorId, failed.Level, failed.Equity, failed.Reason) : null,
+            view.Ending is ChallengeFailed failed ? Breach(failed, breaches) : null,
             view.Ending is ChallengeExpired expired ? new ExpiryEvidence(expired.Time, expired.Reason, expired.Day) : null,
             view.Ending?.Time,
             [.. accountPayouts.Select(PayoutResponse.From)],
-            $"{lastSequence}.{account.Steps}");
+            $"{lastSequence}.{account.Steps}",
+            state.Status == ChallengeStatus.Failed ? retry : null);
+    }
+
+    private static BreachEvidence Breach(ChallengeFailed failed, Dictionary<string, (List<BreachClose> Closes, decimal? BalanceAfter)> breaches)
+    {
+        var closed = breaches.GetValueOrDefault(failed.AccountId);
+        return new BreachEvidence(failed.Time, failed.FloorId, failed.Level, failed.Equity, failed.Reason, closed.Closes ?? [], closed.BalanceAfter);
     }
 
     private static List<StageResponse> Stages(ChallengeState state, List<StageRecord> records)

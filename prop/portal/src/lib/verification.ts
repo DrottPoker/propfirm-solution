@@ -1,5 +1,4 @@
 import type { FirmApplication, OpsEvent, ReviewStatus, Verification } from "./api/types";
-import { formatMoney } from "./format";
 
 export const reviewStatusLabels: Record<ReviewStatus, string> = {
   Draft: "Not sent",
@@ -27,6 +26,35 @@ export type ApplicationForm = {
 };
 
 export const maxOwners = 10;
+
+/** The application's fields as the form names them, for the list of what is missing. */
+export const applicationFieldLabels: Record<string, string> = {
+  companyName: "Legal name",
+  registrationNumber: "Registration number",
+  country: "Country of registration",
+  vatNumber: "VAT number",
+  address: "Registered address",
+  website: "Website",
+  contactName: "Contact person",
+  contactPhone: "Phone",
+  owners: "Owners",
+  termsUrl: "Your terms for traders",
+  links: "Other links",
+  description: "About your firm",
+};
+
+/**
+ * What the service says is wrong with each field of the saved application, by field. A field the form has changed since
+ * is left out, since what was said is about the saved value.
+ */
+export function problemsByField(verification: Verification, form: ApplicationForm): Record<string, string> {
+  const saved = formOf(verification.application);
+  const changed = (field: string) =>
+    field === "vatNumber"
+      ? form.vatNumber !== saved.vatNumber || form.noVatNumber !== saved.noVatNumber
+      : JSON.stringify(form[field as keyof ApplicationForm]) !== JSON.stringify(saved[field as keyof ApplicationForm]);
+  return Object.fromEntries(verification.problems.filter((p) => !changed(p.field)).map((p) => [p.field, p.problem]));
+}
 
 export function formOf(application: FirmApplication): ApplicationForm {
   return {
@@ -97,25 +125,6 @@ export function fileSize(bytes: number): string {
 /** Whether sending the application takes the firm to a page where it pays the deposit first. */
 export function depositDue(verification: Verification): boolean {
   return verification.status === "Draft" && !verification.deposit.paid && verification.deposit.amount > 0;
-}
-
-/** Where the firm is in our review, in a sentence for its admin panel. */
-export function reviewText(verification: Verification): string {
-  const deposit = `${formatMoney(verification.deposit.amount)} ${verification.deposit.currency}`;
-  switch (verification.status) {
-    case "Draft":
-      return verification.deposit.paid
-        ? `Your deposit of ${deposit} is paid. Fill in what is missing and send your application.`
-        : "Before your firm goes live, we review your company. Fill in its details below and send them.";
-    case "Submitted":
-      return "We are reviewing your application, usually within a day. We email you when we have decided.";
-    case "ChangesRequested":
-      return "We need a few changes before we can approve your firm. Change your application and send it again. You do not pay the deposit again.";
-    case "Approved":
-      return "Your firm is approved. Choose your slots and pay to go live under Billing.";
-    case "Rejected":
-      return "Your application was not approved, so your firm cannot go live.";
-  }
 }
 
 const eventLabels: Record<string, string> = {

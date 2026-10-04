@@ -94,7 +94,8 @@ internal sealed partial class FirmSeeder(FirmStore store, BillingStore billing, 
                 hasStripeKeys ? new StripeKeys(payments.StripeSecretKey, payments.StripeWebhookSecret) : null,
                 payments.CheckoutUrl,
                 payments.TermsUrl),
-            null);
+            null,
+            AccountCurrency: options.Trading.Currency);
     }
 
     private static void Require(bool condition, string message)

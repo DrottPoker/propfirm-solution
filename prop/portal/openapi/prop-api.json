@@ -900,6 +900,265 @@
         }
       }
     },
+    "/api/portal/invites/confirm": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/me/confirm-email": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/portal/password-reset": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/portal/password-reset/check": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/password-reset/confirm": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/password-reset": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/password-reset/check": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/password-reset/confirm": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/invites/check": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/invites/check": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/logout": {
       "post": {
         "tags": [
@@ -943,6 +1202,35 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ShopResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/shop/discount": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountQuoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountQuoteResponse"
                 }
               }
             }
@@ -1049,6 +1337,46 @@
         }
       }
     },
+    "/api/portal/orders/{orderId}/password": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/orders/{orderId}/test-payment": {
       "post": {
         "tags": [
@@ -1101,6 +1429,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TraderPayoutsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/payout-method": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutMethodResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutMethod"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutMethodResponse"
                 }
               }
             }
@@ -1903,7 +2277,86 @@
         }
       }
     },
+    "/api/portal/admin/accounts/{accountId}/trader/checks/{item}": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TraderCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TraderCheckResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/accounts/{accountId}/email-trader": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderEmailPreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "Portal"
@@ -2197,6 +2650,64 @@
         }
       }
     },
+    "/api/portal/admin/firm/email-settings": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/support-email": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupportEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/firm/logo": {
       "put": {
         "tags": [
@@ -2292,6 +2803,35 @@
                 }
               }
             }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookOverviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/webhook/test": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
           }
         }
       }
@@ -2424,6 +2964,28 @@
         }
       }
     },
+    "/api/portal/admin/admins/invites/withdraw": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminInviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/portal/admin/admins/{adminId}": {
       "delete": {
         "tags": [
@@ -2443,6 +3005,52 @@
         "responses": {
           "204": {
             "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/trading-conditions": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradingConditionsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradingConditionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradingConditionsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -2687,6 +3295,193 @@
         }
       }
     },
+    "/api/portal/admin/discounts": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DiscountCodeResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscountCodeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/discounts/{codeId}/active": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "codeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscountActiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/discounts/{codeId}": {
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "codeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/domain": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/domain/check": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/billing": {
       "get": {
         "tags": [
@@ -2716,6 +3511,14 @@
             "name": "slots",
             "in": "query",
             "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "expandBy",
+            "in": "query",
             "schema": {
               "type": "integer",
               "format": "int32"
@@ -2898,6 +3701,29 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/billing/charges/{chargeId}/invoice": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "chargeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -3223,6 +4049,28 @@
         }
       }
     },
+    "/api/portal/login-help": {
+      "post": {
+        "tags": [
+          "Signup"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
     "/api/portal/ops": {
       "get": {
         "tags": [
@@ -3252,6 +4100,86 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PortalLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/password-reset": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/portal/ops/password-reset/check": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/password-reset/confirm": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInviteRequest"
               }
             }
           },
@@ -3831,9 +4759,19 @@
           },
           "historyVersion": {
             "type": "string"
+          },
+          "retry": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RetryOffer"
+              }
+            ]
           }
         },
-        "description": "An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought\nwith, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it\nended, and its payouts, newest first. HistoryVersion changes whenever the account's trading\nhistory or the rule engine's steps do, so the portal asks for the history again only then."
+        "description": "An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought\nwith, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it\nended, and its payouts, newest first. HistoryVersion changes whenever the account's trading\nhistory or the rule engine's steps do, so the portal asks for the history again only then. Retry\nis how a failed challenge can be tried again."
       },
       "AccountGroup": {
         "enum": [
@@ -4235,9 +5173,13 @@
           "paidBeforeAmount": {
             "type": "number",
             "format": "double"
+          },
+          "traderChecked": {
+            "type": "boolean",
+            "default": false
           }
         },
-        "description": "A payout as the admin panel lists it: the payout, its challenge's name, and how many payouts the account had paid\nbefore it was asked for, and how much."
+        "description": "A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid\nbefore it was asked for, and how much, and whether the firm has done every check of the trader."
       },
       "AdminResponse": {
         "required": [
@@ -4319,7 +5261,8 @@
         "required": [
           "firmId",
           "available",
-          "reason"
+          "reason",
+          "suggestions"
         ],
         "type": "object",
         "properties": {
@@ -4334,8 +5277,15 @@
               "null",
               "string"
             ]
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
-        }
+        },
+        "description": "Whether the short name can be chosen, and when it is taken or reserved up to three free names like it."
       },
       "BalanceChangeKind": {
         "enum": [
@@ -4403,7 +5353,10 @@
           "goLiveProblem",
           "review",
           "depositPaid",
-          "suspension"
+          "suspension",
+          "shopProblem",
+          "vat",
+          "sandboxAccounts"
         ],
         "type": "object",
         "properties": {
@@ -4505,9 +5458,22 @@
                 "$ref": "#/components/schemas/SuspensionResponse"
               }
             ]
+          },
+          "shopProblem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "vat": {
+            "$ref": "#/components/schemas/VatResponse"
+          },
+          "sandboxAccounts": {
+            "type": "integer",
+            "format": "int32"
           }
         },
-        "description": "The firm's billing for its admin panel. Plan is null until the firm has started paying.\nNextMonthSlots is what a paying firm is charged for from the next unpaid month.\nGoLiveProblem says why a firm in the sandbox cannot go live by paying now, and\nReview where our review of it is. DepositPaid is taken off the startup fee.\nSuspension is set while we have suspended the firm."
+        "description": "The firm's billing for its admin panel. Plan is null until the firm has started paying.\nNextMonthSlots is what a paying firm is charged for from the next unpaid month.\nGoLiveProblem says why a firm in the sandbox cannot go live by paying now, and\nReview where our review of it is, null before the firm has saved an application.\nShopProblem says why the shop takes no payment once the firm is live: in the sandbox before it goes\nlive, and for a live firm while its shop sells nothing.\nDepositPaid is taken off the startup fee, without VAT. Vat is how VAT applies to\nthe firm's charges now, from its application. SandboxAccounts are the test accounts that end when\nthe firm goes live. Suspension is set while we have suspended the firm."
       },
       "BrandingRequest": {
         "required": [
@@ -4557,6 +5523,42 @@
         },
         "description": "What the portal needs to look like the firm's own, and whether the firm is still in the sandbox or being set up."
       },
+      "BreachClose": {
+        "required": [
+          "symbol",
+          "side",
+          "volume",
+          "closePrice",
+          "profit",
+          "commission"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/TradeSide"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "closePrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A position a breach closed: at ClosePrice, with Profit before the Commission for closing it."
+      },
       "BreachEvidence": {
         "required": [
           "time",
@@ -4584,9 +5586,25 @@
           },
           "reason": {
             "$ref": "#/components/schemas/FailureReason"
+          },
+          "closes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BreachClose"
+            }
+          },
+          "balanceAfter": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "What the trading platform recorded when a floor was breached."
+        "description": "What the trading platform recorded when a floor was breached. Closes are the positions the breach\nclosed, at the next price and with the commission for closing them, and BalanceAfter the balance\nthey left, which is why it can end below the floor."
       },
       "BuyerOrderResponse": {
         "required": [
@@ -4603,7 +5621,8 @@
           "accountId",
           "problem",
           "canLogIn",
-          "inviteSentAt"
+          "inviteSentAt",
+          "canChoosePassword"
         ],
         "type": "object",
         "properties": {
@@ -4666,9 +5685,25 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "canChoosePassword": {
+            "type": "boolean"
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "listAmount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "The order as its buyer sees it. CheckoutUrl is set while it waits for payment.\nCanLogIn means the trader already has a password for the portal.\nInviteSentAt is when the platform last emailed an invitation to choose one."
+        "description": "The order as its buyer sees it, with the price before its DiscountCode as ListAmount.\nCheckoutUrl is set while it waits for payment.\nCanLogIn means the trader already has a password for the portal.\nInviteSentAt is when the platform last emailed an invitation to choose one.\nCanChoosePassword means the buyer can choose the password right on the order's page: the order\nstarted the trader's only account, and the trader has no password yet."
       },
       "CancelAccountRequest": {
         "required": [
@@ -4760,7 +5795,7 @@
             "format": "int32"
           }
         },
-        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it. With\nInactivityDays, a challenge ends when no position was opened for that many days, in\nevery stage including the funded one."
+        "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Without evaluation stages the trader is\nfunded from the start, which firms sell as instant funding. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it. With\nInactivityDays, a challenge ends when no position was opened for that many days, in\nevery stage including the funded one."
       },
       "ChallengeFiguresResponse": {
         "required": [
@@ -4885,8 +5920,13 @@
           "month",
           "slots",
           "lines",
+          "netAmount",
+          "vatTreatment",
+          "vatPercent",
+          "vatAmount",
           "amount",
           "currency",
+          "invoice",
           "failure",
           "attempts",
           "nextAttemptAt",
@@ -4924,12 +5964,33 @@
               "$ref": "#/components/schemas/ChargeLine"
             }
           },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatTreatment": {
+            "$ref": "#/components/schemas/VatTreatment"
+          },
+          "vatPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
+          },
           "amount": {
             "type": "number",
             "format": "double"
           },
           "currency": {
             "type": "string"
+          },
+          "invoice": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "failure": {
             "type": [
@@ -4963,7 +6024,7 @@
             "type": "boolean"
           }
         },
-        "description": "A charge. CanPay is set for an unpaid monthly charge, which the firm can try again or pay\non a checkout page. Failure is why the card was declined last."
+        "description": "A charge. Lines add up to NetAmount, without VAT, and Amount\nis what is paid, with VatAmount. Invoice is the invoice number once it is paid,\nand the invoice is a PDF at its own address. CanPay is set for an unpaid monthly charge, which the\nfirm can try again or pay on a checkout page. Failure is why the card was declined last."
       },
       "ChargeStatus": {
         "enum": [
@@ -5045,9 +6106,27 @@
           },
           "acceptTerms": {
             "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "Buys the challenge. A logged-in trader buys with their own email, and Email is then not\nused. AcceptTerms is needed when the firm has terms."
+        "description": "Buys the challenge. A logged-in trader buys with their own email, and Email is then not\nused. Name and Country, a two-letter code, are the buyer's; a logged-in trader\nwho gave them before need not again. AcceptTerms is needed when the firm has terms.\nDiscountCode is one of the firm's codes, or empty for none."
       },
       "DailyLossReference": {
         "enum": [
@@ -5141,6 +6220,237 @@
         },
         "description": "The deposit for our review: what the firm paid, or else what it pays when it sends its application. Taken off the startup fee."
       },
+      "DiscountActiveRequest": {
+        "required": [
+          "active"
+        ],
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "description": "Turns a discount code on or off."
+      },
+      "DiscountCodeRequest": {
+        "required": [
+          "code",
+          "percentOff",
+          "amountOff",
+          "currency",
+          "challengeIds",
+          "maxUses",
+          "expiresAt",
+          "forRetries"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "percentOff": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "amountOff": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "challengeIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxUses": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "forRetries": {
+            "type": "boolean"
+          }
+        },
+        "description": "A new discount code. PercentOff or AmountOff in Currency,\nfor the challenges in ChallengeIds or every one when empty, at most MaxUses\ntimes and until ExpiresAt when given. ForRetries keeps it for buyers whose\nearlier challenge at the firm failed."
+      },
+      "DiscountCodeResponse": {
+        "required": [
+          "id",
+          "code",
+          "percentOff",
+          "amountOff",
+          "currency",
+          "challengeIds",
+          "maxUses",
+          "uses",
+          "expiresAt",
+          "forRetries",
+          "active",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "percentOff": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "amountOff": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "challengeIds": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "maxUses": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "uses": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "forRetries": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A discount code and how often it was used. Uses counts paid orders and orders waiting for payment."
+      },
+      "DiscountQuoteRequest": {
+        "required": [
+          "code",
+          "challengeId"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "challengeId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A discount code the buyer typed, for the challenge, and the buyer's email when it is known yet."
+      },
+      "DiscountQuoteResponse": {
+        "required": [
+          "code",
+          "challengeId",
+          "listAmount",
+          "discount",
+          "amount",
+          "currency",
+          "forRetries"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "challengeId": {
+            "type": "string"
+          },
+          "listAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "discount": {
+            "type": "number",
+            "format": "double"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "forRetries": {
+            "type": "boolean"
+          }
+        },
+        "description": "What the challenge costs with the code: ListAmount before it, Discount off and\nAmount to pay. ForRetries means only a buyer whose earlier challenge at the firm\nfailed can use it."
+      },
       "DocumentResponse": {
         "required": [
           "id",
@@ -5171,6 +6481,145 @@
           }
         },
         "description": "A document added to the application. Its content is fetched on its own."
+      },
+      "DomainRequest": {
+        "required": [
+          "domain"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The domain the firm wants its portal on, such as portal.yourfirm.com."
+      },
+      "DomainResponse": {
+        "required": [
+          "available",
+          "domain",
+          "status",
+          "cnameTarget",
+          "txtName",
+          "txtValue",
+          "checkedAt",
+          "activeAt",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "domain": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DomainStatus"
+              }
+            ]
+          },
+          "cnameTarget": {
+            "type": "string"
+          },
+          "txtName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "txtValue": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "checkedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activeAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The firm's own domain and the DNS records it needs: a CNAME record to CnameTarget, and a TXT record\nnamed TxtName with TxtValue. Problem says what the last lookup,\nat CheckedAt, missed. Available is false while own domains are not on."
+      },
+      "DomainStatus": {
+        "enum": [
+          "Pending",
+          "Active",
+          null
+        ]
+      },
+      "EmailSettingsRequest": {
+        "required": [
+          "settings"
+        ],
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          }
+        },
+        "description": "Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting."
+      },
+      "ExpansionResponse": {
+        "required": [
+          "slots",
+          "monthlyPrice",
+          "restOfMonth",
+          "month"
+        ],
+        "type": "object",
+        "properties": {
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "monthlyPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "restOfMonth": {
+            "type": "number",
+            "format": "double"
+          },
+          "month": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "description": "One round of automatic expansion from the slots in the quote: Slots more, for\nMonthlyPrice more a month, and RestOfMonth for the rest of\nMonth if it happens today. Without VAT."
       },
       "ExpiryEvidence": {
         "required": [
@@ -5206,6 +6655,22 @@
           "MaxLoss",
           "OtherFloor"
         ]
+      },
+      "FieldProblem": {
+        "required": [
+          "field",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "field": {
+            "type": "string"
+          },
+          "problem": {
+            "type": "string"
+          }
+        },
+        "description": "What is wrong with a field of the application."
       },
       "FirmApplication": {
         "required": [
@@ -5348,7 +6813,11 @@
           "hasApiKey",
           "webhookUrl",
           "sandboxMaxOpenAccounts",
-          "payments"
+          "payments",
+          "emailSettings",
+          "firmApiUrl",
+          "openApiUrl",
+          "supportEmail"
         ],
         "type": "object",
         "properties": {
@@ -5408,9 +6877,29 @@
           },
           "payments": {
             "$ref": "#/components/schemas/PaymentSettingsResponse"
+          },
+          "emailSettings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "firmApiUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "openApiUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "supportEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in\nthe sandbox. Payments is how its portal takes payment."
+        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in\nthe sandbox. Payments is how its portal takes payment. EmailSettings has every\nnotification email by kind, and whether the firm sends it, and SupportEmail is where replies to the\nemails to its traders go. FirmApiUrl is where the firm's own systems reach the firm API, and\nOpenApiUrl its description for code generators."
       },
       "FirmStatus": {
         "enum": [
@@ -5491,6 +6980,49 @@
         "description": "Open Url once before ExpiresAt to choose a password for the portal."
       },
       "JsonElement": { },
+      "LinkCheckRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The token from a link in an email."
+      },
+      "LinkCheckResponse": {
+        "required": [
+          "status",
+          "email",
+          "hasPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/LinkStatus"
+          },
+          "email": {
+            "type": "string"
+          },
+          "hasPassword": {
+            "type": "boolean"
+          }
+        },
+        "description": "Whether a link from an email still works and whose it is. HasPassword tells whether the person can\nalready log in, for example after using the invitation once."
+      },
+      "LinkStatus": {
+        "enum": [
+          "Valid",
+          "Used",
+          "Expired"
+        ],
+        "description": "What a one-time link from an email is worth when it is opened."
+      },
       "LiveFigures": {
         "required": [
           "balance",
@@ -5609,6 +7141,8 @@
           "month",
           "chargeAt",
           "slots",
+          "netAmount",
+          "vatAmount",
           "amount"
         ],
         "type": "object",
@@ -5625,12 +7159,20 @@
             "type": "integer",
             "format": "int32"
           },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
+          },
           "amount": {
             "type": "number",
             "format": "double"
           }
         },
-        "description": "The month charged next: when, for how many slots and how much."
+        "description": "The month charged next: when, for how many slots and how much, without VAT and with it."
       },
       "OpsActivityKind": {
         "enum": [
@@ -6894,6 +8436,28 @@
         },
         "description": "Something that happened to an order. Detail is the provider's message, when there is one."
       },
+      "OrderPasswordRequest": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The password the buyer chooses on the order's page, with the token from the link to the order."
+      },
       "OrderResponse": {
         "required": [
           "id",
@@ -6911,7 +8475,9 @@
           "expiresAt",
           "paidAt",
           "refundedAt",
-          "disputedAt"
+          "disputedAt",
+          "buyerName",
+          "buyerCountry"
         ],
         "type": "object",
         "properties": {
@@ -6989,9 +8555,34 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "buyerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "buyerCountry": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "listAmount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "A purchase of a challenge in the firm's portal. AccountId is the account the payment\nstarted, and Problem says why a paid order has none. RefundedAt and\nDisputedAt are set when the provider reports a refund or a dispute. The account is not\ntouched then: the firm decides whether to cancel it."
+        "description": "A purchase of a challenge in the firm's portal, with the buyer's name and country as given in the shop.\nAccountId is the account the payment started, and Problem says why a paid order has none. RefundedAt and\nDisputedAt are set when the provider reports a refund or a dispute. The account is not\ntouched then: the firm decides whether to cancel it. With a DiscountCode, ListAmount\nis the price before it and Amount what the buyer pays."
       },
       "OrderStatus": {
         "enum": [
@@ -7070,6 +8661,21 @@
         },
         "description": "Of the evaluations that ended in the last 90 days, how many passed every evaluation stage. Cancelled ones are left out."
       },
+      "PasswordResetRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The email of the person who forgot the password."
+      },
       "PaymentProvider": {
         "enum": [
           "Test",
@@ -7123,7 +8729,7 @@
             ]
           }
         },
-        "description": "The firm's choice of payment provider. The Stripe keys are kept when they are left empty, and are never shown\nagain. CheckoutUrl is the firm's own checkout page, for External. Empty URLs mean none."
+        "description": "The firm's choice of payment provider. The Stripe keys are kept when they are left empty, and are never shown\nagain. With only StripeSecretKey, we set up the webhook in the firm's Stripe account; with\nStripeWebhookSecret too, the firm added it itself. CheckoutUrl is the firm's\nown checkout page, for External. Empty URLs mean none."
       },
       "PaymentSettingsResponse": {
         "required": [
@@ -7133,6 +8739,7 @@
           "hasStripeKeys",
           "stripeTestMode",
           "stripeWebhookUrl",
+          "stripeWebhookEvents",
           "checkoutUrl",
           "termsUrl"
         ],
@@ -7167,6 +8774,12 @@
             "type": "string",
             "format": "uri"
           },
+          "stripeWebhookEvents": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "checkoutUrl": {
             "type": [
               "null",
@@ -7182,7 +8795,7 @@
             "format": "uri"
           }
         },
-        "description": "How the firm's portal takes payment. Provider is what the firm chose, and\nActive whether it works now: Stripe's live keys work only once the firm is live.\nStripeWebhookUrl is where the firm points Stripe's webhook."
+        "description": "How the firm's portal takes payment. Provider is what the firm chose, and\nActive whether it works now: Stripe's live keys work only once the firm is live, and its test\nkeys only where test payments are allowed. StripeWebhookUrl and StripeWebhookEvents\nare the webhook we set up in the firm's Stripe account, or that the firm adds itself."
       },
       "PayoutGroupResponse": {
         "required": [
@@ -7211,6 +8824,92 @@
           }
         },
         "description": "Payouts with a status, their amounts per currency and when the oldest got there: asked for, or approved for those to pay."
+      },
+      "PayoutMethod": {
+        "required": [
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/PayoutMethodKind"
+          },
+          "accountHolder": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "accountNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "asset": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "network": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "details": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "How a trader wants to be paid (ADR 0026). For PayoutMethodKind.Bank: AccountHolder,\nAccountNumber (an IBAN or a local account number) and optionally BankCode (BIC, SWIFT or\nrouting number) and BankName. For PayoutMethodKind.Crypto: Asset (for example\nUSDT), Network (for example TRC20) and Address. For PayoutMethodKind.Other:\nDetails. Fields of the other kinds are left out."
+      },
+      "PayoutMethodKind": {
+        "enum": [
+          "Bank",
+          "Crypto",
+          "Other"
+        ]
+      },
+      "PayoutMethodResponse": {
+        "required": [
+          "method"
+        ],
+        "type": "object",
+        "properties": {
+          "method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PayoutMethod"
+              }
+            ]
+          }
+        },
+        "description": "The trader's payout method, or null before the trader has saved one."
       },
       "PayoutQuoteResponse": {
         "required": [
@@ -7252,9 +8951,23 @@
           "minTradingDays": {
             "type": "integer",
             "format": "int32"
+          },
+          "bestDayProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "consistencyPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which\nis all withdrawn from the trading account. When CanRequest is false,\nRefusal says why. Only for funded accounts."
+        "description": "What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which\nis all withdrawn from the trading account. When CanRequest is false,\nRefusal says why. With a consistency rule, BestDayProfit is what the best\ntrading day since the last payout made, and ConsistencyPercent the most of the profit it may be.\nOnly for funded accounts."
       },
       "PayoutResponse": {
         "required": [
@@ -7275,7 +8988,10 @@
           "rejectedAt",
           "failedAt",
           "reason",
-          "reference"
+          "reference",
+          "payTo",
+          "profitReturned",
+          "timeZone"
         ],
         "type": "object",
         "properties": {
@@ -7365,9 +9081,25 @@
               "null",
               "string"
             ]
+          },
+          "payTo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PayoutMethod"
+              }
+            ]
+          },
+          "profitReturned": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
           }
         },
-        "description": "A funded trader's payout. Profit was withdrawn from TradingAccountId,\nand the trader gets Amount. The firm approves it, sends the money itself and marks it as paid."
+        "description": "A funded trader's payout. Profit was withdrawn from TradingAccountId,\nand the trader gets Amount. The firm approves it, sends the money itself and marks it as paid.\nTimeZone is the challenge's, which the portal shows the account's times in."
       },
       "PayoutStatus": {
         "enum": [
@@ -7511,7 +9243,10 @@
           "dpaUrl",
           "firmPortalUrl",
           "minimumPasswordLength",
-          "emailVerification"
+          "emailVerification",
+          "prices",
+          "sandboxMaxOpenAccounts",
+          "currencies"
         ],
         "type": "object",
         "properties": {
@@ -7544,9 +9279,22 @@
           },
           "emailVerification": {
             "type": "boolean"
+          },
+          "prices": {
+            "$ref": "#/components/schemas/PricesResponse"
+          },
+          "sandboxMaxOpenAccounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "description": "The platform, for the sign-up page: its name, the terms firms accept, the address new portals get\n(FirmPortalUrl with {firm} for the short name), and whether the email is confirmed first."
+        "description": "The platform, for its front page and the sign-up page: its name, the terms firms accept, the address new portals get\n(FirmPortalUrl with {firm} for the short name), whether the email is confirmed first, what firms\npay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may\nchoose, the first by default. TermsVersion is recorded with the firm, not shown."
       },
       "PortalLoginRequest": {
         "required": [
@@ -7574,7 +9322,10 @@
           "userId",
           "email",
           "role",
-          "firmName"
+          "firmName",
+          "emailConfirmed",
+          "name",
+          "country"
         ],
         "type": "object",
         "properties": {
@@ -7590,9 +9341,24 @@
           },
           "firmName": {
             "type": "string"
+          },
+          "emailConfirmed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "Who is logged in to the portal. Role is trader or admin."
+        "description": "Who is logged in to the portal. Role is trader or admin. EmailConfirmed is false\nfor a trader who chose a password on an order's page and has not opened the link from the email since.\nName and Country are a trader's from buying, so the shop need not ask again."
       },
       "PriceRequest": {
         "required": [
@@ -7670,7 +9436,7 @@
             "format": "int32"
           }
         },
-        "description": "What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the\nslots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots."
+        "description": "What firms pay, without VAT: the startup fee, the deposit for our review that is taken off it, the monthly package with\nthe slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots."
       },
       "QuoteKind": {
         "enum": [
@@ -7685,11 +9451,15 @@
           "kind",
           "slots",
           "lines",
+          "netAmount",
+          "vat",
+          "vatAmount",
           "amount",
           "monthlyPrice",
           "from",
           "currency",
-          "problem"
+          "problem",
+          "expansion"
         ],
         "type": "object",
         "properties": {
@@ -7705,6 +9475,17 @@
             "items": {
               "$ref": "#/components/schemas/ChargeLine"
             }
+          },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "vat": {
+            "$ref": "#/components/schemas/VatResponse"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
           },
           "amount": {
             "type": "number",
@@ -7729,9 +9510,19 @@
               "null",
               "string"
             ]
+          },
+          "expansion": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExpansionResponse"
+              }
+            ]
           }
         },
-        "description": "What choosing a number of slots would cost: Lines paid now, and MonthlyPrice\nfor each month from From. Problem says why it cannot be chosen."
+        "description": "What choosing a number of slots would cost: Lines paid now, which add up to\nNetAmount without VAT, and Amount with it, and MonthlyPrice\nwithout VAT for each month from From. Expansion is what one round of automatic\nexpansion would add, when asked for. Problem says why it cannot be chosen."
       },
       "RejectPayoutRequest": {
         "required": [
@@ -7744,8 +9535,13 @@
               "null",
               "string"
             ]
+          },
+          "returnProfit": {
+            "type": "boolean",
+            "default": false
           }
-        }
+        },
+        "description": "Why the payout is rejected, which the trader sees. With ReturnProfit, the withdrawn profit goes back on\nthe trader's account, for example while the firm waits for the trader's ID; otherwise it is forfeited."
       },
       "ResultsResponse": {
         "required": [
@@ -7855,6 +9651,42 @@
           }
         },
         "description": "The account's results, worked out by the service so that the portal only shows them. Balance\nand Equity are the trading account's right now, or the balance the platform last reported.\nFloating is the open positions' result. StageResult is how far the stage has\ncome from the initial balance, valued at equity when there is one. Today is equity now against\nthe balance when the trading day started at DayStartedAt, without deposits or withdrawals.\nThe profit target needs TargetRequired above the initial balance, of which the balance has\nTargetGained, which is TargetPercent of the way from 0 to 100.\nPaidOut is what the firm has paid the trader for the account."
+      },
+      "RetryOffer": {
+        "required": [
+          "challengeId",
+          "price",
+          "currency",
+          "discountCode",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "discountCode": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "A new try at a failed challenge: the challenge is for sale at Price, and with the firm's\nDiscountCode for retries, when it has one, at Amount."
       },
       "ReviewCheckRequest": {
         "required": [
@@ -8020,9 +9852,15 @@
           },
           "acceptTerms": {
             "type": "boolean"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "FirmId is the short name: the portal's subdomain and the server on the trading platform."
+        "description": "FirmId is the short name: the portal's subdomain and the server on the trading platform.\nCurrency is the currency of the firm's accounts, one of the platform's, or its first when left out."
       },
       "SignupResponse": {
         "required": [
@@ -8266,9 +10104,16 @@
               "integer"
             ],
             "format": "int32"
+          },
+          "consistencyPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days, and within\nMaxDays days after the day it started when it has a time limit.\nThe funded stage has no profit target and no time limit. Its trader gets ProfitSplitPercent\nof the profit as a payout, after at least MinTradingDays trading days since the last one."
+        "description": "Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit\ntarget with no open positions after at least MinTradingDays trading days, and within\nMaxDays days after the day it started when it has a time limit.\nThe funded stage has no profit target and no time limit. Its trader gets ProfitSplitPercent\nof the profit as a payout, after at least MinTradingDays trading days since the last one. With\nConsistencyPercent, the best trading day since the last payout may have made at most that share\nof the profit, so a payout is not one lucky day."
       },
       "StartAccountRequest": {
         "required": [
@@ -8350,6 +10195,21 @@
           }
         },
         "description": "Where the firm pays the deposit, or null when the application was sent at once."
+      },
+      "SupportEmailRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Where replies to the emails to the firm's traders go. Empty for nowhere."
       },
       "SuspendRequest": {
         "required": [
@@ -8440,12 +10300,79 @@
         },
         "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid. ReturnPath\nis the page in the admin panel the firm comes back to."
       },
+      "TraderCheckRequest": {
+        "required": [
+          "checked"
+        ],
+        "type": "object",
+        "properties": {
+          "checked": {
+            "type": "boolean"
+          }
+        },
+        "description": "Ticks a check of a trader, or takes the tick away."
+      },
+      "TraderCheckResponse": {
+        "required": [
+          "item",
+          "label",
+          "checkedAt",
+          "checkedBy"
+        ],
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "checkedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "checkedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "One of the firm's checks of a trader, such as \"ID checked\", and when and by whom it was ticked. Not ticked when CheckedAt is null."
+      },
       "TraderEmailKind": {
         "enum": [
           "Invitation",
           "Notice"
         ],
         "description": "What the trader was emailed: an invitation to choose a password, or that the challenge has started."
+      },
+      "TraderEmailPreviewResponse": {
+        "required": [
+          "email",
+          "kind",
+          "subject",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TraderEmailKind"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        },
+        "description": "The email the firm is about to send the trader: to whom, what kind, its subject and its text."
       },
       "TraderEmailResponse": {
         "required": [
@@ -8554,18 +10481,33 @@
       "TraderSummaryResponse": {
         "required": [
           "email",
+          "name",
+          "country",
           "since",
           "hasPassword",
           "accounts",
           "orders",
           "bought",
           "paidOut",
-          "order"
+          "order",
+          "checks"
         ],
         "type": "object",
         "properties": {
           "email": {
             "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "since": {
             "type": "string",
@@ -8605,9 +10547,15 @@
                 "$ref": "#/components/schemas/OrderSummaryResponse"
               }
             ]
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TraderCheckResponse"
+            }
           }
         },
-        "description": "An account's trader as the firm sees them: since when, whether they have chosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency, and\nOrder, the order that started the account asked about."
+        "description": "An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have\nchosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,\nOrder, the order that started the account asked about, and the firm's Checks of them."
       },
       "TradeSide": {
         "enum": [
@@ -8725,6 +10673,100 @@
         },
         "description": "The closed positions of the stage. A win or loss is a result above or below zero. ProfitFactor\nis what the wins made divided by what the losses lost, and null without losses."
       },
+      "TradingConditionsRequest": {
+        "required": [
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/TradingSymbolRequest"
+            }
+          }
+        },
+        "description": "The instruments the firm's traders should trade, each with its conditions."
+      },
+      "TradingConditionsResponse": {
+        "required": [
+          "currency",
+          "changeable",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "changeable": {
+            "type": "boolean"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TradingConditionsSymbol"
+            }
+          }
+        },
+        "description": "The firm's trading conditions: the account currency, whether the firm can change them (not for a firm we set up in our\nconfiguration), and every instrument on the platform."
+      },
+      "TradingConditionsSymbol": {
+        "required": [
+          "symbol",
+          "baseCurrency",
+          "quoteCurrency",
+          "contractSize",
+          "enabled",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "quoteCurrency": {
+            "type": "string"
+          },
+          "contractSize": {
+            "type": "number",
+            "format": "double"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "leverage": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "An instrument and whether the firm's traders trade it. Margin is the position's value divided by Leverage;\nSpreadMarkupPoints are added to the price feed's spread; CommissionPerLotPerSide is charged\nin the account currency on open and on close. The conditions are empty for an instrument that is not traded."
+      },
       "TradingDayDefinition": {
         "required": [
           "timeZone",
@@ -8742,6 +10784,58 @@
         },
         "description": "When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days."
       },
+      "TradingSymbolRequest": {
+        "required": [
+          "symbol",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "leverage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "VatResponse": {
+        "required": [
+          "treatment",
+          "percent"
+        ],
+        "type": "object",
+        "properties": {
+          "treatment": {
+            "$ref": "#/components/schemas/VatTreatment"
+          },
+          "percent": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "How VAT applies to the firm now, and the percent added to its charges."
+      },
+      "VatTreatment": {
+        "enum": [
+          "Charged",
+          "ReverseCharge",
+          "OutsideEu",
+          "NotRecorded"
+        ],
+        "description": "How VAT applies to a charge (ADR 0032). Prices are without VAT, and we are a company in Billing:Seller:Country."
+      },
       "VerificationResponse": {
         "required": [
           "status",
@@ -8755,7 +10849,8 @@
           "submitProblem",
           "maxDocuments",
           "maxDocumentBytes",
-          "euCountries"
+          "euCountries",
+          "problems"
         ],
         "type": "object",
         "properties": {
@@ -8816,9 +10911,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FieldProblem"
+            }
           }
         },
-        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now.\nEuCountries are where the application gives a VAT number or says the company has none."
+        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now, and\nProblems what is missing or wrong in each field of the saved application, while it can be changed.\nEuCountries are where the application gives a VAT number or says the company has none."
       },
       "VerifySignupRequest": {
         "required": [
@@ -8850,6 +10951,113 @@
           }
         },
         "description": "Open AdminUrl once to be logged in to the new firm's admin panel."
+      },
+      "WebhookDeliveryResponse": {
+        "required": [
+          "id",
+          "eventType",
+          "createdAt",
+          "status",
+          "attempts",
+          "lastStatus",
+          "lastError",
+          "deliveredAt",
+          "nextAttemptAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string"
+          },
+          "attempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastStatus": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "lastError": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "nextAttemptAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "One webhook and how it went: `Delivered`, `Failed` after the last try, or `Pending` while it is tried\nagain, with the firm's last answer (LastStatus) or the error."
+      },
+      "WebhookEventResponse": {
+        "required": [
+          "type",
+          "description"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "WebhookOverviewResponse": {
+        "required": [
+          "url",
+          "events",
+          "deliveries"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventResponse"
+            }
+          },
+          "deliveries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookDeliveryResponse"
+            }
+          }
+        },
+        "description": "Where webhooks go, every event they tell about, and the latest deliveries, the newest first."
       },
       "WebhookRequest": {
         "required": [

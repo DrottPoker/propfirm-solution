@@ -41,7 +41,8 @@ internal sealed class PositionState(
 
     public Instrument Instrument { get; } = instrument;
 
-    public SymbolConditions Conditions { get; } = conditions;
+    // Changes when the firm changes its group's conditions.
+    public SymbolConditions Conditions { get; set; } = conditions;
 
     public Side Side { get; } = side;
 
@@ -72,7 +73,8 @@ internal sealed class OrderState(
 
     public Instrument Instrument { get; } = instrument;
 
-    public SymbolConditions Conditions { get; } = conditions;
+    // Changes when the firm changes its group's conditions.
+    public SymbolConditions Conditions { get; set; } = conditions;
 
     public Side Side { get; } = side;
 

@@ -96,6 +96,10 @@ internal sealed partial class TradingCommandWorker(
                 var userId = await TradingUserAsync(firm, open.TraderId, cancellationToken);
                 await trading.OpenAccountAsync(firm.Trading!, open.AccountId, open.InitialBalance, userId, cancellationToken);
                 break;
+            case DescribeTradingAccount describe:
+                await trading.DescribeAccountAsync(
+                    firm.Trading!, describe.AccountId, new TradingAccountDetails(describe.Label, describe.ProfitTarget, describe.TimeZone, describe.DetailsUrl), cancellationToken);
+                break;
             case SetTradingFloor floor:
                 await trading.SetFloorAsync(firm.Trading!, floor.AccountId, floor.FloorId, floor.Floor, cancellationToken);
                 break;
@@ -110,6 +114,9 @@ internal sealed partial class TradingCommandWorker(
                 break;
             case WithdrawFromTradingAccount withdraw:
                 await trading.WithdrawAsync(firm.Trading!, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
+                break;
+            case DepositToTradingAccount deposit:
+                await trading.DepositAsync(firm.Trading!, deposit.AccountId, deposit.OperationId, deposit.Amount, cancellationToken);
                 break;
             default:
                 throw new InvalidOperationException($"Unknown command {command.GetType().Name}.");

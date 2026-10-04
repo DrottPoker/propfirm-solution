@@ -281,11 +281,11 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
         ];
     }
 
-    /// <summary>The charges paid since <paramref name="since"/>.</summary>
+    /// <summary>The charges paid since <paramref name="since"/>, without VAT.</summary>
     public async Task<PaidCharges> PaidSinceAsync(DateTimeOffset since, CancellationToken cancellationToken)
     {
         await using var command = await CommandAsync(
-            "select kind, currency, count(*), sum(amount) from billing_charges where status = 'Paid' and paid_at >= $1 group by kind, currency order by currency",
+            "select kind, currency, count(*), sum(net_amount) from billing_charges where status = 'Paid' and paid_at >= $1 group by kind, currency order by currency",
             [since],
             cancellationToken);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -303,7 +303,7 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
             [.. rows.GroupBy(r => r.Total.Currency, StringComparer.Ordinal).Select(g => new MoneyAmount(g.Key, g.Sum(r => r.Total.Amount)))]);
     }
 
-    /// <summary>What firms paid us per week for <paramref name="weeks"/> weeks, the one with <paramref name="now"/> last.</summary>
+    /// <summary>What firms paid us per week without VAT for <paramref name="weeks"/> weeks, the one with <paramref name="now"/> last.</summary>
     public async Task<List<ChargeWeek>> WeeksAsync(DateTimeOffset now, int weeks, CancellationToken cancellationToken)
     {
         var today = DateOnly.FromDateTime(now.UtcDateTime);
@@ -311,7 +311,7 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
         var first = thisWeek.AddDays(-7 * (weeks - 1));
         await using var command = await CommandAsync(
             """
-            select kind in ('Renewal', 'Slots'), date_trunc('week', paid_at at time zone 'UTC')::date, currency, sum(amount)
+            select kind in ('Renewal', 'Slots'), date_trunc('week', paid_at at time zone 'UTC')::date, currency, sum(net_amount)
             from billing_charges
             where status = 'Paid' and paid_at >= $1
             group by 1, 2, 3
@@ -434,7 +434,7 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
             """
             select count(*), count(*) filter (where a.paused)
             from challenge_accounts a join firms f on f.id = a.firm_id
-            where f.status = 'Live' and a.status not in ('Failed', 'Cancelled')
+            where f.status = 'Live' and not a.sandbox and a.status not in ('Failed', 'Cancelled')
             """,
             [],
             cancellationToken);
@@ -443,14 +443,14 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
         return (Count(reader, 0), Count(reader, 1));
     }
 
-    /// <summary>What the firm has tried in the sandbox. A firm that has gone live has its test accounts in it too.</summary>
+    /// <summary>What the firm has tried in the sandbox: its test accounts and purchases, payouts from them and its challenges.</summary>
     public async Task<SandboxUse> SandboxUseAsync(string firmId, CancellationToken cancellationToken)
     {
         await using var command = await CommandAsync(
             """
-            select (select count(*) from challenge_accounts where firm_id = $1),
-                   (select count(*) from orders where firm_id = $1 and paid_at is not null),
-                   (select count(*) from payouts where firm_id = $1),
+            select (select count(*) from challenge_accounts where firm_id = $1 and sandbox),
+                   (select count(*) from orders where firm_id = $1 and paid_at is not null and sandbox),
+                   (select count(*) from payouts p join challenge_accounts a on a.id = p.challenge_account_id where p.firm_id = $1 and a.sandbox),
                    (select count(*) from challenge_definitions where firm_id = $1)
             """,
             [firmId],
@@ -471,8 +471,8 @@ internal sealed class OpsFigures(NpgsqlDataSource dataSource, DatabaseSchema sch
             select extract(epoch from avg(p.paid_at - p.requested_at) filter (where p.status = 'Paid'))::float8,
                    count(*) filter (where p.status = 'Rejected'),
                    count(*)
-            from payouts p
-            where ($1::text is null or p.firm_id = $1)
+            from payouts p join challenge_accounts a on a.id = p.challenge_account_id
+            where ($1::text is null or p.firm_id = $1) and not a.sandbox
               and ((p.status = 'Paid' and p.paid_at >= $2) or (p.status = 'Rejected' and p.rejected_at >= $2))
             """,
             [new NpgsqlParameter { Value = (object?)firmId ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text }, since],

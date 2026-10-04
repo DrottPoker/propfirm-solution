@@ -147,6 +147,49 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal("https://hooks.acme.test/prop-v2", (await admin.GetFromJsonAsync<JsonElement>(Url("admin/firm"), TestContext.Current.CancellationToken)).GetProperty("webhookUrl").GetString());
     }
 
+    // The firm sees every event, sends a test and sees how its webhooks went.
+    [Fact]
+    public async Task TheFirmSendsATestWebhookAndSeesTheDeliveries()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+
+        using var withoutAddress = await admin.PostAsync(Url("admin/firm/webhook/test"), null, TestContext.Current.CancellationToken);
+        var secret = (await SetWebhookAsync(admin, "https://hooks.acme.test/prop")).GetProperty("secret").GetString()!;
+        using var sent = await admin.PostAsync(Url("admin/firm/webhook/test"), null, TestContext.Current.CancellationToken);
+        await Eventually.ThatAsync(() => factory.Webhooks.Delivered("webhook.test").Count == 1, "the test webhook");
+        JsonElement overview = default;
+        await Eventually.ThatAsync(
+            async () =>
+            {
+                overview = await admin.GetFromJsonAsync<JsonElement>(Url("admin/firm/webhook"), TestContext.Current.CancellationToken);
+                return overview.GetProperty("deliveries").EnumerateArray().Any(d => d.GetProperty("status").GetString() == "Delivered");
+            },
+            "the delivery to be recorded");
+
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.Accepted), (withoutAddress.StatusCode, sent.StatusCode));
+        Assert.True(IsSignedWith(factory.Webhooks.Delivered("webhook.test")[0], secret));
+        Assert.Contains("payout.requested", overview.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("type").GetString()));
+        var delivery = Assert.Single(overview.GetProperty("deliveries").EnumerateArray());
+        Assert.Equal(("webhook.test", 200), (delivery.GetProperty("eventType").GetString(), delivery.GetProperty("lastStatus").GetInt32()));
+        Assert.Equal("https://hooks.acme.test/prop", overview.GetProperty("url").GetString());
+    }
+
+    // So the firm's developers find the API without asking us.
+    [Fact]
+    public async Task TheSettingsSayWhereTheFirmApiIs()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.LogInAsAdminAsync();
+
+        var firm = await admin.GetFromJsonAsync<JsonElement>(Url("admin/firm"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ("http://localhost:5201/api/firm/v1/", "http://localhost:5201/openapi/v1.json"),
+            (firm.GetProperty("firmApiUrl").GetString(), firm.GetProperty("openApiUrl").GetString()));
+    }
+
     [Fact]
     public async Task ANewWebhookSecretSignsFromNowOn()
     {
@@ -180,6 +223,60 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
     }
 
+    // Applied by the trading platform to every account of the firm, so only instruments without open trades can be left out.
+    [Fact]
+    public async Task TheFirmChoosesItsInstrumentsAndTheirConditions()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+
+        var before = await admin.GetFromJsonAsync<JsonElement>(Url("admin/trading-conditions"), TestContext.Current.CancellationToken);
+        using var none = await SetConditionsAsync(admin);
+        using var twice = await SetConditionsAsync(admin, ("EURUSD", 100, 2, 3.5m), ("EURUSD", 50, 2, 3.5m));
+        using var tooMuchLeverage = await SetConditionsAsync(admin, ("EURUSD", 1_001, 2, 3.5m));
+        using var halfCents = await SetConditionsAsync(admin, ("EURUSD", 100, 2, 3.555m));
+        using var unknown = await SetConditionsAsync(admin, ("DOGEUSD", 10, 0, 0m));
+        using var saved = await SetConditionsAsync(admin, ("EURUSD", 50, 5, 2.5m), ("XAGUSD", 20, 0, 0m));
+        var after = await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        factory.Trading.RefuseNextSymbols = "SymbolInUse";
+        using var inUse = await SetConditionsAsync(admin, ("EURUSD", 50, 5, 2.5m));
+
+        Assert.Equal(("USD", true), (before.GetProperty("currency").GetString(), before.GetProperty("changeable").GetBoolean()));
+        Assert.Equal(
+            [("EURUSD", true), ("GBPUSD", true), ("USDJPY", true), ("XAGUSD", false), ("XAUUSD", true)],
+            before.GetProperty("symbols").EnumerateArray().Select(s => (s.GetProperty("symbol").GetString(), s.GetProperty("enabled").GetBoolean())));
+        Assert.All(
+            [none, twice, tooMuchLeverage, halfCents, unknown],
+            r => Assert.Equal(HttpStatusCode.UnprocessableEntity, r.StatusCode));
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var eurusd = after.GetProperty("symbols").EnumerateArray().Single(s => s.GetProperty("symbol").GetString() == "EURUSD");
+        Assert.Equal((50, 5, 2.5m), (eurusd.GetProperty("leverage").GetInt32(), eurusd.GetProperty("spreadMarkupPoints").GetInt32(), eurusd.GetProperty("commissionPerLotPerSide").GetDecimal()));
+        Assert.Equal(
+            ["EURUSD", "XAGUSD"],
+            after.GetProperty("symbols").EnumerateArray().Where(s => s.GetProperty("enabled").GetBoolean()).Select(s => s.GetProperty("symbol").GetString()));
+        Assert.Equal(JsonValueKind.Null, after.GetProperty("symbols").EnumerateArray().Single(s => s.GetProperty("symbol").GetString() == "GBPUSD").GetProperty("leverage").ValueKind);
+        Assert.Equal(HttpStatusCode.Conflict, inUse.StatusCode);
+        Assert.Equal(["EURUSD", "XAGUSD"], factory.Trading.GroupSymbols.Values.Single().Select(s => s.Symbol));
+    }
+
+    // A firm we set up has the conditions in our configuration, which the trading platform does not let it change.
+    [Fact]
+    public async Task AConfiguredFirmSeesItsConditionsButCannotChangeThem()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.LogInAsAdminAsync();
+
+        var conditions = await admin.GetFromJsonAsync<JsonElement>(Url("admin/trading-conditions"), TestContext.Current.CancellationToken);
+        factory.Trading.RefuseNextSymbols = "GroupNotChangeable";
+        using var refused = await SetConditionsAsync(admin, ("EURUSD", 50, 5, 2.5m));
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        Assert.False(conditions.GetProperty("changeable").GetBoolean());
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal("Your trading conditions are set by us, so they cannot be changed here.", problem.GetProperty("title").GetString());
+    }
+
     [Fact]
     public async Task AdministratorsInviteEachOther()
     {
@@ -188,7 +285,7 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
 
         using var invited = await owner.PostAsJsonAsync(Url("admin/admins/invites"), new { email = "Second@Firm.test" }, TestContext.Current.CancellationToken);
         var pending = await owner.GetFromJsonAsync<JsonElement>(Url("admin/admins"), TestContext.Current.CancellationToken);
-        var email = Assert.Single(factory.Emails.Sent);
+        var email = Assert.Single(factory.Emails.Sent, e => e.Subject.StartsWith("You are invited", StringComparison.Ordinal));
         using var second = factory.CreatePortalClient(PropFactory.HostOf("acme"));
         using var accepted = await second.PostAsJsonAsync(
             Url("admin/invites/accept"), new { token = FakeEmailSender.TokenIn(email), password = "a-second-password" }, TestContext.Current.CancellationToken);
@@ -206,6 +303,29 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
             admins.GetProperty("admins").EnumerateArray().Select(a => (a.GetProperty("email").GetString(), a.GetProperty("isYou").GetBoolean())));
         Assert.Empty(admins.GetProperty("invites").EnumerateArray());
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnInvitationIsSentAgainOrTakenBack()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var owner = await factory.SignUpAsync("acme");
+        (await owner.PostAsJsonAsync(Url("admin/admins/invites"), new { email = "second@firm.test" }, TestContext.Current.CancellationToken)).Dispose();
+        var first = factory.Emails.TokenFor("second@firm.test");
+
+        using var resent = await owner.PostAsJsonAsync(Url("admin/admins/invites"), new { email = "second@firm.test" }, TestContext.Current.CancellationToken);
+        var second = factory.Emails.TokenFor("second@firm.test");
+        using var withdrawn = await owner.PostAsJsonAsync(Url("admin/admins/invites/withdraw"), new { email = "Second@Firm.test" }, TestContext.Current.CancellationToken);
+        using var again = await owner.PostAsJsonAsync(Url("admin/admins/invites/withdraw"), new { email = "second@firm.test" }, TestContext.Current.CancellationToken);
+        var admins = await owner.GetFromJsonAsync<JsonElement>(Url("admin/admins"), TestContext.Current.CancellationToken);
+        using var acme = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        using var accepted = await acme.PostAsJsonAsync(Url("admin/invites/accept"), new { token = second, password = "a-second-password" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, resent.StatusCode);
+        Assert.NotEqual(first, second);
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (withdrawn.StatusCode, again.StatusCode));
+        Assert.Empty(admins.GetProperty("invites").EnumerateArray());
+        Assert.Equal(HttpStatusCode.Unauthorized, accepted.StatusCode);
     }
 
     [Fact]
@@ -286,7 +406,10 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
         using var admin = await factory.SignUpAsync("acme");
         await PropFactory.WaitUntilProvisionedAsync(admin);
 
-        var template = Assert.Single((await admin.GetFromJsonAsync<JsonElement>(Url("admin/challenge-templates"), TestContext.Current.CancellationToken)).EnumerateArray());
+        var templates = (await admin.GetFromJsonAsync<JsonElement>(Url("admin/challenge-templates"), TestContext.Current.CancellationToken)).EnumerateArray().ToList();
+        var template = templates.Single(t => t.GetProperty("id").GetString() == "two-step");
+        var instant = templates.Single(t => t.GetProperty("id").GetString() == "instant-funded").GetProperty("definition");
+        using var savedInstant = await admin.PutAsJsonAsync(Url("admin/challenges/instant-funded-100k"), instant, TestContext.Current.CancellationToken);
         var definition = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(template.GetProperty("definition").GetRawText())!;
         definition["id"] = JsonSerializer.SerializeToElement("two-step-50k");
         definition["name"] = JsonSerializer.SerializeToElement("Two-step 50k");
@@ -296,9 +419,12 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
         using var otherCurrency = await admin.PutAsJsonAsync(Url("admin/challenges/two-step-50k"), definition, TestContext.Current.CancellationToken);
         var challenges = await admin.GetFromJsonAsync<JsonElement>(Url("admin/challenges"), TestContext.Current.CancellationToken);
 
-        Assert.Equal("two-step", template.GetProperty("id").GetString());
-        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.UnprocessableEntity), (saved.StatusCode, otherCurrency.StatusCode));
-        Assert.Equal(["two-step-100k", "two-step-50k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
+        Assert.Equal(["one-step", "two-step", "three-step", "instant-funded"], templates.Select(t => t.GetProperty("id").GetString()));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.UnprocessableEntity), (savedInstant.StatusCode, saved.StatusCode, otherCurrency.StatusCode));
+        Assert.Equal(0, instant.GetProperty("evaluation").GetArrayLength());
+        Assert.Equal(
+            ["instant-funded-100k", "two-step-100k", "two-step-50k"],
+            challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()).Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -315,6 +441,12 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
     }
 
     private static Uri Url(string path) => new($"/api/portal/{path}", UriKind.Relative);
+
+    private static Task<HttpResponseMessage> SetConditionsAsync(HttpClient admin, params (string Symbol, int Leverage, int SpreadMarkupPoints, decimal CommissionPerLotPerSide)[] symbols) =>
+        admin.PutAsJsonAsync(
+            Url("admin/trading-conditions"),
+            new { symbols = symbols.Select(s => new { s.Symbol, s.Leverage, s.SpreadMarkupPoints, s.CommissionPerLotPerSide }) },
+            TestContext.Current.CancellationToken);
 
     private static async Task<string> NewApiKeyAsync(HttpClient admin)
     {

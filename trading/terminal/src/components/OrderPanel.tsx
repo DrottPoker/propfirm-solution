@@ -5,6 +5,7 @@ import { useEffect, useId, useState } from "react";
 import { suspendedHelp } from "@/lib/account";
 import { CommandRejectedError } from "@/lib/api/client";
 import type { InstrumentInfo, OrderType, Side } from "@/lib/api/types";
+import { rejectionText } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatUnits } from "@/lib/format";
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
@@ -44,6 +45,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const quote = useTradingStore((s) => s.prices[instrument.symbol]);
   const canTrade = useTradingStore((s) => s.connection === "connected" && s.account?.status === "Active");
   const suspended = useTradingStore((s) => s.account?.status === "Suspended");
+  const ended = useTradingStore((s) => s.account?.status === "Disabled");
   const accountCurrency = useTradingStore((s) => s.account?.currency);
   const placeOrder = usePlaceOrder(accountId);
   const pointValue = usePointValue(accountId, instrument.symbol).data ?? undefined;
@@ -93,7 +95,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
           setPrice("");
           setStops({ price: noStops, money: noStops });
         },
-        onError: (e) => setStatus({ kind: "error", text: e instanceof CommandRejectedError ? `Rejected: ${e.reason}` : "Could not reach the trading service." }),
+        onError: (e) => setStatus({ kind: "error", text: e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service." }),
       },
     );
   };
@@ -258,6 +260,11 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
             {suspendedHelp}
           </p>
         )}
+        {ended && (
+          <p role="note" className="rounded-md bg-loss/10 px-3 py-2 text-xs text-loss">
+            Trading on this account has ended, so no new orders are taken.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           {sides.map((side) => (
             <TradeButton
@@ -283,7 +290,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         )}
       </div>
 
-      {status.kind !== "idle" && (
+      {status.kind !== "idle" && !ended && (
         <p role="status" className={`rounded-md px-3 py-2 ${status.kind === "error" ? "bg-loss/10 text-loss" : "bg-profit/10 text-profit"}`}>
           {status.text}
         </p>

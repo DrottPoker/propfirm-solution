@@ -4,11 +4,12 @@ import { useMemo, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
 import type { EngineEvent, InstrumentInfo, PositionSnapshot, Side } from "@/lib/api/types";
-import { balanceOperationName, describeEvent, isWarning, type DigitsOf } from "@/lib/events";
+import { balanceOperationName, closeReasons, describeEvent, isWarning, positionCommission, rejectionText, shortId, type DigitsOf } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume } from "@/lib/format";
 import { useCancelOrder, useClosePosition, useModifyStops, usePointValue } from "@/lib/queries";
 import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
+import { useTimeZone } from "@/lib/timeZone";
 
 import { StopUnitToggle } from "./StopUnitToggle";
 
@@ -32,7 +33,7 @@ export function BottomPanel({ accountId, instruments }: { accountId: string; ins
     return (symbol) => bySymbol.get(symbol) ?? 5;
   }, [instruments]);
 
-  const onError = (e: Error) => setError(e instanceof CommandRejectedError ? `Rejected: ${e.reason}` : "Could not reach the trading service.");
+  const onError = (e: Error) => setError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.");
 
   const counts: Record<Tab, number | null> = {
     Positions: account?.positions.length ?? 0,
@@ -253,6 +254,7 @@ function StopInput({ label, value, onChange }: { label: string; value: string; o
 function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf: DigitsOf; onError: (e: Error) => void }) {
   const orders = useTradingStore((s) => s.account?.orders ?? []);
   const cancel = useCancelOrder(accountId);
+  const timeZone = useTimeZone();
 
   if (orders.length === 0) {
     return <Empty text="No pending orders." />;
@@ -274,7 +276,7 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
             <Cell number>{formatPrice(o.price, digits)}</Cell>
             <Cell number>{formatPrice(o.stopLoss, digits)}</Cell>
             <Cell number>{formatPrice(o.takeProfit, digits)}</Cell>
-            <Cell>{formatTime(o.placedTime)}</Cell>
+            <Cell>{formatTime(o.placedTime, timeZone)}</Cell>
             <Cell>
               <span className="flex justify-end">
                 <ActionButton danger disabled={cancel.isPending} onClick={() => cancel.mutate(o.orderId, { onError })}>
@@ -289,8 +291,9 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   );
 }
 
-// Closed positions and balance operations such as payouts, newest first.
+// Closed positions and balance operations such as payouts, newest first. Commission is for both opening and closing.
 function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
+  const timeZone = useTimeZone();
   const rows = events
     .filter((e): e is ClosedPosition | BalanceOperation => e.kind === "PositionClosed" || e.kind === "BalanceAdjusted")
     .reverse();
@@ -305,7 +308,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
         if (isBalanceOperation(c)) {
           return (
             <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
-              <Cell>{formatTime(c.timestamp)}</Cell>
+              <Cell>{formatTime(c.timestamp, timeZone)}</Cell>
               <td colSpan={8} className="px-3 py-1.5 text-muted">
                 {balanceOperationName(c.amount)}
               </td>
@@ -319,7 +322,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
         const digits = digitsOf(c.symbol);
         return (
           <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
-            <Cell>{formatTime(c.timestamp)}</Cell>
+            <Cell>{formatTime(c.timestamp, timeZone)}</Cell>
             <Cell className="font-mono text-muted">{shortId(c.positionId)}</Cell>
             <Cell className="font-medium">{c.symbol}</Cell>
             <Cell>
@@ -328,8 +331,8 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
             <Cell number>{formatVolume(c.volume)}</Cell>
             <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
             <Cell number>{formatPrice(c.closePrice, digits)}</Cell>
-            <Cell>{c.reason}</Cell>
-            <Cell number>{formatMoney(c.commission)}</Cell>
+            <Cell>{closeReasons[c.reason]}</Cell>
+            <Cell number>{formatMoney(positionCommission(c, events))}</Cell>
             <Cell number className={c.profit >= 0 ? "text-profit" : "text-loss"}>
               {formatSignedMoney(c.profit)}
             </Cell>
@@ -341,6 +344,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
 }
 
 function Events({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
+  const timeZone = useTimeZone();
   if (events.length === 0) {
     return <Empty text="No events yet." />;
   }
@@ -349,7 +353,7 @@ function Events({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsO
     <ul className="divide-y divide-border">
       {[...events].reverse().map((event, index) => (
         <li key={`${event.timestamp}-${index}`} className={`flex gap-4 px-3 py-2 ${isWarning(event) ? "text-warning" : ""}`}>
-          <span className="shrink-0 font-mono text-muted tabular-nums">{formatTime(event.timestamp)}</span>
+          <span className="shrink-0 font-mono text-muted tabular-nums">{formatTime(event.timestamp, timeZone)}</span>
           <span>{describeEvent(event, digitsOf)}</span>
           {event.kind === "EquityFloorBreached" && (
             <span className="text-muted">
@@ -413,9 +417,4 @@ function ActionButton({
 
 function Empty({ text }: { text: string }) {
   return <p className="px-3 py-6 text-center text-muted">{text}</p>;
-}
-
-// Ids are client-generated UUIDs; the start is enough to tell them apart on screen.
-function shortId(id: string): string {
-  return id.length > 8 ? id.slice(0, 8) : id;
 }

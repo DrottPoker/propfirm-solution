@@ -11,7 +11,8 @@ namespace Prop.Api.Firms;
 /// <summary>
 /// Creates the server on the trading platform for each firm that signed up, through the partner API, and moves
 /// the firm to the sandbox with a first challenge. Tried again until it works. If the server was created but
-/// the answer was lost, the next attempt asks for a new key.
+/// the answer was lost, the next attempt asks for a new key. Also keeps the server's listing up to date (ADR 0027):
+/// its traders log in through the portal's terminal page, and the server is on the platform's list once the firm is live.
 /// </summary>
 internal sealed partial class FirmProvisioner(
     NpgsqlDataSource dataSource,
@@ -60,6 +61,20 @@ internal sealed partial class FirmProvisioner(
 
             try
             {
+                await UpdateListingsAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                LogListingFailed(logger, retryDelay, exception);
+                failed = true;
+            }
+
+            try
+            {
                 if (failed)
                 {
                     await Task.Delay(retryDelay, time, stoppingToken);
@@ -80,7 +95,7 @@ internal sealed partial class FirmProvisioner(
 
     private async Task ProvisionAsync(Firm firm, CancellationToken cancellationToken)
     {
-        var tenant = await partner.CreateTenantAsync(firm.Id, firm.Name, cancellationToken);
+        var tenant = await partner.CreateTenantAsync(firm.Id, firm.Name, firm.AccountCurrency, cancellationToken);
         var apiKey = tenant?.AdminApiKey;
         if (tenant is null)
         {
@@ -108,9 +123,57 @@ internal sealed partial class FirmProvisioner(
         LogProvisioned(logger, firm.Id);
     }
 
+    /// <summary>Where the firm's traders log in when the terminal asks them to: the portal's page that opens it.</summary>
+    public static Uri TerminalLoginOf(Uri portalUrl) => new(portalUrl, "terminal");
+
+    // The firms that signed up whose server the trading platform has not heard about as it is now: listed or not, where
+    // its traders log in, and its logo, an uploaded one at the portal's address.
+    private async Task UpdateListingsAsync(CancellationToken cancellationToken)
+    {
+        const string Logo = "case when l.sha256 is not null then f.portal_url || 'api/portal/logo/' || encode(l.sha256, 'hex') else f.logo_url end";
+        var stale = new List<(string Id, bool Listed, Uri LoginUrl, Uri? LogoUrl)>();
+        await using (var command = dataSource.CreateCommand(
+            $"""
+            select f.id, f.status = 'Live', f.portal_url, {Logo}
+            from firms f left join firm_logos l on l.firm_id = f.id
+            where not f.configured and f.trading_server is not null
+              and f.trading_listing is distinct from jsonb_build_object('listed', f.status = 'Live', 'loginUrl', f.portal_url || 'terminal', 'logoUrl', {Logo})
+            """))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                stale.Add((
+                    reader.GetString(0),
+                    reader.GetBoolean(1),
+                    TerminalLoginOf(new Uri(reader.GetString(2))),
+                    reader.IsDBNull(3) ? null : new Uri(reader.GetString(3))));
+            }
+        }
+
+        foreach (var (id, listed, loginUrl, logoUrl) in stale)
+        {
+            await partner.SetListingAsync(id, listed, loginUrl, logoUrl, cancellationToken);
+            await using var update = dataSource.CreateCommand(
+                "update firms set trading_listing = jsonb_build_object('listed', $2, 'loginUrl', $3::text, 'logoUrl', $4::text) where id = $1");
+            update.Parameters.AddWithValue(id);
+            update.Parameters.AddWithValue(listed);
+            update.Parameters.AddWithValue(loginUrl.ToString());
+            update.Parameters.Add(new NpgsqlParameter { Value = (object?)logoUrl?.ToString() ?? DBNull.Value, NpgsqlDbType = NpgsqlTypes.NpgsqlDbType.Text });
+            await update.ExecuteNonQueryAsync(cancellationToken);
+            LogListed(logger, id, listed);
+        }
+    }
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Firm {FirmId} has its server on the trading platform and is in the sandbox")]
     private static partial void LogProvisioned(ILogger logger, string firmId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Creating the trading server of firm {FirmId} failed; trying again in {Delay}")]
     private static partial void LogFailed(ILogger logger, string firmId, TimeSpan delay, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The trading platform knows where traders of firm {FirmId} log in, and lists its server: {Listed}")]
+    private static partial void LogListed(ILogger logger, string firmId, bool listed);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Updating the listing of a trading server failed; trying again in {Delay}")]
+    private static partial void LogListingFailed(ILogger logger, TimeSpan delay, Exception exception);
 }

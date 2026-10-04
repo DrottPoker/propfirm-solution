@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { FirmSettings } from "@/lib/api/types";
+import { imageLuminance, logoHardToSee } from "@/lib/logoContrast";
 import { useFirmSettings, useRemoveLogo, useSaveColors, useUploadLogo } from "@/lib/queries";
 import {
   contrastRatio,
@@ -12,6 +13,7 @@ import {
   isHexColor,
   presetOf,
   readableContrast,
+  readableTextOn,
   themeColors,
   themePresets,
   themeStyle,
@@ -20,8 +22,9 @@ import {
   type ThemeColors,
 } from "@/lib/theme";
 
-import { AlertIcon, CheckIcon, UploadIcon } from "./icons";
-import { AdminPage, buttonClass, ErrorText, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { DropZone } from "./DropZone";
+import { AlertIcon, CheckIcon } from "./icons";
+import { AdminPage, buttonClass, ErrorText, Message, PageHeader, Panel, secondaryButtonClass, SegmentedControl } from "./ui";
 
 const colorText: Record<ThemeColor, { label: string; hint: string }> = {
   accent: { label: "Brand color", hint: "Buttons, links and highlights" },
@@ -36,9 +39,12 @@ const colorText: Record<ThemeColor, { label: string; hint: string }> = {
   warning: { label: "Warning", hint: "Limits that are close" },
 };
 
-const brandSwatches = ["#2563eb", "#3b82f6", "#8b5cf6", "#0d9488", "#ea580c"];
+/** Brand colors that white button text is easy to read on. */
+export const brandSwatches = ["#2563eb", "#7c3aed", "#0f766e", "#15803d", "#c2410c", "#be123c"];
 
-const buttonTexts = [
+/** Automatic is the easier to read of white and dark, worked out for each brand color. */
+const buttonTexts: { label: string; value: string | null }[] = [
+  { label: "Automatic", value: null },
   { label: "White", value: "#ffffff" },
   { label: "Dark", value: "#0b0e14" },
 ];
@@ -65,10 +71,13 @@ function Design({ settings }: { settings: FirmSettings }) {
   const save = useSaveColors();
   const initial = settings.colors as ThemeColors;
   const [colors, setColors] = useState<ThemeColors>(initial);
-  const effective = (name: ThemeColor) => colors[name] ?? defaultColors[name];
+  const effective = (name: ThemeColor): string =>
+    colors[name] ?? (name === "accent-foreground" && colors.accent ? readableTextOn(colors.accent) : defaultColors[name]);
   const dirty = JSON.stringify(sorted(colors)) !== JSON.stringify(sorted(initial));
   const preset = presetOf(colors);
   const ratio = contrastRatio(effective("accent"), effective("accent-foreground"));
+  const logoLuminance = useLogoLuminance(settings.logoUrl);
+  const [view, setView] = useState<"settings" | "preview">("settings");
 
   const setColor = (name: ThemeColor, value: string | null) =>
     setColors((current) => {
@@ -82,6 +91,14 @@ function Design({ settings }: { settings: FirmSettings }) {
       return next;
     });
 
+  // A new brand color gets the button text that is easy to read on it, until the firm chooses one.
+  const setBrandColor = (value: string) =>
+    setColors((current) => {
+      const next = { ...current, accent: value };
+      delete next["accent-foreground"];
+      return next;
+    });
+
   const submit = () =>
     save.mutate(colors as Record<string, string>, {
       // The portal's look is set on the server before a page renders, so the page is rendered again.
@@ -90,10 +107,25 @@ function Design({ settings }: { settings: FirmSettings }) {
 
   return (
     <AdminPage>
-      <PageHeader title="Portal design" description="How your portal looks to your traders, on every page. The preview shows your changes before you save them." />
+      <PageHeader
+        title="Portal design"
+        description="How your portal looks to your traders, on every page. A new logo is saved at once. The preview shows your color changes before you save them."
+      />
+      {/* On a small screen the settings and the preview take turns, so the preview is one tap away. */}
+      <div className="flex xl:hidden">
+        <SegmentedControl
+          label="Show"
+          value={view}
+          options={[
+            { value: "settings", label: "Settings" },
+            { value: "preview", label: "Preview" },
+          ]}
+          onChange={setView}
+        />
+      </div>
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-        <div className="flex flex-col gap-5">
-          <Logo settings={settings} />
+        <div className={`flex-col gap-5 ${view === "preview" ? "hidden xl:flex" : "flex"}`}>
+          <Logo settings={settings} hardToSee={logoLuminance !== null && logoHardToSee(logoLuminance, effective("panel"))} />
 
           <Panel title="Theme">
             <div role="group" aria-label="Theme" className="grid grid-cols-3 gap-2">
@@ -127,31 +159,34 @@ function Design({ settings }: { settings: FirmSettings }) {
                   type="button"
                   aria-label={`Brand color ${swatch}`}
                   aria-pressed={effective("accent").toLowerCase() === swatch}
-                  onClick={() => setColor("accent", swatch)}
+                  onClick={() => setBrandColor(swatch)}
                   className={`size-9 rounded-full border-2 p-0.5 ${effective("accent").toLowerCase() === swatch ? "border-foreground" : "border-transparent"}`}
                 >
                   <span className="block size-full rounded-full" style={{ background: swatch }} />
                 </button>
               ))}
               <label className="flex h-9 cursor-pointer items-center gap-2 rounded-full border border-dashed border-border px-3 text-sm text-muted hover:text-foreground">
-                <input type="color" aria-label="Other brand color" value={effective("accent")} onChange={(e) => setColor("accent", e.target.value)} className="size-5 cursor-pointer rounded border-0 bg-transparent p-0" />
+                <input type="color" aria-label="Other brand color" value={effective("accent")} onChange={(e) => setBrandColor(e.target.value)} className="size-5 cursor-pointer rounded border-0 bg-transparent p-0" />
                 Other
               </label>
             </div>
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">Text on buttons</span>
               <div role="group" aria-label="Text on buttons" className="flex gap-0.5 self-start rounded-md border border-border p-0.5 text-sm">
-                {buttonTexts.map((text) => (
-                  <button
-                    key={text.value}
-                    type="button"
-                    aria-pressed={effective("accent-foreground").toLowerCase() === text.value}
-                    onClick={() => setColor("accent-foreground", text.value === defaultColors["accent-foreground"] ? null : text.value)}
-                    className={`rounded px-3.5 py-1.5 ${effective("accent-foreground").toLowerCase() === text.value ? "bg-background font-medium" : "text-muted hover:text-foreground"}`}
-                  >
-                    {text.label}
-                  </button>
-                ))}
+                {buttonTexts.map((text) => {
+                  const chosen = (colors["accent-foreground"]?.toLowerCase() ?? null) === text.value;
+                  return (
+                    <button
+                      key={text.label}
+                      type="button"
+                      aria-pressed={chosen}
+                      onClick={() => setColor("accent-foreground", text.value)}
+                      className={`rounded px-3.5 py-1.5 ${chosen ? "bg-background font-medium" : "text-muted hover:text-foreground"}`}
+                    >
+                      {text.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {ratio < readableContrast ? (
@@ -174,7 +209,7 @@ function Design({ settings }: { settings: FirmSettings }) {
             actions={
               Object.keys(colors).length > 0 && (
                 <button type="button" onClick={() => setColors({})} className="text-xs text-muted hover:text-foreground">
-                  Back to the portal&apos;s own
+                  Reset all colors
                 </button>
               )
             }
@@ -205,7 +240,7 @@ function Design({ settings }: { settings: FirmSettings }) {
           </Panel>
         </div>
 
-        <section aria-labelledby="preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-6">
+        <section aria-labelledby="preview" className={`min-w-0 flex-col gap-3 xl:sticky xl:top-6 ${view === "settings" ? "hidden xl:flex" : "flex"}`}>
           <h2 id="preview" className="font-semibold">
             Preview
           </h2>
@@ -234,18 +269,28 @@ function sorted(colors: ThemeColors): [string, string | undefined][] {
   return themeColors.map((name) => [name, colors[name]]);
 }
 
-/** The firm's logo, uploaded at once. Without one, the portal shows the firm's name. */
-function Logo({ settings }: { settings: FirmSettings }) {
+/** How light the firm's logo is on average, once it has been read, to warn about one that disappears on the background. */
+export function useLogoLuminance(logoUrl: string | null): number | null {
+  const [measured, setMeasured] = useState<{ url: string; luminance: number | null } | null>(null);
+  useEffect(() => {
+    let current = true;
+    if (logoUrl) {
+      void imageLuminance(logoUrl).then((luminance) => current && setMeasured({ url: logoUrl, luminance }));
+    }
+
+    return () => {
+      current = false;
+    };
+  }, [logoUrl]);
+
+  return measured && measured.url === logoUrl ? measured.luminance : null;
+}
+
+/** The firm's logo, uploaded and saved at once. Without one, the portal shows the firm's name. */
+export function Logo({ settings, hardToSee }: { settings: FirmSettings; hardToSee: boolean }) {
   const router = useRouter();
   const upload = useUploadLogo();
   const remove = useRemoveLogo();
-  const [dragging, setDragging] = useState(false);
-
-  const send = (file: File | undefined) => {
-    if (file) {
-      upload.mutate(file, { onSuccess: () => router.refresh() });
-    }
-  };
 
   return (
     <Panel title="Logo">
@@ -257,38 +302,25 @@ function Logo({ settings }: { settings: FirmSettings }) {
           </button>
         </div>
       )}
-      <label
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          send(e.dataTransfer.files[0]);
-        }}
-        className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-lg border border-dashed px-4 py-5 text-center text-sm ${dragging ? "border-accent bg-accent/5" : "border-border bg-background"}`}
-      >
-        <UploadIcon className="size-5 text-muted" />
-        <span className="font-medium">
-          {upload.isPending ? "Uploading..." : settings.logoUrl ? "Drop a new logo here, or " : "Drop your logo here, or "}
-          {!upload.isPending && <span className="text-accent">choose a file</span>}
-        </span>
-        <span className="text-xs text-muted">PNG, JPEG, WebP or SVG, at most 1 MB. About 40 px high in the portal.</span>
-        <input
-          type="file"
-          aria-label="Logo file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
-          disabled={upload.isPending}
-          onChange={(e) => {
-            send(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-          className="sr-only"
-        />
-      </label>
-      {!settings.logoUrl && <p className="text-xs text-muted">Without a logo, your firm&apos;s name is shown.</p>}
+      <DropZone
+        label="Logo file"
+        title={settings.logoUrl ? "Drop a new logo here, or " : "Drop your logo here, or "}
+        hint="PNG, JPEG, WebP or SVG, at most 1 MB. About 40 px high in the portal."
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        busy={upload.isPending}
+        onFile={(file) => upload.mutate(file, { onSuccess: () => router.refresh() })}
+      />
+      <p className="text-xs text-muted">
+        {settings.logoUrl
+          ? "Saved as soon as it is uploaded, and your traders see it at once. The colors wait for Save design."
+          : "Without a logo, your firm's name is shown. A logo is saved as soon as it is uploaded."}
+      </p>
+      {hardToSee && (
+        <p role="status" className="flex gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2.5 text-xs">
+          <AlertIcon className="size-4 shrink-0 text-warning" />
+          <span>Your logo is hard to see on this theme&apos;s panels. Upload a version for this background, or choose another theme.</span>
+        </p>
+      )}
       <ErrorText error={upload.error ?? remove.error} />
     </Panel>
   );
@@ -325,7 +357,7 @@ function Preview({ colors, settings }: { colors: ThemeColors; settings: FirmSett
           </span>
         </p>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <PreviewCard name="Two-step 100K" number="#1003 · 100,000.00 USD" stage="Phase 2" equity="103,655.20" result="+3,655.20" resultTone="text-profit" progress={68} daily="5,555.20" max="13,655.20" />
+          <PreviewCard name="Two-step 100K" number="#1003 · 100,000.00 USD" stage="Phase 2" equity="103,655.20" result="+3,655.20" resultTone="text-profit" progress={68} daily="5,555.20 left" max="13,655.20 left" />
           <PreviewCard
             name="One-step 50K"
             number="#1005 · 50,000.00 USD"
@@ -334,9 +366,9 @@ function Preview({ colors, settings }: { colors: ThemeColors; settings: FirmSett
             result="-1,769.60"
             resultTone="text-loss"
             progress={0}
-            daily="330.40"
+            daily="330.40 left"
             dailyTone="font-medium text-loss"
-            max="1,230.40"
+            max="1,230.40 left"
             maxTone="text-warning"
             warning
           />
@@ -378,11 +410,11 @@ function PreviewCard(props: {
       </div>
       <div className="flex justify-between gap-2 border-t border-border pt-2.5 text-[11px]">
         <span className="flex flex-col">
-          <span className="text-muted">Daily loss room</span>
+          <span className="text-muted">Daily loss limit</span>
           <span className={`font-mono text-[13px] ${props.dailyTone ?? ""}`}>{props.daily}</span>
         </span>
         <span className="flex flex-col items-end">
-          <span className="text-muted">Max loss room</span>
+          <span className="text-muted">Max loss limit</span>
           <span className={`font-mono text-[13px] ${props.maxTone ?? ""}`}>{props.max}</span>
         </span>
       </div>

@@ -76,6 +76,47 @@ public sealed class IntegrationApiTests
         Assert.Equal(HttpStatusCode.NotFound, fromOtherFirm.StatusCode);
     }
 
+    // The prop platform names the account as its portal does, so the terminal shows it the same way (ADR 0035).
+    [Fact]
+    public async Task TheFirmTellsTheTerminalHowToShowAnAccount()
+    {
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
+        using var trader = await factory.CreateTraderClientAsync("T1");
+        using var admin = factory.CreateAdminClient();
+        using var other = factory.CreateAdminClient(SecondFirm.ApiKey);
+
+        var before = await trader.GetJsonAsync("/api/auth/me");
+        var saved = await admin.PutJsonAsync(
+            "/api/admin/v1/accounts/T1/details",
+            new { label = "#1001 Two-step 100K \u00b7 Phase 1", profitTarget = 110_000m, timeZone = "Europe/Stockholm", detailsUrl = "https://acme.example.com/accounts/1" });
+        var after = await trader.GetJsonAsync("/api/auth/me");
+        var cleared = await admin.PutJsonAsync("/api/admin/v1/accounts/T1/details", new { label = "", profitTarget = (decimal?)null, timeZone = "", detailsUrl = "" });
+
+        Assert.Equal(("T1", JsonValueKind.Null), (before.GetProperty("accountDetails")[0].GetProperty("accountId").GetString(), before.GetProperty("accountDetails")[0].GetProperty("label").ValueKind));
+        Assert.Equal("#1001 Two-step 100K \u00b7 Phase 1", saved.GetProperty("label").GetString());
+        var details = Assert.Single(after.GetProperty("accountDetails").EnumerateArray());
+        Assert.Equal(
+            ("#1001 Two-step 100K \u00b7 Phase 1", 110_000m, "Europe/Stockholm", "https://acme.example.com/accounts/1"),
+            (details.GetProperty("label").GetString(), details.GetProperty("profitTarget").GetDecimal(), details.GetProperty("timeZone").GetString(), details.GetProperty("detailsUrl").GetString()));
+        Assert.Equal((JsonValueKind.Null, JsonValueKind.Null), (cleared.GetProperty("label").ValueKind, cleared.GetProperty("detailsUrl").ValueKind));
+        await other.PutJsonAsync("/api/admin/v1/accounts/T1/details", new { label = "Not theirs" }, HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData("label", "A label far too long for the account bar, over one hundred characters, which no portal should ever need to send")]
+    [InlineData("timeZone", "Mars/Olympus")]
+    [InlineData("detailsUrl", "/accounts/1")]
+    [InlineData("detailsUrl", "javascript:alert(1)")]
+    public async Task AccountDetailsAreChecked(string field, string value)
+    {
+        using var factory = new ServiceFactory();
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using var admin = factory.CreateAdminClient();
+
+        await admin.PutJsonAsync("/api/admin/v1/accounts/T1/details", new Dictionary<string, object> { [field] = value }, HttpStatusCode.UnprocessableEntity);
+        await admin.PutJsonAsync("/api/admin/v1/accounts/T1/details", new { profitTarget = 0m }, HttpStatusCode.UnprocessableEntity);
+    }
+
     // The prop platform resets this floor at the start of every trading day.
     [Fact]
     public async Task AnAnchoredFloorIsMeasuredWhenItIsSet()

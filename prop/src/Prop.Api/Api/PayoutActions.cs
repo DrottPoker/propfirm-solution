@@ -132,7 +132,7 @@ internal static class PayoutActions
         id => new MarkPayoutPaid(time.GetUtcNow(), id, string.IsNullOrWhiteSpace(request.Reference) ? null : request.Reference.Trim());
 
     public static Func<string, ChallengeInput> Reject(RejectPayoutRequest request, TimeProvider time) =>
-        id => new RejectPayout(time.GetUtcNow(), id, string.IsNullOrWhiteSpace(request.Reason) ? "Rejected by the firm." : request.Reason.Trim());
+        id => new RejectPayout(time.GetUtcNow(), id, string.IsNullOrWhiteSpace(request.Reason) ? "Rejected by the firm." : request.Reason.Trim(), request.ReturnProfit);
 
     public static ProblemHttpResult UnknownPayout() => AccountActions.Problem(StatusCodes.Status404NotFound, "The firm has no such payout.");
 }

@@ -12,23 +12,7 @@ import { useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
 
 import { BillingNotice } from "./BillingNotice";
 import { FirmName } from "./FirmName";
-import {
-  AccountsIcon,
-  BagIcon,
-  CardIcon,
-  CodeIcon,
-  ExternalIcon,
-  FileCheckIcon,
-  FlagIcon,
-  LogoutIcon,
-  MenuIcon,
-  CloseIcon,
-  OverviewIcon,
-  PaletteIcon,
-  PayoutIcon,
-  ReceiptIcon,
-  TeamIcon,
-} from "./icons";
+import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, TagIcon, TeamIcon } from "./icons";
 
 type NavLink = {
   href: string;
@@ -40,7 +24,7 @@ type NavLink = {
 
 const startsWith = (prefix: string) => (path: string) => path === prefix || path.startsWith(`${prefix}/`);
 
-/** The daily work, then the firm's own settings. Verification is there until the firm is live. */
+/** The daily work, then the firm's own settings. Go live is there until the firm is live, and Plan and billing from then. */
 function navigation(status: FirmStatus): { label: string | null; links: NavLink[] }[] {
   return [
     {
@@ -50,6 +34,7 @@ function navigation(status: FirmStatus): { label: string | null; links: NavLink[
         { href: "/admin/accounts", label: "Accounts", icon: AccountsIcon, matches: startsWith("/admin/accounts"), badge: "accounts" },
         { href: "/admin/payouts", label: "Payouts", icon: PayoutIcon, matches: startsWith("/admin/payouts"), badge: "payouts" },
         { href: "/admin/orders", label: "Orders", icon: BagIcon, matches: startsWith("/admin/orders") },
+        { href: "/admin/discounts", label: "Discount codes", icon: TagIcon, matches: startsWith("/admin/discounts") },
         { href: "/admin/challenges", label: "Challenges", icon: FlagIcon, matches: startsWith("/admin/challenges") },
       ],
     },
@@ -57,11 +42,15 @@ function navigation(status: FirmStatus): { label: string | null; links: NavLink[
       label: "Your firm",
       links: [
         { href: "/admin/design", label: "Portal design", icon: PaletteIcon, matches: startsWith("/admin/design") },
+        { href: "/admin/domain", label: "Your domain", icon: GlobeIcon, matches: startsWith("/admin/domain") },
         { href: "/admin/checkout", label: "Checkout", icon: CardIcon, matches: startsWith("/admin/checkout") },
+        { href: "/admin/trading", label: "Trading conditions", icon: ServerIcon, matches: startsWith("/admin/trading") },
+        { href: "/admin/notifications", label: "Notifications", icon: MailIcon, matches: startsWith("/admin/notifications") },
         { href: "/admin/integrations", label: "Integrations", icon: CodeIcon, matches: startsWith("/admin/integrations") },
         { href: "/admin/team", label: "Team", icon: TeamIcon, matches: startsWith("/admin/team") },
-        { href: "/admin/billing", label: "Plan and billing", icon: ReceiptIcon, matches: startsWith("/admin/billing") },
-        ...(status === "Live" ? [] : [{ href: "/admin/verification", label: "Verification", icon: FileCheckIcon, matches: startsWith("/admin/verification") }]),
+        status === "Live"
+          ? { href: "/admin/billing", label: "Plan and billing", icon: ReceiptIcon, matches: startsWith("/admin/billing") }
+          : { href: "/admin/go-live", label: "Go live", icon: RocketIcon, matches: (path) => startsWith("/admin/go-live")(path) || startsWith("/admin/billing")(path) },
       ],
     },
   ];
@@ -133,21 +122,27 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
 function FirmMark() {
   const branding = useBranding();
   const status = statusLine[branding.status];
-  return (
+  const line = (
+    <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
+      <span aria-hidden="true" className={`size-1.5 rounded-full ${status.dot}`} />
+      Admin · {status.text}
+    </span>
+  );
+
+  // A logo can be wide, so the role and the status go under it.
+  return branding.logoUrl ? (
+    <Link href="/admin" className="flex min-w-0 flex-col items-start gap-1.5 px-2 py-1">
+      <FirmName />
+      {line}
+    </Link>
+  ) : (
     <Link href="/admin" className="flex min-w-0 items-center gap-2.5 px-2 py-1">
-      {branding.logoUrl ? (
-        <FirmName />
-      ) : (
-        <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent font-bold text-accent-foreground">
-          {branding.name.trim().charAt(0).toUpperCase()}
-        </span>
-      )}
+      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent font-bold text-accent-foreground">
+        {branding.name.trim().charAt(0).toUpperCase()}
+      </span>
       <span className="flex min-w-0 flex-col leading-tight">
-        {!branding.logoUrl && <span className="truncate font-semibold">{branding.name}</span>}
-        <span className="flex items-center gap-1.5 text-xs text-muted">
-          <span aria-hidden="true" className={`size-1.5 rounded-full ${status.dot}`} />
-          Admin · {status.text}
-        </span>
+        <span className="truncate font-semibold">{branding.name}</span>
+        {line}
       </span>
     </Link>
   );

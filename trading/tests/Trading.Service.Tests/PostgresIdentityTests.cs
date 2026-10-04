@@ -61,6 +61,25 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
     }
 
     [Fact]
+    public async Task AnAccountsDetailsAreKeptAndReplaced()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
+        var owner = (await users.CreateAsync("firm-a", "a@test.example", "hash", TestContext.Current.CancellationToken))!;
+        await users.AddAccountAsync(owner.Id, "A1", TestContext.Current.CancellationToken);
+        await users.AddAccountAsync(owner.Id, "A2", TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.UnixEpoch;
+
+        await users.SetAccountDetailsAsync(new AccountDetails("A1", "#1001 Phase 1", 110_000m, "Europe/Stockholm", new Uri("https://acme.example.com/accounts/1")), now, TestContext.Current.CancellationToken);
+        await users.SetAccountDetailsAsync(new AccountDetails("A1", "#1001 Phase 1", null, "Europe/Stockholm", null), now, TestContext.Current.CancellationToken);
+        var details = await users.AccountDetailsOfAsync(owner.Id, TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [new AccountDetails("A1", "#1001 Phase 1", null, "Europe/Stockholm", null), new AccountDetails("A2", null, null, null, null)],
+            details);
+    }
+
+    [Fact]
     public async Task CookieKeysAreKept()
     {
         await using var dataSource = await CreateDatabaseAsync();
@@ -144,12 +163,14 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
         await tenants.SaveConfiguredAsync(configured with { Name = "Demo", Groups = ["standard", "gold"] }, now, TestContext.Current.CancellationToken);
         Assert.True(await tenants.CreateAsync(created, now, TestContext.Current.CancellationToken));
         await tenants.SetAdminApiKeyAsync("acme", [3], TestContext.Current.CancellationToken);
+        await tenants.SetListingAsync("acme", false, new Uri("https://acme.example.com/terminal"), new Uri("https://acme.example.com/logo.png"), TestContext.Current.CancellationToken);
 
         var all = await tenants.ListAsync(TestContext.Current.CancellationToken);
         Assert.Equal(["acme", "demo-firm"], all.Select(t => t.Id));
         Assert.Equal(["acme-eur", "acme-standard"], all[0].Groups);
         Assert.Equal([3], all[0].AdminApiKeyHash);
         Assert.Equal(("prop-platform", false), (all[0].PartnerId, all[0].Listed));
+        Assert.Equal((new Uri("https://acme.example.com/terminal"), new Uri("https://acme.example.com/logo.png")), (all[0].LoginUrl, all[0].LogoUrl));
         Assert.Equal(["gold", "standard"], all[1].Groups);
         Assert.Equal(("Demo", (string?)null, true), (all[1].Name, all[1].PartnerId, all[1].Listed));
     }

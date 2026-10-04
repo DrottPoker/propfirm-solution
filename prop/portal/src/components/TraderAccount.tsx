@@ -3,17 +3,19 @@
 import Link from "next/link";
 
 import type { AccountDetails } from "@/lib/api/types";
+import { certificatesOf } from "@/lib/certificate";
 import { expiryLabels, failureLabels } from "@/lib/challenge";
-import { hasEnded, isTrading, objectivesOf, resultTone, statusText, toneText, type Objective } from "@/lib/dashboard";
-import { formatDate, formatDateTime, formatMoney, formatSignedMoney, formatSignedPercent } from "@/lib/format";
+import { breachClosesText, hasEnded, isTrading, objectivesOf, resultTone, retryOf, statusText, toneText, type Objective } from "@/lib/dashboard";
+import { formatDate, formatDateTime, formatMoney, formatSignedMoney, formatSignedPercent, timeZoneName } from "@/lib/format";
 import { useMyAccount } from "@/lib/queries";
 
 import { AccountHistory } from "./AccountHistory";
+import { Certificates } from "./Certificates";
 import { ChallengeRules } from "./ChallengeRules";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { PayoutHistory, PayoutPanel } from "./PayoutPanel";
 import { StageTiles } from "./StageSteps";
-import { Badge, Message, ProgressBar, StepBar, type BadgeTone } from "./ui";
+import { Badge, buttonClass, Message, ProgressBar, StepBar, type BadgeTone } from "./ui";
 
 type Section = { id: string; shows: (details: AccountDetails) => boolean; render: (details: AccountDetails, now: number) => React.ReactNode };
 
@@ -28,6 +30,7 @@ const sections: Section[] = [
   { id: "figures", shows: () => true, render: (d) => <KeyFigures details={d} /> },
   { id: "objectives", shows: () => true, render: (d) => <Objectives details={d} /> },
   { id: "payouts", shows: (d) => d.payouts.length > 0, render: (d) => <PayoutHistory payouts={d.payouts} /> },
+  { id: "certificates", shows: (d) => certificatesOf(d).length > 0, render: (d) => <Certificates details={d} /> },
   { id: "history", shows: () => true, render: (d, now) => <AccountHistory details={d} now={now} /> },
   { id: "rules", shows: () => true, render: (d) => <ChallengeRules details={d} /> },
 ];
@@ -67,6 +70,9 @@ export function TraderAccount({ accountId }: { accountId: string }) {
 
 function Header({ details }: { details: AccountDetails }) {
   const { account } = details;
+  // Every time on the page is in the challenge's zone, which its trading days follow, so the page says which.
+  const timeZone = details.challenge.tradingDay.timeZone;
+  const retry = retryOf(details);
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-1.5">
@@ -76,10 +82,16 @@ function Header({ details }: { details: AccountDetails }) {
         </div>
         <p className="text-sm text-muted">
           Account #{account.number}
-          {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt)}
+          {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt, timeZone)} · Times in{" "}
+          {timeZoneName(timeZone)}
         </p>
       </div>
       {isTrading(details) && <OpenTerminalButton account={account} className="px-5 py-2.5" />}
+      {retry && (
+        <Link href={retry.href} className={`${buttonClass} px-5 py-2.5`}>
+          {retry.label}
+        </Link>
+      )}
     </div>
   );
 }
@@ -115,7 +127,12 @@ function Notices({ details }: { details: AccountDetails }) {
       notices.push({
         tone: "text-loss",
         text: breach
-          ? `Failed on ${formatDateTime(breach.time)}: equity ${formatMoney(breach.equity)} fell below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`
+          ? [
+              `Failed on ${formatDateTime(breach.time, details.challenge.tradingDay.timeZone)}: equity ${formatMoney(breach.equity)} fell below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`,
+              breachClosesText(details),
+            ]
+              .filter(Boolean)
+              .join(" ")
           : expiry
             ? `Ended on ${formatDate(expiry.day)}: ${expiryLabels[expiry.reason]}`
             : "Failed.",
@@ -188,7 +205,7 @@ export function KeyFigures({ details, paidOutLabel = "Paid out to you" }: { deta
         tone={toneText[resultTone(results.today)]}
         note={
           results.dayStartBalance != null && results.dayStartedAt
-            ? `From ${formatMoney(results.dayStartBalance)} when the day started, ${formatDateTime(results.dayStartedAt)}`
+            ? `From ${formatMoney(results.dayStartBalance)} when the day started, ${formatDateTime(results.dayStartedAt, details.challenge.tradingDay.timeZone)}`
             : "Shown while the account is traded"
         }
       />

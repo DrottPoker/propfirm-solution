@@ -59,6 +59,9 @@ internal sealed partial class TenantCatalog
 
     public static string HashApiKey(string apiKey) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(apiKey)));
 
+    /// <summary>Traders are sent to the login address, so it must be a web address.</summary>
+    public static bool IsValidLoginUrl(Uri url) => url.IsAbsoluteUri && (url.Scheme == Uri.UriSchemeHttps || url.Scheme == Uri.UriSchemeHttp);
+
     /// <summary>The id is the server name, typed by traders and used in links, so it is kept simple.</summary>
     public static bool IsValidId(string? id) => id is not null && ServerName().IsMatch(id);
 

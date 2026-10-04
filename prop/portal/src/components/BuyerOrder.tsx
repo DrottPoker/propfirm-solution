@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { useBranding } from "@/app/providers";
 import type { BuyerOrder } from "@/lib/api/types";
 import { formatMoney } from "@/lib/format";
 import { buyerStage } from "@/lib/orders";
-import { useBuyerOrder, useResendInvite } from "@/lib/queries";
+import { useBuyerOrder, useChooseOrderPassword, useResendInvite } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
+import { PasswordFields } from "./PasswordReset";
 import { buttonClass, ErrorText, Message, secondaryButtonClass } from "./ui";
 
 /**
  * The buyer's order, where the payment provider sends the buyer back. It waits for the provider to confirm the
- * payment, then tells the buyer how to get into the portal.
+ * payment, then lets a new buyer choose a password right here, or tells the buyer how to get into the portal.
  */
 export function BuyerOrderView({ orderId, token }: { orderId: string; token: string | null }) {
   const order = useBuyerOrder(orderId, token ?? "");
@@ -78,17 +81,19 @@ function Stage({ order, token }: { order: BuyerOrder; token: string }) {
     case "log-in":
       return (
         <div role="status" className="flex flex-col gap-3 text-sm">
-          <p className="text-profit">Payment received. Your challenge is starting.</p>
+          <p className="text-profit">{startedText(order)}</p>
           <Link href={order.accountId ? `/accounts/${order.accountId}` : "/"} className={`${buttonClass} self-start`}>
             Go to your account
           </Link>
         </div>
       );
+    case "choose-password":
+      return <ChoosePassword order={order} token={token} />;
     case "invited":
     case "get-invite":
       return (
         <div role="status" className="flex flex-col gap-3 text-sm">
-          <p className="text-profit">Payment received. Your challenge is starting.</p>
+          <p className="text-profit">{startedText(order)}</p>
           <p>
             {stage.kind === "invited"
               ? `We have emailed ${stage.email} a link to choose your password for the portal.`
@@ -98,6 +103,44 @@ function Stage({ order, token }: { order: BuyerOrder; token: string }) {
         </div>
       );
   }
+}
+
+/** Once the order has its account, the challenge has started; until then it is on its way. */
+function startedText(order: BuyerOrder): string {
+  return order.accountId ? "Payment received. Your challenge has started." : "Payment received. Your challenge is starting.";
+}
+
+/** A new buyer chooses the password here and goes straight to the account. The email is confirmed afterwards, with the link we sent. */
+function ChoosePassword({ order, token }: { order: BuyerOrder; token: string }) {
+  const router = useRouter();
+  const choose = useChooseOrderPassword(order.id, token);
+  const [password, setPassword] = useState("");
+  const [repeated, setRepeated] = useState("");
+  const [mismatch, setMismatch] = useState(false);
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    setMismatch(password !== repeated);
+    if (password === repeated) {
+      choose.mutate(password, { onSuccess: () => router.replace(order.accountId ? `/accounts/${order.accountId}` : "/") });
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 text-sm">
+      <p className="text-profit">{startedText(order)}</p>
+      <p>
+        Choose a password for <span className="font-medium">{order.email}</span>, and open your account. You log in with this email and the password from
+        now on.
+      </p>
+      <PasswordFields password={password} repeated={repeated} onPassword={setPassword} onRepeated={setRepeated} />
+      <ErrorText error={mismatch ? new Error("The passwords are not the same.") : choose.error} />
+      <button type="submit" disabled={choose.isPending || choose.isSuccess} className={`${buttonClass} self-start`}>
+        {choose.isPending || choose.isSuccess ? "Opening..." : "Open my account"}
+      </button>
+      <p className="text-xs text-muted">We have also emailed you a link. Open it later to confirm your email, which payouts need.</p>
+    </form>
+  );
 }
 
 function SendInvite({ order, token, again }: { order: BuyerOrder; token: string; again: boolean }) {

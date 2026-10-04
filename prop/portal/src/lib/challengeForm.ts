@@ -16,8 +16,10 @@ export type StageForm = {
   maxLossPercent: string;
   maxLossKind: MaxLossKind;
   profitSplitPercent: string;
-  /** Days to pass the stage, or empty for no time limit. */
+  /** The stage's time limit in days, or empty for none. */
   maxDays: string;
+  /** For the funded stage, the most of a payout's profit one trading day may have made, or empty for no such rule. */
+  consistencyPercent: string;
 };
 
 export type ChallengeForm = {
@@ -49,10 +51,15 @@ export function formOf(definition: ChallengeDefinition): ChallengeForm {
   };
 }
 
-/** A new evaluation stage, like the last one but named after its place. */
+/**
+ * A new evaluation stage, like the last one but named after its place. The first one of an instantly funded challenge
+ * takes the funded stage's loss limits, with a profit target to set.
+ */
 export function nextStage(form: ChallengeForm): StageForm {
   const last = form.evaluation[form.evaluation.length - 1];
-  return { ...last, name: `Phase ${form.evaluation.length + 1}` };
+  return last
+    ? { ...last, name: `Phase ${form.evaluation.length + 1}` }
+    : { ...form.funded, name: "Phase 1", profitTargetPercent: "10", profitSplitPercent: "", maxDays: "", consistencyPercent: "" };
 }
 
 /**
@@ -118,6 +125,7 @@ function stageFormOf(stage: StageRules): StageForm {
     maxLossKind: stage.maxLoss.kind,
     profitSplitPercent: stage.profitSplitPercent == null ? "" : String(stage.profitSplitPercent),
     maxDays: stage.maxDays == null ? "" : String(stage.maxDays),
+    consistencyPercent: stage.consistencyPercent == null ? "" : String(stage.consistencyPercent),
   };
 }
 
@@ -128,6 +136,7 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
   const daily = numberOf(stage.dailyLossPercent);
   const maxLoss = numberOf(stage.maxLossPercent);
   const maxDays = funded ? null : optionalWholeNumber(stage.maxDays);
+  const consistency = funded && stage.consistencyPercent.trim() !== "" ? numberOf(stage.consistencyPercent) : null;
   if (!funded && target === null) {
     return { problem: "the profit target must be a number." };
   }
@@ -148,6 +157,10 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
     return { problem: "the time limit must be a whole number of days, or empty for none." };
   }
 
+  if (funded && stage.consistencyPercent.trim() !== "" && consistency === null) {
+    return { problem: "the consistency rule must be a number, or empty for none." };
+  }
+
   return {
     stage: {
       name: stage.name.trim(),
@@ -157,6 +170,7 @@ function stageOf(stage: StageForm, funded: boolean): { stage: StageRules } | { p
       maxLoss: { percent: maxLoss, kind: stage.maxLossKind },
       profitSplitPercent: split,
       maxDays,
+      consistencyPercent: consistency,
     },
   };
 }

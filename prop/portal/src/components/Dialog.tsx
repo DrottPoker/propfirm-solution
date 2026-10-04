@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react";
 
 import { CloseIcon } from "./icons";
+import { buttonClass, dangerButtonClass, secondaryButtonClass } from "./ui";
 
 type DialogProps = {
   open: boolean;
@@ -97,5 +98,54 @@ export function Sheet({ open, onClose, title, description, children, footer }: D
         </div>
       )}
     </dialog>
+  );
+}
+
+/**
+ * Asks before an action, in the portal's own look instead of the browser's. The action runs on <code>onConfirm</code>,
+ * which closes the dialog itself once it is done, so an error can be shown in it meanwhile.
+ */
+export function ConfirmDialog({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  description,
+  confirmLabel,
+  pendingLabel,
+  pending = false,
+  danger = false,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  description?: React.ReactNode;
+  confirmLabel: string;
+  pendingLabel?: string;
+  pending?: boolean;
+  danger?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={title}
+      description={description}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={secondaryButtonClass}>
+            Cancel
+          </button>
+          <button type="button" disabled={pending} onClick={onConfirm} className={danger ? dangerButtonClass : buttonClass}>
+            {pending ? (pendingLabel ?? confirmLabel) : confirmLabel}
+          </button>
+        </>
+      }
+    >
+      {children}
+    </Modal>
   );
 }

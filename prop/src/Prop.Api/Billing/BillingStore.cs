@@ -76,8 +76,10 @@ internal sealed record BillingPeriod(DateOnly Month, int Slots, DateTimeOffset P
 
 /// <summary>
 /// What a firm is charged. Once paid, the firm has <paramref name="Slots"/> in <paramref name="Months"/> months from
-/// <paramref name="Month"/>. <paramref name="NextAttemptAt"/> is when the saved card is charged next, or null when
-/// the charge waits for the firm.
+/// <paramref name="Month"/>. <paramref name="Lines"/> add up to <paramref name="NetAmount"/>, without VAT, and
+/// <paramref name="Amount"/> is what is paid, with <paramref name="Vat"/>. <paramref name="Customer"/> is who it is to,
+/// and <paramref name="InvoiceNumber"/> its number in the firm's series of invoices once it is paid.
+/// <paramref name="NextAttemptAt"/> is when the saved card is charged next, or null when the charge waits for the firm.
 /// </summary>
 internal sealed record Charge(
     Guid Id,
@@ -89,8 +91,11 @@ internal sealed record Charge(
     int Months,
     int Slots,
     IReadOnlyList<ChargeLine> Lines,
+    decimal NetAmount,
+    ChargeVat Vat,
     decimal Amount,
     string Currency,
+    ChargeCustomer? Customer,
     BillingProvider Provider,
     string? PaymentReference,
     string? Failure,
@@ -98,9 +103,13 @@ internal sealed record Charge(
     DateTimeOffset? NextAttemptAt,
     DateTimeOffset CreatedAt,
     DateTimeOffset? PaidAt,
-    DateTimeOffset? FailedAt)
+    DateTimeOffset? FailedAt,
+    long? InvoiceNumber = null)
 {
     public bool IsOpen => Status is ChargeStatus.Pending or ChargeStatus.Failed;
+
+    /// <summary>The invoice number, for example ACME-0003, once the charge is paid.</summary>
+    public string? Invoice => InvoiceNumber is { } number ? BillingRules.InvoiceOf(FirmId, number) : null;
 
     public string Description => Kind switch
     {
@@ -110,7 +119,11 @@ internal sealed record Charge(
         _ => $"More slots, charge {Number}",
     };
 
-    public ChargeToPay ToPay() => new(Id, Number, Description, Lines, Amount, Currency);
+    /// <summary>The charge as the provider takes it, with the VAT as a line of its own, so the lines add up to what is paid.</summary>
+    public ChargeToPay ToPay() =>
+        new(Id, Number, Description, Vat.Amount > 0 ? [.. Lines, new ChargeLine(VatLine(Vat.Percent), 1, Vat.Amount)] : Lines, Amount, Currency);
+
+    public static string VatLine(decimal percent) => FormattableString.Invariant($"VAT {percent:0.##}%");
 }
 
 /// <summary>What decides whether a firm may go live: its status, whether we suspended it, and our review of it.</summary>
@@ -151,7 +164,7 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
     private const string SelectCharge =
         """
         select id, firm_id, number, kind, status, month, months, slots, lines, amount, currency, provider, payment_reference, failure, attempts,
-               next_attempt_at, created_at, paid_at, failed_at
+               next_attempt_at, created_at, paid_at, failed_at, net_amount, vat_treatment, vat_percent, vat_amount, customer, invoice_number
         from billing_charges
         """;
 
@@ -219,12 +232,12 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
             [firmId, BillingPlan.Paid.ToString(), provider.ToString(), now],
             cancellationToken);
 
-    /// <summary>What the firm has paid as deposit for our review, in the currency. 0 when nothing.</summary>
+    /// <summary>What the firm has paid as deposit for our review, without VAT, in the currency. 0 when nothing.</summary>
     public static async Task<decimal> DepositPaidAsync(NpgsqlConnection connection, string firmId, string currency, CancellationToken cancellationToken)
     {
         await using var command = Command(
             connection,
-            "select coalesce(sum(amount), 0) from billing_charges where firm_id = $1 and kind = 'Deposit' and status = 'Paid' and currency = $2",
+            "select coalesce(sum(net_amount), 0) from billing_charges where firm_id = $1 and kind = 'Deposit' and status = 'Paid' and currency = $2",
             [firmId, currency]);
         return (decimal)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
@@ -294,9 +307,34 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
             [firmId, month, months, slots, now],
             cancellationToken);
 
-    public static async Task<long> NextChargeNumberAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    /// <summary>The firm's next charge number, from 1001. The firm's counter stays locked until the caller's transaction ends.</summary>
+    public static async Task<long> NextChargeNumberAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
     {
-        await using var command = Command(connection, "select nextval('billing_charge_numbers')", []);
+        await using var command = Command(
+            connection,
+            """
+            insert into billing_counters (firm_id, next_charge_number, next_invoice_number) values ($1, 1002, 1)
+            on conflict (firm_id) do update set next_charge_number = billing_counters.next_charge_number + 1
+            returning next_charge_number - 1
+            """,
+            [firmId]);
+        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
+    /// <summary>
+    /// The firm's next invoice number, from 1. Taken in the transaction that marks the charge as paid, so the series has
+    /// no gaps: a rolled back payment gives its number back.
+    /// </summary>
+    public static async Task<long> NextInvoiceNumberAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            """
+            insert into billing_counters (firm_id, next_charge_number, next_invoice_number) values ($1, 1001, 2)
+            on conflict (firm_id) do update set next_invoice_number = billing_counters.next_invoice_number + 1
+            returning next_invoice_number - 1
+            """,
+            [firmId]);
         return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
@@ -304,13 +342,15 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
         ExecuteAsync(
             connection,
             """
-            insert into billing_charges (id, firm_id, number, kind, status, month, months, slots, lines, amount, currency, provider, attempts, next_attempt_at, created_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14)
+            insert into billing_charges (id, firm_id, number, kind, status, month, months, slots, lines, amount, currency, provider, attempts, next_attempt_at, created_at,
+                                         net_amount, vat_treatment, vat_percent, vat_amount, customer)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15, $16, $17, $18, $19)
             """,
             [
                 charge.Id, charge.FirmId, charge.Number, charge.Kind.ToString(), charge.Status.ToString(), charge.Month, charge.Months, charge.Slots,
                 Jsonb(JsonSerializer.Serialize(charge.Lines, PropJson.Options)), charge.Amount, charge.Currency, charge.Provider.ToString(),
-                NullableTimestamp(charge.NextAttemptAt), charge.CreatedAt,
+                NullableTimestamp(charge.NextAttemptAt), charge.CreatedAt, charge.NetAmount, charge.Vat.Treatment.ToString(), charge.Vat.Percent, charge.Vat.Amount,
+                charge.Customer is { } customer ? Jsonb(customer.ToJson()) : new NpgsqlParameter { Value = DBNull.Value, NpgsqlDbType = NpgsqlDbType.Jsonb },
             ],
             cancellationToken);
 
@@ -347,6 +387,14 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
             $"{SelectCharge} where status in ('Pending', 'Failed') and failure is not null order by failed_at nulls last, created_at",
             [],
             cancellationToken);
+
+    /// <summary>The firm's paid charge, for its invoice. Null when the firm has no such charge, or it is not paid.</summary>
+    public async Task<Charge?> PaidChargeAsync(string firmId, Guid chargeId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        return (await ReadChargesAsync(connection, $"{SelectCharge} where id = $1 and firm_id = $2 and status = 'Paid'", [chargeId, firmId], cancellationToken))
+            .SingleOrDefault();
+    }
 
     /// <summary>The newest paid charges of every firm.</summary>
     public static Task<List<Charge>> PaidChargesAsync(NpgsqlConnection connection, int limit, CancellationToken cancellationToken) =>
@@ -468,6 +516,31 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
         return accounts;
     }
 
+    /// <summary>The firm's challenge accounts that have not ended, with their traders' emails and the challenges' names.</summary>
+    public static async Task<List<(Guid Id, long Number, string Email, string ChallengeName)>> OpenAccountsToEndAsync(
+        NpgsqlConnection connection,
+        string firmId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            """
+            select a.id, a.number, t.email, coalesce(a.state -> 'definition' ->> 'name', a.definition_id)
+            from challenge_accounts a join traders t on t.id = a.trader_id
+            where a.firm_id = $1 and a.status not in ('Failed', 'Cancelled')
+            order by a.number
+            """,
+            [firmId]);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var accounts = new List<(Guid, long, string, string)>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            accounts.Add((reader.GetGuid(0), reader.GetInt64(1), reader.GetString(2), reader.GetString(3)));
+        }
+
+        return accounts;
+    }
+
     public static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
 
     public static NpgsqlParameter Int(int? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Integer };
@@ -574,8 +647,11 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
                 reader.GetInt32(6),
                 reader.GetInt32(7),
                 JsonSerializer.Deserialize<List<ChargeLine>>(reader.GetString(8), PropJson.Options)!,
+                reader.GetDecimal(19),
+                new ChargeVat(Enum.Parse<VatTreatment>(reader.GetString(20)), reader.GetDecimal(21), reader.GetDecimal(22)),
                 reader.GetDecimal(9),
                 reader.GetString(10),
+                ChargeCustomer.FromJson(reader.IsDBNull(23) ? null : reader.GetString(23)),
                 Enum.Parse<BillingProvider>(reader.GetString(11)),
                 reader.IsDBNull(12) ? null : reader.GetString(12),
                 reader.IsDBNull(13) ? null : reader.GetString(13),
@@ -583,7 +659,8 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
                 NullableTime(reader, 15),
                 reader.GetFieldValue<DateTimeOffset>(16),
                 NullableTime(reader, 17),
-                NullableTime(reader, 18)));
+                NullableTime(reader, 18),
+                reader.IsDBNull(24) ? null : reader.GetInt64(24)));
         }
 
         return charges;

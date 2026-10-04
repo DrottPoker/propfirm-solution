@@ -20,6 +20,8 @@ const order: Order = {
   paidAt: null,
   refundedAt: null,
   disputedAt: null,
+  buyerName: "Ann Buyer",
+  buyerCountry: "SE",
 };
 
 const buyerOrder: BuyerOrder = {
@@ -28,7 +30,7 @@ const buyerOrder: BuyerOrder = {
   status: "Paid",
   email: "buyer@test.example",
   challengeId: "two-step-100k",
-  challengeName: "Two-step 100000 USD",
+  challengeName: "Two-step 100K",
   amount: 99,
   currency: "USD",
   provider: "Test",
@@ -37,6 +39,7 @@ const buyerOrder: BuyerOrder = {
   problem: null,
   canLogIn: false,
   inviteSentAt: "2026-10-05T08:01:00Z",
+  canChoosePassword: false,
 };
 
 describe("canMarkPaid", () => {
@@ -77,6 +80,10 @@ describe("buyerStage", () => {
 
   it("sends a trader with a password to log in", () => {
     expect(buyerStage({ ...buyerOrder, canLogIn: true })).toEqual({ kind: "log-in" });
+  });
+
+  it("lets a new buyer choose the password right on the page", () => {
+    expect(buyerStage({ ...buyerOrder, canChoosePassword: true })).toEqual({ kind: "choose-password" });
   });
 
   it("tells a new trader about the invitation, or lets them ask for it", () => {

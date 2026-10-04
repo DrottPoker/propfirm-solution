@@ -68,8 +68,9 @@ public static class ChallengeRules
 
     /// <summary>
     /// What a payout requested now would pay, or why the trader cannot request one: the account must be an
-    /// active funded account with a profit, no open positions, enough trading days since the last payout and
-    /// no other payout in progress. Measured on the balance the trading platform last reported.
+    /// active funded account with a profit, no open positions, enough trading days since the last payout, no
+    /// other payout in progress and, with a consistency rule, no single day that made too much of the profit.
+    /// Measured on the balance the trading platform last reported.
     /// </summary>
     public static PayoutQuote QuotePayout(ChallengeState state)
     {
@@ -104,8 +105,22 @@ public static class ChallengeRules
         {
             refusal = $"A payout needs {rules.MinTradingDays} trading days since the last one. So far: {tradingDays}.";
         }
+        else if (rules.ConsistencyPercent is { } consistency && state.BestDayProfit > profit * consistency / 100m)
+        {
+            var share = decimal.Round(state.BestDayProfit / profit * 100m, 0, MidpointRounding.AwayFromZero);
+            refusal = FormattableString.Invariant(
+                $"Your best day made {state.BestDayProfit:N2}, {share}% of the profit. A payout needs the best day to be at most {consistency:0.##}% of it, so keep trading.");
+        }
 
-        return new PayoutQuote(Math.Max(profit, 0m), split, amount, tradingDays, rules.MinTradingDays, refusal);
+        return new PayoutQuote(
+            Math.Max(profit, 0m),
+            split,
+            amount,
+            tradingDays,
+            rules.MinTradingDays,
+            refusal,
+            rules.ConsistencyPercent is null ? null : state.BestDayProfit,
+            rules.ConsistencyPercent);
     }
 
     private static ChallengeStep OnAccountOpened(ChallengeState state, AccountOpened input)
@@ -130,6 +145,7 @@ public static class ChallengeRules
             AccountId = input.AccountId,
             CurrentDay = state.CurrentDay is { } current && current > input.Day ? current : input.Day,
             TradingDays = ImmutableSortedSet<DateOnly>.Empty,
+            DayProfits = null,
             Account = new AccountFigures(initial, 0),
             LastSequence = Math.Max(state.LastSequence, input.Sequence),
             StageDeadline = state.Rules.MaxDays is { } maxDays ? input.Day.AddDays(maxDays + 1) : null,
@@ -274,6 +290,7 @@ public static class ChallengeRules
             {
                 Payout = payout,
                 TradingDays = ImmutableSortedSet<DateOnly>.Empty,
+                DayProfits = null,
                 Account = state.Account! with { Balance = input.Balance },
                 LastSequence = input.Sequence,
             }
@@ -314,6 +331,7 @@ public static class ChallengeRules
         return new ChallengeStep(state with { Payout = null }, [new PayoutPaid(input.Time, paid, input.Reference)]);
     }
 
+    // The profit can only go back to the account it came from, while the trader still trades it.
     private static ChallengeStep OnRejectPayout(ChallengeState state, RejectPayout input)
     {
         if (state.Payout is not { Status: PayoutStatus.Pending or PayoutStatus.Approved } payout || payout.Id != input.PayoutId)
@@ -321,16 +339,37 @@ public static class ChallengeRules
             return Ignored(state, input, "The payout is not waiting for the firm.");
         }
 
+        if (input.ReturnProfit && (state.Status != ChallengeStatus.Active || state.AccountId != payout.AccountId))
+        {
+            return Ignored(state, input, "The account has ended, so the profit cannot go back on it.");
+        }
+
         var rejected = payout with { Status = PayoutStatus.Rejected };
-        return new ChallengeStep(state with { Payout = null }, [new PayoutRejected(input.Time, rejected, input.Reason)]);
+        List<ChallengeOutput> outputs = [new PayoutRejected(input.Time, rejected, input.Reason, input.ReturnProfit)];
+        if (input.ReturnProfit)
+        {
+            outputs.Add(new DepositRequested(input.Time, payout.AccountId, ReturnOperationId(payout), payout.Profit));
+        }
+
+        return new ChallengeStep(state with { Payout = null }, outputs);
     }
+
+    /// <summary>The operation that returns a rejected payout's profit, never reused on the account.</summary>
+    public static string ReturnOperationId(Payout payout) => $"{payout.Id}-return";
 
     private static bool IsPayoutWithdrawal(ChallengeState state, BalanceAdjusted input) =>
         state.Payout is { Status: PayoutStatus.Withdrawing } payout && payout.Id == input.OperationId && payout.AccountId == input.AccountId;
 
+    // The change in balance is what the closed positions made, which counts for the trading day it happened on.
     private static ChallengeStep OnAccountUpdated(ChallengeState state, AccountUpdated input)
     {
-        var updated = state with { Account = new AccountFigures(input.Balance, input.OpenPositions) };
+        var made = state.Account is { } before ? input.Balance - before.Balance : 0m;
+        var days = state.DayProfits ?? ImmutableSortedDictionary<DateOnly, decimal>.Empty;
+        var updated = state with
+        {
+            Account = new AccountFigures(input.Balance, input.OpenPositions),
+            DayProfits = made != 0m && state.CurrentDay is { } day ? days.SetItem(day, days.GetValueOrDefault(day) + made) : state.DayProfits,
+        };
         return IsTargetReached(updated) ? Pass(updated, input.Time) : Unchanged(updated);
     }
 
@@ -395,6 +434,7 @@ public static class ChallengeRules
             Stage = state.Stage + 1,
             AccountId = null,
             TradingDays = ImmutableSortedSet<DateOnly>.Empty,
+            DayProfits = null,
             Account = null,
             StageDeadline = null,
             InactivityDeadline = null,

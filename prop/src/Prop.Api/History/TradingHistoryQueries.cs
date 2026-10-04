@@ -4,6 +4,7 @@ using Common.Postgres;
 
 using Npgsql;
 
+using Prop.Api.Api;
 using Prop.Api.Trading;
 
 namespace Prop.Api.History;
@@ -172,6 +173,56 @@ internal sealed class TradingHistoryQueries(NpgsqlDataSource dataSource, Databas
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new StageHistory(balance, floors, trades, [.. counted]);
+    }
+
+    /// <summary>
+    /// What a breach did to each of the trading accounts: the positions it closed and the balance they left. Only
+    /// accounts with history are in it.
+    /// </summary>
+    public async Task<Dictionary<string, (List<BreachClose> Closes, decimal? BalanceAfter)>> BreachClosesAsync(string[] tradingAccountIds, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<string, (List<BreachClose> Closes, decimal? BalanceAfter)>(StringComparer.Ordinal);
+        if (tradingAccountIds.Length == 0)
+        {
+            return result;
+        }
+
+        await schema.EnsureAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        var closes = await ReadAsync(
+            connection,
+            """
+            select account_id, symbol, side, volume, close_price, profit, coalesce(close_commission, 0)
+            from trading_positions
+            where account_id = any($1) and close_reason = 'EquityFloor'
+            order by close_sequence
+            """,
+            [tradingAccountIds],
+            r => (Account: r.GetString(0), Close: new BreachClose(r.GetString(1), Enum.Parse<TradeSide>(r.GetString(2)), r.GetDecimal(3), r.GetDecimal(4), r.GetDecimal(5), r.GetDecimal(6))),
+            cancellationToken);
+        var balances = await ReadAsync(
+            connection,
+            "select distinct on (account_id) account_id, balance_after from trading_balance_changes where account_id = any($1) order by account_id, sequence desc",
+            [tradingAccountIds],
+            r => (Account: r.GetString(0), Balance: r.GetDecimal(1)),
+            cancellationToken);
+        foreach (var (account, balance) in balances)
+        {
+            result[account] = ([], balance);
+        }
+
+        foreach (var (account, close) in closes)
+        {
+            if (!result.TryGetValue(account, out var entry))
+            {
+                entry = ([], null);
+                result[account] = entry;
+            }
+
+            entry.Closes.Add(close);
+        }
+
+        return result;
     }
 
     /// <summary>The account's closed positions, newest first: all of them, or a page of those closed before a sequence number.</summary>

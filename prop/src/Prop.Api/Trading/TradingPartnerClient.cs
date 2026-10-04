@@ -24,9 +24,9 @@ internal sealed class TradingPartnerClient(IHttpClientFactory httpClients, IOpti
         return (await ReadJsonAsync(response, cancellationToken)).GetProperty("available").GetBoolean();
     }
 
-    public async Task<PartnerTenant?> CreateTenantAsync(string server, string name, CancellationToken cancellationToken)
+    public async Task<PartnerTenant?> CreateTenantAsync(string server, string name, string currency, CancellationToken cancellationToken)
     {
-        using var response = await SendAsync(HttpMethod.Post, $"{Partner}tenants", new { id = server, name }, cancellationToken);
+        using var response = await SendAsync(HttpMethod.Post, $"{Partner}tenants", new { id = server, name, currency }, cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
         {
             return null;
@@ -54,6 +54,16 @@ internal sealed class TradingPartnerClient(IHttpClientFactory httpClients, IOpti
         using var response = await SendAsync(HttpMethod.Post, $"{Partner}tenants/{Uri.EscapeDataString(server)}/admin-key", null, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         return (await ReadJsonAsync(response, cancellationToken)).GetProperty("adminApiKey").GetString()!;
+    }
+
+    public async Task SetListingAsync(string server, bool listed, Uri loginUrl, Uri? logoUrl, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            HttpMethod.Patch,
+            $"{Partner}tenants/{Uri.EscapeDataString(server)}",
+            new { listed, loginUrl = loginUrl.ToString(), logoUrl = logoUrl?.ToString() ?? "" },
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
     }
 
     private static PartnerTenant ToTenant(JsonElement tenant, string? adminApiKey) =>

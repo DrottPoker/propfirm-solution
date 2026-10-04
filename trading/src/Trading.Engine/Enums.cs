@@ -61,6 +61,12 @@ public enum RejectReason
 
     /// <summary>A new group breaks a rule, for example an unknown symbol or a leverage of zero.</summary>
     InvalidGroup,
+
+    /// <summary>The group comes from the configuration, so only the configuration changes it.</summary>
+    GroupNotChangeable,
+
+    /// <summary>A symbol cannot be removed from a group while an account in it has a position or an order in the symbol.</summary>
+    SymbolInUse,
     InvalidAmount,
     UnknownAccount,
     AccountDisabled,

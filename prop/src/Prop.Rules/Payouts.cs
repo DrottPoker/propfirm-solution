@@ -14,7 +14,7 @@ public enum PayoutStatus
     /// <summary>The firm marked the payout as paid.</summary>
     Paid,
 
-    /// <summary>The firm refused the payout. The withdrawn profit is not returned.</summary>
+    /// <summary>The firm refused the payout. The withdrawn profit is returned only when the firm chose so.</summary>
     Rejected,
 
     /// <summary>The trading platform refused the withdrawal, so nothing was taken off the account.</summary>
@@ -38,7 +38,9 @@ public sealed record Payout(
 
 /// <summary>
 /// What a payout requested now would pay, or why one cannot be requested. Made by
-/// <see cref="ChallengeRules.QuotePayout"/> from the figures the trading platform last reported.
+/// <see cref="ChallengeRules.QuotePayout"/> from the figures the trading platform last reported. With a consistency rule,
+/// <paramref name="BestDayProfit"/> is what the best trading day since the last payout made, and
+/// <paramref name="ConsistencyPercent"/> the most of the profit it may be.
 /// </summary>
 public sealed record PayoutQuote(
     decimal Profit,
@@ -46,7 +48,9 @@ public sealed record PayoutQuote(
     decimal Amount,
     int TradingDays,
     int MinTradingDays,
-    string? Refusal)
+    string? Refusal,
+    decimal? BestDayProfit = null,
+    decimal? ConsistencyPercent = null)
 {
     public bool CanRequest => Refusal is null;
 }

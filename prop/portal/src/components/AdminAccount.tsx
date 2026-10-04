@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
+import { Fragment, useId, useState } from "react";
 
 import { accountStatus } from "@/lib/admin";
-import type { AccountDetails } from "@/lib/api/types";
+import type { AccountDetails, Step } from "@/lib/api/types";
 import { canCancel, expiryLabels, failureLabels, kindOf, kindsOf } from "@/lib/challenge";
-import { isTrading } from "@/lib/dashboard";
-import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
-import { useAccountCommand, useChallenges, useFirmAccount, useHistory } from "@/lib/queries";
+import { breachClosesText, isTrading } from "@/lib/dashboard";
+import { formatDate, formatDateTime, formatMoney, timeZoneName } from "@/lib/format";
+import { useAccountCommand, useChallenges, useFirmAccount, useHistory, useTraderSummary } from "@/lib/queries";
+import { describeInput, describeOutputs } from "@/lib/ruleLog";
 
 import { AccountHistory } from "./AccountHistory";
 import { ChallengeRules } from "./ChallengeRules";
@@ -32,7 +33,10 @@ export type Emailed = "Invitation" | "Notice" | "failed" | null;
 export function AdminAccount({ accountId, emailed }: { accountId: string; emailed: Emailed }) {
   const details = useFirmAccount(accountId);
   const challenges = useChallenges();
+  const trader = useTraderSummary(accountId);
   const [tab, setTab] = useState<Tab>("overview");
+  // Whether the firm has ticked every check of the trader, which approving funding or a payout asks about otherwise.
+  const traderChecked = trader.data ? trader.data.checks.every((c) => c.checkedAt !== null) : undefined;
 
   if (details.isError) {
     return <Message text={details.error.message} />;
@@ -49,7 +53,7 @@ export function AdminAccount({ accountId, emailed }: { accountId: string; emaile
       <Header details={data} />
       {emailed && <EmailedNotice emailed={emailed} email={data.account.email} />}
       <Notices details={data} />
-      {data.account.status === "AwaitingFunding" && <FundingDecision details={data} />}
+      {data.account.status === "AwaitingFunding" && <FundingDecision details={data} traderChecked={traderChecked} />}
 
       <Tabs
         label="Account"
@@ -81,10 +85,10 @@ export function AdminAccount({ accountId, emailed }: { accountId: string; emaile
             <p className="text-sm text-muted">{data.account.funded ? "The trader has not asked for a payout yet." : "Payouts come once the account is funded."}</p>
           ) : (
             <Panel>
-              <PayoutTable payouts={data.payouts} />
+              <PayoutTable payouts={data.payouts} traderChecked={traderChecked} />
             </Panel>
           ))}
-        {tab === "log" && <RuleLog accountId={accountId} />}
+        {tab === "log" && <RuleLog details={data} />}
       </div>
     </AdminPage>
   );
@@ -114,7 +118,7 @@ function Header({ details }: { details: AccountDetails }) {
               {account.email}
             </Link>
             {account.reference && <> · Ref. {account.reference}</>}
-            {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt)}
+            {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt, details.challenge.tradingDay.timeZone)}
           </p>
         </div>
         {canCancel(account) && (
@@ -154,6 +158,7 @@ function EmailedNotice({ emailed, email }: { emailed: Exclude<Emailed, null>; em
 /** Why the account has stopped, or what is happening to it right now. */
 function Notices({ details }: { details: AccountDetails }) {
   const { account, breach, expiry, endedAt } = details;
+  const timeZone = details.challenge.tradingDay.timeZone;
   const notices: { tone: string; text: string }[] = [];
   switch (account.status) {
     case "OpeningAccount":
@@ -163,14 +168,19 @@ function Notices({ details }: { details: AccountDetails }) {
       notices.push({
         tone: "text-loss",
         text: breach
-          ? `Failed on ${formatDateTime(breach.time)}: equity ${formatMoney(breach.equity)} fell below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`
+          ? [
+              `Failed on ${formatDateTime(breach.time, timeZone)}: equity ${formatMoney(breach.equity)} fell below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`,
+              breachClosesText(details),
+            ]
+              .filter(Boolean)
+              .join(" ")
           : expiry
             ? `Ended on ${formatDate(expiry.day)}: ${expiryLabels[expiry.reason]}`
             : "Failed.",
       });
       break;
     case "Cancelled":
-      notices.push({ tone: "text-muted", text: `Cancelled by the firm${endedAt ? ` on ${formatDateTime(endedAt)}` : ""}.` });
+      notices.push({ tone: "text-muted", text: `Cancelled by the firm${endedAt ? ` on ${formatDateTime(endedAt, timeZone)}` : ""}.` });
       break;
     default:
       break;
@@ -199,7 +209,7 @@ function Notices({ details }: { details: AccountDetails }) {
 }
 
 /** The trader passed every evaluation stage. The firm approves the funded account once its own checks are done. */
-function FundingDecision({ details }: { details: AccountDetails }) {
+function FundingDecision({ details, traderChecked }: { details: AccountDetails; traderChecked: boolean | undefined }) {
   const { account, challenge, stages } = details;
   const [confirming, setConfirming] = useState(false);
   const command = useAccountCommand(account.id);
@@ -212,10 +222,10 @@ function FundingDecision({ details }: { details: AccountDetails }) {
       </span>
       <div className="flex min-w-0 flex-[1_1_24rem] flex-col gap-1">
         <h2 id="decision" className="font-semibold">
-          Passed every evaluation stage{lastPassed ? ` on ${formatDate(lastPassed)}` : ""}
+          Passed every evaluation stage{lastPassed ? ` on ${formatDate(lastPassed, challenge.tradingDay.timeZone)}` : ""}
         </h2>
         <p className="text-sm text-muted">
-          Approve the funded account when your checks, such as KYC, are done. It starts with {formatMoney(challenge.initialBalance)} {challenge.currency} and{" "}
+          Approve the funded account when your checks of the trader are done. It starts with {formatMoney(challenge.initialBalance)} {challenge.currency} and{" "}
           {challenge.funded.profitSplitPercent}% of the profit to the trader. Until then, the trader sees that the account is under review.
         </p>
       </div>
@@ -244,6 +254,11 @@ function FundingDecision({ details }: { details: AccountDetails }) {
             </>
           }
         >
+          {traderChecked === false && (
+            <p role="note" className="rounded-lg border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm">
+              You have not ticked that you checked the trader&apos;s ID and address. Tick them on the trader card under Overview once you have.
+            </p>
+          )}
           <ErrorText error={command.error} />
         </Modal>
       )}
@@ -292,37 +307,91 @@ function CancelDialog({ details, onClose }: { details: AccountDetails; onClose: 
   );
 }
 
-/** Every input to the account and what the rule engine decided: the audit trail, with the evidence of a breach. */
-function RuleLog({ accountId }: { accountId: string }) {
-  const history = useHistory(accountId);
+/**
+ * Every input to the account and what the rule engine decided, in plain sentences: the audit trail. The rule engine's
+ * own names, the inputs as stored and the trading platform's event behind each, its evidence, are behind Show details.
+ */
+function RuleLog({ details }: { details: AccountDetails }) {
+  const history = useHistory(details.account.id);
+  const [open, setOpen] = useState<number | null>(null);
+  const timeZone = details.challenge.tradingDay.timeZone;
+  const stages = [...details.challenge.evaluation, details.challenge.funded];
+  const context = { currency: details.challenge.currency, stageName: (stage: number) => stages[stage]?.name ?? `Stage ${stage + 1}` };
   return (
     <Panel title="Rule log">
-      <p className="text-sm text-muted">Every input to the account and what the rule engine decided, in order. The evidence is the trading platform&apos;s event behind an input.</p>
+      <p className="text-sm text-muted">Everything that happened to the account and what the rules did about it, in order. Times are in {timeZoneName(timeZone)}.</p>
       <ErrorText error={history.error} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">
           <thead className="text-left text-muted">
             <tr>
-              <th className="py-2 font-normal">Step</th>
               <th className="py-2 font-normal">Time</th>
-              <th className="py-2 font-normal">Input</th>
-              <th className="py-2 font-normal">Decision</th>
-              <th className="py-2 font-normal">Evidence</th>
+              <th className="py-2 pl-4 font-normal">What happened</th>
+              <th className="py-2 pl-4 font-normal">What the rules did</th>
+              <th className="py-2 pl-4 font-normal">
+                <span className="sr-only">Details</span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {(history.data ?? []).map((step) => (
-              <tr key={step.step} className="border-t border-border align-top">
-                <td className="py-2 font-mono">{step.step}</td>
-                <td className="py-2 text-muted">{formatDateTime(step.recordedAt)}</td>
-                <td className="py-2">{kindOf(step.input)}</td>
-                <td className="py-2">{kindsOf(step.outputs).join(", ") || "-"}</td>
-                <td className="py-2 text-muted">{step.sourceEvent ? kindOf(step.sourceEvent) : "-"}</td>
-              </tr>
-            ))}
+            {(history.data ?? []).map((step) => {
+              const decisions = describeOutputs(step.outputs, context);
+              return (
+                <Fragment key={step.step}>
+                  <tr className="border-t border-border align-top">
+                    <td className="whitespace-nowrap py-2 text-muted">{formatDateTime(step.recordedAt, timeZone)}</td>
+                    <td className="py-2 pl-4">{describeInput(step.input, context)}</td>
+                    <td className="py-2 pl-4">
+                      {decisions.length === 0 ? (
+                        <span className="text-muted">Nothing to do</span>
+                      ) : (
+                        <ul className="flex flex-col gap-0.5">
+                          {decisions.map((decision, index) => (
+                            <li key={index}>{decision}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="py-2 pl-4 text-right">
+                      <button
+                        type="button"
+                        aria-expanded={open === step.step}
+                        onClick={() => setOpen(open === step.step ? null : step.step)}
+                        className="whitespace-nowrap text-xs text-accent hover:underline"
+                      >
+                        {open === step.step ? "Hide details" : "Show details"}
+                      </button>
+                    </td>
+                  </tr>
+                  {open === step.step && (
+                    <tr>
+                      <td colSpan={4} className="pb-3">
+                        <StepDetails step={step} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </Panel>
+  );
+}
+
+function StepDetails({ step }: { step: Step }) {
+  const outputs = kindsOf(step.outputs);
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-border bg-background p-3.5 text-xs">
+      <p>
+        Step {step.step}: {kindOf(step.input)}
+        {outputs.length > 0 && ` \u2192 ${outputs.join(", ")}`}
+        {step.sourceEvent ? ` · evidence ${kindOf(step.sourceEvent)}` : ""}
+      </p>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-muted">
+        {JSON.stringify({ input: step.input, decisions: step.outputs, evidence: step.sourceEvent ?? null }, null, 2)}
+      </pre>
+    </div>
   );
 }

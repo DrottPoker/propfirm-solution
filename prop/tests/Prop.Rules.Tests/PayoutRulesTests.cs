@@ -27,6 +27,24 @@ public sealed class PayoutRulesTests
         Assert.Equal(requested, driver.State.Payout);
     }
 
+    // Instant funding has no evaluation: the first account is the funded one, and pays out like any other.
+    [Fact]
+    public void AnInstantlyFundedTraderAsksForAPayoutFromTheFirstAccount()
+    {
+        var driver = new ChallengeDriver(ChallengeTemplates.InstantFunded("instant-100k", 100_000m));
+        var opened = driver.OpenAccount("A1", Monday);
+        driver.TradeOnDays(Monday, 5);
+        driver.Update(104_000m);
+
+        var quote = ChallengeRules.QuotePayout(driver.State);
+        var outputs = driver.RequestPayout();
+
+        Assert.True(driver.State.IsFunded);
+        Assert.Contains(opened, o => o is StageStarted { Stage: 0 });
+        Assert.Equal(new PayoutQuote(4_000m, 70m, 2_800m, 5, 5, null), quote);
+        Assert.Equal(2_800m, Assert.IsType<PayoutRequested>(outputs[0]).Payout.Amount);
+    }
+
     [Fact]
     public void TheTradersShareIsRoundedDownToWholeCents()
     {
@@ -169,6 +187,87 @@ public sealed class PayoutRulesTests
         Assert.Equal((PayoutStatus.Rejected, "Copy trading is not allowed."), (rejected.Payout.Status, rejected.Reason));
         Assert.Null(driver.State.Payout);
         Assert.Equal(100_000m, driver.State.Account!.Balance);
+    }
+
+    // The firm can reject for its own checks without taking the profit: it goes back on the account.
+    [Fact]
+    public void TheFirmCanRejectAndReturnTheProfit()
+    {
+        var driver = WithdrawnPayout();
+
+        var outputs = driver.Apply(new RejectPayout(driver.NextTime(), "P1", "Send us your ID first.", ReturnProfit: true));
+        var deposited = driver.BalanceAdjusted("P1-return", 8_000m, 108_000m);
+
+        var rejected = Assert.IsType<PayoutRejected>(outputs[0]);
+        Assert.Equal((PayoutStatus.Rejected, true), (rejected.Payout.Status, rejected.ProfitReturned));
+        Assert.Equal(new DepositRequested(T, "A3", "P1-return", 8_000m), WithoutTime(outputs)[1]);
+        Assert.Empty(deposited);
+        Assert.Null(driver.State.Payout);
+        Assert.Equal(108_000m, driver.State.Account!.Balance);
+    }
+
+    [Fact]
+    public void TheProfitCannotGoBackOnAnAccountThatHasEnded()
+    {
+        var driver = WithdrawnPayout();
+        driver.Breach(FloorIds.Daily, 97_000m, 96_990m);
+
+        var outputs = driver.Apply(new RejectPayout(driver.NextTime(), "P1", "Broken rule", ReturnProfit: true));
+
+        Assert.Equal([new InputIgnored(T, nameof(RejectPayout), "The account has ended, so the profit cannot go back on it.")], WithoutTime(outputs));
+        Assert.Equal(PayoutStatus.Pending, driver.State.Payout!.Status);
+    }
+
+    // A consistency rule of 40 %: the best day may have made at most 40 % of the profit since the last payout.
+    [Fact]
+    public void AConsistencyRuleKeepsOneLuckyDayFromAPayout()
+    {
+        var template = ChallengeTemplates.TwoStep("consistent", 100_000m);
+        var driver = new ChallengeDriver(template with { Funded = template.Funded with { ConsistencyPercent = 40m } });
+        driver.Fund();
+        driver.TradeOnDays(FundedMonday, 5);
+        driver.Update(106_000m);
+
+        var lucky = ChallengeRules.QuotePayout(driver.State);
+        foreach (var (day, balance) in new[] { (FundedMonday.AddDays(7), 107_500m), (FundedMonday.AddDays(8), 109_000m), (FundedMonday.AddDays(9), 110_000m) })
+        {
+            driver.StartDay(day);
+            driver.OpenPosition(day);
+            driver.Update(balance);
+        }
+
+        var consistent = ChallengeRules.QuotePayout(driver.State);
+
+        Assert.Equal("Your best day made 6,000.00, 100% of the profit. A payout needs the best day to be at most 40% of it, so keep trading.", lucky.Refusal);
+        Assert.Equal((6_000m, 40m), (lucky.BestDayProfit, lucky.ConsistencyPercent));
+        Assert.Equal((6_000m, 10_000m), (consistent.BestDayProfit, consistent.Profit));
+        Assert.Equal("Your best day made 6,000.00, 60% of the profit. A payout needs the best day to be at most 40% of it, so keep trading.", consistent.Refusal);
+
+        driver.StartDay(FundedMonday.AddDays(10));
+        driver.OpenPosition(FundedMonday.AddDays(10));
+        driver.Update(115_000m);
+        Assert.True(ChallengeRules.QuotePayout(driver.State).CanRequest);
+    }
+
+    [Fact]
+    public void TheConsistencyRuleCountsFromTheLastPayout()
+    {
+        var template = ChallengeTemplates.TwoStep("consistent", 100_000m);
+        var driver = new ChallengeDriver(template with { Funded = template.Funded with { ConsistencyPercent = 50m } });
+        driver.Fund();
+        for (var i = 0; i < 5; i++)
+        {
+            driver.StartDay(FundedMonday.AddDays(i));
+            driver.OpenPosition(FundedMonday.AddDays(i));
+            driver.Update(100_000m + (2_000m * i));
+        }
+
+        var requested = driver.RequestPayout();
+        driver.BalanceAdjusted("P1", -8_000m, 100_000m);
+
+        Assert.IsType<PayoutRequested>(requested[0]);
+        Assert.Equal(0m, driver.State.BestDayProfit);
+        Assert.Null(driver.State.DayProfits);
     }
 
     [Fact]

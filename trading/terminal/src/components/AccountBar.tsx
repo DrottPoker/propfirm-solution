@@ -1,20 +1,21 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { floorLabel, floorRisk, initials, suspendedHelp, type FloorRisk } from "@/lib/account";
-import type { AccountStatus, FloorSnapshot } from "@/lib/api/types";
-import { productName } from "@/lib/config";
+import { accountName, backLink, floorLabel, floorLeftText, floorRisk, initials, suspendedHelp, targetText, type FloorRisk } from "@/lib/account";
+import type { AccountDetails, AccountStatus, FloorSnapshot, ServerInfo } from "@/lib/api/types";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { useLogout } from "@/lib/queries";
 import { useTradingStore, type ConnectionState } from "@/lib/store";
 
-import { ChevronDownIcon, InfoIcon, LogoMark, LogOutIcon } from "./icons";
+import { ArrowLeftIcon, ChevronDownIcon, InfoIcon, LogOutIcon } from "./icons";
 
+// "Live prices", not "Live": the accounts are practice accounts, and "Live" could be read as a real money account.
 const connectionStyles: Record<ConnectionState, { label: string; className: string }> = {
   connecting: { label: "Connecting", className: "border-warning/30 bg-warning/10 text-warning" },
-  connected: { label: "Live", className: "border-profit/30 bg-profit/10 text-profit" },
+  connected: { label: "Live prices", className: "border-profit/30 bg-profit/10 text-profit" },
   reconnecting: { label: "Reconnecting", className: "border-warning/30 bg-warning/10 text-warning" },
   disconnected: { label: "Offline", className: "border-loss/30 bg-loss/10 text-loss" },
 };
@@ -22,24 +23,42 @@ const connectionStyles: Record<ConnectionState, { label: string; className: stri
 const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text-warning", danger: "text-loss" };
 
 /**
- * Account figures and the distance to every equity floor, so the trader always sees the limits. A trader
- * with several accounts, such as one per challenge stage, switches between them here.
+ * The firm, the account as the firm's portal names it, its figures and the distance to every loss limit and to the
+ * profit target, so the trader always sees them. A trader with several accounts, such as one per challenge stage,
+ * switches between them here.
  */
-export function AccountBar({ accounts, email, serverName }: { accounts: string[]; email: string; serverName: string }) {
+export function AccountBar({
+  accounts,
+  details,
+  email,
+  server,
+}: {
+  accounts: string[];
+  details: AccountDetails[];
+  email: string;
+  server: ServerInfo;
+}) {
   const account = useTradingStore((s) => s.account);
   const connection = connectionStyles[useTradingStore((s) => s.connection)];
   const router = useRouter();
+  const current = details.find((d) => d.accountId === account?.accountId);
+  const back = backLink(current, server);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-panel px-4 text-sm">
-      <span className="flex shrink-0 items-center gap-2.5">
-        <LogoMark />
-        <span className="text-base font-semibold tracking-tight">{productName}</span>
+      <span className="flex shrink-0 flex-col justify-center gap-0.5">
+        <FirmMark server={server} />
+        {back && (
+          <a href={back} className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground">
+            <ArrowLeftIcon className="size-3" />
+            Back to {server.name}
+          </a>
+        )}
       </span>
 
       <span
         className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${connection.className}`}
-        title="Connection to the trading service"
+        title="Prices and figures come live from the trading service"
       >
         <span className="size-1.5 rounded-full bg-current" />
         {connection.label}
@@ -50,6 +69,7 @@ export function AccountBar({ accounts, email, serverName }: { accounts: string[]
           <>
             <AccountPicker
               accounts={accounts}
+              details={details}
               accountId={account.accountId}
               status={account.status}
               onChange={(id) => router.push(`/?account=${encodeURIComponent(id)}`)}
@@ -58,33 +78,53 @@ export function AccountBar({ accounts, email, serverName }: { accounts: string[]
             <Figure label="Equity" value={formatMoney(account.equity)} />
             <Figure label="Free margin" value={formatMoney(account.freeMargin)} />
             <Figure label="Margin level" value={formatPercent(account.marginLevelPercent)} />
+            {current?.profitTarget != null && account.status !== "Disabled" && (
+              <Figure
+                label="Profit target"
+                value={formatMoney(current.profitTarget)}
+                note={targetText(current.profitTarget, account)}
+                help="Reach this balance, with every position closed, to pass the stage."
+              />
+            )}
             {account.floors.map((floor) => (
-              <FloorFigure key={floor.floorId} floor={floor} />
+              <FloorFigure key={floor.floorId} floor={floor} ended={account.status === "Disabled"} />
             ))}
           </>
         )}
       </div>
 
-      <UserMenu email={email} serverName={serverName} />
+      <UserMenu email={email} serverName={server.name} />
     </header>
+  );
+}
+
+/** The firm's logo, or its name when it has none, as in its portal. Logos are on the firms' own addresses, so they are not optimized. */
+function FirmMark({ server }: { server: ServerInfo }) {
+  return server.logoUrl ? (
+    <Image src={server.logoUrl} alt={server.name} width={112} height={28} unoptimized className="h-6 w-auto max-w-40 object-contain object-left" />
+  ) : (
+    <span className="text-base leading-tight font-semibold tracking-tight">{server.name}</span>
   );
 }
 
 function AccountPicker({
   accounts,
+  details,
   accountId,
   status,
   onChange,
 }: {
   accounts: string[];
+  details: AccountDetails[];
   accountId: string;
   status: AccountStatus;
   onChange: (accountId: string) => void;
 }) {
   const id = useId();
+  const nameOf = (a: string) => accountName(a, details.find((d) => d.accountId === a));
 
   return (
-    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4">
+    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4" title={`Trading account ${accountId}`}>
       {accounts.length > 1 ? (
         <>
           <label htmlFor={id} className="text-[11px] text-muted">
@@ -99,7 +139,7 @@ function AccountPicker({
             >
               {accounts.map((a) => (
                 <option key={a} value={a}>
-                  {a}
+                  {nameOf(a)}
                 </option>
               ))}
             </select>
@@ -109,10 +149,10 @@ function AccountPicker({
       ) : (
         <>
           <span className="text-[11px] text-muted">Account</span>
-          <span className="font-medium">{accountId}</span>
+          <span className="font-medium">{nameOf(accountId)}</span>
         </>
       )}
-      {status === "Disabled" && <span className="mt-0.5 w-fit rounded bg-loss/15 px-1.5 text-[11px] font-medium text-loss">Disabled</span>}
+      {status === "Disabled" && <span className="mt-0.5 w-fit rounded bg-loss/15 px-1.5 text-[11px] font-medium text-loss">Ended</span>}
       {status === "Suspended" && (
         <span className="mt-0.5 w-fit rounded bg-warning/15 px-1.5 text-[11px] font-medium text-warning" title={suspendedHelp}>
           Paused
@@ -122,10 +162,13 @@ function AccountPicker({
   );
 }
 
-function Figure({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function Figure({ label, value, unit, note, help }: { label: string; value: string; unit?: string; note?: string; help?: string }) {
   return (
-    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4">
-      <span className="text-[11px] text-muted">{label}</span>
+    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4" title={help}>
+      <span className="flex items-center gap-1 text-[11px] text-muted">
+        {label}
+        {help && <InfoIcon className="size-3" />}
+      </span>
       <span className="font-mono text-[13px] whitespace-nowrap tabular-nums">
         {value}
         {unit && (
@@ -135,25 +178,28 @@ function Figure({ label, value, unit }: { label: string; value: string; unit?: s
           </>
         )}
       </span>
+      {note && <span className="font-mono text-[11px] whitespace-nowrap text-muted tabular-nums">{note}</span>}
     </div>
   );
 }
 
-// The headroom comes from the engine: how far equity can fall before the floor is breached.
-function FloorFigure({ floor }: { floor: FloorSnapshot }) {
+// The headroom comes from the engine: how far equity can fall before the limit is broken. Once trading has ended,
+// only a broken limit still says so.
+function FloorFigure({ floor, ended }: { floor: FloorSnapshot; ended: boolean }) {
+  const broken = floor.headroom <= 0;
   return (
     <div
       className="flex shrink-0 flex-col justify-center border-l border-border px-4"
-      title="Equity must stay above this level. If it falls below, all positions are closed and the account is disabled."
+      title="Equity must stay above this level. If it falls below, every position is closed and trading on the account ends."
     >
       <span className="flex items-center gap-1 text-[11px] text-muted">
         {floorLabel(floor.floorId)}
         <InfoIcon className="size-3" />
       </span>
       <span className="font-mono text-[13px] whitespace-nowrap tabular-nums">{formatMoney(floor.level)}</span>
-      <span className={`font-mono text-[11px] whitespace-nowrap tabular-nums ${riskColors[floorRisk(floor)]}`}>
-        {formatMoney(floor.headroom)} left
-      </span>
+      {(!ended || broken) && (
+        <span className={`font-mono text-[11px] whitespace-nowrap tabular-nums ${riskColors[floorRisk(floor)]}`}>{floorLeftText(floor)}</span>
+      )}
     </div>
   );
 }

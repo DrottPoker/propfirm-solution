@@ -18,8 +18,8 @@ using Prop.Api.Trading;
 
 namespace Prop.Api.Signup;
 
-/// <summary>Whether a short name can be chosen, and why not.</summary>
-internal sealed record Availability(bool Available, string? Reason)
+/// <summary>Whether a short name can be chosen, and why not, with free names like it when it is taken.</summary>
+internal sealed record Availability(bool Available, string? Reason, IReadOnlyList<string>? Suggestions = null)
 {
     public static readonly Availability Yes = new(true, null);
 }
@@ -64,6 +64,12 @@ internal sealed partial class SignupService(
 
     public const int MaxEmailLength = 254;
 
+    /// <summary>How many free names are suggested for one that is taken or reserved.</summary>
+    public const int MaxSuggestions = 3;
+
+    // Endings that keep the firm's name recognisable, tried in this order.
+    private static readonly string[] SuggestionEndings = ["capital", "fx", "trading", "funded", "prop", "hq", "markets", "group"];
+
     /// <summary>Whether the short name can be chosen now by the person with the email. Asks the trading platform too when told to.</summary>
     public async Task<Availability> CheckAsync(string? firmId, string? emailAddress, bool askTradingPlatform, CancellationToken cancellationToken)
     {
@@ -74,12 +80,12 @@ internal sealed partial class SignupService(
 
         if (IsReserved(firmId!))
         {
-            return new Availability(false, "That name is reserved.");
+            return new Availability(false, "That name is reserved.", await SuggestAsync(firmId!, emailAddress, cancellationToken));
         }
 
-        if (firms.ById(firmId!) is not null || await IsPendingForOtherAsync(firmId!, emailAddress, cancellationToken))
+        if (!await IsFreeAsync(firmId!, emailAddress, cancellationToken))
         {
-            return new Availability(false, "That name is taken.");
+            return new Availability(false, "That name is taken.", await SuggestAsync(firmId!, emailAddress, cancellationToken));
         }
 
         if (askTradingPlatform)
@@ -101,7 +107,14 @@ internal sealed partial class SignupService(
         return Availability.Yes;
     }
 
-    public async Task<SignupOutcome> SignUpAsync(string? firmName, string? firmId, string? emailAddress, string? password, bool acceptTerms, CancellationToken cancellationToken)
+    public async Task<SignupOutcome> SignUpAsync(
+        string? firmName,
+        string? firmId,
+        string? emailAddress,
+        string? password,
+        bool acceptTerms,
+        string? currency,
+        CancellationToken cancellationToken)
     {
         if (!FirmRules.IsValidName(firmName) || firmName!.Trim().Length < 2)
         {
@@ -124,6 +137,12 @@ internal sealed partial class SignupService(
             return new SignupOutcome.Invalid("acceptTerms", "Accept the terms and the data processing agreement to sign up.");
         }
 
+        var accountCurrency = string.IsNullOrWhiteSpace(currency) ? signup.Value.DefaultCurrency : currency.Trim().ToUpperInvariant();
+        if (!signup.Value.Currencies.Contains(accountCurrency, StringComparer.Ordinal) && accountCurrency != signup.Value.DefaultCurrency)
+        {
+            return new SignupOutcome.Invalid("currency", $"Choose the accounts' currency: {string.Join(", ", signup.Value.Currencies)}.");
+        }
+
         var availability = await CheckAsync(firmId, emailAddress, askTradingPlatform: true, cancellationToken);
         if (!availability.Available)
         {
@@ -132,7 +151,7 @@ internal sealed partial class SignupService(
 
         var now = time.GetUtcNow();
         var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
-        await SaveAsync(token, firmId!, firmName.Trim(), emailAddress.Trim(), hasher.HashPassword(null!, password), now, cancellationToken);
+        await SaveAsync(token, firmId!, firmName.Trim(), emailAddress.Trim(), hasher.HashPassword(null!, password), accountCurrency, now, cancellationToken);
 
         if (!signup.Value.RequireEmailVerification)
         {
@@ -180,12 +199,12 @@ internal sealed partial class SignupService(
                 """
                 update firm_signups set used_at = $2
                 where token_hash = $1 and used_at is null and expires_at > $2
-                returning firm_id, firm_name, email, password_hash, terms_version
+                returning firm_id, firm_name, email, password_hash, terms_version, currency
                 """,
                 connection);
             use.Parameters.AddWithValue(Hash(token));
             use.Parameters.AddWithValue(now);
-            string firmName, adminEmail, passwordHash, termsVersion;
+            string firmName, adminEmail, passwordHash, termsVersion, currency;
             await using (var reader = await use.ExecuteReaderAsync(cancellationToken))
             {
                 if (!await reader.ReadAsync(cancellationToken))
@@ -193,25 +212,54 @@ internal sealed partial class SignupService(
                     return new SignupOutcome.Invalid("token", "The link has expired or was already used.");
                 }
 
-                (firmId, firmName, adminEmail, passwordHash, termsVersion) =
-                    (reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4));
+                (firmId, firmName, adminEmail, passwordHash, termsVersion, currency) =
+                    (reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetString(4), reader.GetString(5));
             }
 
             portalUrl = platform.Value.PortalUrlOf(firmId);
-            if (!await FirmStore.InsertSignedUpAsync(connection, firmId, firmName, portalUrl, termsVersion, now, cancellationToken))
+            if (!await FirmStore.InsertSignedUpAsync(connection, firmId, firmName, portalUrl, termsVersion, currency, now, cancellationToken))
             {
                 return new SignupOutcome.Taken("Someone else took that name first. Sign up again with another one.");
             }
 
             var adminId = await FirmAdmins.InsertAsync(connection, firmId, adminEmail, passwordHash, now, cancellationToken);
             loginToken = await FirmAdmins.CreateLoginLinkAsync(connection, adminId, now, cancellationToken);
+
+            // Sent with the firm, so the administrator can find the admin panel again.
+            await EmailOutbox.AddAsync(
+                connection, PlatformEmails.Welcome(platform.Value.Name, firmName, adminEmail, new Uri(portalUrl, "admin/login")), "welcome", firmId, now, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
         firms.Put(await store.GetAsync(firmId, cancellationToken) ?? throw new InvalidOperationException($"Firm {firmId} disappeared."));
         signals.Provisioning.Set();
+        signals.Emails.Set();
         LogSignedUp(logger, firmId);
-        return new SignupOutcome.Completed(firmId, new Uri(portalUrl, $"admin/welcome?token={loginToken}"));
+        return new SignupOutcome.Completed(firmId, new Uri(portalUrl, $"admin/welcome?token={loginToken}&next=%2Fadmin%2Fget-started"));
+    }
+
+    // Free means no firm has it, and nobody else signed up with it and may still confirm it.
+    private async Task<bool> IsFreeAsync(string firmId, string? emailAddress, CancellationToken cancellationToken) =>
+        firms.ById(firmId) is null && !await IsPendingForOtherAsync(firmId, emailAddress, cancellationToken);
+
+    /// <summary>Free names like the one that is taken, with a common ending added. Does not ask the trading platform.</summary>
+    private async Task<IReadOnlyList<string>> SuggestAsync(string firmId, string? emailAddress, CancellationToken cancellationToken)
+    {
+        var suggestions = new List<string>();
+        foreach (var ending in SuggestionEndings)
+        {
+            var candidate = $"{firmId}-{ending}";
+            if (FirmRules.IsValidId(candidate) && !IsReserved(candidate) && await IsFreeAsync(candidate, emailAddress, cancellationToken))
+            {
+                suggestions.Add(candidate);
+                if (suggestions.Count == MaxSuggestions)
+                {
+                    break;
+                }
+            }
+        }
+
+        return suggestions;
     }
 
     private bool IsReserved(string firmId) =>
@@ -232,7 +280,15 @@ internal sealed partial class SignupService(
     }
 
     // A new sign-up replaces the person's earlier unconfirmed ones. Sign-ups that expired long ago are removed.
-    private async Task SaveAsync(string token, string firmId, string firmName, string emailAddress, string passwordHash, DateTimeOffset now, CancellationToken cancellationToken)
+    private async Task SaveAsync(
+        string token,
+        string firmId,
+        string firmName,
+        string emailAddress,
+        string passwordHash,
+        string currency,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         await using var batch = dataSource.CreateBatch();
         var cleanUp = new NpgsqlBatchCommand("delete from firm_signups where (normalized_email = $1 and used_at is null) or expires_at < $2");
@@ -242,8 +298,8 @@ internal sealed partial class SignupService(
 
         var insert = new NpgsqlBatchCommand(
             """
-            insert into firm_signups (token_hash, firm_id, firm_name, email, normalized_email, password_hash, terms_version, created_at, expires_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            insert into firm_signups (token_hash, firm_id, firm_name, email, normalized_email, password_hash, terms_version, created_at, expires_at, currency)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             """);
         insert.Parameters.AddWithValue(Hash(token));
         insert.Parameters.AddWithValue(firmId);
@@ -254,6 +310,7 @@ internal sealed partial class SignupService(
         insert.Parameters.AddWithValue(signup.Value.TermsVersion);
         insert.Parameters.AddWithValue(now);
         insert.Parameters.AddWithValue(now + VerificationLifetime);
+        insert.Parameters.AddWithValue(currency);
         batch.BatchCommands.Add(insert);
 
         await batch.ExecuteNonQueryAsync(cancellationToken);

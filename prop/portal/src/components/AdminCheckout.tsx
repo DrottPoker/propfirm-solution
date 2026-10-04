@@ -6,6 +6,7 @@ import type { FirmSettings, PaymentProvider } from "@/lib/api/types";
 import { providerLabels } from "@/lib/orders";
 import { useFirmSettings, useSavePayments } from "@/lib/queries";
 
+import { CopyButton } from "./CopyButton";
 import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel } from "./ui";
 
 /** How the firm's portal takes payment for challenges, and the terms buyers accept. */
@@ -19,31 +20,28 @@ export function AdminCheckout() {
     return <Message text="Loading..." />;
   }
 
+  const shop = new URL("buy", settings.data.portalUrl).toString();
   return (
     <AdminPage narrow>
       <PageHeader
         title="Checkout"
         description={
           <>
-            Traders buy challenges in your portal&apos;s shop at <span className="font-mono text-foreground">{new URL("buy", settings.data.portalUrl).toString()}</span>. The money goes
-            straight to you, and a paid order starts its challenge.
+            Traders buy challenges in your portal&apos;s shop at{" "}
+            <span className="inline-flex items-center gap-1.5">
+              <a href={shop} target="_blank" rel="noreferrer" className="font-mono text-accent hover:underline">
+                {shop}
+              </a>
+              <CopyButton value={shop} label="Shop address" />
+            </span>
+            . Link to it from your website. The money goes straight to you, and a paid order starts its challenge.
           </>
         }
       />
-      <Payments key={JSON.stringify(settings.data.payments)} settings={settings.data} />
+      <Payments settings={settings.data} />
     </AdminPage>
   );
 }
-
-/** The Stripe events that move orders along. The firm picks them when it adds the webhook in Stripe. */
-const stripeEvents = [
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.async_payment_failed",
-  "checkout.session.expired",
-  "charge.refunded",
-  "charge.dispute.created",
-];
 
 /** How the portal takes payment for challenges: a test page in the sandbox, Stripe with the firm's own keys, or the firm's own checkout. */
 function Payments({ settings }: { settings: FirmSettings }) {
@@ -52,6 +50,7 @@ function Payments({ settings }: { settings: FirmSettings }) {
   const [provider, setProvider] = useState<PaymentProvider | null>(payments.provider);
   const [stripeSecretKey, setStripeSecretKey] = useState("");
   const [stripeWebhookSecret, setStripeWebhookSecret] = useState("");
+  const [ownWebhook, setOwnWebhook] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState(payments.checkoutUrl ?? "");
   const [termsUrl, setTermsUrl] = useState(payments.termsUrl ?? "");
 
@@ -64,9 +63,18 @@ function Payments({ settings }: { settings: FirmSettings }) {
     { value: "External", label: providerLabels.External, hint: "Buyers pay on your own page, with any provider. Your systems tell us when an order is paid." },
   ];
 
+  // The form stays, so it can say it saved; the keys are cleared, since they are never shown again.
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    save.mutate({ provider, stripeSecretKey, stripeWebhookSecret, checkoutUrl, termsUrl });
+    save.mutate(
+      { provider, stripeSecretKey, stripeWebhookSecret: ownWebhook ? stripeWebhookSecret : "", checkoutUrl, termsUrl },
+      {
+        onSuccess: () => {
+          setStripeSecretKey("");
+          setStripeWebhookSecret("");
+        },
+      },
+    );
   };
 
   return (
@@ -89,38 +97,54 @@ function Payments({ settings }: { settings: FirmSettings }) {
           <div className="flex flex-col gap-3 border-t border-border pt-4">
             <p className="text-muted">
               {payments.hasStripeKeys
-                ? `Your Stripe keys are saved (${payments.stripeTestMode ? "test mode" : "live mode"}). Leave the fields empty to keep them.`
-                : "Paste your Stripe keys. They are kept encrypted and never shown again."}
-              {settings.status !== "Live" && " In the sandbox, only test keys (sk_test_) work."}
+                ? `Your Stripe secret key is saved (${payments.stripeTestMode ? "test mode" : "live mode"}). Leave the field empty to keep it.`
+                : "Paste the secret key from your Stripe dashboard, under Developers and API keys. We add the webhook that tells us about payments to your Stripe account for you. The key is kept encrypted and never shown again."}
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span className="text-muted">Secret key</span>
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={stripeSecretKey}
-                  onChange={(e) => setStripeSecretKey(e.target.value)}
-                  placeholder="sk_test_..."
-                  className={`${fieldClass} font-mono`}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-muted">Webhook signing secret</span>
-                <input
-                  type="password"
-                  autoComplete="off"
-                  value={stripeWebhookSecret}
-                  onChange={(e) => setStripeWebhookSecret(e.target.value)}
-                  placeholder="whsec_..."
-                  className={`${fieldClass} font-mono`}
-                />
-              </label>
-            </div>
-            <p className="text-muted">
-              In Stripe, add a webhook endpoint at <span className="break-all font-mono text-foreground">{payments.stripeWebhookUrl}</span> for these
-              events: <span className="font-mono">{stripeEvents.join(", ")}</span>. Its signing secret goes in the field above.
-            </p>
+            {settings.status !== "Live" && (
+              <p className="text-muted">
+                In the sandbox, a test key (sk_test_) takes test payments. A live key (sk_live_) can be saved now, and takes payment from the moment you
+                go live.
+              </p>
+            )}
+            <label className="flex flex-col gap-1">
+              <span className="text-muted">Secret key</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={stripeSecretKey}
+                onChange={(e) => setStripeSecretKey(e.target.value)}
+                placeholder={settings.status === "Live" ? "sk_live_..." : "sk_test_... or sk_live_..."}
+                className={`${fieldClass} font-mono`}
+              />
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" checked={ownWebhook} onChange={(e) => setOwnWebhook(e.target.checked)} className="mt-1" />
+              <span>
+                I add the webhook in Stripe myself
+                <span className="block text-xs text-muted">For example with a restricted key that cannot add webhooks.</span>
+              </span>
+            </label>
+            {ownWebhook && (
+              <div className="flex flex-col gap-3 rounded border border-border p-3">
+                <p className="text-muted">
+                  In Stripe, add a webhook endpoint at <span className="break-all font-mono text-foreground">{payments.stripeWebhookUrl}</span> for these
+                  events: <span className="font-mono">{payments.stripeWebhookEvents.join(", ")}</span>. Then paste its signing secret here, with the
+                  secret key.
+                </p>
+                <label className="flex flex-col gap-1">
+                  <span className="text-muted">Webhook signing secret</span>
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    required={stripeSecretKey.length > 0}
+                    value={stripeWebhookSecret}
+                    onChange={(e) => setStripeWebhookSecret(e.target.value)}
+                    placeholder="whsec_..."
+                    className={`${fieldClass} font-mono`}
+                  />
+                </label>
+              </div>
+            )}
           </div>
         )}
 
@@ -140,19 +164,24 @@ function Payments({ settings }: { settings: FirmSettings }) {
         )}
 
         <label className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-muted">Your terms for buyers (https), or empty for none</span>
+          <span className="text-muted">Your terms for traders (https), or empty for none</span>
           <input type="url" value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="https://" className={fieldClass} />
+          <span className="text-xs text-muted">Buyers accept them in your shop, and we read them in your application. One address for both.</span>
         </label>
 
         {payments.provider !== null && !payments.active && (
           <p className="text-warning">
             {payments.provider === "Stripe"
-              ? "Stripe's live keys work once the firm is live. Use test keys in the sandbox."
+              ? "Your live key takes payment from the moment you go live. Until then your shop takes no payment: use a test key (sk_test_) to try a purchase."
               : "Payments are not working with these settings."}
           </p>
         )}
         <ErrorText error={save.error} />
-        {save.isSuccess && <p className="text-profit">Saved.</p>}
+        {save.isSuccess && !save.isPending && (
+          <p role="status" className="text-profit">
+            Saved.
+          </p>
+        )}
         <button type="submit" disabled={save.isPending} className={`${buttonClass} self-start`}>
           {save.isPending ? "Saving..." : "Save payments"}
         </button>

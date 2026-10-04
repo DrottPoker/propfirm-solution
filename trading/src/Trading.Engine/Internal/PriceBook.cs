@@ -27,7 +27,14 @@ internal sealed class PriceBook
 
     public bool TryGetLatest(string symbol, [NotNullWhen(true)] out Quote? quote) => _latest.TryGetValue(symbol, out quote);
 
-    /// <summary>Rate to multiply an amount in <paramref name="from"/> with to get <paramref name="to"/>. Uses the raw mid price.</summary>
+    /// <summary>The currency a rate goes through when no instrument has the pair itself.</summary>
+    public const string CrossCurrency = "USD";
+
+    /// <summary>
+    /// Rate to multiply an amount in <paramref name="from"/> with to get <paramref name="to"/>. Uses the raw mid price of
+    /// an instrument with the pair, or else the two rates through <see cref="CrossCurrency"/>, so an account in EUR can
+    /// trade AUDUSD with EURUSD and AUDUSD.
+    /// </summary>
     public bool TryGetRate(string from, string to, out decimal rate)
     {
         if (string.Equals(from, to, StringComparison.Ordinal))
@@ -36,6 +43,24 @@ internal sealed class PriceBook
             return true;
         }
 
+        if (TryGetDirectRate(from, to, out rate))
+        {
+            return true;
+        }
+
+        if (!string.Equals(from, CrossCurrency, StringComparison.Ordinal) && !string.Equals(to, CrossCurrency, StringComparison.Ordinal)
+            && TryGetDirectRate(from, CrossCurrency, out var toCross) && TryGetDirectRate(CrossCurrency, to, out var fromCross))
+        {
+            rate = toCross * fromCross;
+            return true;
+        }
+
+        rate = 0m;
+        return false;
+    }
+
+    private bool TryGetDirectRate(string from, string to, out decimal rate)
+    {
         if (_conversions.TryGetValue((from, to), out var conversion) && _latest.TryGetValue(conversion.Symbol, out var quote))
         {
             var mid = (quote.Bid + quote.Ask) / 2m;

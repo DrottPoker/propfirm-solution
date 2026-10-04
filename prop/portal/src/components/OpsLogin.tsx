@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { useOps } from "@/app/providers";
 import { useOpsLogin } from "@/lib/opsQueries";
 
+import { passwordPaths } from "./PasswordReset";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
 
 /** Login for our own staff. */
@@ -15,6 +17,7 @@ export function OpsLogin() {
   const login = useOpsLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const passwordId = useId();
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -34,9 +37,17 @@ export function OpsLogin() {
           <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Password</span>
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="flex items-center justify-between">
+            <label htmlFor={passwordId} className="text-muted">
+              Password
+            </label>
+            <Link href={passwordPaths.staff.forgot} className="text-xs text-accent hover:underline">
+              Forgot password?
+            </Link>
+          </span>
           <input
+            id={passwordId}
             type="password"
             autoComplete="current-password"
             required
@@ -44,7 +55,7 @@ export function OpsLogin() {
             onChange={(e) => setPassword(e.target.value)}
             className={fieldClass}
           />
-        </label>
+        </div>
 
         <ErrorText error={login.error} />
 

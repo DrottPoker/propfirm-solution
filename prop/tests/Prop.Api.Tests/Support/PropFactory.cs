@@ -77,6 +77,15 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     /// <summary>The service's database, for a second service on it.</summary>
     public string ConnectionString => _connectionString;
 
+    /// <summary>The first value a query reads straight from the database, to check what is stored.</summary>
+    public async Task<object?> ScalarAsync(string sql)
+    {
+        await using var connection = new Npgsql.NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new Npgsql.NpgsqlCommand(sql, connection);
+        return await command.ExecuteScalarAsync(TestContext.Current.CancellationToken);
+    }
+
     public FakeTradingPlatform Trading { get; }
 
     public WebhookReceiver Webhooks { get; } = new();
@@ -84,6 +93,8 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     public FakeEmailSender Emails { get; private init; } = new();
 
     public FakeStripe Stripe { get; } = new();
+
+    public FakeDns Dns { get; } = new();
 
     /// <summary>Settings that give the development firm a webhook to <see cref="Webhooks"/>.</summary>
     public static Dictionary<string, string> WithWebhook() => new()
@@ -123,14 +134,15 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     public HttpClient CreatePlatformClient() => CreatePortalClient(PlatformHost);
 
     /// <summary>A complete application for our review, as a firm sends it.</summary>
-    public static object Application(string companyName = "Acme Trading Ltd", string country = "SE", string? vatNumber = "SE559000123401", bool? noVatNumber = null) => new
+    // A company in another EU country with a VAT number pays no VAT to us, so the amounts are the prices.
+    public static object Application(string companyName = "Acme Trading Ltd", string country = "DE", string? vatNumber = "DE123456789", bool? noVatNumber = null) => new
     {
         companyName,
-        registrationNumber = "559000-1234",
+        registrationNumber = "HRB 123456",
         country,
         vatNumber,
         noVatNumber,
-        address = "Storgatan 1, 111 22 Stockholm",
+        address = "Friedrichstrasse 1\n10117 Berlin",
         website = "https://acme.test",
         contactName = "Anna Andersson",
         contactPhone = "+46 70 123 45 67",
@@ -150,12 +162,12 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// The firm sends a complete application, without a deposit as in most tests, and our staff approve it, so the
-    /// firm can go live by paying.
+    /// The firm sends a complete application, by default <see cref="Application"/>'s, without a deposit as in most
+    /// tests, and our staff approve it, so the firm can go live by paying.
     /// </summary>
-    public async Task ApproveAsync(HttpClient admin, string firmId)
+    public async Task ApproveAsync(HttpClient admin, string firmId, object? application = null)
     {
-        using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/verification/application", UriKind.Relative), Application());
+        using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/verification/application", UriKind.Relative), application ?? Application());
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         using var submitted = await admin.PostAsync(new Uri("/api/portal/admin/verification/submit", UriKind.Relative), null);
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
@@ -370,6 +382,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
             services.AddSingleton<ITradingPlatform>(Trading);
             services.AddSingleton<ITradingPartner>(Trading);
             services.AddSingleton<IEmailSender>(Emails);
+            services.AddSingleton<IDnsLookup>(Dns);
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);
             services.AddHttpClient(StripeClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stripe);
         });

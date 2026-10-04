@@ -22,7 +22,7 @@ function activity(changes: Partial<Activity>): Activity {
     accountId: testAccount.id,
     accountNumber: 1001,
     email: "anna@test.example",
-    challengeName: "Two-step 100000 USD",
+    challengeName: "Two-step 100K",
     stageName: null,
     amount: null,
     currency: null,
@@ -85,7 +85,7 @@ describe("whenText", () => {
 });
 
 describe("needsYouItems", () => {
-  const input = { payouts: noPayouts, waitingAccounts: [], waitingCount: 0, challengeName: () => "Two-step 100000 USD", slots: null, currency: "USD", now };
+  const input = { payouts: noPayouts, waitingAccounts: [], waitingCount: 0, challengeName: () => "Two-step 100K", slots: null, currency: "USD", now };
 
   it("is empty when nothing waits for the firm", () => {
     expect(needsYouItems(input)).toEqual([]);
@@ -107,7 +107,7 @@ describe("needsYouItems", () => {
     expect(items.map((i) => i.title)).toEqual([
       "3 payouts wait for your approval",
       "An approved payout to pay",
-      "lena.berg@example.com passed Two-step 100000 USD",
+      "lena.berg@example.com passed Two-step 100K",
       "48 of 60 slots are taken",
     ]);
     expect(items[0].detail).toBe("7,488.00 USD in total. The oldest was asked for 2 days ago.");
@@ -122,6 +122,13 @@ describe("needsYouItems", () => {
 
     expect(items.map((i) => i.key)).toEqual(["approve-id-1", "approve-id-2", "approve-id-3", "approve-more"]);
     expect(items[3]).toMatchObject({ title: "2 more accounts wait for a funded account", href: "/admin/accounts?group=AwaitingFunding" });
+  });
+
+  it("puts a live shop that sells nothing first", () => {
+    const items = needsYouItems({ ...input, slots, shopProblem: "Your shop sells nothing, since your Stripe keys are test keys." });
+
+    expect(items.map((i) => i.key)).toEqual(["shop", "slots"]);
+    expect(items[0]).toMatchObject({ title: "Your shop takes no payment", href: "/admin/checkout", tone: "warning" });
   });
 
   it("warns about slots only when they run low or out, and never without a limit", () => {

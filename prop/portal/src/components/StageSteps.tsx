@@ -126,23 +126,24 @@ function tileState(state: StepState): string {
 
 function tileDetail(stage: StageSummary, state: StepState, details: AccountDetails, audience: "trader" | "firm"): string {
   const split = details.challenge.funded.profitSplitPercent;
+  const timeZone = details.challenge.tradingDay.timeZone;
   const isFunded = stage.stage === details.challenge.evaluation.length;
   switch (state) {
     case "passed": {
       const days = stage.tradingDays == null ? "" : ` in ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"}`;
-      const when = stage.passedAt ? `${formatDate(stage.passedAt)} · ` : "";
+      const when = stage.passedAt ? `${formatDate(stage.passedAt, timeZone)} · ` : "";
       return stage.result == null ? when.replace(/ · $/, "") : `${when}${formatSignedMoney(stage.result)}${days}`;
     }
     case "current":
       return stage.startedAt
-        ? `Since ${formatDate(stage.startedAt)}${stage.tradingDays == null ? "" : ` · ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"} so far`}`
+        ? `Since ${formatDate(stage.startedAt, timeZone)}${stage.tradingDays == null ? "" : ` · ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"} so far`}`
         : "The trading account is being opened.";
     case "waiting":
       return audience === "firm" ? "Every evaluation stage is passed. The funded account waits for your approval." : "Every evaluation stage is passed. The firm is reviewing the funded account.";
     case "failed":
-      return details.endedAt ? `Ended ${formatDate(details.endedAt)}` : "Ended";
+      return details.endedAt ? `Ended ${formatDate(details.endedAt, timeZone)}` : "Ended";
     case "cancelled":
-      return details.endedAt ? `Cancelled ${formatDate(details.endedAt)}` : "Cancelled by the firm";
+      return details.endedAt ? `Cancelled ${formatDate(details.endedAt, timeZone)}` : "Cancelled by the firm";
     case "upcoming":
       return isFunded && split != null ? `${split}% of the profit ${audience === "firm" ? "to the trader" : "is yours"}` : "Starts when the stage before is passed";
   }

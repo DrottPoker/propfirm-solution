@@ -25,6 +25,7 @@ internal static class AuthEndpoints
         auth.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)LogoutAsync);
         auth.MapGet("/me", MeAsync).RequireAuthorization();
         app.MapGet("/api/servers", GetServersAsync).WithTags("Auth");
+        app.MapGet("/api/servers/{id}", GetServerAsync).WithTags("Auth");
         return app;
     }
 
@@ -116,10 +117,25 @@ internal static class AuthEndpoints
             [.. tenants.All.Where(t => t.Listed).Select(ToServerInfo).OrderBy(s => s.Name, StringComparer.OrdinalIgnoreCase)]);
     }
 
-    private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, CancellationToken cancellationToken) =>
-        new(user.Id, user.Email, ToServerInfo(tenant), await users.AccountsOfAsync(user.Id, cancellationToken));
+    /// <summary>
+    /// A server by its id, also one that is not listed, so the terminal can send a trader back to the firm's login
+    /// when a link from the firm's portal named the server.
+    /// </summary>
+    private static async Task<Results<Ok<ServerInfo>, NotFound>> GetServerAsync(string id, TenantCatalog tenants, CancellationToken cancellationToken)
+    {
+        await tenants.Ready.WaitAsync(cancellationToken);
+        return tenants.ById(id) is { } tenant ? TypedResults.Ok(ToServerInfo(tenant)) : TypedResults.NotFound();
+    }
 
-    private static ServerInfo ToServerInfo(Tenant tenant) => new(tenant.Id, tenant.Name);
+    private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, CancellationToken cancellationToken) =>
+        new(
+            user.Id,
+            user.Email,
+            ToServerInfo(tenant),
+            await users.AccountsOfAsync(user.Id, cancellationToken),
+            await users.AccountDetailsOfAsync(user.Id, cancellationToken));
+
+    private static ServerInfo ToServerInfo(Tenant tenant) => new(tenant.Id, tenant.Name, tenant.LoginUrl, tenant.LogoUrl);
 }
 
 /// <summary>Server is the id of the firm's server, as in MetaTrader.</summary>
@@ -128,11 +144,18 @@ public sealed record LoginRequest(string? Server, string? Email, string? Passwor
 /// <summary>The token from a login link.</summary>
 public sealed record LinkLoginRequest(string? Token);
 
-/// <summary>A firm's server: the id traders log in with and the firm's name.</summary>
-public sealed record ServerInfo(string Id, string Name);
+/// <summary>
+/// A firm's server: the id traders log in with and the firm's name. With <paramref name="LoginUrl"/>, the firm's
+/// traders log in there, for example on the firm's portal, which opens the terminal with a one-time link.
+/// <paramref name="LogoUrl"/> is the firm's logo, when it has one.
+/// </summary>
+public sealed record ServerInfo(string Id, string Name, Uri? LoginUrl, Uri? LogoUrl = null);
 
-/// <summary>The logged in trader, their firm's server and the accounts they own.</summary>
-public sealed record MeResponse(Guid UserId, string Email, ServerInfo Server, IReadOnlyList<string> Accounts);
+/// <summary>
+/// The logged in trader, their firm's server and the accounts they own, with what the firm says about each in
+/// <paramref name="AccountDetails"/>, in the same order.
+/// </summary>
+public sealed record MeResponse(Guid UserId, string Email, ServerInfo Server, IReadOnlyList<string> Accounts, IReadOnlyList<AccountDetails> AccountDetails);
 
 internal static class CurrentUser
 {

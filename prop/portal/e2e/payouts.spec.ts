@@ -35,7 +35,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
 
   // The firm starts the challenge and invites the trader.
   await logIn(page, "/admin/login", admin.email, admin.password);
-  await startChallenge(page, email, /^Quick test 100000 USD/);
+  await startChallenge(page, email, /^Quick test 100K/);
   const phaseOne = page.getByText(/Trading account demo-firm-\d+-1/);
   await expect(phaseOne).toBeVisible({ timeout: 20_000 });
   const accountBase = (await phaseOne.textContent())!.match(/demo-firm-\d+/)![0];
@@ -66,6 +66,14 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   await deposit(request, funded, 8_000);
   await tradeOnce(request, funded);
 
+  // The trader says where the money goes, under Payouts, before asking for one.
+  await trader.goto("/payouts");
+  await trader.getByLabel("Account holder").fill("E2E Trader");
+  await trader.getByLabel("IBAN or account number").fill("SE45 5000 0000 0583 9825 7466");
+  await trader.getByRole("button", { name: "Save" }).click();
+  await expect(trader.getByText("SE45 5000 0000 0583 9825 7466")).toBeVisible();
+  await trader.goto("/");
+
   // The trader opens the account from the start page, sees the funded stage's trade and asks for the payout. The
   // profit comes off the trading account at once.
   await trader.getByRole("link", { name: /^Details of account/ }).click();
@@ -73,8 +81,8 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   await expect(trader.getByRole("cell", { name: "EURUSD" }).first()).toBeVisible({ timeout: 20_000 });
   const requestPayout = trader.getByRole("button", { name: "Request payout" });
   await expect(requestPayout).toBeEnabled({ timeout: 20_000 });
-  trader.once("dialog", (dialog) => dialog.accept());
   await requestPayout.click();
+  await trader.getByRole("dialog").getByRole("button", { name: "Request payout" }).click();
   await expect(trader.getByRole("heading", { name: "Payout on its way" })).toBeVisible({ timeout: 20_000 });
   await expect(trader.getByText("Waiting for approval").first()).toBeVisible({ timeout: 20_000 });
   const account = await request.get(`${tradingUrl}/api/admin/v1/accounts/${funded}`, { headers: tradingAdminHeaders });
@@ -88,15 +96,18 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   expect(lines[0]).toBe("Position,Symbol,Side,Volume,Opened (UTC),Open price,Closed (UTC),Close price,Profit,Commission,Result,Close reason");
   expect(lines.slice(1).every((line) => line.includes(",EURUSD,Buy,0.01,"))).toBeTruthy();
 
-  // The firm approves the payout waiting for it, sends the money and marks the payout as paid.
+  // The firm sees where to send the money, approves the payout, sends the money and marks the payout as paid.
   await adminLink(page, "Payouts").click();
   const row = page.getByRole("row").filter({ hasText: email });
+  await expect(row.getByText("SE45 5000 0000 0583 9825 7466")).toBeVisible();
+  // The firm has not ticked its checks of the trader, so approving asks first.
   await row.getByRole("button", { name: "Approve" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Approve anyway" }).click();
   await expect(row).toHaveCount(0);
   await page.getByRole("button", { name: /^To pay/ }).click();
   await row.getByRole("button", { name: "Mark as paid" }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel(/^Your reference/).fill("wire-e2e");
+  await dialog.getByLabel(/^Reference/).fill("wire-e2e");
   await dialog.getByRole("button", { name: "Mark as paid" }).click();
   await expect(row).toHaveCount(0);
   await page.getByRole("button", { name: "All", exact: true }).click();

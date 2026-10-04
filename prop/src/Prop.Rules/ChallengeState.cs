@@ -31,6 +31,8 @@ public sealed record AccountFigures(decimal Balance, int OpenPositions);
 /// position is opened before. <paramref name="PausedOn"/> is the trading day the challenge was paused, while it
 /// is: the deadlines then move on by the days it was paused.
 /// </para>
+/// <paramref name="DayProfits"/> are what the closed positions made on each trading day of the stage, since the last
+/// payout on the funded stage, for the consistency rule.
 /// </summary>
 public sealed record ChallengeState(
     string ChallengeId,
@@ -45,8 +47,12 @@ public sealed record ChallengeState(
     Payout? Payout = null,
     DateOnly? StageDeadline = null,
     DateOnly? InactivityDeadline = null,
-    DateOnly? PausedOn = null)
+    DateOnly? PausedOn = null,
+    ImmutableSortedDictionary<DateOnly, decimal>? DayProfits = null)
 {
+    /// <summary>The best trading day's profit, 0 when no day made one.</summary>
+    public decimal BestDayProfit => DayProfits is { Count: > 0 } days ? Math.Max(0m, days.Values.Max()) : 0m;
+
     public bool HasEnded => Status is ChallengeStatus.Failed or ChallengeStatus.Cancelled;
 
     public bool IsPaused => PausedOn is not null;

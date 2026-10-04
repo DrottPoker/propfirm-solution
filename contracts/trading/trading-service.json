@@ -27,6 +27,38 @@
         }
       }
     },
+    "/api/servers/{id}": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerInfo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -936,6 +968,45 @@
         }
       }
     },
+    "/api/admin/v1/accounts/{accountId}/details": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDetailsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/v1/events": {
       "get": {
         "tags": [
@@ -977,6 +1048,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FirmEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/instruments": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlatformInstrument"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/groups": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FirmGroupResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/groups/{groupId}/symbols": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeGroupSymbolsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
                 }
               }
             }
@@ -1069,6 +1223,43 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "Partner"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/partner/v1/tenants/{id}/admin-key": {
@@ -1103,6 +1294,85 @@
   },
   "components": {
     "schemas": {
+      "AccountDetails": {
+        "required": [
+          "accountId",
+          "label",
+          "profitTarget",
+          "timeZone",
+          "detailsUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profitTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "detailsUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          }
+        },
+        "description": "What the terminal shows about an account, set by the firm's systems. Label names it for the trader,\nfor example \"#1001 Two-step 100K · Phase 1\". ProfitTarget is the balance that passes it.\nTimeZone is its trading day's, which the terminal shows times in. DetailsUrl is\nwhere the trader sees more about it, for example the account in the firm's portal. Each is null when not set."
+      },
+      "AccountDetailsRequest": {
+        "required": [
+          "label",
+          "profitTarget",
+          "timeZone",
+          "detailsUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "profitTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "detailsUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "What the terminal shows about an account: Label names it for the trader, ProfitTarget\nis the balance that passes it, TimeZone its trading day's (IANA) and DetailsUrl where\nthe trader sees more about it. Empty for none."
+      },
       "AccountSnapshot": {
         "required": [
           "accountId",
@@ -1268,6 +1538,24 @@
         },
         "description": "Bar of bid prices. Time is the start of the bar in UTC."
       },
+      "ChangeGroupSymbolsRequest": {
+        "required": [
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "symbols": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/GroupSymbol"
+            }
+          }
+        },
+        "description": "Every symbol the group should trade, with its conditions. Symbols left out are removed."
+      },
       "CloseReason": {
         "enum": [
           "Manual",
@@ -1324,6 +1612,7 @@
           "id",
           "name",
           "listed",
+          "loginUrl",
           "groups",
           "adminApiKey"
         ],
@@ -1337,6 +1626,13 @@
           },
           "listed": {
             "type": "boolean"
+          },
+          "loginUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
           },
           "groups": {
             "type": "array",
@@ -1383,9 +1679,15 @@
               "null",
               "string"
             ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "A firm with its server Id, which traders log in to, and its name."
+        "description": "A firm with its server Id, which traders log in to, and its name. Currency is its\naccounts' currency, one of `Tenancy:Currencies`, or the template groups' own when left out."
       },
       "CreateUserRequest": {
         "required": [
@@ -1448,6 +1750,9 @@
             "$ref": "#/components/schemas/EngineEventGroupCreated"
           },
           {
+            "$ref": "#/components/schemas/EngineEventGroupSymbolsChanged"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventInputRejected"
           },
           {
@@ -1482,6 +1787,7 @@
             "EquityFloorRemoved": "#/components/schemas/EngineEventEquityFloorRemoved",
             "EquityFloorSet": "#/components/schemas/EngineEventEquityFloorSet",
             "GroupCreated": "#/components/schemas/EngineEventGroupCreated",
+            "GroupSymbolsChanged": "#/components/schemas/EngineEventGroupSymbolsChanged",
             "InputRejected": "#/components/schemas/EngineEventInputRejected",
             "OrderCancelled": "#/components/schemas/EngineEventOrderCancelled",
             "OrderPlaced": "#/components/schemas/EngineEventOrderPlaced",
@@ -1760,6 +2066,28 @@
           }
         },
         "description": "A trading group was created. Its symbols are in symbol order."
+      },
+      "EngineEventGroupSymbolsChanged": {
+        "required": [
+          "group",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "GroupSymbolsChanged"
+            ],
+            "type": "string"
+          },
+          "group": {
+            "$ref": "#/components/schemas/TradingGroup"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A created group's symbols changed. Holds the whole group as it is now, with its symbols in symbol order."
       },
       "EngineEventInputRejected": {
         "required": [
@@ -2108,6 +2436,9 @@
             "$ref": "#/components/schemas/EngineInputCancelOrder"
           },
           {
+            "$ref": "#/components/schemas/EngineInputChangeGroupSymbols"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputCloseAccount"
           },
           {
@@ -2147,6 +2478,7 @@
           "mapping": {
             "AdjustBalance": "#/components/schemas/EngineInputAdjustBalance",
             "CancelOrder": "#/components/schemas/EngineInputCancelOrder",
+            "ChangeGroupSymbols": "#/components/schemas/EngineInputChangeGroupSymbols",
             "CloseAccount": "#/components/schemas/EngineInputCloseAccount",
             "ClosePosition": "#/components/schemas/EngineInputClosePosition",
             "CreateAccount": "#/components/schemas/EngineInputCreateAccount",
@@ -2223,6 +2555,35 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineInputChangeGroupSymbols": {
+        "required": [
+          "groupId",
+          "symbols",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ChangeGroupSymbols"
+            ],
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolConditions"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Replaces the symbols and their conditions of a group created with CreateGroup, for example when\nthe firm changes its leverage or commission. Configured groups are changed in the configuration. Open positions\nand pending orders take the new conditions at once. A symbol can only be removed while no account in the group\nhas a position or an order in it."
       },
       "EngineInputCloseAccount": {
         "required": [
@@ -2321,7 +2682,7 @@
             "format": "date-time"
           }
         },
-        "description": "Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards."
+        "description": "Creates a trading group, for example for a firm that signed up. Its currency and stop out level never change\nafterwards, but its symbols can (see ChangeGroupSymbols)."
       },
       "EngineInputModifyPosition": {
         "required": [
@@ -2688,6 +3049,38 @@
         },
         "description": "The firm's events in order. Ask again with `after` set to Cursor for the next ones."
       },
+      "FirmGroupResponse": {
+        "required": [
+          "id",
+          "currency",
+          "stopOutLevelPercent",
+          "changeable",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "stopOutLevelPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "changeable": {
+            "type": "boolean"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupSymbol"
+            }
+          }
+        },
+        "description": "One of the firm's trading groups. Only a Changeable group, created for the firm, can get other symbols."
+      },
       "FloorAnchor": {
         "enum": [
           "Balance",
@@ -2725,6 +3118,36 @@
           }
         },
         "description": "An equity floor. Headroom is how far equity can fall before the floor is breached."
+      },
+      "GroupSymbol": {
+        "required": [
+          "symbol",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "leverage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A symbol a group trades. Margin is the position's value divided by Leverage. SpreadMarkupPoints\nare added to the price feed's spread, and CommissionPerLotPerSide is charged in the account currency both on open\nand on close."
       },
       "InstrumentInfo": {
         "required": [
@@ -2853,7 +3276,8 @@
           "userId",
           "email",
           "server",
-          "accounts"
+          "accounts",
+          "accountDetails"
         ],
         "type": "object",
         "properties": {
@@ -2872,9 +3296,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "accountDetails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountDetails"
+            }
           }
         },
-        "description": "The logged in trader, their firm's server and the accounts they own."
+        "description": "The logged in trader, their firm's server and the accounts they own, with what the firm says about each in\nAccountDetails, in the same order."
       },
       "ModifyStopsRequest": {
         "required": [
@@ -3010,6 +3440,51 @@
         },
         "description": "Places an order. The client creates the order id, so a retry can never place the order twice."
       },
+      "PlatformInstrument": {
+        "required": [
+          "symbol",
+          "baseCurrency",
+          "quoteCurrency",
+          "contractSize",
+          "digits",
+          "volumeMin",
+          "volumeStep",
+          "volumeMax"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "quoteCurrency": {
+            "type": "string"
+          },
+          "contractSize": {
+            "type": "number",
+            "format": "double"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "volumeMin": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeStep": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeMax": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An instrument on the platform. ContractSize is the units of the base currency in one lot."
+      },
       "PointValue": {
         "required": [
           "symbol",
@@ -3106,6 +3581,8 @@
           "InvalidQuote",
           "UnknownGroup",
           "InvalidGroup",
+          "GroupNotChangeable",
+          "SymbolInUse",
           "InvalidAmount",
           "UnknownAccount",
           "AccountDisabled",
@@ -3131,7 +3608,8 @@
       "ServerInfo": {
         "required": [
           "id",
-          "name"
+          "name",
+          "loginUrl"
         ],
         "type": "object",
         "properties": {
@@ -3140,9 +3618,23 @@
           },
           "name": {
             "type": "string"
+          },
+          "loginUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
           }
         },
-        "description": "A firm's server: the id traders log in with and the firm's name."
+        "description": "A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's\ntraders log in there, for example on the firm's portal, which opens the terminal with a one-time link.\nLogoUrl is the firm's logo, when it has one."
       },
       "ServerNameResponse": {
         "required": [
@@ -3278,6 +3770,7 @@
           "id",
           "name",
           "listed",
+          "loginUrl",
           "groups"
         ],
         "type": "object",
@@ -3291,14 +3784,28 @@
           "listed": {
             "type": "boolean"
           },
+          "loginUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
           "groups": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TenantGroupResponse"
             }
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
           }
         },
-        "description": "A firm. Only Listed servers are on the list traders choose from."
+        "description": "A firm. Only Listed servers are on the list traders choose from. LoginUrl is\nwhere the terminal sends the firm's traders to log in, or null when they log in with a password.\nLogoUrl is the firm's logo, which the terminal shows with its name."
       },
       "Timeframe": {
         "enum": [
@@ -3341,6 +3848,34 @@
           }
         },
         "description": "Trading conditions shared by a group of accounts, set by the firm."
+      },
+      "UpdateTenantRequest": {
+        "required": [
+          "listed",
+          "loginUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "listed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "loginUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "What to change about a firm. Null leaves it as it is. An empty LoginUrl or LogoUrl removes it."
       },
       "UserResponse": {
         "required": [

@@ -12,7 +12,7 @@ import { ErrorText, Panel, SegmentedControl, secondaryButtonClass } from "./ui";
 
 /** Close reasons from the trading platform, in words. An unknown one is shown as it is. */
 const closeReasons: Record<string, string> = {
-  Manual: "Closed",
+  Manual: "Manual",
   StopLoss: "Stop loss",
   TakeProfit: "Take profit",
   StopOut: "Stop out",
@@ -59,6 +59,7 @@ export function AccountHistory({ details, now, role = "trader" }: { details: Acc
           <Panel title="Balance">
             <BalanceChart
               performance={data}
+              timeZone={details.challenge.tradingDay.timeZone}
               equity={tradingThisStage ? details.results.equity : null}
               floating={tradingThisStage ? details.results.floating : null}
               endTime={tradingThisStage ? now : data.balance.length > 0 ? Date.parse(data.balance[data.balance.length - 1].time) : now}
@@ -154,6 +155,7 @@ function Statistics({ statistics: s }: { statistics: TradeStatistics }) {
 function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage: number; role: Role }) {
   const trades = useTrades(details.account.id, stage, details.historyVersion, role);
   const rows: Trade[] = trades.data?.pages.flatMap((p) => p.trades) ?? [];
+  const timeZone = details.challenge.tradingDay.timeZone;
 
   return (
     <Panel
@@ -206,10 +208,10 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
                   <td className="py-2 font-medium">{trade.symbol}</td>
                   <td className={`py-2 pl-4 ${trade.side === "Buy" ? "text-profit" : "text-loss"}`}>{trade.side}</td>
                   <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatLots(trade.volume)}</td>
-                  <td className="whitespace-nowrap py-2 pl-4 text-muted">{trade.openedAt ? formatShortDateTime(trade.openedAt) : "-"}</td>
+                  <td className="whitespace-nowrap py-2 pl-4 text-muted">{trade.openedAt ? formatShortDateTime(trade.openedAt, timeZone) : "-"}</td>
                   <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatPrice(trade.openPrice)}</td>
                   <td className="whitespace-nowrap py-2 pl-4 text-muted">
-                    {formatShortDateTime(trade.closedAt)}
+                    {formatShortDateTime(trade.closedAt, timeZone)}
                     {trade.closeReason !== "Manual" && <span className="block text-xs">{closeReasons[trade.closeReason] ?? trade.closeReason}</span>}
                   </td>
                   <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatPrice(trade.closePrice)}</td>

@@ -36,15 +36,20 @@ internal static class AdminSettingsEndpoints
     {
         admin.MapGet("/firm", GetFirm);
         admin.MapPut("/firm/branding", SetBrandingAsync);
+        admin.MapPut("/firm/email-settings", SetEmailSettingsAsync);
+        admin.MapPut("/firm/support-email", SetSupportEmailAsync);
         admin.MapPut("/firm/logo", UploadLogoAsync).DisableAntiforgery();
         admin.MapDelete("/firm/logo", RemoveLogoAsync);
         admin.MapPost("/firm/api-key", CreateApiKeyAsync);
         admin.MapPut("/firm/webhook", SetWebhookAsync);
+        admin.MapGet("/firm/webhook", GetWebhookAsync);
+        admin.MapPost("/firm/webhook/test", SendTestWebhookAsync);
         admin.MapPost("/firm/webhook/secret", CreateWebhookSecretAsync);
         admin.MapGet("/challenge-templates", GetChallengeTemplates);
         admin.MapPut("/challenges/{challengeId}", SaveChallengeAsync);
         admin.MapGet("/admins", ListAdminsAsync);
         admin.MapPost("/admins/invites", InviteAdminAsync);
+        admin.MapPost("/admins/invites/withdraw", WithdrawAdminInviteAsync);
         admin.MapDelete("/admins/{adminId:guid}", RemoveAdminAsync);
         return admin;
     }
@@ -66,7 +71,7 @@ internal static class AdminSettingsEndpoints
         }
 
         await PortalAuth.SignInAsync(context, admin);
-        return TypedResults.Ok(new PortalMeResponse(admin.Id, admin.Email, admin.Role, firm.Name));
+        return TypedResults.Ok(PortalMeResponse.Of(admin, firm.Name));
     }
 
     /// <summary>An invited administrator chooses a password and is logged in.</summary>
@@ -102,14 +107,14 @@ internal static class AdminSettingsEndpoints
             default:
                 var admin = (await users.FindByIdAsync(adminId, PortalRoles.Admin, cancellationToken))!;
                 await PortalAuth.SignInAsync(context, admin);
-                return TypedResults.Ok(new PortalMeResponse(admin.Id, admin.Email, admin.Role, firm.Name));
+                return TypedResults.Ok(PortalMeResponse.Of(admin, firm.Name));
         }
     }
 
     private static Ok<FirmSettingsResponse> GetFirm(HttpContext context, OrderService orders, IOptions<SandboxOptions> sandbox, IOptions<PlatformOptions> platform)
     {
         var firm = PortalFirmFilter.FirmOf(context);
-        return TypedResults.Ok(FirmSettingsResponse.From(firm, sandbox.Value, ShopEndpoints.SettingsOf(firm, orders, platform.Value)));
+        return TypedResults.Ok(FirmSettingsResponse.From(firm, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(firm, orders, platform.Value)));
     }
 
     private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SetBrandingAsync(
@@ -132,7 +137,61 @@ internal static class AdminSettingsEndpoints
         var firm = PortalFirmFilter.FirmOf(context);
         await store.SetColorsAsync(firm.Id, colors, time.GetUtcNow(), cancellationToken);
         var saved = await ReloadAsync(firm, store, firms, cancellationToken);
-        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+    }
+
+    /// <summary>Turns notification emails on or off by kind. Kinds that are left out keep their setting.</summary>
+    private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SetEmailSettingsAsync(
+        EmailSettingsRequest request,
+        HttpContext context,
+        FirmStore store,
+        FirmCatalog firms,
+        OrderService orders,
+        IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var changes = request.Settings ?? new Dictionary<string, bool>();
+        if (changes.Keys.FirstOrDefault(k => !NotificationKinds.All.Contains(k)) is { } unknown)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, $"There is no email called {unknown}.");
+        }
+
+        var firm = PortalFirmFilter.FirmOf(context);
+        var settings = new Dictionary<string, bool>(firm.EmailSettings ?? new Dictionary<string, bool>());
+        foreach (var (kind, on) in changes)
+        {
+            settings[kind] = on;
+        }
+
+        await store.SetEmailSettingsAsync(firm.Id, settings, time.GetUtcNow(), cancellationToken);
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+    }
+
+    /// <summary>Where replies to the emails to the firm's traders go. Empty for nowhere.</summary>
+    private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SetSupportEmailAsync(
+        SupportEmailRequest request,
+        HttpContext context,
+        FirmStore store,
+        FirmCatalog firms,
+        OrderService orders,
+        IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim();
+        if (email is not null && (email.Length > 254 || !MimeKit.MailboxAddress.TryParse(email, out var address) || address.Address != email || !email.Contains('@', StringComparison.Ordinal)))
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "Write the support address as an email address, for example support@yourfirm.com.");
+        }
+
+        var firm = PortalFirmFilter.FirmOf(context);
+        await store.SetSupportEmailAsync(firm.Id, email, time.GetUtcNow(), cancellationToken);
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
 
     /// <summary>A PNG, JPEG, WebP or SVG logo of at most 1 MB, in the form field file. It replaces the firm's earlier logo.</summary>
@@ -142,6 +201,7 @@ internal static class AdminSettingsEndpoints
         FirmStore store,
         FirmCatalog firms,
         OrderService orders,
+        WorkSignals signals,
         IOptions<SandboxOptions> sandbox,
         IOptions<PlatformOptions> platform,
         TimeProvider time,
@@ -168,7 +228,10 @@ internal static class AdminSettingsEndpoints
         var firm = PortalFirmFilter.FirmOf(context);
         await store.SetLogoAsync(firm.Id, logo, time.GetUtcNow(), cancellationToken);
         var saved = await ReloadAsync(firm, store, firms, cancellationToken);
-        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+
+        // The terminal shows the logo too.
+        signals.Provisioning.Set();
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
 
     /// <summary>Removes the logo, so the portal shows the firm's name.</summary>
@@ -177,6 +240,7 @@ internal static class AdminSettingsEndpoints
         FirmStore store,
         FirmCatalog firms,
         OrderService orders,
+        WorkSignals signals,
         IOptions<SandboxOptions> sandbox,
         IOptions<PlatformOptions> platform,
         TimeProvider time,
@@ -185,7 +249,8 @@ internal static class AdminSettingsEndpoints
         var firm = PortalFirmFilter.FirmOf(context);
         await store.RemoveLogoAsync(firm.Id, time.GetUtcNow(), cancellationToken);
         var saved = await ReloadAsync(firm, store, firms, cancellationToken);
-        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+        signals.Provisioning.Set();
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
 
     /// <summary>A new key for the firm API. Shown only now; the old key stops working.</summary>
@@ -226,6 +291,35 @@ internal static class AdminSettingsEndpoints
         return TypedResults.Ok(new WebhookResponse(url, secret));
     }
 
+    /// <summary>Where webhooks go, the events they tell about, and the latest deliveries with how they went.</summary>
+    private static async Task<Ok<WebhookOverviewResponse>> GetWebhookAsync(HttpContext context, WebhookDeliveries deliveries, CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        return TypedResults.Ok(new WebhookOverviewResponse(
+            firm.Webhook?.Url,
+            [.. WebhookEvents.All.Select(e => new WebhookEventResponse(e.Type, e.Description))],
+            [.. (await deliveries.LatestAsync(firm.Id, WebhookDeliveries.Shown, cancellationToken)).Select(WebhookDeliveryResponse.From)]));
+    }
+
+    /// <summary>Queues the event webhook.test to the firm's address, so the firm can see that its system receives and checks them.</summary>
+    private static async Task<Results<Accepted, ProblemHttpResult>> SendTestWebhookAsync(
+        HttpContext context,
+        WebhookDeliveries deliveries,
+        WorkSignals signals,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (firm.Webhook is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "Save the webhook's address first.");
+        }
+
+        await deliveries.AddTestAsync(firm, time.GetUtcNow(), cancellationToken);
+        signals.Webhooks.Set();
+        return TypedResults.Accepted((string?)null);
+    }
+
     /// <summary>A new secret that signs the webhooks. Shown only now; webhooks are signed with it from now on.</summary>
     private static async Task<Ok<WebhookSecretResponse>> CreateWebhookSecretAsync(
         HttpContext context,
@@ -248,10 +342,25 @@ internal static class AdminSettingsEndpoints
         return TypedResults.Ok<List<ChallengeTemplateResponse>>(
         [
             new(
+                "one-step",
+                "One-step",
+                "One phase with a 10 percent profit target, 4 percent daily loss, 6 percent max loss and an 80 percent profit split.",
+                ChallengeTemplates.OneStep("one-step-100k", 100_000m, currency)),
+            new(
                 "two-step",
                 "Two-step",
                 "Profit targets of 10 and 5 percent, 5 percent daily loss, 10 percent max loss and an 80 percent profit split.",
                 ChallengeTemplates.TwoStep("two-step-100k", 100_000m, currency)),
+            new(
+                "three-step",
+                "Three-step",
+                "Three phases with 6 percent targets, 5 percent daily loss, 10 percent max loss and an 80 percent profit split.",
+                ChallengeTemplates.ThreeStep("three-step-100k", 100_000m, currency)),
+            new(
+                "instant-funded",
+                "Instant funded",
+                "Funded from the start, without evaluation: 3 percent daily loss, 6 percent trailing max loss and a 70 percent profit split.",
+                ChallengeTemplates.InstantFunded("instant-funded-100k", 100_000m, currency)),
         ]);
     }
 
@@ -279,7 +388,18 @@ internal static class AdminSettingsEndpoints
             [.. invites.Select(i => new AdminInviteResponse(i.Email, i.ExpiresAt))]));
     }
 
-    /// <summary>Emails an invitation to administer the firm. It replaces earlier ones to the same address.</summary>
+    /// <summary>Takes back the invitation to the email, so its link no longer works.</summary>
+    private static async Task<Results<NoContent, ProblemHttpResult>> WithdrawAdminInviteAsync(
+        AdminInviteRequest request,
+        HttpContext context,
+        FirmAdmins admins,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        !string.IsNullOrWhiteSpace(request.Email) && await admins.WithdrawInvitesAsync(PortalFirmFilter.FirmOf(context).Id, request.Email, time.GetUtcNow(), cancellationToken)
+            ? TypedResults.NoContent()
+            : AccountActions.Problem(StatusCodes.Status404NotFound, "There is no invitation to that email.");
+
+    /// <summary>Emails an invitation to administer the firm. It replaces earlier ones to the same address, so sending it again is the same.</summary>
     private static async Task<Results<Created<AdminInviteResponse>, ProblemHttpResult>> InviteAdminAsync(
         AdminInviteRequest request,
         HttpContext context,
@@ -352,7 +472,10 @@ public sealed record WelcomeRequest(string? Token);
 
 /// <summary>
 /// The firm's settings for its admin panel. <paramref name="SandboxMaxOpenAccounts"/> is set while the firm is in
-/// the sandbox. <paramref name="Payments"/> is how its portal takes payment.
+/// the sandbox. <paramref name="Payments"/> is how its portal takes payment. <paramref name="EmailSettings"/> has every
+/// notification email by kind, and whether the firm sends it, and <paramref name="SupportEmail"/> is where replies to the
+/// emails to its traders go. <paramref name="FirmApiUrl"/> is where the firm's own systems reach the firm API, and
+/// <paramref name="OpenApiUrl"/> its description for code generators.
 /// </summary>
 public sealed record FirmSettingsResponse(
     string Id,
@@ -366,9 +489,13 @@ public sealed record FirmSettingsResponse(
     bool HasApiKey,
     Uri? WebhookUrl,
     int? SandboxMaxOpenAccounts,
-    PaymentSettingsResponse Payments)
+    PaymentSettingsResponse Payments,
+    IReadOnlyDictionary<string, bool> EmailSettings,
+    Uri FirmApiUrl,
+    Uri OpenApiUrl,
+    string? SupportEmail)
 {
-    internal static FirmSettingsResponse From(Firm firm, SandboxOptions sandbox, PaymentSettingsResponse payments) =>
+    internal static FirmSettingsResponse From(Firm firm, SandboxOptions sandbox, PlatformOptions platform, PaymentSettingsResponse payments) =>
         new(
             firm.Id,
             firm.Name,
@@ -381,8 +508,18 @@ public sealed record FirmSettingsResponse(
             firm.ApiKeyHash is not null,
             firm.Webhook?.Url,
             firm.Status == FirmStatus.Live ? null : sandbox.MaxOpenAccounts,
-            payments);
+            payments,
+            NotificationKinds.All.ToDictionary(kind => kind, kind => NotificationKinds.IsOn(firm, kind)),
+            new Uri(platform.ApiUrl!, "api/firm/v1/"),
+            new Uri(platform.ApiUrl!, "openapi/v1.json"),
+            firm.SupportEmail);
 }
+
+/// <summary>Where replies to the emails to the firm's traders go. Empty for nowhere.</summary>
+public sealed record SupportEmailRequest(string? Email);
+
+/// <summary>Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting.</summary>
+public sealed record EmailSettingsRequest(IReadOnlyDictionary<string, bool>? Settings);
 
 /// <summary>The portal's colors to override, as #rrggbb. The logo is uploaded on its own.</summary>
 public sealed record BrandingRequest(IReadOnlyDictionary<string, string>? Colors);
@@ -410,3 +547,36 @@ public sealed record AdminInviteResponse(string Email, DateTimeOffset ExpiresAt)
 
 /// <summary>The firm's administrators, and the invitations that wait for a password.</summary>
 public sealed record AdminsResponse(IReadOnlyList<AdminResponse> Admins, IReadOnlyList<AdminInviteResponse> Invites);
+
+/// <summary>Where webhooks go, every event they tell about, and the latest deliveries, the newest first.</summary>
+public sealed record WebhookOverviewResponse(Uri? Url, IReadOnlyList<WebhookEventResponse> Events, IReadOnlyList<WebhookDeliveryResponse> Deliveries);
+
+public sealed record WebhookEventResponse(string Type, string Description);
+
+/// <summary>
+/// One webhook and how it went: <c>Delivered</c>, <c>Failed</c> after the last try, or <c>Pending</c> while it is tried
+/// again, with the firm's last answer (<paramref name="LastStatus"/>) or the error.
+/// </summary>
+public sealed record WebhookDeliveryResponse(
+    Guid Id,
+    string EventType,
+    DateTimeOffset CreatedAt,
+    string Status,
+    int Attempts,
+    int? LastStatus,
+    string? LastError,
+    DateTimeOffset? DeliveredAt,
+    DateTimeOffset? NextAttemptAt)
+{
+    internal static WebhookDeliveryResponse From(WebhookDelivery delivery) =>
+        new(
+            delivery.Id,
+            delivery.EventType,
+            delivery.CreatedAt,
+            delivery.DeliveredAt is not null ? "Delivered" : delivery.FailedAt is not null ? "Failed" : "Pending",
+            delivery.Attempts,
+            delivery.LastStatus,
+            delivery.LastError,
+            delivery.DeliveredAt,
+            delivery.DeliveredAt is null && delivery.FailedAt is null ? delivery.NextAttemptAt : null);
+}

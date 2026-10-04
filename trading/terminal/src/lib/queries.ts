@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, commandResult, queryResult } from "./api/client";
+import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./api/client";
 import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
 import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
@@ -8,7 +8,7 @@ import { useTradingStore } from "./store";
 
 const accountPath = (accountId: string) => ({ params: { path: { accountId } } });
 
-const meKey = ["me"];
+export const meKey = ["me"];
 
 /** The logged in trader, or null when nobody is logged in. */
 export function useMe() {
@@ -27,6 +27,19 @@ export function useServers() {
   return useQuery({
     queryKey: ["servers"],
     queryFn: async () => queryResult(await api.GET("/api/servers"), "the servers"),
+    staleTime: Infinity,
+  });
+}
+
+/** One server, also one that is not listed, for example the one in a link from the firm's portal. Null if it does not exist. */
+export function useServer(serverId: string | null) {
+  return useQuery({
+    queryKey: ["server", serverId],
+    queryFn: async () => {
+      const result = await api.GET("/api/servers/{id}", { params: { path: { id: serverId ?? "" } } });
+      return result.response.status === 404 ? null : queryResult(result, "the server");
+    },
+    enabled: serverId !== null && serverId.length > 0,
     staleTime: Infinity,
   });
 }
@@ -50,7 +63,10 @@ export function useLogin() {
 
       return queryResult(result, "the login");
     },
-    onSuccess: (me) => queryClient.setQueryData(meKey, me),
+    onSuccess: (me) => {
+      markLoggedIn();
+      queryClient.setQueryData(meKey, me);
+    },
   });
 }
 
@@ -70,7 +86,10 @@ export function useLinkLogin() {
 
       return queryResult(result, "the login link");
     },
-    onSuccess: (me) => queryClient.setQueryData(meKey, me),
+    onSuccess: (me) => {
+      markLoggedIn();
+      queryClient.setQueryData(meKey, me);
+    },
   });
 }
 
@@ -85,7 +104,9 @@ export class LinkLoginFailedError extends Error {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
+    // Marked first, so calls refused while the session ends do not send the trader back to the firm's portal.
     mutationFn: async () => {
+      markLoggedOut();
       await api.POST("/api/auth/logout");
     },
     onSuccess: () => queryClient.setQueryData(meKey, null),

@@ -82,7 +82,7 @@ export function whenText(iso: string, now: number): string {
   return sameDay(time, yesterday) ? "Yesterday" : time.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export type NeedsYouIcon = "payout" | "approve" | "slots";
+export type NeedsYouIcon = "payout" | "approve" | "slots" | "shop";
 
 /** Something the firm has to do, with where to do it. */
 export type NeedsYouItem = {
@@ -99,8 +99,8 @@ export type NeedsYouItem = {
 export const namedWaitingAccounts = 3;
 
 /**
- * What the firm has to do, the most urgent first: payouts to approve and to pay, accounts that passed every stage and
- * wait for the firm, and slots that run out. Billing problems are said on every page instead.
+ * What the firm has to do, the most urgent first: a live shop that sells nothing, payouts to approve and to pay, accounts
+ * that passed every stage and wait for the firm, and slots that run out. Billing problems are said on every page instead.
  */
 export function needsYouItems(input: {
   payouts: PayoutSummary;
@@ -110,9 +110,23 @@ export function needsYouItems(input: {
   slots: Slots | null;
   currency: string;
   now: number;
+  /** Why the live firm's shop takes no payment, or null. */
+  shopProblem?: string | null;
 }): NeedsYouItem[] {
-  const { payouts, waitingAccounts, waitingCount, slots, currency, now } = input;
+  const { payouts, waitingAccounts, waitingCount, slots, currency, now, shopProblem } = input;
   const items: NeedsYouItem[] = [];
+  if (shopProblem) {
+    items.push({
+      key: "shop",
+      icon: "shop",
+      tone: "warning",
+      title: "Your shop takes no payment",
+      detail: shopProblem,
+      href: "/admin/checkout",
+      action: "Set up checkout",
+    });
+  }
+
   const toApprove = payouts.toApprove;
   if (toApprove.count > 0) {
     items.push({
@@ -145,7 +159,7 @@ export function needsYouItems(input: {
       icon: "approve",
       tone: "accent",
       title: `${account.email} passed ${input.challengeName(account.challengeId)}`,
-      detail: `Account #${account.number} waits for a funded account. Approve it when your checks, such as KYC, are done.`,
+      detail: `Account #${account.number} waits for a funded account. Approve it when your checks of the trader are done.`,
       href: `/admin/accounts/${account.id}`,
       action: "Review account",
     });

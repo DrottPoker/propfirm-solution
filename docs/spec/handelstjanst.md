@@ -1,8 +1,8 @@
 # Spec: handelstjänsten
 
-- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6, pausade konton i 7
+- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6, pausade konton i 7, handelsvillkor, listning, inloggning genom firmans portal och kontonas uppgifter för terminalen efter genomgången som ny firma
 - Status: Implementerad i `trading/src/Trading.Service`
-- Datum: 2026-10-02
+- Datum: 2026-10-05
 
 ## Syfte
 
@@ -47,7 +47,7 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 | `engine_events` | Varje händelse med löpnummer, konto och kontots grupp. Används för `GET /events` och firmans händelseström. |
 | `engine_snapshots` | Motorns tillstånd efter ett visst indata, med konfigurationens fingeravtryck. De tre senaste behålls. |
 | `users`, `account_owners` | Traders och vilka konton de äger. |
-| `tenants`, `tenant_groups` | Firmorna: server, namn, SHA-256 av nyckeln till admin-API:t, partnern som skapade firman och om servern listas, och vilken firma varje grupp hör till. |
+| `tenants`, `tenant_groups` | Firmorna: server, namn, SHA-256 av nyckeln till admin-API:t, partnern som skapade firman, om servern listas och var firmans traders loggar in (`login_url`), och vilken firma varje grupp hör till. |
 | `data_protection_keys` | Nycklarna som skyddar inloggningscookies. |
 | `login_links` | Engångslänkar för inloggning: hash av token, trader, konto och när länken går ut. Länkar som gick ut för mer än ett dygn sedan tas bort när nya skapas. |
 | `schema_migrations` | Vilka migreringar som körts. Tabellerna skapas och uppgraderas en gång per start, innan något lager använder databasen första gången. Nycklarna för cookies läses nämligen innan motorn startar. |
@@ -58,14 +58,14 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 
 1. Kör migreringar.
 2. Läs den senaste ögonblicksbilden och återställ motorn från den.
-3. Spela upp indata efter den. Vägra starta om konfigurationen har ändrats sedan ögonblicksbilden och det finns indata att spela upp.
+3. Spela upp indata efter den. Har konfigurationen ändrats sedan ögonblicksbilden, till exempel med fler instrument, jämförs varje uppspelad händelse med den sparade. Vägra starta om någon skiljer sig, eftersom indatan då tillämpades med en annan konfiguration än den nya.
 4. Kontrollera att uppspelningen gav lika många händelser som journalen har. Vägra starta annars.
 5. Spara en ny ögonblicksbild med den aktuella konfigurationen.
 6. Bygg graferna från sparade priser och låt det syntetiska flödet fortsätta från de senaste priserna.
 
 **Avstängning:** Arbete som inte hunnit köras avbryts. Den sista batchen sparas tillsammans med en ögonblicksbild, så att nästa start inte behöver spela upp något.
 
-**Ändrad konfiguration:** Stäng av tjänsten på vanligt sätt (Ctrl+C), ändra konfigurationen och starta igen. Efter en krasch måste tjänsten först startas en gång med den gamla konfigurationen.
+**Ändrad konfiguration:** Stäng av tjänsten på vanligt sätt (Ctrl+C), ändra konfigurationen och starta igen. Efter en krasch startar tjänsten med den nya konfigurationen när uppspelningen ger samma händelser som sparades, vilket gäller en ändring som bara lägger till något. Annars måste den först startas en gång med den gamla konfigurationen.
 
 ## REST-API
 
@@ -78,8 +78,9 @@ Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument
 | `POST /api/auth/login` | Loggar in med `{ "server", "email", "password" }`, där `server` är firmans id. Sätter sessionscookien. Fel server, e-post eller lösenord ger samma svar. Högst `Login:AttemptsPerMinute` försök per minut och IP-adress, som standard 10. |
 | `POST /api/auth/link` | Loggar in med `{ "token" }` från en inloggningslänk. Länken fungerar en gång. Samma begränsning av försök som vid inloggning. |
 | `POST /api/auth/logout` | Loggar ut. |
-| `GET /api/auth/me` | Den inloggade tradern, firmans server och kontona tradern äger. |
-| `GET /api/servers` | Servrarna som listas, med id och firmans namn, sorterade efter namn. Firmor som en partner har skapat listas inte förrän de går live, men går att logga in på. Kräver ingen inloggning. |
+| `GET /api/auth/me` | Den inloggade tradern, firmans server med `logoUrl`, kontona tradern äger och deras uppgifter för terminalen i `accountDetails`: `label`, `profitTarget`, `timeZone` och `detailsUrl` (ADR 0035). |
+| `GET /api/servers` | Servrarna som listas, med id, firmans namn, `loginUrl` och `logoUrl`, sorterade efter namn. `loginUrl` är firmans portal när firmans traders loggar in där i stället för med ett lösenord här (ADR 0027). Firmor som en partner har skapat listas när partnern säger att de är live, men går att logga in på innan. Kräver ingen inloggning. |
+| `GET /api/servers/{id}` | En server, listad eller inte, med samma fält. 404 för en okänd. Terminalen hittar så en firma i sandlådan och dess portal. |
 
 ### För tradern
 
@@ -115,8 +116,12 @@ För firmans egna system, till exempel propfirm-plattformen (ADR 0012). Alla vä
 | `POST /accounts/{accountId}/close` | Stänger kontot. |
 | `POST /accounts/{accountId}/suspend` | Pausar kontot: väntande ordrar tas bort och nya tas inte emot, men tradern kan stänga positioner och ändra stoppar. Ett konto som redan är pausat svarar 200 utan händelser, och ett avstängt 422 med `AccountDisabled`. |
 | `POST /accounts/{accountId}/resume` | Låter ett pausat konto handla igen. Ett konto som inte är pausat svarar 200 utan händelser. |
+| `PUT /accounts/{accountId}/details` | Hur terminalen visar kontot (ADR 0035): `{ "label", "profitTarget", "timeZone", "detailsUrl" }`. `label` är namnet, högst 100 tecken, `profitTarget` saldot som klarar fasen, `timeZone` handelsdagens zon (IANA, till exempel `Europe/Stockholm`) och `detailsUrl` kontot i firmans portal, en absolut http- eller https-adress. Tomt tar bort ett fält. Uppgifterna ligger utanför motorn och journalen, eftersom de bara är för visning. 422 för ett ogiltigt fält. |
 | `POST /accounts/{accountId}/balance-operations` | Sätter in eller tar ut pengar med `{ "operationId", "amount", "minBalance" }`. Ett negativt belopp är ett uttag. Samma `operationId` igen svarar 409 med `DuplicateId`, så ett nytt försök dras aldrig två gånger. Ett uttag som skulle lämna mindre än `minBalance`, ta mer än den fria marginalen eller bryta ett golv svarar 422 med `InsufficientFunds`. Golv som mäts från kontot följer med saldot (se [specen för handelsmotorn](handelsmotor.md)). |
 | `GET /events?after=0&limit=100&wait=0` | Firmans händelser efter ett löpnummer, äldst först, med `cursor` för nästa anrop. Högst 1 000 per anrop. Med `wait` väntar anropet upp till 30 sekunder på nya händelser. Bara sparade händelser visas, så ingen händelse kan försvinna vid en omstart. |
+| `GET /instruments` | Alla instrument på plattformen: symbol, bas- och kursvaluta, kontraktsstorlek och decimaler. |
+| `GET /groups` | Firmans grupper med valuta, om villkoren kan ändras (`changeable`, bara grupper som skapats åt firman) och villkoren per symbol: hävstång, påslag i punkter och provision per lot och sida. |
+| `PUT /groups/{groupId}/symbols` | `{ "symbols": [{ "symbol", "leverage", "spreadMarkupPoints", "commissionPerLotPerSide" }] }`. Ersätter gruppens symboler och villkor, som gäller alla dess konton direkt. 404 för en grupp som inte är firmans, 422 med `InvalidGroup` för ogiltiga villkor, med `GroupNotChangeable` för en konfigurerad grupp och med `SymbolInUse` när en symbol som tas bort har öppna positioner eller ordrar. |
 
 ### Partner
 
@@ -125,9 +130,10 @@ För system som skapar firmor åt andra, till exempel propfirm-plattformen när 
 | Metod och väg | Beskrivning |
 |---|---|
 | `GET /server-names/{id}` | `{ "id", "available" }`: om en firma kan skapas med servern nu. |
-| `POST /tenants` | Skapar en firma med `{ "id", "name" }`. Firman får en kopia av varje grupp i `Tenancy:NewTenantGroups`, med id `{id}-{mall}`. Svarar 201 med `id`, `name`, `listed`, `groups` (`id` och `currency`) och `adminApiKey`, nyckeln till admin-API:t, som bara visas nu. 409 med `DuplicateId` om servern eller en av grupperna finns, 422 med `InvalidId` för ett id som inte är 2 till 63 små bokstäver, siffror och bindestreck eller ett namn som inte är 1 till 100 tecken. |
+| `POST /tenants` | Skapar en firma med `{ "id", "name", "currency" }`. Firman får en kopia av varje grupp i `Tenancy:NewTenantGroups`, med id `{id}-{mall}`, i `currency` (en av `Tenancy:Currencies`) eller mallens valuta när den saknas. 422 med `InvalidCurrency` för en annan valuta. Svarar 201 med `id`, `name`, `listed`, `groups` (`id` och `currency`) och `adminApiKey`, nyckeln till admin-API:t, som bara visas nu. 409 med `DuplicateId` om servern eller en av grupperna finns, 422 med `InvalidId` för ett id som inte är 2 till 63 små bokstäver, siffror och bindestreck eller ett namn som inte är 1 till 100 tecken. |
 | `GET /tenants/{id}` | Firman med sina grupper, utan nyckel. |
 | `POST /tenants/{id}/admin-key` | `{ "adminApiKey" }`, en ny nyckel. Den gamla slutar fungera direkt. |
+| `PATCH /tenants/{id}` | `{ "listed", "loginUrl", "logoUrl" }`. Sätter om servern listas, var firmans traders loggar in, en absolut http- eller https-adress, eller tom för att logga in här, och firmans logga, som terminalen visar i kontoraden. Fält som inte skickas med behålls, och en tom `logoUrl` tar bort loggan. 422 för en ogiltig adress. Propfirm-plattformen listar en firma när den går live och skickar loggan när firman byter den. |
 
 Grupperna skapas i motorn innan firman sparas. Om tjänsten stannar däremellan tar nästa försök över grupperna, eftersom ingen firma äger dem.
 
@@ -156,16 +162,17 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `SyntheticFeed` | Frö, intervall, längd på historiken och startpriser per symbol. |
 | `Realtime` | Takt för priser och konto. |
 | `Journal` | Antal indata mellan ögonblicksbilder, hur många som behålls och hur lång prishistorik graferna byggs från vid start. |
-| `Tenants` | Firmor som sparas i databasen vid varje start, för utveckling och tester: id (servern, till exempel `nordic-prop`), namn, grupper i `Trading:Groups` och SHA-256 av API-nyckeln. De listas alltid. |
+| `Tenants` | Firmor som sparas i databasen vid varje start, för utveckling och tester: id (servern, till exempel `nordic-prop`), namn, grupper i `Trading:Groups`, SHA-256 av API-nyckeln och valfri `LoginUrl`, firmans portal där traderna loggar in. De listas alltid. |
 | `Partners` | Partnerna som får skapa firmor: `Id`, `Name` och SHA-256 av nyckeln (`ApiKeySha256`). |
 | `Tenancy:NewTenantGroups` | Grupperna i `Trading:Groups` som en ny firma får en kopia av. Standard `standard`. |
+| `Tenancy:Currencies` | Kontovalutorna en ny firma kan välja: USD, EUR och GBP. Var och en behöver ett instrument mot USD, och starten stoppas annars. |
 | `PriceFeed` | `Provider` (`Synthetic` eller `Tiingo`). För Tiingo även `Tiingo:ApiKey`, som sätts med `dotnet user-secrets`. |
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 | `Terminal:Url` | Terminalens adress, till exempel `http://localhost:3001/`. Används i inloggningslänkar. |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
-I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och firman `demo-firm` (Demo Firm) med API-nyckeln `dev-admin-key`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
+I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och firman `demo-firm` (Demo Firm) med API-nyckeln `dev-admin-key`, vars traders loggar in genom portalen på http://localhost:3002/terminal. Instrumenten är EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD, EURGBP, EURJPY, GBPJPY, XAUUSD och XAGUSD, alla i gruppen `standard`. Kontot `demo` skapas med 100 000 USD, ett dagligt golv på 95 000 och ett släpande golv på 10 000 som låses vid 100 000. Det ägs av `demo@example.com` med lösenordet `demo-password`. Kontot `test` har samma inställningar och ägs av `test@test.com` med lösenordet `test`, för snabba inloggningar. Utvecklingskontona skapas direkt och följer inte admin-API:ts krav på e-post och lösenord. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 
@@ -174,8 +181,7 @@ I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och f
 - Det finns inga handelstider. Med Tiingo kommer inga nya priser när marknaden är stängd, så ordrar avvisas med `StalePrice` efter `MaxQuoteAge`. Det syntetiska flödet går dygnet runt.
 - Tradern kan inte själv byta eller återställa lösenordet än. Firmans system kan byta det via admin-API:t.
 - Händelser skickas inte till firmor som webhooks, utan hämtas från händelseströmmen.
-- En firmas namn och gruppernas villkor kan inte ändras efter att de skapats, och firmor kan inte tas bort.
-- Partner-API:t kan inte lista en firma än. Det kommer när firmor kan gå live.
+- En firmas namn kan inte ändras efter att den skapats, och firmor kan inte tas bort. Grupperna i konfigurationen ändras bara i konfigurationen.
 - Journalen växer med alla priser och har ännu ingen arkivering.
 - Candles använder UTC och dygnsgräns vid midnatt, inte 17:00 New York-tid.
 
@@ -185,7 +191,9 @@ Testerna ligger i `trading/tests/Trading.Service.Tests`. De kör den riktiga tj�
 
 De flesta tester använder en journal i minnet som går via JSON som i Postgres. Den kan hålla inne eller fälla skrivningar, så att testerna kan visa att inget släpps innan det är sparat, att fel stoppar tjänsten, att omstart efter krasch och efter vanlig avstängning ger samma tillstånd och att skadad journal eller ändrad konfiguration stoppar starten.
 
-`PartnerApiTests` täcker partner-API:t: en ny firma handlar direkt i sin egen grupp, dess traders ser gruppens instrument, priser och grafer som terminalen laddar, firman ser bara sina egna händelser och konton, servrar är unika och giltiga, bara partners skapar firmor, en partner ser bara sina egna firmor, en ny nyckel ersätter den gamla, nya firmor listas inte men deras traders loggar in, firmor och grupper finns kvar efter en krasch och en vanlig omstart, och en grupp från ett avbrutet försök tas över.
+`TradingConditionsTests` täcker instrumenten, firmans grupper med villkor, ändrade villkor som gäller direkt, en symbol i bruk, en konfigurerad grupp som inte kan ändras och ändrade villkor som finns kvar efter en krasch. `RecoveryTests` visar också att en konfiguration med fler instrument godtas efter en krasch, och att en som ändrar händelserna stoppar starten.
+
+`PartnerApiTests` täcker partner-API:t: en ny firma handlar direkt i sin egen grupp, en firma i EUR handlar guld genom USD och en valuta som inte erbjuds nekas, dess traders ser gruppens instrument, priser och grafer som terminalen laddar, firman ser bara sina egna händelser och konton, servrar är unika och giltiga, bara partners skapar firmor, en partner ser bara sina egna firmor, en ny nyckel ersätter den gamla, nya firmor listas inte men deras traders loggar in, en firma listas och får sin portal som inloggning, en ogiltig adress nekas, firmor och grupper finns kvar efter en krasch och en vanlig omstart, och en grupp från ett avbrutet försök tas över.
 
 `AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
 

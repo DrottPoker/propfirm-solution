@@ -19,6 +19,9 @@ public sealed class TenantOptions
 
     /// <summary>SHA-256 of the firm's admin API key, as lowercase hex. The key itself is never stored.</summary>
     public string AdminApiKeySha256 { get; init; } = "";
+
+    /// <summary>Where the firm's traders log in when they have no password for the terminal, for example its portal. Empty for none.</summary>
+    public Uri? LoginUrl { get; init; }
 }
 
 /// <summary>A system that may create firms on the platform, such as our prop platform.</summary>
@@ -41,4 +44,10 @@ public sealed class TenancyOptions
 
     /// <summary>Configured groups that a new firm gets a copy of, named {server}-{group}.</summary>
     public IReadOnlyList<string> NewTenantGroups { get; init; } = [];
+
+    /// <summary>
+    /// The account currencies a new firm may choose instead of the templates' own. Each needs a pair with USD among the
+    /// instruments, since the engine converts through USD.
+    /// </summary>
+    public IReadOnlyList<string> Currencies { get; init; } = [];
 }

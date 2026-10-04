@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Candle } from "./api/types";
-import { dayFigures, summarizeDay } from "./daySummary";
+import { dayFigures, minSparklineBars, summarizeDay } from "./daySummary";
 
 // 2026-10-05 12:07 UTC
 const now = Date.UTC(2026, 9, 5, 12, 7);
@@ -39,14 +39,21 @@ describe("summarizeDay", () => {
 });
 
 describe("dayFigures", () => {
-  const summary = { reference: 1.2, high: 1.3, low: 1.1, closes: [1.15, 1.25] };
+  const closes = [1.15, 1.16, 1.18, 1.17, 1.2, 1.22, 1.24, 1.25];
+  const summary = { reference: 1.2, high: 1.3, low: 1.1, closes };
 
   it("measures the change from the reference to the live bid", () => {
     const figures = dayFigures(summary, 1.26);
 
     expect(figures.change).toBeCloseTo(0.06, 10);
     expect(figures.changePercent).toBeCloseTo(5, 10);
-    expect(figures.points).toEqual([1.15, 1.25, 1.26]);
+    expect(figures.points).toEqual([...closes, 1.26]);
+  });
+
+  it("draws no line from fewer bars than two hours, whose color would flip with every price", () => {
+    expect(minSparklineBars).toBe(8);
+    expect(dayFigures({ ...summary, closes: closes.slice(0, 7) }, 1.26).points).toEqual([]);
+    expect(dayFigures(summary, undefined).points).toEqual(closes);
   });
 
   it("lets the live bid set a new high or low", () => {

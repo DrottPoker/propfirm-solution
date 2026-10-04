@@ -88,8 +88,17 @@ public sealed record PayoutApproved(DateTimeOffset Time, Payout Payout) : Challe
 
 public sealed record PayoutPaid(DateTimeOffset Time, Payout Payout, string? Reference) : ChallengeOutput(Time);
 
-/// <summary>The firm refused the payout. The withdrawn profit stays off the account.</summary>
-public sealed record PayoutRejected(DateTimeOffset Time, Payout Payout, string Reason) : ChallengeOutput(Time);
+/// <summary>
+/// Deposit <paramref name="Amount"/> on the account, with <paramref name="OperationId"/> so it happens once, for example a
+/// rejected payout's profit that goes back to the trader.
+/// </summary>
+public sealed record DepositRequested(DateTimeOffset Time, string AccountId, string OperationId, decimal Amount) : ChallengeOutput(Time);
+
+/// <summary>
+/// The firm refused the payout. With <paramref name="ProfitReturned"/> the withdrawn profit goes back on the account;
+/// otherwise it stays off it.
+/// </summary>
+public sealed record PayoutRejected(DateTimeOffset Time, Payout Payout, string Reason, bool ProfitReturned = false) : ChallengeOutput(Time);
 
 /// <summary>The withdrawal was refused, so the payout did not happen and the account is as it was.</summary>
 public sealed record PayoutFailed(DateTimeOffset Time, Payout Payout, string Reason) : ChallengeOutput(Time);

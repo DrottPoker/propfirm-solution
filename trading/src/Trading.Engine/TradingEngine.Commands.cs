@@ -31,6 +31,58 @@ public sealed partial class TradingEngine
         return null;
     }
 
+    private RejectReason? ApplyChangeGroupSymbols(ChangeGroupSymbols command, List<EngineEvent> events)
+    {
+        if (!TryLookup(_groups, command.GroupId, out var group))
+        {
+            return RejectReason.UnknownGroup;
+        }
+
+        if (!_createdGroups.Contains(group))
+        {
+            return RejectReason.GroupNotChangeable;
+        }
+
+        var changed = new TradingGroup(group.Id, group.Currency, group.StopOutLevelPercent, command.Symbols);
+        if (ConfigurationValidator.GroupProblem(changed, _instruments.Keys.ToHashSet(StringComparer.Ordinal)) is not null)
+        {
+            return RejectReason.InvalidGroup;
+        }
+
+        var kept = command.Symbols.Select(s => s.Symbol).ToHashSet(StringComparer.Ordinal);
+        var accounts = _accounts.Where(a => a.Group == group).ToList();
+        if (accounts.Any(a => a.Positions.Any(p => !kept.Contains(p.Instrument.Symbol)) || a.Orders.Any(o => !kept.Contains(o.Instrument.Symbol))))
+        {
+            return RejectReason.SymbolInUse;
+        }
+
+        group.ReplaceSymbols(command.Symbols);
+        foreach (var account in accounts)
+        {
+            foreach (var position in account.Positions)
+            {
+                group.TryGetConditions(position.Instrument.Symbol, out var conditions);
+                position.Conditions = conditions!;
+            }
+
+            foreach (var order in account.Orders)
+            {
+                group.TryGetConditions(order.Instrument.Symbol, out var conditions);
+                order.Conditions = conditions!;
+            }
+        }
+
+        events.Add(new GroupSymbolsChanged(command.Timestamp, group.ToDefinition()));
+
+        // New leverage and markup change margin and equity at once, as a new price would.
+        foreach (var account in accounts.Where(a => a.Status != AccountStatus.Disabled && a.HasExposure))
+        {
+            EvaluateRisk(account, command.Timestamp, events);
+        }
+
+        return null;
+    }
+
     private RejectReason? ApplyCreateAccount(CreateAccount command, List<EngineEvent> events)
     {
         if (string.IsNullOrEmpty(command.AccountId))

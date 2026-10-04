@@ -25,7 +25,7 @@ export const defaultColors: Record<ThemeColor, string> = {
   border: "#1f2530",
   foreground: "#d6d9e0",
   muted: "#7d8590",
-  accent: "#3b82f6",
+  accent: "#2563eb",
   "accent-foreground": "#ffffff",
   profit: "#22c55e",
   loss: "#ef4444",
@@ -99,9 +99,18 @@ export function isHexColor(value: string): boolean {
   return hexColor.test(value);
 }
 
+/** The two colors text on buttons can have: white, and the portal's own dark background. */
+export const buttonTextColors = { white: "#ffffff", dark: "#0b0e14" } as const;
+
+/** The button text that is easiest to read on the color: white or dark. */
+export function readableTextOn(color: string): string {
+  return contrastRatio(color, buttonTextColors.white) >= contrastRatio(color, buttonTextColors.dark) ? buttonTextColors.white : buttonTextColors.dark;
+}
+
 /**
  * CSS variables for the firm's colors. Prop.Api already validates them; they are checked again here
- * because they end up in a style attribute.
+ * because they end up in a style attribute. Text on a brand color the firm chose is the easier to read of white and
+ * dark, unless the firm chose it too.
  */
 export function themeStyle(branding: Pick<Branding, "colors"> | null): Record<string, string> {
   const style: Record<string, string> = {};
@@ -110,6 +119,10 @@ export function themeStyle(branding: Pick<Branding, "colors"> | null): Record<st
     if (value !== undefined && hexColor.test(value)) {
       style[`--${name}`] = value;
     }
+  }
+
+  if (style["--accent"] && !style["--accent-foreground"]) {
+    style["--accent-foreground"] = readableTextOn(style["--accent"]);
   }
 
   return style;

@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { dayBefore, daysBetween, formatAxisMoney, formatDay, formatLots, formatPrice, formatSignedMoney, formatSignedPercent } from "./format";
+import {
+  dayBefore,
+  daysBetween,
+  formatAxisMoney,
+  formatDate,
+  formatDateTime,
+  formatDay,
+  formatLots,
+  formatPrice,
+  formatShortDateTime,
+  formatSignedMoney,
+  formatSignedPercent,
+  timeZoneName,
+} from "./format";
 
 describe("formatting", () => {
   it("shows results with their sign and zero without", () => {
@@ -18,6 +31,14 @@ describe("formatting", () => {
 
   it("shows trading days the same in every time zone", () => {
     expect(formatDay("2026-10-05")).toBe("Mon 5 Oct");
+  });
+
+  it("shows an account's times in its challenge's time zone and names the zone", () => {
+    const time = "2026-10-05T22:38:00Z";
+    expect(formatDateTime(time, "Europe/Stockholm")).toBe("6 Oct 2026, 00:38");
+    expect(formatShortDateTime(time, "UTC")).toBe("5 Oct, 22:38");
+    expect(formatDate(time, "Europe/Stockholm")).toBe("6 Oct 2026");
+    expect([timeZoneName("Europe/Stockholm"), timeZoneName("America/New_York"), timeZoneName("UTC")]).toEqual(["Stockholm time", "New York time", "UTC"]);
   });
 
   it("counts days between plain dates", () => {

@@ -33,6 +33,7 @@ internal static partial class BillingEndpoints
         admin.MapPost("/billing/card", ChangeCardAsync);
         admin.MapPost("/billing/charges/{chargeId:guid}/checkout", PayChargeAsync);
         admin.MapPost("/billing/charges/{chargeId:guid}/retry", RetryChargeAsync);
+        admin.MapGet("/billing/charges/{chargeId:guid}/invoice", InvoiceAsync);
         admin.MapGet("/billing/checkouts/{checkoutId}", GetTestCheckoutAsync);
         admin.MapPost("/billing/checkouts/{checkoutId}/complete", CompleteTestCheckoutAsync);
         return admin;
@@ -64,7 +65,10 @@ internal static partial class BillingEndpoints
         CancellationToken cancellationToken) =>
         TypedResults.Ok(await ViewAsync(PortalFirmFilter.FirmOf(context), billing, store, slots, options.Value, time, cancellationToken));
 
-    /// <summary>What choosing this many slots would cost now and each month.</summary>
+    /// <summary>
+    /// What choosing this many slots would cost now and each month, with VAT as it applies to the firm. With
+    /// <paramref name="expandBy"/>, also what one round of automatic expansion of that many slots would add.
+    /// </summary>
     private static async Task<Ok<QuoteResponse>> QuoteAsync(
         int slots,
         HttpContext context,
@@ -72,7 +76,8 @@ internal static partial class BillingEndpoints
         BillingStore store,
         SlotService slotService,
         TimeProvider time,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? expandBy = null)
     {
         var firm = PortalFirmFilter.FirmOf(context);
         var terms = billing.Terms;
@@ -80,18 +85,30 @@ internal static partial class BillingEndpoints
         var monthly = BillingRules.MonthlyPrice(slots, terms);
         var month = BillingRules.MonthOf(now);
         await using var connection = await store.OpenAsync(cancellationToken);
+        var (_, vat) = await billing.VatOfAsync(connection, firm.Id, cancellationToken);
+        var expansion = expandBy is > 0 && billing.SlotsProblem(slots) is null && BillingRules.Expansion(now, slots, expandBy.Value, terms) is { Added: > 0 } added
+            ? new ExpansionResponse(added.Added, added.Monthly, added.RestOfMonth, month)
+            : null;
+        Ok<QuoteResponse> Quote(QuoteKind kind, IReadOnlyList<ChargeLine> lines, DateOnly? from, string? problem)
+        {
+            var net = lines.Sum(l => l.Amount);
+            var vatAmount = VatRules.On(net, vat).Amount;
+            return TypedResults.Ok(new QuoteResponse(kind, slots, lines, net, vat, vatAmount, net + vatAmount, monthly, from, terms.Currency, problem, expansion));
+        }
+
         if (firm.Status != FirmStatus.Live)
         {
             var lines = BillingRules.Activation(now, slots, terms, await BillingStore.DepositPaidAsync(connection, firm.Id, terms.Currency, cancellationToken));
             var from = BillingRules.IsNextMonthDue(now, terms) ? month.AddMonths(2) : month.AddMonths(1);
-            var goLiveProblem = BillingService.GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken));
-            return Quote(QuoteKind.Activation, slots, lines, monthly, from, terms, goLiveProblem ?? billing.SlotsProblem(slots));
+            var goLiveProblem = BillingService.GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken)) ?? billing.ShopProblem(firm);
+            // What is wrong with the choice comes first, so the price is never shown for slots that cannot be chosen.
+            return Quote(QuoteKind.Activation, lines, from, billing.SlotsProblem(slots) ?? goLiveProblem);
         }
 
         var plan = await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken);
         if (plan is not { Plan: BillingPlan.Paid })
         {
-            return Quote(QuoteKind.Unchanged, slots, [], monthly, null, terms, "The firm's slots are complimentary.");
+            return Quote(QuoteKind.Unchanged, [], null, "The firm's slots are complimentary.");
         }
 
         var usage = await slotService.UsageAsync(connection, firm, null, cancellationToken);
@@ -104,18 +121,33 @@ internal static partial class BillingEndpoints
         {
             return Quote(
                 QuoteKind.MoreSlots,
-                slots,
                 BillingRules.MoreSlots(now, current, slots, nextPaid?.Slots, terms),
-                monthly,
                 nextUnpaid,
-                terms,
                 billing.SlotsProblem(slots) ?? (usage.Paid ? null : "This month is not paid yet. Pay it first, then change your slots."));
         }
 
         var taken = usage.Used + usage.Reserved;
         var problem = billing.SlotsProblem(slots)
             ?? (slots < taken ? FormattableString.Invariant($"{taken} slots are taken by open challenges and orders. Choose at least that many.") : null);
-        return Quote(slots == current && slots == plan.Slots ? QuoteKind.Unchanged : QuoteKind.FewerSlots, slots, [], monthly, nextUnpaid, terms, problem);
+        return Quote(slots == current && slots == plan.Slots ? QuoteKind.Unchanged : QuoteKind.FewerSlots, [], nextUnpaid, problem);
+    }
+
+    /// <summary>A paid charge's invoice, as a PDF to download.</summary>
+    private static async Task<Results<FileContentHttpResult, ProblemHttpResult>> InvoiceAsync(
+        Guid chargeId,
+        HttpContext context,
+        BillingStore store,
+        IOptions<BillingOptions> options,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await store.PaidChargeAsync(firm.Id, chargeId, cancellationToken) is not { Invoice: { } invoice } charge)
+        {
+            return AccountActions.Problem(StatusCodes.Status404NotFound, "The firm has no such paid charge.");
+        }
+
+        context.Response.Headers.CacheControl = "private, no-store";
+        return TypedResults.File(InvoicePdf.Render(charge, firm.Name, options.Value.Seller), "application/pdf", $"Invoice {invoice}.pdf");
     }
 
     /// <summary>Starts going live: the firm pays the startup fee and its first month on a checkout page, which also saves its card.</summary>
@@ -347,6 +379,7 @@ internal static partial class BillingEndpoints
         await using var connection = await store.OpenAsync(cancellationToken);
         var plan = await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken);
         var paying = firm.Status == FirmStatus.Live && plan is { Plan: BillingPlan.Paid, ActivatedAt: not null };
+        var (_, vat) = await billing.VatOfAsync(connection, firm.Id, cancellationToken);
 
         NextChargeResponse? next = null;
         if (paying)
@@ -354,7 +387,9 @@ internal static partial class BillingEndpoints
             var month = await BillingStore.FirstUnchargedMonthAsync(connection, firm.Id, BillingRules.MonthOf(time.GetUtcNow()).AddMonths(1), cancellationToken);
 
             var nextSlots = terms.SlotsToCharge(plan!.Slots, usage.Used + usage.Reserved);
-            next = new NextChargeResponse(month, BillingRules.ChargeTimeOf(month, terms.ChargeDaysBeforeMonth), nextSlots, BillingRules.MonthlyPrice(nextSlots, terms));
+            var net = BillingRules.MonthlyPrice(nextSlots, terms);
+            var vatAmount = VatRules.On(net, vat).Amount;
+            next = new NextChargeResponse(month, BillingRules.ChargeTimeOf(month, terms.ChargeDaysBeforeMonth), nextSlots, net, vatAmount, net + vatAmount);
         }
 
         var charges = await store.ListChargesAsync(firm.Id, ChargesShown, cancellationToken);
@@ -372,10 +407,13 @@ internal static partial class BillingEndpoints
             next,
             [.. charges.Select(ChargeResponse.From)],
             PricesOf(terms, options),
-            state.Status == FirmStatus.Live ? null : BillingService.GoLiveProblem(state),
-            state.Review ?? (state.Status == FirmStatus.Live ? null : ReviewStatus.Draft),
+            state.Status == FirmStatus.Live ? null : BillingService.GoLiveProblem(state) ?? billing.ShopProblem(firm),
+            state.Review,
             depositPaid,
-            firm.Suspension is { } suspension ? new SuspensionResponse(suspension.At, suspension.Reason) : null);
+            firm.Suspension is { } suspension ? new SuspensionResponse(suspension.At, suspension.Reason) : null,
+            billing.ShopProblem(firm),
+            vat,
+            state.Status == FirmStatus.Live ? 0 : (await BillingStore.OpenAccountsAsync(connection, firm.Id, cancellationToken)).Count);
     }
 
     /// <summary>What firms pay, from the billing terms, with the share of slots taken that warns the firm.</summary>
@@ -390,9 +428,6 @@ internal static partial class BillingEndpoints
             terms.MaxSlots,
             terms.ChargeDaysBeforeMonth,
             options.WarningPercent);
-
-    private static Ok<QuoteResponse> Quote(QuoteKind kind, int slots, IReadOnlyList<ChargeLine> lines, decimal monthly, DateOnly? from, BillingTerms terms, string? problem) =>
-        TypedResults.Ok(new QuoteResponse(kind, slots, lines, lines.Sum(l => l.Amount), monthly, from, terms.Currency, problem));
 
     private static Results<Ok<CheckoutResponse>, ProblemHttpResult> CheckoutOf(BillingResult result) => result switch
     {

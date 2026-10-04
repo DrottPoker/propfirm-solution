@@ -2,6 +2,7 @@ using System.Security.Claims;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
 using Prop.Api.Api;
@@ -23,9 +24,11 @@ internal static class ShopEndpoints
     public static RouteGroupBuilder MapShop(this RouteGroupBuilder portal)
     {
         portal.MapGet("/shop", GetShopAsync);
+        portal.MapPost("/shop/discount", QuoteDiscountAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/orders", CreateOrderAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapGet("/orders/{orderId:guid}", GetBuyerOrderAsync);
         portal.MapPost("/orders/{orderId:guid}/invite", ResendInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        portal.MapPost("/orders/{orderId:guid}/password", ChoosePasswordAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/orders/{orderId:guid}/test-payment", PayTestOrderAsync);
         return portal;
     }
@@ -60,10 +63,14 @@ internal static class ShopEndpoints
             service.TestPaymentsAllowed(firm),
             payments.Stripe is not null,
             payments.Stripe?.IsTestMode,
-            new Uri(platform.ApiUrl!, $"api/payments/v1/stripe/{firm.Id}"),
+            WebhookUrlOf(firm, platform),
+            StripeClient.WebhookEvents,
             payments.CheckoutUrl,
             payments.TermsUrl);
     }
+
+    /// <summary>Where Stripe sends the firm's webhooks.</summary>
+    private static Uri WebhookUrlOf(Firm firm, PlatformOptions platform) => new(platform.ApiUrl!, $"api/payments/v1/stripe/{firm.Id}");
 
     // A shop whose slots are all taken stops selling, so no buyer pays for a challenge that cannot start.
     private static async Task<Ok<ShopResponse>> GetShopAsync(HttpContext context, OrderService service, SlotService slots, CancellationToken cancellationToken)
@@ -91,6 +98,37 @@ internal static class ShopEndpoints
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
+        var (email, name, country) = (request.Email, request.Name, request.Country);
+        var session = await context.AuthenticateAsync(PortalAuth.TraderScheme);
+        if (session.Principal is { } principal
+            && principal.FindFirstValue(PortalAuth.FirmIdClaim) == firm.Id
+            && await users.FindByIdAsync(PortalAuth.UserIdOf(principal), PortalRoles.Trader, cancellationToken) is { } trader)
+        {
+            (email, name, country) = (trader.Email, string.IsNullOrWhiteSpace(name) ? trader.Name : name, string.IsNullOrWhiteSpace(country) ? trader.Country : country);
+        }
+
+        return await service.CreateAsync(firm, new Buyer(email, name, country), request.ChallengeId, request.AcceptTerms, request.DiscountCode, cancellationToken) switch
+        {
+            NewOrder.Created created => TypedResults.Created(
+                $"/api/portal/orders/{created.Order.Id}",
+                new CreatedOrderResponse(created.Order.Id, created.Order.Number, created.Order.CheckoutUrl)),
+            NewOrder.Refused refused => AccountActions.Problem(refused.StatusCode, refused.Problem),
+            _ => throw new InvalidOperationException("Unknown order outcome."),
+        };
+    }
+
+    /// <summary>
+    /// What the challenge costs with the code the buyer typed. A logged-in trader's own email decides whether a code
+    /// for retries can be used. Limited like logins, so codes cannot be guessed quickly.
+    /// </summary>
+    private static async Task<Results<Ok<DiscountQuoteResponse>, ProblemHttpResult>> QuoteDiscountAsync(
+        DiscountQuoteRequest request,
+        HttpContext context,
+        OrderService service,
+        PortalUsers users,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
         var email = request.Email;
         var session = await context.AuthenticateAsync(PortalAuth.TraderScheme);
         if (session.Principal is { } principal
@@ -100,14 +138,10 @@ internal static class ShopEndpoints
             email = trader.Email;
         }
 
-        return await service.CreateAsync(firm, email, request.ChallengeId, request.AcceptTerms, cancellationToken) switch
-        {
-            NewOrder.Created created => TypedResults.Created(
-                $"/api/portal/orders/{created.Order.Id}",
-                new CreatedOrderResponse(created.Order.Id, created.Order.Number, created.Order.CheckoutUrl)),
-            NewOrder.Refused refused => AccountActions.Problem(refused.StatusCode, refused.Problem),
-            _ => throw new InvalidOperationException("Unknown order outcome."),
-        };
+        var (price, code, refusal) = await service.QuoteDiscountAsync(firm, request.ChallengeId, request.Code, email, cancellationToken);
+        return price is not null && code is not null
+            ? TypedResults.Ok(new DiscountQuoteResponse(code.Code, request.ChallengeId!, price.ListAmount, price.Discount, price.Amount, price.Currency, code.ForRetries))
+            : AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, refusal ?? "There is no such code.");
     }
 
     /// <summary>The order for whoever has the link to it, which the provider sends the buyer back to.</summary>
@@ -153,6 +187,46 @@ internal static class ShopEndpoints
         };
     }
 
+    /// <summary>
+    /// The buyer chooses a password for the portal right on the order's page, and is logged in. Only when the order started
+    /// the trader's only account and the trader has no password, so the page can never open accounts from before. The
+    /// email is confirmed later, with the link the buyer was emailed.
+    /// </summary>
+    private static async Task<Results<Ok<PortalMeResponse>, ProblemHttpResult>> ChoosePasswordAsync(
+        Guid orderId,
+        OrderPasswordRequest request,
+        HttpContext context,
+        OrderStore orders,
+        PortalUsers users,
+        IPasswordHasher<PortalUser> hasher,
+        IOptions<LoginOptions> login,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await BuyerOrderAsync(firm, orderId, request.Token, orders, time, cancellationToken) is not { } order)
+        {
+            return UnknownOrder();
+        }
+
+        if (PasswordResetEndpoints.PasswordProblem(request.Password, login.Value) is { } problem)
+        {
+            return problem;
+        }
+
+        if (await users.FindTraderAsync(firm.Id, order.Email, cancellationToken) is not { } trader || !await CanChoosePasswordAsync(order, trader, users, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "Use the link we emailed you to get into the portal.");
+        }
+
+        await users.SetTraderPasswordAsync(trader.Id, hasher.HashPassword(trader, request.Password!), time.GetUtcNow(), cancellationToken);
+
+        // Read again, so the session carries the password's time as it is stored.
+        var changed = (await users.FindByIdAsync(trader.Id, PortalRoles.Trader, cancellationToken))!;
+        await PortalAuth.SignInAsync(context, changed);
+        return TypedResults.Ok(PortalMeResponse.Of(changed, firm.Name));
+    }
+
     /// <summary>Pays a test order without money, as the provider's message would. Only while the firm may take test payments.</summary>
     private static async Task<Results<Ok<BuyerOrderResponse>, ProblemHttpResult>> PayTestOrderAsync(
         Guid orderId,
@@ -195,8 +269,8 @@ internal static class ShopEndpoints
         OrderActions.ListAsync(PortalFirmFilter.FirmOf(context), status, limit, orders, time, cancellationToken);
 
     /// <summary>
-    /// Chooses how the portal takes payment. Stripe's keys are checked and kept encrypted. In the sandbox only
-    /// Stripe's test keys are accepted, so no real money is taken before the firm is live.
+    /// Chooses how the portal takes payment. Stripe's keys are checked and kept encrypted. Live keys can be saved in the
+    /// sandbox, so the shop takes real money from the moment the firm goes live, but they take payment only from then.
     /// </summary>
     private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SavePaymentsAsync(
         PaymentSettingsRequest request,
@@ -204,6 +278,7 @@ internal static class ShopEndpoints
         FirmStore store,
         FirmCatalog firms,
         OrderService service,
+        StripeClient stripe,
         IOptions<SandboxOptions> sandbox,
         IOptions<PlatformOptions> platform,
         TimeProvider time,
@@ -220,6 +295,7 @@ internal static class ShopEndpoints
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The terms must be an https address.");
         }
 
+        // A secret key alone sets up the webhook in the firm's Stripe account. With a signing secret too, the firm set it up itself.
         StripeKeys? keys = null;
         if (!string.IsNullOrWhiteSpace(request.StripeSecretKey) || !string.IsNullOrWhiteSpace(request.StripeWebhookSecret))
         {
@@ -230,16 +306,28 @@ internal static class ShopEndpoints
                 return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The Stripe secret key starts with sk_ or rk_.");
             }
 
-            if (!StripeKeyRules.IsValidWebhookSecret(webhookSecret))
+            // Checked before the webhook is set up, so a refused key leaves nothing behind in Stripe.
+            if (StripeKeyRules.IsTestKey(secretKey!) && !service.TestPaymentsAllowed(firm))
             {
-                return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The Stripe webhook signing secret starts with whsec_.");
+                return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "Your firm is live, so use your live secret key (sk_live_). Test keys take no real money.");
             }
 
-            if (firm.Status != FirmStatus.Live && !StripeKeyRules.IsTestKey(secretKey!))
+            if (string.IsNullOrEmpty(webhookSecret))
             {
-                return AccountActions.Problem(
-                    StatusCodes.Status422UnprocessableEntity,
-                    "In the sandbox, use Stripe's test keys (sk_test_ or rk_test_). Live keys work once the firm is live.");
+                try
+                {
+                    webhookSecret = await stripe.SetUpWebhookAsync(secretKey!, WebhookUrlOf(firm, platform.Value), firm.Id, cancellationToken);
+                }
+                catch (StripeSetupException exception)
+                {
+                    return AccountActions.Problem(
+                        StatusCodes.Status422UnprocessableEntity,
+                        $"Stripe did not let us set up the webhook: {exception.Message} You can add the webhook in Stripe yourself and paste its signing secret.");
+                }
+            }
+            else if (!StripeKeyRules.IsValidWebhookSecret(webhookSecret))
+            {
+                return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The Stripe webhook signing secret starts with whsec_.");
             }
 
             keys = new StripeKeys(secretKey!, webhookSecret!);
@@ -259,7 +347,7 @@ internal static class ShopEndpoints
 
         await store.SetPaymentsAsync(firm.Id, new FirmPayments(request.Provider, keys, checkoutUrl, termsUrl), time.GetUtcNow(), cancellationToken);
         var saved = await AdminSettingsEndpoints.ReloadAsync(firm, store, firms, cancellationToken);
-        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, SettingsOf(saved, service, platform.Value)));
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, SettingsOf(saved, service, platform.Value)));
     }
 
     // The firm's order, for whoever has the token from the buyer's link. Others get nothing, as if it did not exist.
@@ -270,6 +358,7 @@ internal static class ShopEndpoints
     {
         var challengeName = (await challenges.GetAsync(firm.Id, order.ChallengeId, cancellationToken))?.Name ?? order.ChallengeId;
         var trader = await users.FindTraderAsync(firm.Id, order.Email, cancellationToken);
+        var canChoosePassword = trader is not null && await CanChoosePasswordAsync(order, trader, users, cancellationToken);
         return new BuyerOrderResponse(
             order.Id,
             order.Number,
@@ -284,8 +373,17 @@ internal static class ShopEndpoints
             order.AccountId,
             order.Problem,
             trader?.PasswordHash is not null,
-            order.InviteSentAt);
+            order.InviteSentAt,
+            canChoosePassword,
+            order.DiscountCode,
+            order.ListAmount);
     }
+
+    // The order's page may set the password only for a trader who has nothing at the firm but the account the order paid for.
+    private static async Task<bool> CanChoosePasswordAsync(Order order, PortalUser trader, PortalUsers users, CancellationToken cancellationToken) =>
+        order is { Status: OrderStatus.Paid, AccountId: { } accountId }
+        && trader.PasswordHash is null
+        && await users.IsOnlyAccountAsync(trader.Id, accountId, cancellationToken);
 
     private static ProblemHttpResult UnknownOrder() => AccountActions.Problem(StatusCodes.Status404NotFound, "No such order.");
 

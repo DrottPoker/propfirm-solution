@@ -62,12 +62,25 @@ var email = builder.Services.AddOptions<EmailOptions>()
     .Validate(
         o => o.From.Contains('@', StringComparison.Ordinal) && o.Smtp.Host.Length > 0 && Enum.TryParse<MailKit.Security.SecureSocketOptions>(o.Smtp.Security, out _),
         "Email needs From, Smtp:Host and Smtp:Security (None, StartTls or SslOnConnect).");
-builder.Services.AddOptions<SignupOptions>().Bind(builder.Configuration.GetSection(SignupOptions.SectionName));
+// Firms accept our terms when they sign up, so outside development the terms must be there to read.
+var signupOptions = builder.Services.AddOptions<SignupOptions>()
+    .Bind(builder.Configuration.GetSection(SignupOptions.SectionName))
+    .Validate(
+        o => builder.Environment.IsDevelopment()
+            || (o.TermsUrl is { IsAbsoluteUri: true, Scheme: "https" } && o.DpaUrl is { IsAbsoluteUri: true, Scheme: "https" } && o.TermsVersion.Length > 0),
+        "Signup:TermsUrl and Signup:DpaUrl must be https addresses, with Signup:TermsVersion, outside development.")
+    .Validate(o => o.Currencies.All(c => c.Length == 3 && c.All(char.IsAsciiLetterUpper)), "Signup:Currencies must be three-letter currency codes, such as USD.");
 builder.Services.AddOptions<SandboxOptions>()
     .Bind(builder.Configuration.GetSection(SandboxOptions.SectionName))
     .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
+builder.Services.AddOptions<DomainOptions>()
+    .Bind(builder.Configuration.GetSection(DomainOptions.SectionName))
+    .Validate(
+        o => o.CheckInterval >= TimeSpan.FromSeconds(10) && o.DnsOverHttpsUrl is { IsAbsoluteUri: true, Scheme: "https" } && !o.CnameTarget.Contains('/', StringComparison.Ordinal),
+        "Domains needs a CheckInterval of at least 10 seconds, an https DnsOverHttpsUrl and a CnameTarget that is a host name.")
+    .ValidateOnStart();
 builder.Services.AddOptions<StaffOptions>().Bind(builder.Configuration.GetSection(StaffOptions.SectionName));
 builder.Services.AddOptions<PaymentsOptions>()
     .Bind(builder.Configuration.GetSection(PaymentsOptions.SectionName))
@@ -86,11 +99,16 @@ var billingOptions = builder.Services.AddOptions<BillingOptions>()
         "Billing needs a positive RetryInterval, MaxAttempts of at least 1, WarningPercent of 1 to 100 and a CheckoutLifetime of 30 minutes to 23 hours.")
     .Validate(
         o => o.Provider == nameof(BillingProvider.Test) || (o.Provider == nameof(BillingProvider.Stripe) && o.StripeSecretKey.Length > 0 && o.StripeWebhookSecret.Length > 0),
-        "Billing:Provider must be Stripe, with Billing:StripeSecretKey and Billing:StripeWebhookSecret, or Test for development.");
+        "Billing:Provider must be Stripe, with Billing:StripeSecretKey and Billing:StripeWebhookSecret, or Test for development.")
+    // Every invoice names us, so outside development who we are must be there.
+    .Validate(
+        o => builder.Environment.IsDevelopment() || o.Seller.IsComplete,
+        "Billing:Seller needs Name, Address, OrganizationNumber and VatNumber outside development, for the invoices.");
 if (!isOpenApiGeneration)
 {
     tradingPlatform.ValidateOnStart();
     platform.ValidateOnStart();
+    signupOptions.ValidateOnStart();
     email.ValidateOnStart();
     billingOptions.ValidateOnStart();
 }
@@ -102,6 +120,7 @@ builder.Services.AddSingleton<SecretProtector>();
 builder.Services.AddSingleton<FirmAdmins>();
 builder.Services.AddSingleton<SignupService>();
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<Notifications>();
 
 // Resolved lazily, so tools that only load the app (like the OpenAPI generator) need no database.
 builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
@@ -115,10 +134,14 @@ builder.Services.AddSingleton<ChallengeCatalog>();
 builder.Services.AddSingleton<ChallengeService>();
 builder.Services.AddSingleton<ChallengeQueries>();
 builder.Services.AddSingleton<PayoutQueries>();
+builder.Services.AddSingleton<PayoutMethods>();
 builder.Services.AddSingleton<TradingHistoryQueries>();
 builder.Services.AddSingleton<AccountDetailsBuilder>();
 builder.Services.AddSingleton<AdminFigures>();
+builder.Services.AddSingleton<WebhookDeliveries>();
 builder.Services.AddSingleton<PriceCatalog>();
+builder.Services.AddSingleton<DiscountStore>();
+builder.Services.AddSingleton<TraderChecks>();
 builder.Services.AddSingleton<OrderStore>();
 builder.Services.AddSingleton<OrderService>();
 builder.Services.AddSingleton<StripeClient>();
@@ -130,6 +153,7 @@ builder.Services.AddSingleton<IBillingGateway>(sp =>
         ? new TestBillingGateway()
         : ActivatorUtilities.CreateInstance<StripeBillingGateway>(sp));
 builder.Services.AddSingleton<PortalUsers>();
+builder.Services.AddSingleton<PasswordResets>();
 builder.Services.AddSingleton<IPasswordHasher<PortalUser>, PasswordHasher<PortalUser>>();
 builder.Services.AddSingleton<StaffUsers>();
 builder.Services.AddSingleton<IPasswordHasher<StaffUser>, PasswordHasher<StaffUser>>();
@@ -177,6 +201,10 @@ builder.Services.AddHttpClient(TradingPlatformClient.HttpClientName, (sp, client
 builder.Services.AddSingleton<ITradingPlatform, TradingPlatformClient>();
 builder.Services.AddSingleton<ITradingPartner, TradingPartnerClient>();
 builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient(DnsOverHttpsLookup.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<IDnsLookup, DnsOverHttpsLookup>();
+builder.Services.AddSingleton<CustomDomainStore>();
+builder.Services.AddSingleton<DomainVerifier>();
 builder.Services.AddHttpClient(StripeClient.HttpClientName, (sp, client) =>
 {
     client.BaseAddress = sp.GetRequiredService<IOptions<PaymentsOptions>>().Value.StripeApiUrl;
@@ -195,8 +223,13 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<TradingCommandWorker>();
     builder.Services.AddHostedService<TradingDayScheduler>();
     builder.Services.AddHostedService<WebhookWorker>();
+    builder.Services.AddHostedService<EmailWorker>();
+    builder.Services.AddSingleton<InactivityReminderWorker>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<InactivityReminderWorker>());
     builder.Services.AddHostedService<FirmProvisioner>();
     builder.Services.AddHostedService<BillingWorker>();
+    builder.Services.AddHostedService<DomainVerificationWorker>();
+    builder.Services.AddHostedService<TradingAccountDescriber>();
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => PropJson.Configure(o.SerializerOptions));
@@ -225,6 +258,7 @@ app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapFirmApi();
 app.MapPortalApi();
+app.MapCertificateCheck();
 app.MapSignupApi();
 app.MapOpsApi();
 app.MapPaymentWebhooks();

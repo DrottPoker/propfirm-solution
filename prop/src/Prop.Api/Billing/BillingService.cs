@@ -10,6 +10,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Ops;
+using Prop.Api.Payments;
 using Prop.Api.Portal;
 using Prop.Api.Review;
 using Prop.Rules;
@@ -75,6 +76,7 @@ internal sealed partial class BillingService(
     WorkSignals signals,
     IOptions<BillingOptions> options,
     IOptions<PlatformOptions> platform,
+    IOptions<PaymentsOptions> payments,
     TimeProvider time,
     ILogger<BillingService> logger)
 {
@@ -103,11 +105,24 @@ internal sealed partial class BillingService(
         { Review: ReviewStatus.Approved } => null,
         { Review: ReviewStatus.Submitted } => "We are reviewing your application. You can go live once it is approved.",
         { Review: ReviewStatus.Rejected } => "Your application was not approved, so the firm cannot go live.",
-        _ => "We review your company before you go live. Send your application under Verification.",
+        _ => "We review your company before you go live. Send its details under Go live.",
     };
 
-    /// <summary>Where a checkout page sends the firm back to: its application for the deposit, otherwise its billing.</summary>
-    public static string ReturnPathOf(ChargeKind? kind) => kind == ChargeKind.Deposit ? "admin/verification" : "admin/billing";
+    /// <summary>Why the firm's shop would stop taking payment when it goes live, from the firm as it is now. Null when it would not.</summary>
+    public string? ShopProblem(Firm firm) => OrderService.LiveShopProblem(firms.ById(firm.Id) ?? firm, payments.Value.TestPaymentsForLiveFirms);
+
+    /// <summary>Where a checkout page sends the firm back to: the way to live for the deposit and the first payment, otherwise its billing.</summary>
+    public static string ReturnPathOf(ChargeKind? kind) => kind is ChargeKind.Deposit or ChargeKind.Activation ? "admin/go-live" : "admin/billing";
+
+    /// <summary>
+    /// Who the firm's charges are to, from its application as it is now, and how VAT applies to them. A firm without an
+    /// application pays our VAT.
+    /// </summary>
+    public async Task<(ChargeCustomer? Customer, VatResponse Vat)> VatOfAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
+    {
+        var customer = await ReviewStore.GetAsync(connection, firmId, forUpdate: false, cancellationToken) is { } review ? ChargeCustomer.From(review.Application) : null;
+        return (customer, VatRules.Of(customer, Terms));
+    }
 
     public string? SlotsProblem(int slots) =>
         slots < Terms.PackageSlots || slots > Terms.MaxSlots
@@ -137,7 +152,7 @@ internal sealed partial class BillingService(
         await using (var connection = await store.OpenAsync(cancellationToken))
         {
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-            if (GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: true, cancellationToken)) is { } problem)
+            if ((GoLiveProblem(await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: true, cancellationToken)) ?? ShopProblem(firm)) is { } problem)
             {
                 return new BillingResult.Refused(StatusCodes.Status409Conflict, problem);
             }
@@ -798,9 +813,11 @@ internal sealed partial class BillingService(
     }
 
     /// <summary>
-    /// Marks the charge as paid in the caller's transaction and applies what it pays for. A deposit sends the firm's
-    /// application. A first payment takes the firm live, ends its sandbox accounts, lets its unpaid sandbox orders
-    /// expire and voids other first payments that were started.
+    /// Marks the charge as paid in the caller's transaction, with the next number in the firm's series of invoices, and
+    /// applies what it pays for. A deposit sends the firm's application, and its administrators get the receipt. A first
+    /// payment takes the firm live, ends its sandbox accounts and emails their traders, lets its unpaid sandbox orders
+    /// expire, voids other first payments that were started, and emails the administrators the receipt and what happens
+    /// now. The emails are queued in the same transaction.
     /// </summary>
     private async Task<PaidEffects> MarkPaidAsync(
         NpgsqlConnection connection,
@@ -812,13 +829,15 @@ internal sealed partial class BillingService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        var invoiceNumber = await BillingStore.NextInvoiceNumberAsync(connection, firm.Id, cancellationToken);
         await BillingStore.UpdateChargeAsync(
             connection,
             charge.Id,
-            "status = 'Paid', paid_at = $2, payment_reference = coalesce($3, payment_reference), next_attempt_at = null",
-            [now, BillingStore.Text(reference)],
+            "status = 'Paid', paid_at = $2, payment_reference = coalesce($3, payment_reference), next_attempt_at = null, invoice_number = $4",
+            [now, BillingStore.Text(reference), invoiceNumber],
             cancellationToken);
         await BillingStore.AddEventAsync(connection, firm.Id, charge.Id, "paid", source, detail, now, cancellationToken);
+        var paid = charge with { Status = ChargeStatus.Paid, PaidAt = now, InvoiceNumber = invoiceNumber };
         if (charge.Months > 0)
         {
             await BillingStore.PayMonthsAsync(connection, firm.Id, charge.Month, charge.Months, charge.Slots, now, cancellationToken);
@@ -827,7 +846,18 @@ internal sealed partial class BillingService(
         switch (charge.Kind)
         {
             case ChargeKind.Deposit:
-                return new PaidEffects(WentLive: false, [], await ReviewStore.SubmitPaidDraftAsync(connection, firm.Id, charge.Number, now, cancellationToken));
+                var submitted = await ReviewStore.SubmitPaidDraftAsync(connection, firm.Id, charge.Number, now, cancellationToken);
+                var goLiveUrl = new Uri(firm.Portal.Url, "admin/go-live");
+                await QueueToAdminsAsync(
+                    connection,
+                    firm,
+                    "deposit_paid",
+                    to => submitted
+                        ? PlatformEmails.ApplicationReceived(platform.Value.Name, firm.Name, to, ReceiptOf(paid), goLiveUrl)
+                        : PlatformEmails.PaymentReceived(platform.Value.Name, firm.Name, to, ReceiptOf(paid), goLiveUrl),
+                    now,
+                    cancellationToken);
+                return new PaidEffects(WentLive: false, [], submitted);
             case ChargeKind.Activation:
                 await SlotService.LockAsync(connection, firm.Id, cancellationToken);
                 if (await BillingStore.LockFirmStatusAsync(connection, firm.Id, cancellationToken) == FirmStatus.Live)
@@ -837,11 +867,37 @@ internal sealed partial class BillingService(
 
                 await BillingStore.UpdateBillingAsync(connection, firm.Id, "activated_at = $2, unpaid_since = null", [now], now, cancellationToken);
                 await FirmStore.SetLiveAsync(connection, firm.Id, now, cancellationToken);
-                foreach (var (accountId, _) in await BillingStore.OpenAccountsAsync(connection, firm.Id, cancellationToken))
+                var ended = await BillingStore.OpenAccountsToEndAsync(connection, firm.Id, cancellationToken);
+                foreach (var account in ended)
                 {
                     await challenges.ApplyAsync(
-                        connection, firm, accountId, _ => new CancelChallenge(now, "The firm went live, so its accounts from the sandbox end."), null, cancellationToken);
+                        connection, firm, account.Id, _ => new CancelChallenge(now, "The firm went live, so its accounts from the sandbox end."), null, cancellationToken);
+                    if (NotificationKinds.IsOn(firm, NotificationKinds.TraderEnded))
+                    {
+                        await EmailOutbox.AddAsync(
+                            connection,
+                            TraderEmails.SandboxAccountEnded(firm, account.Email, account.ChallengeName, account.Number),
+                            "sandbox_ended",
+                            firm.Id,
+                            now,
+                            cancellationToken);
+                    }
                 }
+
+                await QueueToAdminsAsync(
+                    connection,
+                    firm,
+                    "went_live",
+                    to => PlatformEmails.FirmLive(
+                        platform.Value.Name,
+                        firm.Name,
+                        to,
+                        ReceiptOf(paid),
+                        ended.Count,
+                        new Uri(firm.Portal.Url, "admin"),
+                        firm.Payments.Provider is null ? null : new Uri(firm.Portal.Url, "buy")),
+                    now,
+                    cancellationToken);
 
                 await BillingStore.ExecuteAsync(
                     connection,
@@ -904,6 +960,7 @@ internal sealed partial class BillingService(
         {
             firms.Put(await firmStore.GetAsync(firm.Id, cancellationToken) ?? firm);
             challenges.Notify(firm);
+            signals.Provisioning.Set();
         }
 
         if (effects.Submitted)
@@ -917,6 +974,41 @@ internal sealed partial class BillingService(
         }
 
         signals.Billing.Set();
+        signals.Emails.Set();
+    }
+
+    /// <summary>A paid charge's receipt in plain text: its invoice number, its lines, the VAT and the total.</summary>
+    public static string ReceiptOf(Charge charge)
+    {
+        var lines = charge.Lines.Select(l => $"{l.Description}: {Money(l.Amount, charge.Currency)}").ToList();
+        if (charge.Vat.Amount > 0)
+        {
+            lines.Add($"{Charge.VatLine(charge.Vat.Percent)}: {Money(charge.Vat.Amount, charge.Currency)}");
+        }
+        else if (VatRules.NoteOf(charge.Vat.Treatment) is { } note)
+        {
+            lines.Add(note);
+        }
+
+        lines.Add($"Total paid: {Money(charge.Amount, charge.Currency)}");
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"Receipt for invoice {charge.Invoice}, paid {charge.PaidAt ?? charge.CreatedAt:d MMM yyyy}:\n\n{string.Join('\n', lines)}\n\nThe invoice is a PDF under Plan and billing in your admin panel.");
+    }
+
+    // Queued in the caller's transaction, so the email goes out if and only if the payment is saved.
+    private static async Task QueueToAdminsAsync(
+        NpgsqlConnection connection,
+        Firm firm,
+        string kind,
+        Func<string, EmailMessage> message,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        foreach (var admin in await FirmAdmins.EmailsAsync(connection, firm.Id, cancellationToken))
+        {
+            await EmailOutbox.AddAsync(connection, message(admin), kind, firm.Id, now, cancellationToken);
+        }
     }
 
     private async Task<BillingResult> OpenCheckoutAsync(Firm firm, CheckoutPurpose purpose, Charge? charge, string adminEmail, string? customerId, CancellationToken cancellationToken)
@@ -988,18 +1080,25 @@ internal sealed partial class BillingService(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
+        // The VAT as it applies now, with who the charge is to, so the invoice says the same later.
+        var (customer, vatRule) = await VatOfAsync(connection, firmId, cancellationToken);
+        var net = lines.Sum(l => l.Amount);
+        var vat = VatRules.On(net, vatRule);
         var charge = new Charge(
             Guid.CreateVersion7(now),
             firmId,
-            await BillingStore.NextChargeNumberAsync(connection, cancellationToken),
+            await BillingStore.NextChargeNumberAsync(connection, firmId, cancellationToken),
             kind,
             ChargeStatus.Pending,
             month,
             months,
             slotCount,
             lines,
-            lines.Sum(l => l.Amount),
+            net,
+            vat,
+            net + vat.Amount,
             Terms.Currency,
+            customer,
             gateway.Provider,
             null,
             null,

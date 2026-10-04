@@ -41,7 +41,11 @@ internal static class AdminEndpoints
         admin.MapPost("/accounts/{accountId}/suspend", SuspendAccountAsync);
         admin.MapPost("/accounts/{accountId}/resume", ResumeAccountAsync);
         admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
+        admin.MapPut("/accounts/{accountId}/details", SetAccountDetailsAsync);
         admin.MapGet("/events", GetEventsAsync);
+        admin.MapGet("/instruments", GetInstruments);
+        admin.MapGet("/groups", ListGroupsAsync);
+        admin.MapPut("/groups/{groupId}/symbols", ChangeGroupSymbolsAsync);
         return app;
     }
 
@@ -187,6 +191,54 @@ internal static class AdminEndpoints
         return account is not null && IsFirmGroup(context, account.GroupId) ? TypedResults.Ok(account) : UnknownAccount();
     }
 
+    /// <summary>
+    /// What the terminal shows about the account: a name for the trader, the balance that passes it, the time zone of its
+    /// trading day and where the trader sees more. Every field is replaced, and one left out is cleared.
+    /// </summary>
+    private static async Task<Results<Ok<AccountDetails>, ProblemHttpResult>> SetAccountDetailsAsync(
+        string accountId,
+        AccountDetailsRequest request,
+        HttpContext context,
+        EngineHost engine,
+        IUserStore users,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var account = await engine.QueryAsync(e => e.GetAccount(accountId), cancellationToken);
+        if (account is null || !IsFirmGroup(context, account.GroupId))
+        {
+            return UnknownAccount();
+        }
+
+        var label = string.IsNullOrWhiteSpace(request.Label) ? null : request.Label.Trim();
+        if (label is { Length: > AccountDetailsRequest.MaxLabelLength })
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, $"The label can have at most {AccountDetailsRequest.MaxLabelLength} characters.");
+        }
+
+        if (request.ProfitTarget is <= 0)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The profit target must be above 0.");
+        }
+
+        var timeZone = string.IsNullOrWhiteSpace(request.TimeZone) ? null : request.TimeZone.Trim();
+        if (timeZone is not null && !TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out _))
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The time zone must be an IANA time zone, for example Europe/Stockholm.");
+        }
+
+        Uri? detailsUrl = null;
+        if (!string.IsNullOrWhiteSpace(request.DetailsUrl)
+            && (!Uri.TryCreate(request.DetailsUrl, UriKind.Absolute, out detailsUrl) || !TenantCatalog.IsValidLoginUrl(detailsUrl)))
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The details address must be an absolute http or https address.");
+        }
+
+        var details = new AccountDetails(accountId, label, request.ProfitTarget, timeZone, detailsUrl);
+        await users.SetAccountDetailsAsync(details, time.GetUtcNow(), cancellationToken);
+        return TypedResults.Ok(details);
+    }
+
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SetFloorAsync(
         string accountId,
         string floorId,
@@ -296,6 +348,50 @@ internal static class AdminEndpoints
                 return TypedResults.Ok(new FirmEventsResponse([], after));
             }
         }
+    }
+
+    /// <summary>Every instrument on the platform. A firm's group trades some of them, with its own conditions.</summary>
+    private static Ok<IReadOnlyList<PlatformInstrument>> GetInstruments(EngineConfiguration configuration) =>
+        TypedResults.Ok<IReadOnlyList<PlatformInstrument>>(
+            [.. configuration.Instruments.OrderBy(i => i.Symbol, StringComparer.Ordinal).Select(PlatformInstrument.From)]);
+
+    /// <summary>The firm's groups with the symbols they trade and their conditions. Only groups created for the firm can be changed.</summary>
+    private static async Task<Ok<IReadOnlyList<FirmGroupResponse>>> ListGroupsAsync(HttpContext context, EngineHost engine, CancellationToken cancellationToken)
+    {
+        var groupIds = AdminApiKeyFilter.TenantOf(context).Groups;
+        var groups = await engine.QueryAsync(
+            e => groupIds
+                .Select(id => (Group: e.GetGroup(id), Changeable: e.IsCreatedGroup(id)))
+                .Where(g => g.Group is not null)
+                .Select(g => FirmGroupResponse.From(g.Group!, g.Changeable))
+                .ToList(),
+            cancellationToken);
+        return TypedResults.Ok<IReadOnlyList<FirmGroupResponse>>(groups);
+    }
+
+    /// <summary>
+    /// Replaces the symbols the group trades and their conditions. Applies at once, also to open positions and pending
+    /// orders: their margin, spread markup and closing commission. A symbol in use cannot be removed (409).
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ChangeGroupSymbolsAsync(
+        string groupId,
+        ChangeGroupSymbolsRequest request,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken)
+    {
+        if (!IsFirmGroup(context, groupId))
+        {
+            return Problem(StatusCodes.Status404NotFound, "The firm has no such group.", RejectReason.UnknownGroup.ToString());
+        }
+
+        if (request.Symbols is null || request.Symbols.Any(s => s is null))
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The symbols are required.", RejectReason.InvalidGroup.ToString());
+        }
+
+        var symbols = request.Symbols.Select(s => new SymbolConditions(s.Symbol ?? "", s.Leverage, s.SpreadMarkupPoints, s.CommissionPerLotPerSide)).ToList();
+        return CommandResults.From(await engine.SendAsync(t => new ChangeGroupSymbols(t, groupId, symbols), cancellationToken));
     }
 
     // Accounts and users of other firms look like they do not exist.

@@ -20,3 +20,4 @@ export type OrderType = Schemas["OrderType"];
 export type Timeframe = Schemas["Timeframe"];
 export type ServerInfo = Schemas["ServerInfo"];
 export type Me = Schemas["MeResponse"];
+export type AccountDetails = Schemas["AccountDetails"];

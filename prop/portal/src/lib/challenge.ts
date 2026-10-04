@@ -36,6 +36,15 @@ export function canOpenTerminal(account: Account): boolean {
 }
 
 /**
+ * The account to open the terminal on for a trader the terminal sent to log in: the one it was on while that still
+ * trades, otherwise the newest that does. Null when none does.
+ */
+export function terminalAccountOf(accounts: Account[], tradingAccountId: string | null): Account | null {
+  const trading = accounts.filter(canOpenTerminal);
+  return trading.find((a) => a.tradingAccountId === tradingAccountId) ?? trading[0] ?? null;
+}
+
+/**
  * The days the trader must keep to, for example "Open a new trade by 4 Nov 2026." Each deadline is the trading day
  * the challenge ends on, so the last day to act is the one before it.
  */

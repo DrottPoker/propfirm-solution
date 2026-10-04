@@ -105,6 +105,26 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "DuplicateId");
     }
 
+    public async Task DepositAsync(FirmTrading firm, string accountId, string operationId, decimal amount, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm, HttpMethod.Post, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/balance-operations", new { operationId, amount }, cancellationToken);
+
+        // A retry after the deposit went through: the operation id is already used on the account.
+        await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "DuplicateId");
+    }
+
+    public async Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm,
+            HttpMethod.Put,
+            $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/details",
+            new { label = details.Label, profitTarget = details.ProfitTarget, timeZone = details.TimeZone, detailsUrl = details.DetailsUrl.ToString() },
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
     public async Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}", null, cancellationToken);
@@ -143,6 +163,57 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken);
         var link = await ReadJsonAsync(response, cancellationToken);
         return new TradingLoginLink(new Uri(link.GetProperty("url").GetString()!), link.GetProperty("expiresAt").GetDateTimeOffset());
+    }
+
+    public async Task<IReadOnlyList<TradingInstrument>> GetInstrumentsAsync(FirmTrading firm, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}instruments", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return
+        [
+            .. (await ReadJsonAsync(response, cancellationToken)).EnumerateArray().Select(i => new TradingInstrument(
+                i.GetProperty("symbol").GetString()!,
+                i.GetProperty("baseCurrency").GetString()!,
+                i.GetProperty("quoteCurrency").GetString()!,
+                i.GetProperty("contractSize").GetDecimal(),
+                i.GetProperty("digits").GetInt32())),
+        ];
+    }
+
+    public async Task<TradingGroupConditions?> GetGroupAsync(FirmTrading firm, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}groups", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        foreach (var group in (await ReadJsonAsync(response, cancellationToken)).EnumerateArray())
+        {
+            if (group.GetProperty("id").GetString() == firm.Group)
+            {
+                return new TradingGroupConditions(
+                    firm.Group,
+                    group.GetProperty("currency").GetString()!,
+                    group.GetProperty("changeable").GetBoolean(),
+                    [
+                        .. group.GetProperty("symbols").EnumerateArray().Select(s => new TradingSymbolConditions(
+                            s.GetProperty("symbol").GetString()!,
+                            s.GetProperty("leverage").GetInt32(),
+                            s.GetProperty("spreadMarkupPoints").GetInt32(),
+                            s.GetProperty("commissionPerLotPerSide").GetDecimal())),
+                    ]);
+            }
+        }
+
+        return null;
+    }
+
+    public async Task SetGroupSymbolsAsync(FirmTrading firm, IReadOnlyList<TradingSymbolConditions> symbols, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm,
+            HttpMethod.Put,
+            $"{Admin}groups/{Uri.EscapeDataString(firm.Group)}/symbols",
+            new { symbols = symbols.Select(s => new { symbol = s.Symbol, leverage = s.Leverage, spreadMarkupPoints = s.SpreadMarkupPoints, commissionPerLotPerSide = s.CommissionPerLotPerSide }) },
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
     }
 
     /// <summary>Reads one event envelope from the stream. Unknown kinds become <see cref="TradingOtherEvent"/>.</summary>

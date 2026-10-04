@@ -7,11 +7,11 @@
   --border: #1f2530;
   --foreground: #d6d9e0;
   --muted: #7d8590;
-  --accent: #3b82f6;
+  --accent: #2563eb;
   --profit: #22c55e;
   --loss: #ef4444;
   --warning: #f59e0b;
-  /* Text on the accent color, such as on buttons. Not a firm color yet. */
+  /* Text on the accent color, such as on buttons. */
   --accent-foreground: #ffffff;
 }
 

@@ -4,6 +4,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
+using Microsoft.Extensions.DependencyInjection;
+
+using Prop.Api.Challenges;
+using Prop.Api.Firms;
 using Prop.Api.Tests.Support;
 
 namespace Prop.Api.Tests;
@@ -31,6 +35,38 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(90_000m, account.GetProperty("maxLossFloor").GetDecimal());
     }
 
+    // The terminal names the account as the portal does, with the stage's target, the trading day's time zone and the way back.
+    [Fact]
+    public async Task TheTerminalShowsTheAccountAsThePortalNamesIt()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+
+        await Eventually.ThatAsync(() => factory.Trading.DetailsOf(Phase1) is not null, "the account to be described");
+        var details = factory.Trading.DetailsOf(Phase1)!;
+
+        Assert.Equal(("#1001 Two-step 100K · Phase 1", 110_000m, "Europe/Stockholm"), (details.Label, details.ProfitTarget, details.TimeZone));
+        Assert.Equal(new Uri($"http://localhost:3002/accounts/{id}"), details.DetailsUrl);
+    }
+
+    [Fact]
+    public async Task AnAccountOpenedBeforeTheTerminalCouldShowItIsDescribedOnce()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        await factory.StartActiveAccountAsync();
+        await Eventually.ThatAsync(() => factory.Trading.DetailsOf(Phase1) is not null, "the account to be described");
+        var service = factory.Services.GetRequiredService<ChallengeService>();
+        var firm = factory.Services.GetRequiredService<FirmCatalog>().ById("demo-firm")!;
+
+        var alreadyDescribed = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+        await factory.ScalarAsync("update challenge_accounts set described_account_id = null");
+        var describedAgain = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+        var thenNot = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+
+        Assert.Equal((0, 1, 0), (alreadyDescribed, describedAgain, thenNot));
+        await Eventually.ThatAsync(() => factory.Trading.Commands.Count(c => c == $"describe {Phase1}") == 2, "the account to be described again");
+    }
+
     [Fact]
     public async Task PassingPhaseOneClosesItsAccountOpensPhaseTwoAndTellsTheFirm()
     {
@@ -45,6 +81,50 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         var passed = await WebhookAsync(factory, "account.passed");
         Assert.Equal((0, 110_000m, 4), (passed.GetProperty("data").GetProperty("stage").GetInt32(), passed.GetProperty("data").GetProperty("balance").GetDecimal(), passed.GetProperty("data").GetProperty("tradingDays").GetInt32()));
         Assert.Equal(id, passed.GetProperty("account").GetProperty("id").GetGuid());
+        var email = await factory.Emails.WaitForAsync("anna@test.example", "You passed Phase 1 of your Two-step 100K");
+        Assert.Contains("Phase 2 starts now", email.Body, StringComparison.Ordinal);
+        Assert.Contains($"http://localhost:3002/accounts/{id}", email.Body, StringComparison.Ordinal);
+    }
+
+    // The firm may send its own emails, so each kind of ours can be turned off.
+    [Fact]
+    public async Task AnEmailTheFirmTurnedOffIsNotSent()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), PropFactory.WithWebhook());
+        using var admin = await factory.LogInAsAdminAsync();
+        using var unknown = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/firm/email-settings", UriKind.Relative), new { settings = new { noSuchEmail = false } }, TestContext.Current.CancellationToken);
+        using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/firm/email-settings", UriKind.Relative), new { settings = new { traderStagePassed = false } }, TestContext.Current.CancellationToken);
+        var settings = (await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("emailSettings");
+        var id = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+
+        await PassStageAsync(factory, id, Phase1, stage: 0, finalProfit: 7_000m);
+        await factory.WaitForAccountAsync(id, a => a.GetProperty("stage").GetInt32() == 1);
+
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.OK), (unknown.StatusCode, saved.StatusCode));
+        Assert.Equal((false, true), (settings.GetProperty("traderStagePassed").GetBoolean(), settings.GetProperty("traderEnded").GetBoolean()));
+        Assert.Equal(9, settings.EnumerateObject().Count());
+        Assert.Equal(0L, await factory.ScalarAsync("select count(*) from email_outbox where kind = 'traderStagePassed'"));
+    }
+
+    // Reminded once, a few days before the challenge would end, and not again however often the worker looks.
+    [Fact]
+    public async Task ATraderWithoutANewTradeIsRemindedBeforeTheChallengeEnds()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        await factory.StartActiveAccountAsync();
+        const string subject = "Open a trade by 4 Nov 2026";
+
+        // The last day to open a trade is 4 November, so the reminder comes on 1 November, which starts at 23:00 UTC.
+        await factory.AdvanceUntilAsync(TimeSpan.FromDays(25), () => factory.Emails.Sent.Any(e => e.Subject.StartsWith(subject, StringComparison.Ordinal)), "the reminder", TimeSpan.FromHours(1));
+        var remindedAt = factory.Time.GetUtcNow();
+        for (var hour = 0; hour < 24; hour++)
+        {
+            await factory.AdvanceAsync(TimeSpan.FromHours(1));
+        }
+
+        Assert.InRange(remindedAt, new DateTimeOffset(2026, 10, 31, 23, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 11, 1, 1, 0, 0, TimeSpan.Zero));
+        var reminder = Assert.Single(factory.Emails.Sent, e => e.Subject.StartsWith(subject, StringComparison.Ordinal));
+        Assert.Equal("anna@test.example", reminder.To);
     }
 
     [Fact]
@@ -84,6 +164,9 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
         Assert.Equal((true, "demo-firm-1001-3", JsonValueKind.Null), (funded.GetProperty("funded").GetBoolean(), funded.GetProperty("tradingAccountId").GetString(), funded.GetProperty("profitTarget").ValueKind));
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        await factory.Emails.WaitForAsync(PropFactory.AdminEmail, "anna@test.example passed Two-step 100K");
+        await factory.Emails.WaitForAsync("anna@test.example", "You passed your Two-step 100K");
+        await factory.Emails.WaitForAsync("anna@test.example", "Your funded account with");
     }
 
     [Fact]
@@ -122,7 +205,9 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
             },
             "the account to open after the outage");
 
-        Assert.Equal(["user anna@test.example", "open demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily"], factory.Trading.Commands);
+        Assert.Equal(
+            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily"],
+            factory.Trading.Commands);
     }
 
     [Fact]

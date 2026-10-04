@@ -146,12 +146,50 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
         var notSent = await PostAsync(admin, $"admin/accounts/{second}/email-trader", HttpStatusCode.ServiceUnavailable);
 
         Assert.Equal(("anna@test.example", "Invitation"), (invited.GetProperty("email").GetString(), invited.GetProperty("kind").GetString()));
-        Assert.Equal(("Demo Firm", "Your Two-step 100000 USD with Demo Firm has started"), (invitation.FromName, invitation.Subject));
+        Assert.Equal(("Demo Firm", "Your Two-step 100K with Demo Firm has started"), (invitation.FromName, invitation.Subject));
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         Assert.Equal("Notice", notified.GetProperty("kind").GetString());
         Assert.Contains($"http://localhost:3002/accounts/{second}", notice.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("token=", notice.Body, StringComparison.Ordinal);
         Assert.Equal("The email could not be sent. Try again shortly.", notSent.GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public async Task TheAdminSeesTheEmailBeforeItIsSent()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync("anna@test.example", TwoStep)).GetProperty("id").GetGuid();
+        using var admin = await factory.LogInAsAdminAsync();
+        var sentBefore = factory.Emails.Sent.Count;
+
+        var preview = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/email-trader"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(("anna@test.example", "Invitation"), (preview.GetProperty("email").GetString(), preview.GetProperty("kind").GetString()));
+        Assert.Equal("Your Two-step 100K with Demo Firm has started", preview.GetProperty("subject").GetString());
+        Assert.Contains("http://localhost:3002/invite?token=...", preview.GetProperty("body").GetString(), StringComparison.Ordinal);
+        Assert.Equal(sentBefore, factory.Emails.Sent.Count);
+    }
+
+    [Fact]
+    public async Task TheFirmTicksItsChecksOfATraderAndSeesThemOnPayouts()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync("anna@test.example", TwoStep)).GetProperty("id").GetGuid();
+        using var admin = await factory.LogInAsAdminAsync();
+
+        var before = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/trader"), TestContext.Current.CancellationToken);
+        using var identity = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/checks/identity"), new { @checked = true }, TestContext.Current.CancellationToken);
+        using var address = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/checks/address"), new { @checked = true }, TestContext.Current.CancellationToken);
+        using var untick = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/checks/address"), new { @checked = false }, TestContext.Current.CancellationToken);
+        using var unknown = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/checks/selfie"), new { @checked = true }, TestContext.Current.CancellationToken);
+        var after = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/trader"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [("identity", "ID checked", false), ("address", "Address checked", false)],
+            before.GetProperty("checks").EnumerateArray().Select(c => (c.GetProperty("item").GetString(), c.GetProperty("label").GetString(), c.GetProperty("checkedAt").ValueKind == JsonValueKind.String)));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.NotFound), (identity.StatusCode, address.StatusCode, untick.StatusCode, unknown.StatusCode));
+        var checks = after.GetProperty("checks").EnumerateArray().ToList();
+        Assert.Equal((PropFactory.AdminEmail, JsonValueKind.Null), (checks[0].GetProperty("checkedBy").GetString(), checks[1].GetProperty("checkedAt").ValueKind));
     }
 
     [Fact]
@@ -207,7 +245,7 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.Equal([annasSecond, bertsFirst], oldestFirst.EnumerateArray().Select(p => p.GetProperty("payout").GetProperty("id").GetGuid()));
         Assert.Equal([bertsFirst, annasSecond], newestFirst.EnumerateArray().Select(p => p.GetProperty("payout").GetProperty("id").GetGuid()));
         var second = oldestFirst[0];
-        Assert.Equal(("Quick test 100000 USD", 1, 6_400m), (second.GetProperty("challengeName").GetString(), second.GetProperty("paidBefore").GetInt32(), second.GetProperty("paidBeforeAmount").GetDecimal()));
+        Assert.Equal(("Quick test 100K", 1, 6_400m), (second.GetProperty("challengeName").GetString(), second.GetProperty("paidBefore").GetInt32(), second.GetProperty("paidBeforeAmount").GetDecimal()));
         Assert.Equal((0, 0m), (oldestFirst[1].GetProperty("paidBefore").GetInt32(), oldestFirst[1].GetProperty("paidBeforeAmount").GetDecimal()));
         var toApprove = summary.GetProperty("toApprove");
         Assert.Equal(2, toApprove.GetProperty("count").GetInt32());
@@ -285,7 +323,7 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
     private static async Task<Guid> BuyAsync(PropFactory factory, string email)
     {
         using var buyer = factory.CreatePortalClient();
-        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = QuickTest, email, acceptTerms = true }, TestContext.Current.CancellationToken);
+        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = QuickTest, email, acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var token = created.GetProperty("checkoutUrl").GetString()!.Split("token=")[1].Split('&')[0];

@@ -110,7 +110,11 @@ export function SectionLabel({ id, children }: { id?: string; children: React.Re
 
 /** An admin panel page's content, beside the menu. */
 export function AdminPage({ children, narrow = false }: { children: React.ReactNode; narrow?: boolean }) {
-  return <main className={`mx-auto flex w-full flex-col gap-6 px-4 py-6 sm:px-7 sm:py-7 ${narrow ? "max-w-4xl" : "max-w-6xl"}`}>{children}</main>;
+  return (
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-7 sm:py-7">
+      {narrow ? <div className="flex w-full max-w-4xl flex-col gap-6">{children}</div> : children}
+    </main>
+  );
 }
 
 /** A page's title with what it is for, and its main actions beside it. */

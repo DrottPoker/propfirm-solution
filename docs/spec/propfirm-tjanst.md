@@ -1,8 +1,8 @@
 # Spec: propfirm-tjänsten
 
-- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a, handelshistorik för traderns översikt efter 9a
+- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a, handelshistorik för traderns översikt efter 9a, e-post genom en utkorg, notiser, glömt lösenord, utbetalningsmetoder, handelsvillkor, moms och fakturor, mejl i firmans utseende, lösenordet efter köpet, kontona i terminalen, rabattkoder, firmans kontroller av traders, egen domän och konsistensregel efter genomgången som ny firma
 - Status: Implementerad i `prop/src/Prop.Api`
-- Datum: 2026-10-04
+- Datum: 2026-10-05
 
 ## Syfte
 
@@ -15,29 +15,40 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `FirmCatalog`, `FirmApiKeyFilter` | Firmorna i minnet: id, namn, status, hash av nyckeln för firmans API, server och nyckel på handelsplattformen, webhook, portal och avstängning. Den som ändrar en firma lägger in den nya versionen (ADR 0017). |
 | `FirmStore`, `SecretProtector` | Firmorna i databasen. Handelsplattformens nyckel, webhook-hemligheten och firmornas dokument krypteras med AES-GCM och `Secrets:Key`. |
 | `FirmSeeder` | Sparar de konfigurerade firmorna i databasen vid start och laddar alla firmor. Stoppar starten om konfigurationen är fel, eller om en konfigurerad firma har samma id som en som registrerat sig. |
-| `FirmProvisioner` | Skapar servern på handelsplattformen för varje firma som registrerat sig, och flyttar firman till sandlådan med en första challenge. Försöker igen tills det lyckas. |
+| `FirmProvisioner` | Skapar servern på handelsplattformen för varje firma som registrerat sig, och flyttar firman till sandlådan med en första challenge. Försöker igen tills det lyckas. Berättar också för handelsplattformen var firmans traders loggar in (portalens `/terminal`) och att servern ska listas i terminalen när firman är live (ADR 0027). |
 | `FirmLoops` | Startar bakgrundsjobben per firma när firman har en server, även för firmor som blir klara medan tjänsten kör. |
 | `SignupService` | Registrering, bekräftelse av e-postadressen och skapandet av firman, adressen och administratören. |
 | `FirmAdmins` | Administratörernas engångslänkar, inbjudningar och borttagning. |
-| `IEmailSender`, `SmtpEmailSender` | E-post från plattformen med SMTP. Lokalt fångas allt av Mailpit. |
+| `IEmailSender`, `SmtpEmailSender` | E-post från plattformen med SMTP, som ren text och, när mejlet har det, också HTML, och med en svarsadress. Lokalt fångas allt av Mailpit. |
+| `PlatformEmails`, `TraderEmails` | Mejlen till firmor och vår personal i ren text, och mejlen till traders i firmans namn och utseende: loggan, accentfärgen på knappen och svar till firmans supportadress (ADR 0033). |
+| `EmailOutbox`, `EmailWorker` | Mejl, med HTML och svarsadress, som köas i samma transaktion som ändringen de berättar om och skickas i bakgrunden, äldst först, med nya försök efter 30 sekunder och dubbel väntan upp till 4 timmar, i 12 försök (ADR 0025). |
+| `Notifications`, `InactivityReminderWorker` | Notiserna till firmans administratörer och traders när regelmotorn fattar ett beslut eller en order betalas, och påminnelsen om att öppna en affär innan challengen tar slut. Varje slag kan stängas av av firman (ADR 0025). |
+| `PasswordResets`, `PasswordResetEndpoints` | Länkarna för att välja nytt lösenord för traders, administratörer och vår personal, och kontrollen av länkar och inbjudningar när de öppnas (ADR 0028). |
+| `PayoutMethods` | Hur traders vill få betalt, krypterat med `SecretProtector` (ADR 0026). |
+| `TradingConditionsEndpoints` | Firmans handelsvillkor på handelsplattformen: instrumenten, hävstången, påslaget och provisionen (ADR 0027). |
 | `AccountActions` | Det som går att göra med ett konto, gemensamt för firmans API och portalen. |
-| `PayoutActions`, `PayoutQueries` | Utbetalningar: begäran, firmans beslut och listor, gemensamt för firmans API och portalen. |
+| `PayoutActions`, `PayoutQueries` | Utbetalningar: begäran, firmans beslut och listor, gemensamt för firmans API och portalen. En utbetalning som tradern begär i portalen får en kopia av traderns utbetalningsmetod. |
 | `PortalEndpoints`, `PortalAuth`, `PortalFirmFilter` | Portalens API, sessioner och att firman känns igen på värdnamnet. |
 | `PortalUsers`, `PortalSeeder` | Traders och administratörer i portalen, inbjudningar, och de administratörer och traders som konfigurerats för utveckling. |
 | `ChallengeCatalog` | Challenges per firma. Kontrolleras av regelmotorn och mot kända tidszoner. |
-| `ChallengeService` | Kör regelmotorn med kontot låst. Steget, tillståndet, kommandona och webhooks sparas i samma transaktion. |
-| `ITradingPlatform`, `TradingPlatformClient` | Handelsplattformens admin-API v1, även kontot värderat just nu för portalen. Fler plattformar kan få egna adaptrar. |
-| `ITradingPartner`, `TradingPartnerClient` | Handelsplattformens partner-API v1, som skapar servrar åt firmor som registrerar sig (ADR 0016). |
+| `ChallengeService` | Kör regelmotorn med kontot låst. Steget, tillståndet, kommandona och webhooks sparas i samma transaktion. När ett konto öppnas för en fas köas också hur terminalen ska visa det: namnet som i portalen, vinstmålet, handelsdagens tidszon och adressen till kontot i portalen (ADR 0035). |
+| `TradingAccountDescriber` | En gång vid start: berättar för handelsplattformen hur öppna konton som öppnades innan den kunde få veta det ska visas, en gång per konto. |
+| `ITradingPlatform`, `TradingPlatformClient` | Handelsplattformens admin-API v1, även kontot värderat just nu för portalen och firmans handelsvillkor. Fler plattformar kan få egna adaptrar. |
+| `ITradingPartner`, `TradingPartnerClient` | Handelsplattformens partner-API v1, som skapar servrar åt firmor som registrerar sig (ADR 0016) och sätter om de listas och var deras traders loggar in. |
 | `TradingEventConsumer` | Läser firmans händelseström och gör om händelser till fakta. Löpnumret sparas i samma transaktion som besluten. |
 | `TradingHistoryRecorder` | Läser firmans händelseström med en egen läsposition och sparar positioner, saldoändringar och golvens nivåer för kontona tjänsten har öppnat (ADR 0022). Varje händelse sparas en gång per löpnummer, så historiken byggs om genom att läsa strömmen igen. |
 | `TradingHistoryQueries`, `AccountPerformance` | Läser historiken och fasernas start och resultat, och räknar resultatet i dag, statistiken och resultatet per dag med decimaltal. |
-| `AdminPanelEndpoints`, `AdminFigures` | Adminpanelens egna vyer (ADR 0023): översikten med konton per grupp, utbetalningar, försäljning, andelen som klarar, veckor och händelser, sökningen bland kontona, kontots trader, mejlet till tradern, utbetalningskön och varje challenges siffror. Siffrorna räknas med SQL när de läses. |
-| `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil. |
+| `AdminPanelEndpoints`, `AdminFigures` | Adminpanelens egna vyer (ADR 0023): översikten med konton per grupp, utbetalningar, försäljning, andelen som klarar, veckor och händelser, sökningen bland kontona, kontots trader med firmans kontroller, mejlet till tradern och förhandsvisningen av det, utbetalningskön med om tradern är kontrollerad och varje challenges siffror. Siffrorna räknas med SQL när de läses. |
+| `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, med positionerna ett brott stängde och saldot efteråt, och för en underkänd challenge ett nytt försök med firmans bästa kod för nya försök. Och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil. |
 | `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. En firmas kommandon väntar tills den har en server. Ett nekat uttag rapporteras till regelmotorn i samma transaktion, så att utbetalningen blir `Failed`. |
 | `TradingDayScheduler`, `TradingStreamProgress` | Startar handelsdagen för varje öppet konto när dagen börjar, och kommer ikapp efter en omstart. En dag som avslutar en challenge på tid väntar tills firmans händelseström är läst förbi dagens början. |
 | `WebhookWorker`, `WebhookOutbox` | Webhooks till firman köas i samma transaktion som ändringen bakom dem, och skickas signerade tills de tas emot. |
+| `WebhookDeliveries`, `WebhookEvents` | Alla händelser webhooks berättar om, de senaste leveranserna för adminpanelen och testhändelsen `webhook.test`. |
 | `OrderService`, `OrderStore` | Köp i portalen: ordern med priset, betalningen som startar kontot i samma transaktion, återbetalningar, bestridanden och inbjudan till köparen (ADR 0019). |
 | `PriceCatalog` | Challengernas priser i portalen, skilda från challengerna. |
+| `DiscountStore`, `DiscountRules`, `DiscountEndpoints` | Firmans rabattkoder och hur ofta de använts, priset med en kod, och adminpanelens koder (ADR 0036). |
+| `TraderChecks` | Firmans egna kontroller av en trader, ID och adress, som firman bockar för i adminpanelen (ADR 0037). |
+| `CustomDomainStore`, `DomainVerifier`, `DomainVerificationWorker`, `IDnsLookup`, `AdminDomainEndpoints` | Firmans egen domän: TXT-posten som visar att den är firmans och CNAME-posten som pekar hit, uppslagningen med DNS över HTTPS var femte minut och med "Check now", och frågan från vår proxy om en adress får ett certifikat (ADR 0039). |
 | `StripeClient`, `StripeSignature` | Stripe Checkout med firmans egen nyckel, och kontrollen av Stripes webhooks. |
 | `ShopEndpoints`, `PaymentEndpoints`, `OrderActions` | Butiken och köparens order i portalen, adminpanelens ordrar, priser och betalningar, firmans API för ordrar och priser och Stripes webhook. |
 | `ChallengeSeeder` | Skapar firmans konfigurerade challenges vid start. |
@@ -65,6 +76,7 @@ ingen ny position på 30 dagar, eller fasens tidsgräns passerad -> ny handelsda
 firmans månad börjar obetald -> challengen pausas -> kommando: pausa kontot -> webhook account.paused
 tradern begär utbetalning -> kommando: ta ut vinsten -> BalanceAdjusted i strömmen -> väntar på firman -> webhook payout.requested
 firman godkänner -> webhook payout.approved -> firman betalar själv och markerar som betald -> webhook payout.paid
+varje beslut ovan -> notiserna köas i samma transaktion -> mejl till tradern eller firmans administratörer
 ```
 
 ## Från handelsplattformen till regelmotorn
@@ -111,18 +123,22 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 ## Konton på handelsplattformen
 
 - Id är `{firma}-{nummer}-{fas}`, till exempel `demo-firm-1001-1`. Numret börjar på 1001 för varje firma, och samma id ges vid ett nytt försök.
-- Traderns användare på handelsplattformen skapas när det första kontot öppnas, med ett slumpat lösenord som aldrig visas. Tradern loggar in med en länk från `POST /accounts/{id}/login-link`, eller med knappen "Open terminal" i portalen.
+- Kontot får sitt namn, vinstmål, tidszon och adress i portalen med `PUT /accounts/{id}/details` direkt efter att det öppnats, så att terminalen visar det som portalen (ADR 0035). Firmans logga skickas med listningen.
+- Traderns användare på handelsplattformen skapas när det första kontot öppnas, med ett slumpat lösenord som aldrig visas. Tradern loggar in med en länk från `POST /accounts/{id}/login-link`, eller med knappen "Open terminal" i portalen. Terminalen skickar firmans traders till portalens `/terminal`, som öppnar den igen med en engångslänk, också när sessionen i terminalen har gått ut.
 
 ## Tabeller
 
 | Tabell | Innehåll |
 |---|---|
 | `challenge_definitions` | Firmans challenges. |
-| `traders` | Firmans traders, deras användare på handelsplattformen och hash av lösenordet till portalen. E-postadressen är unik inom firman. |
-| `firm_admins` | Firmans administratörer i portalen. E-postadressen är unik inom firman. |
+| `traders` | Firmans traders, deras användare på handelsplattformen, hash av lösenordet till portalen och när det valdes, namnet och landet från köpet och när e-posten bekräftades. E-postadressen är unik inom firman. |
+| `firm_admins` | Firmans administratörer i portalen, och när lösenordet valdes. E-postadressen är unik inom firman. |
+| `password_resets` | Länkar för att välja nytt lösenord: hash av token, slag (`trader`, `admin` eller `staff`), personen, när länken går ut och när den användes. |
+| `email_outbox` | Mejl som väntar på att skickas, med texten, HTML och svarsadressen, försök, senaste fel, när de skickades eller gavs upp, och en nyckel som hindrar att samma påminnelse köas två gånger. |
+| `trader_payout_methods` | Traderns utbetalningsmetod, krypterad. |
 | `portal_invites` | Inbjudningar till portalen: hash av token, trader, när den går ut och när den användes. |
 | `data_protection_keys` | Nycklarna som skyddar portalens sessioner. |
-| `challenge_accounts` | Challenge-konton med regelmotorns tillstånd, status, fas, handelsdag, om challengen är pausad, firmans referens och beslutet som avslutade challengen. |
+| `challenge_accounts` | Challenge-konton med regelmotorns tillstånd, status, fas, handelsdag, om challengen är pausad, firmans referens, beslutet som avslutade challengen, om kontot startades i sandlådan och vilket konto på handelsplattformen som senast fick sitt namn (`described_account_id`). |
 | `challenge_steps` | Varje indata och beslut i ordning, med handelsplattformens händelse som bevis. |
 | `trading_accounts` | Konton på handelsplattformen per fas, med saldo, öppna positioner och golvens nivåer som plattformen senast rapporterade, och när fasen startade och klarades, med saldot och handelsdagarna. |
 | `trading_cursors` | Hur långt varje firmas händelseström är läst. |
@@ -130,14 +146,17 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `trading_positions`, `trading_balance_changes`, `trading_floor_levels` | Handelshistoriken för kontona tjänsten har öppnat: positioner från öppning till stängning, varje saldoändring med saldot efter, och golvens nivåer över tid. |
 | `trading_commands` | Kommandon till handelsplattformen, i ordning per firma. |
 | `webhook_deliveries` | Webhooks till firman, med försök och svar. |
-| `payouts` | Utbetalningar med status, vinst, vinstandel, belopp, tider, orsak och firmans referens. Regelmotorns steg är revisionsloggen, tabellen är för att hitta utbetalningar. |
+| `payouts` | Utbetalningar med status, vinst, vinstandel, belopp, tider, orsak, firmans referens, om vinsten lades tillbaka vid ett nej och traderns utbetalningsmetod när den begärdes, krypterad. Regelmotorns steg är revisionsloggen, tabellen är för att hitta utbetalningar. |
+| `trader_checks` | Firmans bockade kontroller av en trader, `identity` och `address`, med när och av vilken administratör. |
 | `firm_counters` | Nästa kontonummer per firma. |
-| `firms`, `firm_hosts`, `firm_logos` | Firmorna, värdnamnen deras portaler nås på och loggorna de har laddat upp. Se [specen för registrering och sandlåda](registrering.md). |
+| `firm_domains` | Firmans egen domän med token för TXT-posten, status (`Pending` eller `Active`), när den senast slogs upp och vad som saknades. |
+| `firms`, `firm_hosts`, `firm_logos` | Firmorna, värdnamnen deras portaler nås på, också en egen domän när den är aktiv, och loggorna de har laddat upp. `firms` har också vilka notiser firman stängt av (`email_settings`) och vad handelsplattformen senast fick veta om var traderna loggar in och om servern listas (`trading_listing`). Se [specen för registrering och sandlåda](registrering.md). |
 | `firm_signups`, `admin_invites`, `admin_login_links` | Registreringar som väntar på bekräftelse, inbjudningar till administratörer och engångslänkar som loggar in en administratör. |
 | `firm_billing`, `billing_periods`, `billing_charges`, `billing_checkouts`, `billing_events` | Hur firman betalar oss och dess kort, betalda månader med platser, debiteringar, betalsidor och allt som hänt. Se [specen för platser och betalning](platser-och-betalning.md). |
 | `firm_reviews`, `firm_documents`, `firm_events`, `firm_review_checks`, `staff_users` | Vår granskning av firmorna, deras dokument, allt som hänt i granskningen och med avstängningen, våra bockade kontroller och vår personal. Se [specen för granskning och avstängning](granskning.md). |
 | `challenge_prices` | Vad challengerna kostar i portalen och om de säljs där. |
-| `orders`, `order_events`, `order_counters` | Köp i portalen med status, pris, leverantör, betalning och kontot de startade, allt som hänt varje order och nästa ordernummer per firma. Firmans val av leverantör, krypterade Stripe-nycklar, betalsida och villkor ligger i `firms`. Se [specen för köp i portalen](kop.md). |
+| `discount_codes` | Firmans rabattkoder: procent eller belopp i en valuta, vilka challenges, högst hur många gånger, sista dag, om koden är för nya försök och om den är på. |
+| `orders`, `order_events`, `order_counters` | Köp i portalen med status, pris, leverantör, betalning, kontot de startade, om ordern gjordes i sandlådan och rabattkoden med priset före den, allt som hänt varje order och nästa ordernummer per firma. Firmans val av leverantör, krypterade Stripe-nycklar, betalsida och villkor ligger i `firms`. Se [specen för köp i portalen](kop.md). |
 
 ## Firmans API
 
@@ -159,15 +178,15 @@ Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-A
 | `POST /accounts/{id}/payouts` | Begär en utbetalning åt tradern, för firmor vars egen webbplats låter tradern begära. Svarar 201 med utbetalningen, eller 409 med orsaken när den inte kan begäras nu. |
 | `GET /accounts/{id}/payouts` | Kontots utbetalningar, nyaste först. |
 | `GET /payouts?status=&limit=` | Firmans nyaste utbetalningar, högst 500. `status` kan anges flera gånger, till exempel `status=Pending&status=Approved` för de som väntar på firman. |
-| `GET /payouts/{payoutId}` | En utbetalning. |
-| `POST /payouts/{payoutId}/approve` | Firman har gjort sina kontroller, till exempel KYC, och skickar pengarna. 409 om utbetalningen inte väntar på godkännande. |
+| `GET /payouts/{payoutId}` | En utbetalning. Utbetalningarna har `payTo`, traderns utbetalningsmetod när den begärdes i portalen, och tomt för de som firman begärt åt tradern. |
+| `POST /payouts/{payoutId}/approve` | Firman har gjort sina kontroller av tradern och skickar pengarna. 409 om utbetalningen inte väntar på godkännande. |
 | `POST /payouts/{payoutId}/mark-paid` | Firman har betalat, med en valfri egen `{ "reference" }`. 409 om utbetalningen inte är godkänd. |
-| `POST /payouts/{payoutId}/reject` | Nekar en utbetalning som väntar eller är godkänd, med `{ "reason" }` som visas för tradern. Vinsten återförs inte till kontot. |
+| `POST /payouts/{payoutId}/reject` | Nekar en utbetalning som väntar eller är godkänd, med `{ "reason", "returnProfit" }`. Orsaken visas för tradern. Med `returnProfit` läggs vinsten tillbaka på kontot, annars är den förlorad (ADR 0037). 409 när vinsten inte kan läggas tillbaka för att kontot har avslutats. |
 | `GET /prices`, `PUT /challenges/{challengeId}/price` | Priserna i portalen, och ett pris med `{ "amount", "currency", "forSale" }`. |
 | `GET /orders?status=&limit=`, `GET /orders/{orderId}` | Firmans ordrar från portalen, och en order med allt som hänt den. |
 | `POST /orders/{orderId}/mark-paid`, `POST /orders/{orderId}/mark-refunded` | Firmans egen betalsida har fått betalt, och kontot startar, eller har betalat tillbaka. Se [specen för köp i portalen](kop.md). |
 
-`AccountResponse` har `nextPayout` för funded-konton: vinsten, vinstandelen, traderns belopp, handelsdagar sedan förra utbetalningen och om en utbetalning kan begäras nu, annars varför inte. Se [specen för regelmotorn](regelmotor.md).
+`AccountResponse` har `nextPayout` för funded-konton: vinsten, vinstandelen, traderns belopp, handelsdagar sedan förra utbetalningen, med en konsistensregel den bästa dagens resultat och regelns andel, och om en utbetalning kan begäras nu, annars varför inte. Se [specen för regelmotorn](regelmotor.md). Utbetalningarna har `profitReturned` och `timeZone`, challengens tidszon.
 
 Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `prop/portal/openapi/prop-api.json` när tjänsten byggs, och CI kontrollerar att det är committat.
 
@@ -185,8 +204,9 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `payout.requested` | Tradern har begärt en utbetalning och vinsten är uttagen från kontot. Firman ska godkänna. |
 | `payout.approved` | Firman godkände utbetalningen. |
 | `payout.paid` | Firman markerade utbetalningen som betald. |
-| `payout.rejected` | Firman nekade utbetalningen. Innehåller orsaken. |
+| `payout.rejected` | Firman nekade utbetalningen. Innehåller orsaken och om vinsten lades tillbaka (`profitReturned`). |
 | `order.paid`, `order.refunded`, `order.disputed` | En order i portalen är betald, återbetald eller bestridd. `data.order` är ordern och `account` kontot den startade. |
+| `webhook.test` | En test som firman skickade från adminpanelen. `account` är tomt, och `data.message` säger vad det är. |
 
 - Kroppen är `{ "id", "type", "createdAt", "account": { "id", "number", "email", "challengeId", "reference" }, "data": { ... } }`, där `data` är regelmotorns beslut. För utbetalningar har `data.payout` utbetalningens id, vinst, vinstandel, belopp och status.
 - Headrarna `Prop-Webhook-Id` och `Prop-Webhook-Event` anger vilken leverans och händelse det är. `Prop-Signature` är `t={unix-sekunder},v1={hex}`, där `hex` är HMAC-SHA256 med firmans hemlighet av `{t}.{kropp}`.
@@ -204,9 +224,10 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `Platform:ApiUrl`, `Payments`, `Firms:N:Payments`, `Firms:N:SeedChallenges:M:Price` | Köp i portalen. Se [specen för köp i portalen](kop.md). |
 | `Billing`, `Firms:N:Slots` | Platser och vad firman betalar oss. Se [specen för platser och betalning](platser-och-betalning.md). |
 | `Platform:OpsUrl`, `Billing:ReviewDeposit`, `Staff` | Vår granskning och vår adminvy. Se [specen för granskning och avstängning](granskning.md). |
+| `Domains` | Firmornas egna domäner: `CnameTarget`, värdnamnet de pekar på, tomt för att stänga av egna domäner, `CheckInterval`, hur ofta väntande domäner slås upp (standard 5 minuter), och `DnsOverHttpsUrl`, resolvern med JSON-API (standard Cloudflare). Se ADR 0039. |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
-I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan bekräftelse av e-postadressen, får sin portal på till exempel http://acme.localhost:3002, skickar sin ansökan med testbetalning på http://acme.localhost:3002/admin/verification, godkänns av `ops@test.com` med lösenordet `ops` på vår adminvy http://ops.localhost:3002 och går live med testbetalning på http://acme.localhost:3002/admin/billing. Mejl hamnar i Mailpit på http://localhost:8025. Firman `demo-firm` har nyckeln `dev-prop-key` och ingen gräns för platser. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, som säljs för 499 och 9 USD med testbetalningar på http://localhost:3002/buy, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
+I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan bekräftelse av e-postadressen, får sin portal på till exempel http://acme.localhost:3002, skickar sin ansökan med testbetalning och går live på http://acme.localhost:3002/admin/go-live, och godkänns av `ops@test.com` med lösenordet `ops` på vår adminvy http://ops.localhost:3002. Fakturorna har säljaren från `Billing:Seller` i `appsettings.Development.json`. Mejl hamnar i Mailpit på http://localhost:8025. Firman `demo-firm` har nyckeln `dev-prop-key` och ingen gräns för platser. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, som säljs för 499 och 9 USD med testbetalningar på http://localhost:3002/buy, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.
 
 ## Begränsningar
 
@@ -214,26 +235,33 @@ I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan be
 - Tjänsten körs som en instans. Läsningen av händelseströmmen och kommandona har ännu inga lås mellan instanser, och firmorna hålls i minnet.
 - En firma går live först när vi har granskat och godkänt den. Den kan inte byta namn eller kort namn, eller tas bort än.
 - Ett kommando som handelsplattformen avvisar läggs åt sidan som misslyckat och syns bara i databasen och loggen. Ett nekat uttag gör dessutom utbetalningen `Failed`.
-- Utbetalningar som firman har godkänt betalas av firman själv. Tjänsten hanterar aldrig pengar.
+- Utbetalningar som firman har godkänt betalas av firman själv, till traderns utbetalningsmetod. Tjänsten hanterar aldrig pengar och kontrollerar inte metoden.
+- Ett mejl som inte går iväg efter 12 försök ges upp och syns bara i `email_outbox` och loggen.
 - Köp i portalen betalas till firmans egen leverantör. Tjänsten ser bara att betalningen är gjord.
+- Firmans kontroller av traders bockas för för hand. En koppling till en tjänst för identitetskontroll, till exempel Sumsub eller Veriff, kommer senare.
+- Alla administratörer får göra allt. Roller, till exempel ägare, administratör och support, kommer senare.
+- Certifikatet för en egen domän görs av vår proxy, som frågar `GET /api/tls/allowed?domain=` innan den hämtar ett. Proxyn är inte uppsatt än (steg 10).
 
 ## Tester
 
 Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Postgres i en container via Testcontainers och kräver Docker. Handelsplattformen är en låtsad version i minnet som beter sig som vår. Klockan flyttas bara när testet säger till, och firmans webhooks tas emot av testet.
 
-- `FirmApiTests`: nyckeln, challenges och deras kontroll, start av konto med golven i rätt ordning, firmans referens, felaktiga starter, att firmor inte ser varandras konton, inloggningslänken och inbjudan till portalen.
+- `FirmApiTests`: nyckeln, challenges och deras kontroll, en direkt funded challenge som börjar på funded-kontot, start av konto med golven i rätt ordning, firmans referens, felaktiga starter, att firmor inte ser varandras konton, inloggningslänken och inbjudan till portalen.
 - `PortalApiTests`: portalens API, se [specen för portalen](portal.md).
-- `PayoutFlowTests`: en utbetalning från begäran via uttaget på handelsplattformen till godkänd och betald, med webhooks, orsaker att neka, ett nekat uttag som gör utbetalningen `Failed` och ett nytt försök som lyckas, nej från firman, traderns begäran och administratörens beslut i portalen, att andra firmor inte når utbetalningarna och gränserna för listor.
+- `PayoutFlowTests`: en utbetalning från begäran via uttaget på handelsplattformen till godkänd och betald, med webhooks, orsaker att neka, konsistensregeln, ett nekat uttag som gör utbetalningen `Failed` och ett nytt försök som lyckas, nej från firman, nej med vinsten tillbaka på kontot och mejlet om det, traderns begäran och administratörens beslut i portalen med utbetalningsmetoden, att metoden sparas krypterad, att andra firmor inte når utbetalningarna och gränserna för listor.
+- `PasswordResetTests`: länkarna för nytt lösenord, kontrollen av inbjudningar och plattformens mejl med inloggningslänkar. Se [specen för portalen](portal.md).
 - `SignupTests`: registrering med och utan bekräftelse av e-postadressen, länkens livslängd, korta namn som är ogiltiga, reserverade eller tagna, också på handelsplattformen, kontroll av formuläret, att registreringen bara finns på plattformens adress, ett mejl som inte gick iväg, en server som skapas när handelsplattformen är tillbaka och ett svar som gick förlorat, välkomstlänken, inloggning med lösenordet från registreringen, sandlådans gräns, omstart och att en konfigurerad firma inte kan ta över en registrerad.
-- `AdminSettingsTests`: färgerna, en logga som laddas upp, visas och tas bort och loggor som nekas, nyckel för firmans API, webhooks som signeras med firmans hemlighet och en ny hemlighet, inbjudningar till administratörer, en borttagen administratör som loggas ut direkt, att administratörer bara når sin egen firma, challenges från mallen och i firmans valuta, och att inställningarna bara är för administratörer.
-- `AdminPanelTests`: adminpanelens översikt, sökningen bland kontona, kontots trader, mejlet till tradern, historiken för firmans konton, utbetalningskön och challengernas siffror. Se [specen för portalen](portal.md).
+- `AdminSettingsTests`: färgerna, en logga som laddas upp, visas och tas bort och loggor som nekas, nyckel för firmans API, webhooks som signeras med firmans hemlighet och en ny hemlighet, inbjudningar till administratörer, som skickas igen eller dras tillbaka, en borttagen administratör som loggas ut direkt, att administratörer bara når sin egen firma, challenges från mallen och i firmans valuta, och att inställningarna bara är för administratörer.
+- `AdminPanelTests`: adminpanelens översikt, sökningen bland kontona, kontots trader, firmans kontroller av tradern, mejlet till tradern och förhandsvisningen av det, historiken för firmans konton, utbetalningskön och challengernas siffror. Se [specen för portalen](portal.md).
 - `OrderFlowTests`: köp i portalen med testbetalning, Stripe och firmans egen betalsida. Se [specen för köp i portalen](kop.md).
+- `DiscountTests`: rabattkoder i butiken, att en kod inte används oftare än firman tillåter, kontrollen av nya koder, koder för nya försök, "Try again" på ett underkänt konto och vad ett brott stängde.
+- `DomainTests`: en egen domän som blir portalens adress när posterna finns, också med samma adresser i stället för CNAME, DNS som inte svarar, domäner som nekas, att en domän hör till en firma, att den kan tas bort och att konfigurerade firmor inte kan byta.
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).
 - `ReviewTests` och `SuspensionTests`: vår granskning, vår adminvy och avstängning. Se [specen för granskning och avstängning](granskning.md).
 - `OpsPanelTests`: vår adminvy över alla firmor, med översikten, sökningen bland firmorna, kontrollerna, en firmas utbetalningar och vad firmorna betalar. Se [specen för granskning och avstängning](granskning.md).
 - `ExpiryTests`: en challenge utan ny position i 30 dagar som tar slut och stänger kontot med webhooken och orsaken, en affär på sista dagen som räknas fast händelsen kommer efter att dagen tagit slut, en ny position som flyttar sista dagen, en fas med tidsgräns som tar slut, och en tidsgräns som är kortare än fasens handelsdagar.
-- `ChallengeFlowTests`: dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa, brott med bevis, godkänd finansiering, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
+- `ChallengeFlowTests`: kontot som terminalen visar det, också för konton som öppnades innan, dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa och mejlar tradern, brott med bevis, godkänd finansiering med mejlen till administratören och tradern, en notis som firman stängt av och inte skickas, påminnelsen om att öppna en affär en gång per sista dag, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
 - `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, positionernas fält i händelserna, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv, att ett uttag bara dras en gång och bär plattformens orsak vid nej, och att konton pausas och återupptas.
 - `TraderDashboardTests`: varje affär med provisioner och saldot efter, att historiken byggs om från strömmens början, kontona på traderns översikt med faser, resultat i dag och i fasen, vinstmål och golvens avstånd, att versionen ändras med historiken, en klarad fas med start, resultat och handelsdagar, när och varför ett konto slutade, affärer sida för sida och som CSV-fil, att en trader bara ser sina egna konton, och traderns utbetalningar med summor.
 - `AccountPerformanceTests`: statistiken, avrundningen, dag för dag med handelsdagar i Stockholm, resultatet i dag och förloppet mot vinstmålet.

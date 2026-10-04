@@ -11,12 +11,13 @@ function stage(name: string, profitTargetPercent: number | null, minTradingDays:
     maxLoss: { percent: 10, kind: "Fixed" },
     profitSplitPercent,
     maxDays: null,
+    consistencyPercent: null,
   };
 }
 
 export const testChallenge: ChallengeDefinition = {
   id: "two-step-100k",
-  name: "Two-step 100000 USD",
+  name: "Two-step 100K",
   currency: "USD",
   initialBalance: 100_000,
   tradingDay: { timeZone: "Europe/Stockholm", start: "00:00:00" },

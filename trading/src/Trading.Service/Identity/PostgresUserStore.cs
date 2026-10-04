@@ -90,6 +90,50 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
         return accounts;
     }
 
+    public async Task SetAccountDetailsAsync(AccountDetails details, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            insert into account_details (account_id, label, profit_target, time_zone, details_url, updated_at) values ($1, $2, $3, $4, $5, $6)
+            on conflict (account_id) do update set label = excluded.label, profit_target = excluded.profit_target, time_zone = excluded.time_zone,
+                details_url = excluded.details_url, updated_at = excluded.updated_at
+            """);
+        command.Parameters.AddWithValue(details.AccountId);
+        command.Parameters.AddWithValue((object?)details.Label ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)details.ProfitTarget ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)details.TimeZone ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)details.DetailsUrl?.ToString() ?? DBNull.Value);
+        command.Parameters.AddWithValue(now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<AccountDetails>> AccountDetailsOfAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            select o.account_id, d.label, d.profit_target, d.time_zone, d.details_url
+            from account_owners o left join account_details d on d.account_id = o.account_id
+            where o.user_id = $1
+            order by o.created_at, o.account_id
+            """);
+        command.Parameters.AddWithValue(userId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var details = new List<AccountDetails>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            details.Add(new AccountDetails(
+                reader.GetString(0),
+                reader.IsDBNull(1) ? null : reader.GetString(1),
+                reader.IsDBNull(2) ? null : reader.GetDecimal(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : new Uri(reader.GetString(4))));
+        }
+
+        return details;
+    }
+
     private async Task<User?> FindAsync(string sql, object[] parameters, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

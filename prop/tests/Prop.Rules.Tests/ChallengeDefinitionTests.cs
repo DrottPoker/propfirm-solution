@@ -18,6 +18,22 @@ public sealed class ChallengeDefinitionTests
     }
 
     [Fact]
+    public void TheTemplatesAreValidAndNamedAfterTheirSize()
+    {
+        ChallengeDefinition[] templates =
+        [
+            ChallengeTemplates.OneStep("one", 50_000m),
+            ChallengeTemplates.TwoStep("two", 100_000m),
+            ChallengeTemplates.ThreeStep("three", 200_000m, "EUR"),
+            ChallengeTemplates.InstantFunded("instant", 25_000m),
+        ];
+
+        Assert.All(templates, t => Assert.Empty(t.Validate()));
+        Assert.Equal(["One-step 50K", "Two-step 100K", "Three-step 200K", "Instant funded 25K"], templates.Select(t => t.Name));
+        Assert.Equal([1, 2, 3, 0], templates.Select(t => t.FundedStage));
+    }
+
+    [Fact]
     public void TimeLimitsAndInactivityAreOptional()
     {
         var limited = TwoStep with
@@ -31,7 +47,6 @@ public sealed class ChallengeDefinitionTests
     }
 
     [Theory]
-    [InlineData("no evaluation stage", "at least one evaluation stage")]
     [InlineData("target on funded stage", "funded stage has no profit target")]
     [InlineData("no target on evaluation stage", "needs a profit target")]
     [InlineData("daily loss above max loss", "larger daily loss than max loss")]
@@ -47,12 +62,13 @@ public sealed class ChallengeDefinitionTests
     [InlineData("no days in the time limit", "time limit of 1 to 365 days")]
     [InlineData("time limit below the trading days", "time limit of at least its minimum trading days")]
     [InlineData("time limit on funded stage", "funded stage has no time limit")]
+    [InlineData("consistency below 10", "consistency rule must be 10 to 100 percent")]
+    [InlineData("consistency on evaluation stage", "has no consistency rule")]
     public void InvalidDefinitionsAreRefused(string problem, string error)
     {
         var phase1 = TwoStep.Evaluation[0];
         var definition = problem switch
         {
-            "no evaluation stage" => TwoStep with { Evaluation = [] },
             "target on funded stage" => TwoStep with { Funded = TwoStep.Funded with { ProfitTargetPercent = 5 } },
             "no target on evaluation stage" => TwoStep with { Evaluation = [phase1 with { ProfitTargetPercent = null }] },
             "daily loss above max loss" => TwoStep with { Evaluation = [phase1 with { DailyLoss = phase1.DailyLoss with { Percent = 12 } }] },
@@ -68,6 +84,8 @@ public sealed class ChallengeDefinitionTests
             "no days in the time limit" => TwoStep with { Evaluation = [phase1 with { MaxDays = 0, MinTradingDays = 0 }] },
             "time limit below the trading days" => TwoStep with { Evaluation = [phase1 with { MaxDays = 3 }] },
             "time limit on funded stage" => TwoStep with { Funded = TwoStep.Funded with { MaxDays = 30 } },
+            "consistency below 10" => TwoStep with { Funded = TwoStep.Funded with { ConsistencyPercent = 5 } },
+            "consistency on evaluation stage" => TwoStep with { Evaluation = [phase1 with { ConsistencyPercent = 40 }] },
             _ => throw new ArgumentOutOfRangeException(nameof(problem)),
         };
 

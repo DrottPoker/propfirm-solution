@@ -48,20 +48,42 @@ export function formatAxisMoney(value: number): string {
   return wholeNumber.format(value);
 }
 
-export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
+/**
+ * A date and time, for example "5 Oct 2026, 17:38". An account's times are shown in its challenge's time zone, the one
+ * its trading days follow, so they agree with when the days start; without a zone, in the browser's.
+ */
+export function formatDateTime(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone });
 }
 
-/** A time in a table of trades, for example "2 Oct 13:40". */
-export function formatShortDateTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+/** A time in a table of trades, for example "2 Oct 13:40", in the time zone when given. */
+export function formatShortDateTime(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone });
 }
 
-/** A date, for example "4 Nov 2026". A plain date such as "2026-11-04" is shown as it is, in any time zone. */
-export function formatDate(iso: string): string {
+/**
+ * A date, for example "4 Nov 2026". A plain date such as "2026-11-04" is shown as it is, in any time zone; a moment is
+ * shown on its date in the time zone when given.
+ */
+export function formatDate(iso: string, timeZone?: string): string {
   return isPlainDate(iso)
     ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone: "UTC" })
-    : new Date(iso).toLocaleDateString("en-GB", { dateStyle: "medium" });
+    : new Date(iso).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone });
+}
+
+/** The time zone's name for the trader: "Stockholm time" for Europe/Stockholm, "UTC" for UTC. The same as in the terminal. */
+export function timeZoneName(timeZone: string): string {
+  if (timeZone === "UTC" || timeZone === "Etc/UTC") {
+    return "UTC";
+  }
+
+  const city = timeZone.split("/").pop() ?? timeZone;
+  return `${city.replace(/_/g, " ")} time`;
+}
+
+/** A plain date without the year, for example "4 Nov". */
+export function formatShortDate(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 /** A trading day, for example "Mon 5 Oct". Trading days are plain dates, the same in every time zone. */

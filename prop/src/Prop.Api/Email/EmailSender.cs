@@ -9,8 +9,11 @@ using Prop.Api.Configuration;
 
 namespace Prop.Api.Email;
 
-/// <summary>An email from the platform, in plain text. <paramref name="FromName"/> replaces the platform's name as sender, for example with a firm's.</summary>
-internal sealed record EmailMessage(string To, string Subject, string Body, string? FromName = null);
+/// <summary>
+/// An email from the platform, in plain text, and with <paramref name="Html"/> also as HTML. <paramref name="FromName"/>
+/// replaces the platform's name as sender, for example with a firm's, and <paramref name="ReplyTo"/> is where replies go.
+/// </summary>
+internal sealed record EmailMessage(string To, string Subject, string Body, string? FromName = null, string? Html = null, string? ReplyTo = null);
 
 /// <summary>Sends email from the platform. Throws <see cref="EmailNotSentException"/> when the mail server cannot take it.</summary>
 internal interface IEmailSender
@@ -27,8 +30,13 @@ internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSe
         var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(message.FromName ?? email.FromName, email.From));
         mime.To.Add(MailboxAddress.Parse(message.To));
+        if (message.ReplyTo is { } replyTo)
+        {
+            mime.ReplyTo.Add(MailboxAddress.Parse(replyTo));
+        }
+
         mime.Subject = message.Subject;
-        mime.Body = new TextPart("plain") { Text = message.Body };
+        mime.Body = message.Html is null ? new TextPart("plain") { Text = message.Body } : new BodyBuilder { TextBody = message.Body, HtmlBody = message.Html }.ToMessageBody();
 
         using var client = new SmtpClient();
         try
@@ -66,9 +74,42 @@ internal sealed class EmailNotSentException : Exception
     }
 }
 
-/// <summary>The platform's emails. Plain text, so they read the same in every mail program.</summary>
+/// <summary>The platform's emails to firms and our staff. Plain text, so they read the same in every mail program. Those to traders are in <see cref="TraderEmails"/>.</summary>
 internal static class PlatformEmails
 {
+    /// <summary>How long a link works, in words, for example "1 hour" or "7 days".</summary>
+    public static string Lifetime(TimeSpan lifetime) =>
+        lifetime.TotalDays >= 1 ? Plural(lifetime.TotalDays, "day") : lifetime.TotalHours >= 1 ? Plural(lifetime.TotalHours, "hour") : Plural(lifetime.TotalMinutes, "minute");
+
+    private static string Plural(double count, string unit)
+    {
+        var whole = (int)Math.Round(count);
+        return whole == 1 ? $"1 {unit}" : $"{whole} {unit}s";
+    }
+
+    /// <summary>To a firm's first administrator when the firm is created: where the admin panel is, and the first steps.</summary>
+    public static EmailMessage Welcome(string platform, string firmName, string to, Uri adminLogin) =>
+        new(
+            to,
+            $"Welcome to {platform}: {firmName} is ready to try",
+            $"""
+            Hi,
+
+            {firmName} is set up in its sandbox, where you can try everything with test accounts and test payments. Your admin panel is here, worth a bookmark:
+
+            {adminLogin}
+
+            Three steps to begin:
+
+            1. Add your logo and brand color, so the portal looks like yours.
+            2. Give your first challenge a price, so it is for sale in your shop.
+            3. Choose how traders pay. Test payments are enough to try.
+
+            Then buy a challenge in your own shop and place a trade, as your traders will. When you are ready, send your company for review and go live.
+
+            {platform}
+            """);
+
     public static EmailMessage ConfirmSignup(string platform, string firmName, string to, Uri link, TimeSpan lifetime) =>
         new(
             to,
@@ -84,64 +125,6 @@ internal static class PlatformEmails
 
             {platform}
             """);
-
-    /// <summary>
-    /// A buyer's invitation to the firm's portal after paying for a challenge there. Sent in the firm's name, since
-    /// the trader bought from the firm.
-    /// </summary>
-    public static EmailMessage InviteBuyer(string firmName, string challengeName, string to, Uri link, TimeSpan lifetime) =>
-        new(
-            to,
-            $"Your {challengeName} with {firmName} is starting",
-            $"""
-            Hi,
-
-            Thank you for buying {challengeName} from {firmName}. Your challenge is being set up now. Open this link to choose a password for {firmName}'s portal, where you follow your challenge and open the trading terminal:
-
-            {link}
-
-            The link works once, within {lifetime.TotalDays:0} days. If you did not buy this, you can ignore this email.
-
-            {firmName}
-            """,
-            firmName);
-
-    /// <summary>
-    /// A trader's invitation to the firm's portal after the firm started a challenge for them. Sent in the firm's name,
-    /// since it is the firm's challenge.
-    /// </summary>
-    public static EmailMessage InviteTrader(string firmName, string challengeName, string to, Uri link, TimeSpan lifetime) =>
-        new(
-            to,
-            $"Your {challengeName} with {firmName} has started",
-            $"""
-            Hi,
-
-            {firmName} has started {challengeName} for you. Open this link to choose a password for {firmName}'s portal, where you follow your challenge and open the trading terminal:
-
-            {link}
-
-            The link works once, within {lifetime.TotalDays:0} days.
-
-            {firmName}
-            """,
-            firmName);
-
-    /// <summary>The firm started another challenge for a trader who already has a password for its portal.</summary>
-    public static EmailMessage ChallengeStarted(string firmName, string challengeName, string to, Uri accountUrl) =>
-        new(
-            to,
-            $"Your {challengeName} with {firmName} has started",
-            $"""
-            Hi,
-
-            {firmName} has started {challengeName} for you. Log in to {firmName}'s portal to follow it and open the trading terminal:
-
-            {accountUrl}
-
-            {firmName}
-            """,
-            firmName);
 
     /// <summary>A charge of the firm's saved card was declined.</summary>
     public static EmailMessage PaymentDeclined(
@@ -211,6 +194,64 @@ internal static class PlatformEmails
             {platform}
             """);
 
+    /// <summary>
+    /// We have the firm's application, sent when its deposit was paid or sent again after changes. With the deposit's
+    /// <paramref name="receipt"/>, when it was paid.
+    /// </summary>
+    public static EmailMessage ApplicationReceived(string platform, string firmName, string to, string? receipt, Uri goLiveUrl) =>
+        new(
+            to,
+            $"We have received the application for {firmName}",
+            $"""
+            Hi,
+
+            Thank you. We have received the application for {firmName}, and review it by hand, usually within a day. We email you when we have decided, and you follow the review in your admin panel:
+
+            {goLiveUrl}
+            {(receipt is null ? "" : $"\n{receipt}\n")}
+            {platform}
+            """);
+
+    /// <summary>A payment the firm made on a checkout page went through, with its receipt.</summary>
+    public static EmailMessage PaymentReceived(string platform, string firmName, string to, string receipt, Uri billingUrl) =>
+        new(
+            to,
+            $"Payment received for {firmName}",
+            $"""
+            Hi,
+
+            Thank you. We have received your payment for {firmName}.
+
+            {receipt}
+
+            {billingUrl}
+
+            {platform}
+            """);
+
+    /// <summary>The firm paid and is live: the receipt, and what happens now. Without <paramref name="shopUrl"/>, the firm does not sell in its portal.</summary>
+    public static EmailMessage FirmLive(string platform, string firmName, string to, string receipt, int sandboxAccounts, Uri adminUrl, Uri? shopUrl) =>
+        new(
+            to,
+            $"{firmName} is live",
+            $"""
+            Hi,
+
+            {firmName} is live.{(shopUrl is null ? "" : " Your shop takes real payments from now on.")} New challenges count against your slots.
+
+            What happens now:
+
+            1. {(shopUrl is null ? "Start challenges for your traders from your own systems or the admin panel." : $"Your shop is open at {shopUrl}. Share it with your traders.")}
+            2. {(sandboxAccounts == 0 ? "You had no test accounts left from the sandbox." : sandboxAccounts == 1 ? "Your test account from the sandbox has ended, and its trader got an email." : $"Your {sandboxAccounts} test accounts from the sandbox have ended, and their traders got an email.")}
+            3. Each month is charged to your card some days before it starts. Your slots, charges and invoices are under Plan and billing.
+
+            {receipt}
+
+            {adminUrl}
+
+            {platform}
+            """);
+
     /// <summary>To our staff: a firm sent its application and waits for our review.</summary>
     public static EmailMessage ApplicationSubmitted(string platform, string firmName, string firmId, string to, Uri reviewUrl) =>
         new(
@@ -227,7 +268,7 @@ internal static class PlatformEmails
             """);
 
     /// <summary>We need the firm to change its application before we can approve it.</summary>
-    public static EmailMessage ChangesRequested(string platform, string firmName, string to, string message, Uri verificationUrl) =>
+    public static EmailMessage ChangesRequested(string platform, string firmName, string to, string message, Uri goLiveUrl) =>
         new(
             to,
             $"Changes needed for {firmName}",
@@ -240,13 +281,13 @@ internal static class PlatformEmails
 
             Change your application and send it again in your admin panel. You do not pay the deposit again.
 
-            {verificationUrl}
+            {goLiveUrl}
 
             {platform}
             """);
 
     /// <summary>The firm is approved and can go live by paying.</summary>
-    public static EmailMessage ApplicationApproved(string platform, string firmName, string to, string? message, Uri billingUrl) =>
+    public static EmailMessage ApplicationApproved(string platform, string firmName, string to, string? message, Uri goLiveUrl) =>
         new(
             to,
             $"{firmName} is approved",
@@ -255,7 +296,7 @@ internal static class PlatformEmails
 
             {firmName} is approved to go live.{(message is null ? "" : $" {message}")} Choose your slots and pay to go live in your admin panel. The deposit you paid is taken off the startup fee.
 
-            {billingUrl}
+            {goLiveUrl}
 
             {platform}
             """);
@@ -272,7 +313,7 @@ internal static class PlatformEmails
 
             {message}
 
-            The firm cannot go live on {platform}, and the deposit is not paid back. Reply to this email if you have questions.
+            The firm cannot go live on {platform}. The deposit paid for the review, which we did by hand, so it is not paid back. Reply to this email if you have questions.
 
             {platform}
             """);
@@ -310,6 +351,60 @@ internal static class PlatformEmails
 
             {platform}
             """);
+
+    /// <summary>An administrator forgot the password for the firm's admin panel.</summary>
+    public static EmailMessage ResetAdminPassword(string platform, string firmName, string to, Uri link, TimeSpan lifetime) =>
+        new(
+            to,
+            $"Choose a new password for {firmName}'s admin panel",
+            $"""
+            Hi,
+
+            Open this link to choose a new password for the admin panel of {firmName} on {platform}:
+
+            {link}
+
+            The link works once, within {Lifetime(lifetime)}. If you did not ask for a new password, you can ignore this email, and your password stays as it is.
+
+            {platform}
+            """);
+
+    /// <summary>One of our staff forgot the password for our admin view.</summary>
+    public static EmailMessage ResetStaffPassword(string platform, string to, Uri link, TimeSpan lifetime) =>
+        new(
+            to,
+            $"Choose a new password for {platform}'s admin view",
+            $"""
+            Hi,
+
+            Open this link to choose a new password for our admin view of {platform}:
+
+            {link}
+
+            The link works once, within {Lifetime(lifetime)}. If you did not ask for a new password, you can ignore this email, and your password stays as it is.
+
+            {platform}
+            """);
+
+    /// <summary>Someone asked the platform where to log in: a link that logs them in to each firm they administer.</summary>
+    public static EmailMessage LoginHelp(string platform, string to, IReadOnlyList<(string Name, Uri Link, Uri Login)> firms, TimeSpan lifetime)
+    {
+        var list = string.Join("\n\n", firms.Select(f => $"{f.Name}\n{f.Link}\n(Its admin panel is at {f.Login}, worth a bookmark.)"));
+        return new(
+            to,
+            firms.Count == 1 ? $"Log in to {firms[0].Name}" : $"Log in to your firms on {platform}",
+            $"""
+            Hi,
+
+            Someone asked where to log in to {platform} with this email. Open a link to log in to the admin panel of the firm:
+
+            {list}
+
+            Each link works once, within {Lifetime(lifetime)}. If you did not ask for this, you can ignore this email.
+
+            {platform}
+            """);
+    }
 
     public static EmailMessage InviteAdmin(string platform, string firmName, string invitedBy, string to, Uri link, TimeSpan lifetime) =>
         new(

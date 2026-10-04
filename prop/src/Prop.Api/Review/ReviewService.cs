@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 
 using Prop.Api.Billing;
+using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
@@ -39,6 +40,7 @@ internal sealed partial class ReviewService(
     StaffNotifier staff,
     SecretProtector secrets,
     IEmailSender email,
+    WorkSignals signals,
     IOptions<PlatformOptions> platform,
     TimeProvider time,
     ILogger<ReviewService> logger)
@@ -55,9 +57,17 @@ internal sealed partial class ReviewService(
     public async Task<FirmReview> GetAsync(Firm firm, CancellationToken cancellationToken)
     {
         await using var connection = await store.OpenAsync(cancellationToken);
-        return await ReviewStore.GetAsync(connection, firm.Id, forUpdate: false, cancellationToken)
+        var review = await ReviewStore.GetAsync(connection, firm.Id, forUpdate: false, cancellationToken)
             ?? new FirmReview(firm.Id, firm.Status == FirmStatus.Live ? ReviewStatus.Approved : ReviewStatus.Draft, FirmApplication.Empty, null, null, null, null);
+        return review with { Application = WithFirmTerms(firm, review.Application) };
     }
+
+    /// <summary>
+    /// The application with the firm's terms for traders, one address that the shop and the application share. The
+    /// application keeps its own only for a firm that has none.
+    /// </summary>
+    public static FirmApplication WithFirmTerms(Firm firm, FirmApplication application) =>
+        firm.Payments.TermsUrl is { } terms ? application with { TermsUrl = terms.ToString() } : application;
 
     /// <summary>The deposit: what the firm paid, or else what it pays when it sends its application.</summary>
     public async Task<(decimal Amount, string Currency, bool Paid)> DepositAsync(Firm firm, CancellationToken cancellationToken)
@@ -93,7 +103,20 @@ internal sealed partial class ReviewService(
         }
 
         await ReviewStore.SaveApplicationAsync(connection, firm.Id, normalized, now, cancellationToken);
+
+        // The terms are the firm's, so saving them here changes them in the shop too.
+        var termsChanged = normalized.TermsUrl != firm.Payments.TermsUrl?.ToString();
+        if (termsChanged)
+        {
+            await FirmStore.SetTermsUrlAsync(connection, firm.Id, normalized.TermsUrl, now, cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
+        if (termsChanged)
+        {
+            firms.Put(await firmStore.GetAsync(firm.Id, cancellationToken) ?? throw new InvalidOperationException($"Firm {firm.Id} disappeared."));
+        }
+
         return new ReviewResult.Done();
     }
 
@@ -187,9 +210,16 @@ internal sealed partial class ReviewService(
                 return new ReviewResult.Refused(StatusCodes.Status409Conflict, refused);
             }
 
-            if (ApplicationRules.Problem(review.Application, complete: true) is { } problem)
+            // Sent with the firm's terms as they are now, which we review.
+            var application = WithFirmTerms(firm, review.Application);
+            if (ApplicationRules.Problem(application, complete: true) is { } problem)
             {
                 return new ReviewResult.Refused(StatusCodes.Status422UnprocessableEntity, problem.Problem, problem.Field);
+            }
+
+            if (application != review.Application)
+            {
+                await ReviewStore.SaveApplicationAsync(connection, firm.Id, application, now, cancellationToken);
             }
 
             var depositDue = review.Status == ReviewStatus.Draft
@@ -198,11 +228,21 @@ internal sealed partial class ReviewService(
             if (!depositDue)
             {
                 await ReviewStore.SubmitAsync(connection, firm.Id, now, cancellationToken);
-                await ReviewStore.AddEventAsync(connection, firm.Id, "submitted", adminEmail, ReviewStore.Snapshot(review.Application), now, cancellationToken);
+                await ReviewStore.AddEventAsync(connection, firm.Id, "submitted", adminEmail, ReviewStore.Snapshot(application), now, cancellationToken);
+                var goLiveUrl = new Uri(firm.Portal.Url, "admin/go-live");
+                foreach (var admin in await FirmAdmins.EmailsAsync(connection, firm.Id, cancellationToken))
+                {
+                    await EmailOutbox.AddAsync(
+                        connection, PlatformEmails.ApplicationReceived(platform.Value.Name, firm.Name, admin, null, goLiveUrl), "application_received", firm.Id, now, cancellationToken);
+                }
+
                 await transaction.CommitAsync(cancellationToken);
+                signals.Emails.Set();
                 await staff.ApplicationSubmittedAsync(firm, cancellationToken);
                 return new ReviewResult.Done();
             }
+
+            await transaction.CommitAsync(cancellationToken);
         }
 
         return await billing.StartDepositAsync(firm, adminEmail, cancellationToken) switch
@@ -222,7 +262,7 @@ internal sealed partial class ReviewService(
             ReviewStatus.Approved,
             "approved",
             review => review.Status == ReviewStatus.Submitted ? null : "Only an application that waits for review can be approved.",
-            (firm, to, text) => PlatformEmails.ApplicationApproved(platform.Value.Name, firm.Name, to, text, new Uri(firm.Portal.Url, "admin/billing")),
+            (firm, to, text) => PlatformEmails.ApplicationApproved(platform.Value.Name, firm.Name, to, text, new Uri(firm.Portal.Url, "admin/go-live")),
             messageRequired: false,
             cancellationToken);
 
@@ -235,7 +275,7 @@ internal sealed partial class ReviewService(
             ReviewStatus.ChangesRequested,
             "changes_requested",
             review => review.Status == ReviewStatus.Submitted ? null : "Only an application that waits for review can get a request for changes.",
-            (firm, to, text) => PlatformEmails.ChangesRequested(platform.Value.Name, firm.Name, to, text!, new Uri(firm.Portal.Url, "admin/verification")),
+            (firm, to, text) => PlatformEmails.ChangesRequested(platform.Value.Name, firm.Name, to, text!, new Uri(firm.Portal.Url, "admin/go-live")),
             messageRequired: true,
             cancellationToken);
 

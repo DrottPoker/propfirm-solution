@@ -31,7 +31,7 @@ public sealed class SignupTests(PostgresFixture postgres) : IClassFixture<Postgr
                 firm.GetProperty("tradingServer").GetString(), firm.GetProperty("currency").GetString(), firm.GetProperty("sandboxMaxOpenAccounts").GetInt32()));
         Assert.Equal("Sandbox", branding.GetProperty("status").GetString());
         Assert.Equal(["two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
-        Assert.Contains("create server acme", factory.Trading.Commands);
+        Assert.Contains("create server acme USD", factory.Trading.Commands);
     }
 
     [Fact]
@@ -114,6 +114,66 @@ public sealed class SignupTests(PostgresFixture postgres) : IClassFixture<Postgr
         Assert.Equal(available, answer.GetProperty("reason").ValueKind == JsonValueKind.Null);
     }
 
+    // A name that is taken or reserved comes with free names like it, so the firm need not guess.
+    [Fact]
+    public async Task ANameThatIsTakenComesWithFreeOnesLikeIt()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var acme = await factory.SignUpAsync("acme");
+        using var acmeCapital = await factory.SignUpAsync("acme-capital", "other@firm.test");
+        using var platform = factory.CreatePlatformClient();
+
+        var taken = await platform.GetFromJsonAsync<JsonElement>(Url("signup/availability?firmId=acme"), TestContext.Current.CancellationToken);
+        var reserved = await platform.GetFromJsonAsync<JsonElement>(Url("signup/availability?firmId=www"), TestContext.Current.CancellationToken);
+        var free = await platform.GetFromJsonAsync<JsonElement>(Url("signup/availability?firmId=beta"), TestContext.Current.CancellationToken);
+
+        Assert.Equal((false, "That name is taken."), (taken.GetProperty("available").GetBoolean(), taken.GetProperty("reason").GetString()));
+        Assert.Equal(["acme-fx", "acme-trading", "acme-funded"], taken.GetProperty("suggestions").EnumerateArray().Select(s => s.GetString()));
+        Assert.Equal(["www-capital", "www-fx", "www-trading"], reserved.GetProperty("suggestions").EnumerateArray().Select(s => s.GetString()));
+        Assert.Empty(free.GetProperty("suggestions").EnumerateArray());
+    }
+
+    // Its trading server, its accounts and its first challenge are in the currency the firm chose.
+    [Fact]
+    public async Task AFirmChoosesTheCurrencyOfItsAccounts()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var platform = factory.CreatePlatformClient();
+
+        var about = await platform.GetFromJsonAsync<JsonElement>(Url("platform"), TestContext.Current.CancellationToken);
+        using var refused = await platform.PostAsJsonAsync(
+            Url("signup"),
+            new { firmName = "Firm beta", firmId = "beta", email = "owner@beta.test", password = PropFactory.SignupPassword, acceptTerms = true, currency = "SEK" },
+            TestContext.Current.CancellationToken);
+        using var signedUp = await platform.PostAsJsonAsync(
+            Url("signup"),
+            new { firmName = "Firm acme", firmId = "acme", email = "owner@firm.test", password = PropFactory.SignupPassword, acceptTerms = true, currency = "EUR" },
+            TestContext.Current.CancellationToken);
+        using var admin = await factory.WelcomeAsync(new Uri((await signedUp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("adminUrl").GetString()!));
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+        var firm = await admin.GetFromJsonAsync<JsonElement>(Url("admin/firm"), TestContext.Current.CancellationToken);
+        var challenge = Assert.Single((await admin.GetFromJsonAsync<JsonElement>(Url("admin/challenges"), TestContext.Current.CancellationToken)).EnumerateArray());
+
+        Assert.Equal(["USD", "EUR", "GBP"], about.GetProperty("currencies").EnumerateArray().Select(c => c.GetString()));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+        Assert.Contains("create server acme EUR", factory.Trading.Commands);
+        Assert.Equal(("EUR", "EUR"), (firm.GetProperty("currency").GetString(), challenge.GetProperty("currency").GetString()));
+    }
+
+    // So the administrator finds the admin panel again, with the first steps.
+    [Fact]
+    public async Task ANewFirmIsWelcomedByEmail()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+
+        using var admin = await factory.SignUpAsync("acme");
+        var welcome = await factory.Emails.WaitForAsync("owner@firm.test", "Welcome to Prop platform");
+
+        Assert.Equal("Welcome to Prop platform: Firm acme is ready to try", welcome.Subject);
+        Assert.Contains("http://acme.localhost:3002/admin/login", welcome.Body, StringComparison.Ordinal);
+        Assert.Contains("Give your first challenge a price", welcome.Body, StringComparison.Ordinal);
+    }
+
     // The name waits for whoever signed up with it, but that person may sign up again.
     [Fact]
     public async Task ANameWaitingForConfirmationIsTakenForOthers()
@@ -175,6 +235,13 @@ public sealed class SignupTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var brandingOnPlatform = await platform.GetAsync(Url("branding"), TestContext.Current.CancellationToken);
 
         Assert.Equal(("Prop platform", "http://{firm}.localhost:3002/", 10), (about.GetProperty("name").GetString(), about.GetProperty("firmPortalUrl").GetString(), about.GetProperty("minimumPasswordLength").GetInt32()));
+
+        // The front page tells what firms pay, before they sign up. The tests take no deposit.
+        var prices = about.GetProperty("prices");
+        Assert.Equal(
+            ("USD", 700m, 0m, 500m, 25),
+            (prices.GetProperty("currency").GetString(), prices.GetProperty("startupFee").GetDecimal(), prices.GetProperty("reviewDeposit").GetDecimal(), prices.GetProperty("packagePrice").GetDecimal(), prices.GetProperty("packageSlots").GetInt32()));
+        Assert.Equal(10, about.GetProperty("sandboxMaxOpenAccounts").GetInt32());
         Assert.Equal(
             (HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound),
             (onFirmPortal.StatusCode, platformOnFirmPortal.StatusCode, brandingOnPlatform.StatusCode));

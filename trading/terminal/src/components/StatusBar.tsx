@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-import { formatMoney, formatPercent, formatUtc } from "@/lib/format";
+import { formatDateTime, formatMoney, formatPercent, timeZoneName } from "@/lib/format";
 import { useTradingStore } from "@/lib/store";
+import { useTimeZone } from "@/lib/timeZone";
 
-/** The firm's server, the time in UTC like the chart, and the account's margin figures. */
+/** The firm's server, the time in the account's time zone like every other time on screen, and the account's margin figures. */
 export function StatusBar({ serverName }: { serverName: string }) {
   const account = useTradingStore((s) => s.account);
 
@@ -14,7 +15,7 @@ export function StatusBar({ serverName }: { serverName: string }) {
       <span>
         Server: <span className="text-foreground">{serverName}</span>
       </span>
-      <UtcClock />
+      <Clock />
       {account && (
         <span className="ml-auto flex gap-6">
           <Figure label="Equity" value={`${formatMoney(account.equity)} ${account.currency}`} />
@@ -35,7 +36,8 @@ function Figure({ label, value }: { label: string; value: string }) {
   );
 }
 
-function UtcClock() {
+function Clock() {
+  const timeZone = useTimeZone();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -49,8 +51,8 @@ function UtcClock() {
   }, []);
 
   return (
-    <span>
-      Time: <span className="font-mono text-foreground tabular-nums">{now ? `${formatUtc(now)} UTC` : "-"}</span>
+    <span title={`Every time in the terminal is in ${timeZone}, the time zone of the account's trading day.`}>
+      Time: <span className="font-mono text-foreground tabular-nums">{now ? formatDateTime(now, timeZone) : "-"}</span> {timeZoneName(timeZone)}
     </span>
   );
 }

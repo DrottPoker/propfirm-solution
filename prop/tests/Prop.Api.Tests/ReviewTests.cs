@@ -44,6 +44,9 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
             empty.GetProperty("deposit").GetProperty("amount").GetDecimal(),
             empty.GetProperty("deposit").GetProperty("paid").GetBoolean()));
         Assert.Equal("Fill in the company's legal name.", empty.GetProperty("submitProblem").GetString());
+        Assert.Equal(
+            ["companyName", "registrationNumber", "country", "address", "contactName", "owners", "termsUrl"],
+            empty.GetProperty("problems").EnumerateArray().Select(p => p.GetProperty("field").GetString()));
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         Assert.Equal(("Acme Ltd", "SE", 0), (
             draft.GetProperty("application").GetProperty("companyName").GetString(),
@@ -52,6 +55,21 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "website"), (badWebsite.StatusCode, await FieldOfAsync(badWebsite)));
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "owners"), (badShares.StatusCode, await FieldOfAsync(badShares)));
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "registrationNumber"), (incomplete.StatusCode, await FieldOfAsync(incomplete)));
+    }
+
+    // One address for the firm's terms: saved with the application it is the shop's, and saved under Checkout the application's.
+    [Fact]
+    public async Task TheTermsAreOneAddressForTheShopAndTheApplication()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme");
+
+        (await admin.PutAsJsonAsync(Url("admin/verification/application"), new { termsUrl = "https://acme.test/terms" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var shop = (await GetAsync(admin, "admin/firm")).GetProperty("payments").GetProperty("termsUrl").GetString();
+        (await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = (string?)null, termsUrl = "https://acme.test/terms-v2" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        var application = (await GetAsync(admin, "admin/verification")).GetProperty("application").GetProperty("termsUrl").GetString();
+
+        Assert.Equal(("https://acme.test/terms", "https://acme.test/terms-v2"), (shop, application));
     }
 
     [Fact]
@@ -154,7 +172,7 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
 
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
         Assert.Equal("Draft", waiting.GetProperty("status").GetString());
-        Assert.Equal(("Payment", 100m, "admin/verification"), (page.GetProperty("purpose").GetString(), page.GetProperty("amount").GetDecimal(), page.GetProperty("returnPath").GetString()));
+        Assert.Equal(("Payment", 100m, "admin/go-live"), (page.GetProperty("purpose").GetString(), page.GetProperty("amount").GetDecimal(), page.GetProperty("returnPath").GetString()));
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
         Assert.Equal(("Submitted", true, false), (sent.GetProperty("status").GetString(), sent.GetProperty("deposit").GetProperty("paid").GetBoolean(), sent.GetProperty("canEdit").GetBoolean()));
         var deposit = Assert.Single(billing.GetProperty("charges").EnumerateArray());
@@ -166,6 +184,14 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         var email = Assert.Single(factory.Emails.Sent, e => e.To == PropFactory.StaffEmail);
         Assert.Equal("Firm acme is waiting for review", email.Subject);
         Assert.Contains("http://ops.localhost:3002/ops/firms/acme", email.Body, StringComparison.Ordinal);
+
+        // The firm hears that we have it, with the deposit's receipt. A German firm with a VAT number pays no VAT to us.
+        var received = await factory.Emails.WaitForAsync(Owner, "We have received the application for Firm acme");
+        Assert.Contains("Receipt for invoice ACME-0001", received.Body, StringComparison.Ordinal);
+        Assert.Contains("Reverse charge", received.Body, StringComparison.Ordinal);
+        Assert.Contains("Total paid: 100.00 USD", received.Body, StringComparison.Ordinal);
+        Assert.Contains("http://acme.localhost:3002/admin/go-live", received.Body, StringComparison.Ordinal);
+        Assert.Equal(("ACME-0001", "ReverseCharge", 0m), (deposit.GetProperty("invoice").GetString(), deposit.GetProperty("vatTreatment").GetString(), deposit.GetProperty("vatAmount").GetDecimal()));
     }
 
     [Fact]
@@ -203,6 +229,8 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         Assert.Equal(JsonValueKind.Null, (await submitted.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("checkoutUrl").ValueKind);
         Assert.Equal(("Submitted", false, 0m), (verification.GetProperty("status").GetString(), verification.GetProperty("deposit").GetProperty("paid").GetBoolean(), verification.GetProperty("deposit").GetProperty("amount").GetDecimal()));
         Assert.Contains(factory.Emails.Sent, e => e.To == PropFactory.StaffEmail && e.Subject == "Firm acme is waiting for review");
+        var received = await factory.Emails.WaitForAsync(Owner, "We have received the application for Firm acme");
+        Assert.DoesNotContain("Receipt", received.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -224,7 +252,7 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         Assert.Equal(("Approved", "ops@test.com", "Welcome aboard."), (firm.GetProperty("review").GetString(), firm.GetProperty("decidedBy").GetString(), firm.GetProperty("message").GetString()));
         var email = Assert.Single(factory.Emails.Sent, e => e.To == Owner && e.Subject == "Firm acme is approved");
         Assert.Contains("Welcome aboard.", email.Body, StringComparison.Ordinal);
-        Assert.Contains("http://acme.localhost:3002/admin/billing", email.Body, StringComparison.Ordinal);
+        Assert.Contains("http://acme.localhost:3002/admin/go-live", email.Body, StringComparison.Ordinal);
         Assert.Equal(1057.25m, quote.GetProperty("amount").GetDecimal());
         Assert.Equal(("Startup fee, less the deposit of 100.00 USD", 600m), (quote.GetProperty("lines")[0].GetProperty("description").GetString(), quote.GetProperty("lines")[0].GetProperty("amount").GetDecimal()));
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);

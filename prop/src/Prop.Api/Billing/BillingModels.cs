@@ -19,8 +19,10 @@ public sealed record SlotsResponse(SlotLimit Limit, int? Slots, int Used, int Re
 public sealed record CardResponse(string Brand, string Last4, int ExpMonth, int ExpYear);
 
 /// <summary>
-/// A charge. <paramref name="CanPay"/> is set for an unpaid monthly charge, which the firm can try again or pay
-/// on a checkout page. <paramref name="Failure"/> is why the card was declined last.
+/// A charge. <paramref name="Lines"/> add up to <paramref name="NetAmount"/>, without VAT, and <paramref name="Amount"/>
+/// is what is paid, with <paramref name="VatAmount"/>. <paramref name="Invoice"/> is the invoice number once it is paid,
+/// and the invoice is a PDF at its own address. <paramref name="CanPay"/> is set for an unpaid monthly charge, which the
+/// firm can try again or pay on a checkout page. <paramref name="Failure"/> is why the card was declined last.
 /// </summary>
 public sealed record ChargeResponse(
     Guid Id,
@@ -30,8 +32,13 @@ public sealed record ChargeResponse(
     DateOnly Month,
     int Slots,
     IReadOnlyList<ChargeLine> Lines,
+    decimal NetAmount,
+    VatTreatment VatTreatment,
+    decimal VatPercent,
+    decimal VatAmount,
     decimal Amount,
     string Currency,
+    string? Invoice,
     string? Failure,
     int Attempts,
     DateTimeOffset? NextAttemptAt,
@@ -48,8 +55,13 @@ public sealed record ChargeResponse(
             charge.Month,
             charge.Slots,
             charge.Lines,
+            charge.NetAmount,
+            charge.Vat.Treatment,
+            charge.Vat.Percent,
+            charge.Vat.Amount,
             charge.Amount,
             charge.Currency,
+            charge.Invoice,
             charge.Failure,
             charge.Attempts,
             charge.NextAttemptAt,
@@ -58,15 +70,15 @@ public sealed record ChargeResponse(
             charge is { IsOpen: true, Kind: ChargeKind.Renewal });
 }
 
-/// <summary>The month charged next: when, for how many slots and how much.</summary>
-public sealed record NextChargeResponse(DateOnly Month, DateTimeOffset ChargeAt, int Slots, decimal Amount);
+/// <summary>The month charged next: when, for how many slots and how much, without VAT and with it.</summary>
+public sealed record NextChargeResponse(DateOnly Month, DateTimeOffset ChargeAt, int Slots, decimal NetAmount, decimal VatAmount, decimal Amount);
 
 /// <summary>Each slot's monthly price from slot number <paramref name="From"/> on.</summary>
 public sealed record SlotPriceResponse(int From, decimal Price);
 
 /// <summary>
-/// What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the
-/// slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
+/// What firms pay, without VAT: the startup fee, the deposit for our review that is taken off it, the monthly package with
+/// the slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
 /// </summary>
 public sealed record PricesResponse(
     string Currency,
@@ -86,8 +98,12 @@ public sealed record SuspensionResponse(DateTimeOffset At, string Reason);
 /// The firm's billing for its admin panel. <paramref name="Plan"/> is null until the firm has started paying.
 /// <paramref name="NextMonthSlots"/> is what a paying firm is charged for from the next unpaid month.
 /// <paramref name="GoLiveProblem"/> says why a firm in the sandbox cannot go live by paying now, and
-/// <paramref name="Review"/> where our review of it is. <paramref name="DepositPaid"/> is taken off the startup fee.
-/// <paramref name="Suspension"/> is set while we have suspended the firm.
+/// <paramref name="Review"/> where our review of it is, null before the firm has saved an application.
+/// <paramref name="ShopProblem"/> says why the shop takes no payment once the firm is live: in the sandbox before it goes
+/// live, and for a live firm while its shop sells nothing.
+/// <paramref name="DepositPaid"/> is taken off the startup fee, without VAT. <paramref name="Vat"/> is how VAT applies to
+/// the firm's charges now, from its application. <paramref name="SandboxAccounts"/> are the test accounts that end when
+/// the firm goes live. <paramref name="Suspension"/> is set while we have suspended the firm.
 /// </summary>
 public sealed record BillingResponse(
     FirmStatus Status,
@@ -104,7 +120,10 @@ public sealed record BillingResponse(
     string? GoLiveProblem,
     ReviewStatus? Review,
     decimal DepositPaid,
-    SuspensionResponse? Suspension);
+    SuspensionResponse? Suspension,
+    string? ShopProblem,
+    VatResponse Vat,
+    int SandboxAccounts);
 
 public enum QuoteKind
 {
@@ -121,18 +140,31 @@ public enum QuoteKind
 }
 
 /// <summary>
-/// What choosing a number of slots would cost: <paramref name="Lines"/> paid now, and <paramref name="MonthlyPrice"/>
-/// for each month from <paramref name="From"/>. <paramref name="Problem"/> says why it cannot be chosen.
+/// What choosing a number of slots would cost: <paramref name="Lines"/> paid now, which add up to
+/// <paramref name="NetAmount"/> without VAT, and <paramref name="Amount"/> with it, and <paramref name="MonthlyPrice"/>
+/// without VAT for each month from <paramref name="From"/>. <paramref name="Expansion"/> is what one round of automatic
+/// expansion would add, when asked for. <paramref name="Problem"/> says why it cannot be chosen.
 /// </summary>
 public sealed record QuoteResponse(
     QuoteKind Kind,
     int Slots,
     IReadOnlyList<ChargeLine> Lines,
+    decimal NetAmount,
+    VatResponse Vat,
+    decimal VatAmount,
     decimal Amount,
     decimal MonthlyPrice,
     DateOnly? From,
     string Currency,
-    string? Problem);
+    string? Problem,
+    ExpansionResponse? Expansion);
+
+/// <summary>
+/// One round of automatic expansion from the slots in the quote: <paramref name="Slots"/> more, for
+/// <paramref name="MonthlyPrice"/> more a month, and <paramref name="RestOfMonth"/> for the rest of
+/// <paramref name="Month"/> if it happens today. Without VAT.
+/// </summary>
+public sealed record ExpansionResponse(int Slots, decimal MonthlyPrice, decimal RestOfMonth, DateOnly Month);
 
 /// <summary>Going live with this many slots, buying <paramref name="AutoExpandStep"/> more when the last is taken, or none for no automatic expansion.</summary>
 public sealed record ActivateRequest(int Slots, int? AutoExpandStep);

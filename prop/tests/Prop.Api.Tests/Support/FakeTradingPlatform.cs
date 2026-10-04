@@ -17,6 +17,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
 {
     private readonly Lock _lock = new();
     private readonly Dictionary<string, (string Key, int Keys)> _servers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _currencies = new(StringComparer.Ordinal);
     private bool _loseNextCreateAnswer;
     private readonly Dictionary<string, Guid> _users = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Account> _accounts = new(StringComparer.Ordinal);
@@ -53,9 +54,9 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     public Task<bool> IsServerAvailableAsync(string server, CancellationToken cancellationToken) =>
         Call($"server-name {server}", () => !_servers.ContainsKey(server) && !TakenServers.Contains(server));
 
-    public async Task<PartnerTenant?> CreateTenantAsync(string server, string name, CancellationToken cancellationToken)
+    public async Task<PartnerTenant?> CreateTenantAsync(string server, string name, string currency, CancellationToken cancellationToken)
     {
-        var tenant = await Call<PartnerTenant?>($"create server {server}", () =>
+        var tenant = await Call<PartnerTenant?>($"create server {server} {currency}", () =>
         {
             if (_servers.ContainsKey(server) || TakenServers.Contains(server))
             {
@@ -63,7 +64,8 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
             }
 
             _servers[server] = ($"key-{server}-1", 1);
-            return new PartnerTenant(server, [new PartnerGroup(GroupOf(server), "USD")], $"key-{server}-1");
+            _currencies[server] = currency;
+            return new PartnerTenant(server, [new PartnerGroup(GroupOf(server), currency)], $"key-{server}-1");
         });
 
         lock (_lock)
@@ -79,7 +81,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     }
 
     public Task<PartnerTenant?> GetTenantAsync(string server, CancellationToken cancellationToken) =>
-        Call<PartnerTenant?>($"get server {server}", () => _servers.ContainsKey(server) ? new PartnerTenant(server, [new PartnerGroup(GroupOf(server), "USD")], null) : null);
+        Call<PartnerTenant?>($"get server {server}", () => _servers.ContainsKey(server) ? new PartnerTenant(server, [new PartnerGroup(GroupOf(server), _currencies[server])], null) : null);
 
     public Task<string> ReplaceAdminKeyAsync(string server, CancellationToken cancellationToken) =>
         Call($"replace key {server}", () =>
@@ -88,6 +90,64 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
             _servers[server] = ($"key-{server}-{keys}", keys);
             return _servers[server].Key;
         });
+
+    /// <summary>What each server created through the partner API was last told: whether it is listed, and where its traders log in.</summary>
+    private readonly Dictionary<string, (bool Listed, Uri LoginUrl, Uri? LogoUrl)> _listings = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TradingAccountDetails> _details = new(StringComparer.Ordinal);
+
+    /// <summary>The symbols and conditions each group trades. Groups start with the standard four.</summary>
+    public Dictionary<string, List<TradingSymbolConditions>> GroupSymbols { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>The next change of a group's symbols is refused with the reason, for example SymbolInUse.</summary>
+    public string? RefuseNextSymbols { get; set; }
+
+    public Task SetListingAsync(string server, bool listed, Uri loginUrl, Uri? logoUrl, CancellationToken cancellationToken) =>
+        Call($"listing {server} {listed} {loginUrl}", () => _listings[server] = (listed, loginUrl, logoUrl));
+
+    /// <summary>Whether the terminal lists the server, where its traders log in and its logo, as last told. Null before that.</summary>
+    public (bool Listed, Uri LoginUrl, Uri? LogoUrl)? ListingOf(string server)
+    {
+        lock (_lock)
+        {
+            return _listings.TryGetValue(server, out var listing) ? listing : null;
+        }
+    }
+
+    public Task<IReadOnlyList<TradingInstrument>> GetInstrumentsAsync(FirmTrading firm, CancellationToken cancellationToken) =>
+        Call<IReadOnlyList<TradingInstrument>>(
+            "instruments",
+            () =>
+            [
+                new TradingInstrument("EURUSD", "EUR", "USD", 100_000m, 5),
+                new TradingInstrument("GBPUSD", "GBP", "USD", 100_000m, 5),
+                new TradingInstrument("USDJPY", "USD", "JPY", 100_000m, 3),
+                new TradingInstrument("XAGUSD", "XAG", "USD", 5_000m, 3),
+                new TradingInstrument("XAUUSD", "XAU", "USD", 100m, 2),
+            ]);
+
+    public Task<TradingGroupConditions?> GetGroupAsync(FirmTrading firm, CancellationToken cancellationToken) =>
+        Call<TradingGroupConditions?>($"group {firm.Group}", () => new TradingGroupConditions(firm.Group, firm.Currency, _servers.ContainsKey(firm.Server), [.. SymbolsOf(firm.Group)]));
+
+    public Task SetGroupSymbolsAsync(FirmTrading firm, IReadOnlyList<TradingSymbolConditions> symbols, CancellationToken cancellationToken) =>
+        Call($"symbols {firm.Group} {string.Join(",", symbols.Select(s => s.Symbol))}", () =>
+        {
+            if (RefuseNextSymbols is { } reason)
+            {
+                RefuseNextSymbols = null;
+                throw new TradingPlatformRejectedException($"The fake trading platform refused the symbols: {reason}", reason);
+            }
+
+            GroupSymbols[firm.Group] = [.. symbols];
+            return true;
+        });
+
+    private List<TradingSymbolConditions> SymbolsOf(string group) =>
+        GroupSymbols.TryGetValue(group, out var symbols)
+            ? symbols
+            :
+            [
+                new("EURUSD", 100, 2, 3.5m), new("GBPUSD", 100, 2, 3.5m), new("USDJPY", 100, 2, 3.5m), new("XAUUSD", 30, 10, 3.5m),
+            ];
 
     /// <summary>The group a server created through the partner API gets, as on ours.</summary>
     public static string GroupOf(string server) => $"{server}-standard";
@@ -312,6 +372,47 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
                 "BalanceAdjusted",
                 a => new JsonObject { ["operationId"] = operationId, ["amount"] = -amount, ["balanceAfter"] = a.Balance },
                 (s, t, id, raw, a) => new TradingBalanceAdjusted(s, t, id, raw, operationId, -amount, a.Balance));
+        }
+    }
+
+    /// <summary>Like ours: applied once per operation id, and refused for a disabled account.</summary>
+    public async Task DepositAsync(FirmTrading firm, string accountId, string operationId, decimal amount, CancellationToken cancellationToken)
+    {
+        var deposited = await Call($"deposit {accountId} {amount.ToString(CultureInfo.InvariantCulture)}", () =>
+        {
+            var account = _accounts[accountId];
+            if (account.Disabled)
+            {
+                throw new TradingPlatformRejectedException("The fake trading platform refused the deposit.", "AccountDisabled");
+            }
+
+            if (!account.Operations.Add(operationId))
+            {
+                return false;
+            }
+
+            account.Balance += amount;
+            return true;
+        });
+        if (deposited)
+        {
+            Publish(
+                accountId,
+                "BalanceAdjusted",
+                a => new JsonObject { ["operationId"] = operationId, ["amount"] = amount, ["balanceAfter"] = a.Balance },
+                (s, t, id, raw, a) => new TradingBalanceAdjusted(s, t, id, raw, operationId, amount, a.Balance));
+        }
+    }
+
+    public Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken) =>
+        Call($"describe {accountId}", () => _details[accountId] = details);
+
+    /// <summary>What the terminal shows about the account, as last told. Null before that.</summary>
+    public TradingAccountDetails? DetailsOf(string accountId)
+    {
+        lock (_lock)
+        {
+            return _details.GetValueOrDefault(accountId);
         }
     }
 

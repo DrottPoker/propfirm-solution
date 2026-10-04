@@ -73,6 +73,12 @@ public sealed class SignupOptions
 
     /// <summary>Short names firms may not choose, besides the built-in ones.</summary>
     public IReadOnlyList<string> ReservedFirmIds { get; init; } = [];
+
+    /// <summary>The account currencies a firm may choose when it signs up, the first by default. The trading platform must offer them.</summary>
+    public IReadOnlyList<string> Currencies { get; init; } = [];
+
+    /// <summary>The currency a firm gets when it chooses none.</summary>
+    public string DefaultCurrency => Currencies.Count > 0 ? Currencies[0] : "USD";
 }
 
 /// <summary>What a firm in the sandbox may do before it goes live.</summary>
@@ -160,6 +166,33 @@ public sealed class BillingOptions
 
     /// <summary>Signs Stripe's webhooks about our own payments. A secret.</summary>
     public string StripeWebhookSecret { get; init; } = "";
+
+    /// <summary>Our VAT in percent, added to the prices for firms that pay it (ADR 0032).</summary>
+    public decimal VatPercent { get; init; } = 25;
+
+    /// <summary>Who we are on the firms' invoices.</summary>
+    public SellerOptions Seller { get; init; } = new();
+}
+
+/// <summary>Our company as invoices name it. Required outside development.</summary>
+public sealed class SellerOptions
+{
+    public string Name { get; init; } = "";
+
+    /// <summary>The address, with a line break between lines.</summary>
+    public string Address { get; init; } = "";
+
+    /// <summary>Where we are registered, as a two-letter code. A firm in the same country pays our VAT.</summary>
+    public string Country { get; init; } = "SE";
+
+    public string OrganizationNumber { get; init; } = "";
+
+    public string VatNumber { get; init; } = "";
+
+    /// <summary>Where firms write about their invoices.</summary>
+    public string Email { get; init; } = "";
+
+    public bool IsComplete => Name.Length > 0 && Address.Length > 0 && OrganizationNumber.Length > 0 && VatNumber.Length > 0;
 }
 
 /// <summary>The monthly price of each slot from slot number <see cref="From"/> on.</summary>

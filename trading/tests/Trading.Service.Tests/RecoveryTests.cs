@@ -133,6 +133,20 @@ public sealed class RecoveryTests
         Assert.Contains("configuration has changed", exception.ToString(), StringComparison.Ordinal);
     }
 
+    // For example a new instrument: the inputs after the snapshot give the same events as before, so nothing changed for them.
+    [Fact]
+    public async Task ChangedConfigurationThatGivesTheSameEventsIsAccepted()
+    {
+        using var first = new ServiceFactory();
+        (await TradeAsync(first)).Dispose();
+
+        using var second = new ServiceFactory(first.Backend.Crashed(), new Dictionary<string, string> { ["Trading:MaxQuoteAge"] = "00:00:10" });
+        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
+
+        var account = await restarted.GetJsonAsync($"/api/accounts/{AccountId}");
+        Assert.Equal("O1", account.GetProperty("positions")[0].GetProperty("positionId").GetString());
+    }
+
     [Fact]
     public async Task ChangedConfigurationAfterACleanStopIsAccepted()
     {

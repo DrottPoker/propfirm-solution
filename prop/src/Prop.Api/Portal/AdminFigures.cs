@@ -10,7 +10,10 @@ namespace Prop.Api.Portal;
 /// <summary>How many accounts of a challenge are open, how many started since a time, and how its evaluations ended.</summary>
 internal sealed record ChallengeFigures(string ChallengeId, int Trading, int Started, int Passed, int Ended);
 
-/// <summary>Paid orders since a time, not refunded, and how much they came to per currency.</summary>
+/// <summary>
+/// Paid orders since a time, not refunded, and how much they came to per currency. Test purchases from the sandbox count
+/// only while the firm is still there.
+/// </summary>
 internal sealed record SalesFigures(int Orders, IReadOnlyList<MoneyAmount> Totals);
 
 /// <summary>Sales and paid payouts in one week, from Monday in UTC, per currency.</summary>
@@ -33,7 +36,8 @@ internal sealed record ActivityRecord(
     string? Reference);
 
 /// <summary>A trader as the admin panel shows them: since when, whether they have a portal password, and what they bought.</summary>
-internal sealed record TraderRecord(Guid Id, string Email, DateTimeOffset CreatedAt, bool HasPassword, int Orders, IReadOnlyList<MoneyAmount> Bought);
+internal sealed record TraderRecord(
+    Guid Id, string Email, DateTimeOffset CreatedAt, bool HasPassword, int Orders, IReadOnlyList<MoneyAmount> Bought, string? Name = null, string? Country = null);
 
 /// <summary>The paid order that started an account.</summary>
 internal sealed record AccountOrder(Guid Id, long Number, decimal Amount, string Currency, PaymentProvider Provider, DateTimeOffset PaidAt);
@@ -48,6 +52,13 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
 
     // The columns of one kind of activity, in the order ActivityRecord has them.
     private const string ActivityTail = "null::bigint, null::int, null::text, null::text";
+
+    /// <summary>
+    /// Whether an order or account under <paramref name="alias"/> counts in the figures: one from the sandbox only while the
+    /// firm is still there, so its tests show while it tries the platform, but not once it is live.
+    /// </summary>
+    public static string CountedSql(string alias) =>
+        $"(not {alias}.sandbox or (select cf.status from firms cf where cf.id = {alias}.firm_id) <> 'Live')";
 
     /// <summary>
     /// Each challenge's figures: its open accounts, those started since <paramref name="startedSince"/>, and its evaluations
@@ -68,7 +79,7 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
             left join lateral (
                 select ta.passed_at from trading_accounts ta where ta.challenge_account_id = a.id and ta.stage = {FundedStage} - 1
             ) passed on true
-            where a.firm_id = $1 and (a.status in ('OpeningAccount', 'Active') or a.created_at >= $2 or a.updated_at >= $3)
+            where a.firm_id = $1 and {CountedSql("a")} and (a.status in ('OpeningAccount', 'Active') or a.created_at >= $2 or a.updated_at >= $3)
             group by a.definition_id
             order by a.definition_id
             """,
@@ -87,10 +98,10 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
     public async Task<SalesFigures> SalesAsync(string firmId, DateTimeOffset since, CancellationToken cancellationToken)
     {
         await using var command = await CommandAsync(
-            """
+            $"""
             select o.currency, count(*), sum(o.amount)
             from orders o
-            where o.firm_id = $1 and o.paid_at >= $2 and o.refunded_at is null
+            where o.firm_id = $1 and o.paid_at >= $2 and o.refunded_at is null and {CountedSql("o")}
             group by o.currency
             order by o.currency
             """,
@@ -115,15 +126,15 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
         var thisWeek = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
         var first = thisWeek.AddDays(-7 * (weeks - 1));
         await using var command = await CommandAsync(
-            """
+            $"""
             select 'sales', date_trunc('week', o.paid_at at time zone 'UTC')::date, o.currency, sum(o.amount)
             from orders o
-            where o.firm_id = $1 and o.paid_at >= $2 and o.refunded_at is null
+            where o.firm_id = $1 and o.paid_at >= $2 and o.refunded_at is null and {CountedSql("o")}
             group by 2, 3
             union all
             select 'payouts', date_trunc('week', p.paid_at at time zone 'UTC')::date, p.currency, sum(p.amount)
-            from payouts p
-            where p.firm_id = $1 and p.status = 'Paid' and p.paid_at >= $2
+            from payouts p join challenge_accounts a on a.id = p.challenge_account_id
+            where p.firm_id = $1 and p.status = 'Paid' and p.paid_at >= $2 and {CountedSql("a")}
             group by 2, 3
             order by 3
             """,
@@ -233,7 +244,7 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
     {
         await using var command = await CommandAsync(
             """
-            select t.id, t.email, t.created_at, t.password_hash is not null, o.currency, count(o.id), coalesce(sum(o.amount), 0)
+            select t.id, t.email, t.created_at, t.password_hash is not null, o.currency, count(o.id), coalesce(sum(o.amount), 0), t.name, t.country
             from traders t
             left join challenge_accounts a on a.trader_id = t.id
             left join orders o on o.challenge_account_id = a.id and o.paid_at is not null and o.refunded_at is null
@@ -249,7 +260,15 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
         var bought = new List<MoneyAmount>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            trader ??= new TraderRecord(reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.GetBoolean(3), 0, []);
+            trader ??= new TraderRecord(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetFieldValue<DateTimeOffset>(2),
+                reader.GetBoolean(3),
+                0,
+                [],
+                reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.IsDBNull(8) ? null : reader.GetString(8));
             if (!reader.IsDBNull(4))
             {
                 orders += Count(reader, 5);

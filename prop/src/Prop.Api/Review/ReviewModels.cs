@@ -19,7 +19,8 @@ public sealed record DepositResponse(decimal Amount, string Currency, bool Paid)
 
 /// <summary>
 /// The firm's review for its admin panel. <paramref name="Message"/> is our latest word: the changes we need, or why
-/// it was not approved. <paramref name="SubmitProblem"/> says why the application cannot be sent now.
+/// it was not approved. <paramref name="SubmitProblem"/> says why the application cannot be sent now, and
+/// <paramref name="Problems"/> what is missing or wrong in each field of the saved application, while it can be changed.
 /// <paramref name="EuCountries"/> are where the application gives a VAT number or says the company has none.
 /// </summary>
 public sealed record VerificationResponse(
@@ -34,7 +35,8 @@ public sealed record VerificationResponse(
     string? SubmitProblem,
     int MaxDocuments,
     int MaxDocumentBytes,
-    IReadOnlyList<string> EuCountries);
+    IReadOnlyList<string> EuCountries,
+    IReadOnlyList<FieldProblem> Problems);
 
 /// <summary>Where the firm pays the deposit, or null when the application was sent at once.</summary>
 public sealed record SubmitResponse(Uri? CheckoutUrl);

@@ -9,6 +9,7 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 import { payoutNote } from "@/lib/payouts";
 import { useMyAccounts, useMyPayouts } from "@/lib/queries";
 
+import { PayoutMethodPanel } from "./PayoutMethodPanel";
 import { PayoutSteps } from "./PayoutPanel";
 import { PayoutBadge } from "./Payouts";
 import { Message } from "./ui";
@@ -35,6 +36,8 @@ export function TraderPayouts() {
         <h1 className="text-2xl font-semibold tracking-tight">Payouts</h1>
         <p className="text-muted">Every payout from your funded accounts. {branding.name} sends the money and marks it as paid here.</p>
       </div>
+
+      <PayoutMethodPanel />
 
       {totals.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -76,7 +79,7 @@ export function TraderPayouts() {
             <tbody>
               {payouts.data.payouts.map((payout) => (
                 <tr key={payout.id} className="border-t border-border align-top">
-                  <td className="whitespace-nowrap px-5 py-3 text-muted">{formatDateTime(payout.requestedAt)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-muted">{formatDateTime(payout.requestedAt, payout.timeZone)}</td>
                   <td className="px-5 py-3">
                     <Link href={`/accounts/${payout.accountId}`} className="text-accent hover:underline">
                       #{payout.accountNumber}

@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -25,6 +27,9 @@ internal static class PortalAuth
     public const string UserIdClaim = "user_id";
     public const string FirmIdClaim = "firm_id";
 
+    /// <summary>Which password the session started with. A new password ends older sessions.</summary>
+    public const string PasswordStampClaim = "password_stamp";
+
     /// <summary>
     /// The host the portal was opened on, without port. The portal sends its requests through its own address
     /// and passes the original host in X-Forwarded-Host, so the login cookie belongs to the firm's domain.
@@ -46,9 +51,20 @@ internal static class PortalAuth
             new(FirmIdClaim, user.FirmId),
             new(ClaimTypes.Role, user.Role),
             new(ClaimTypes.Email, user.Email),
+            new(PasswordStampClaim, PasswordStamp(user.PasswordHash)),
         ];
         return context.SignInAsync(scheme, new ClaimsPrincipal(new ClaimsIdentity(claims, scheme)));
     }
+
+    /// <summary>
+    /// The password as the session keeps it: part of a hash of its hash, which differs for each new password, also the same
+    /// one chosen again, since each hash has its own salt. "0" without a password.
+    /// </summary>
+    public static string PasswordStamp(string? passwordHash) =>
+        passwordHash is null ? "0" : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(passwordHash)), 0, 8);
+
+    public static bool HasPasswordStamp(ClaimsPrincipal principal, string? passwordHash) =>
+        principal.FindFirstValue(PasswordStampClaim) == PasswordStamp(passwordHash);
 
     public static Task SignOutAsync(HttpContext context, string role) => context.SignOutAsync(SchemeOf(role));
 
@@ -58,22 +74,15 @@ internal static class PortalAuth
     public static IServiceCollection AddPortalAuth(this IServiceCollection services)
     {
         services.AddAuthentication()
-            .AddCookie(TraderScheme, options => ConfigureCookie(options, "prop_trader"))
+            .AddCookie(TraderScheme, options =>
+            {
+                ConfigureCookie(options, "prop_trader");
+                options.Events.OnValidatePrincipal = context => ValidateAsync(context, PortalRoles.Trader, TraderScheme);
+            })
             .AddCookie(AdminScheme, options =>
             {
                 ConfigureCookie(options, "prop_admin");
-
-                // A removed administrator's session stops working at once, not when the cookie expires.
-                options.Events.OnValidatePrincipal = async context =>
-                {
-                    var users = context.HttpContext.RequestServices.GetRequiredService<PortalUsers>();
-                    if (context.Principal is not { } principal
-                        || await users.FindByIdAsync(UserIdOf(principal), PortalRoles.Admin, context.HttpContext.RequestAborted) is null)
-                    {
-                        context.RejectPrincipal();
-                        await context.HttpContext.SignOutAsync(AdminScheme);
-                    }
-                };
+                options.Events.OnValidatePrincipal = context => ValidateAsync(context, PortalRoles.Admin, AdminScheme);
             });
         foreach (var scheme in new[] { TraderScheme, AdminScheme })
         {
@@ -85,6 +94,19 @@ internal static class PortalAuth
             .AddPolicy(TraderPolicy, policy => policy.AddAuthenticationSchemes(TraderScheme).RequireRole(PortalRoles.Trader))
             .AddPolicy(AdminPolicy, policy => policy.AddAuthenticationSchemes(AdminScheme).RequireRole(PortalRoles.Admin));
         return services;
+    }
+
+    // A removed administrator's session, and a session from before a new password, stop working at once, not when the cookie expires.
+    private static async Task ValidateAsync(CookieValidatePrincipalContext context, string role, string scheme)
+    {
+        var users = context.HttpContext.RequestServices.GetRequiredService<PortalUsers>();
+        if (context.Principal is not { } principal
+            || await users.FindByIdAsync(UserIdOf(principal), role, context.HttpContext.RequestAborted) is not { } user
+            || !HasPasswordStamp(principal, user.PasswordHash))
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(scheme);
+        }
     }
 
     internal static void ConfigureCookie(CookieAuthenticationOptions options, string name)

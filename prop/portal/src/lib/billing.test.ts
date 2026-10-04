@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Billing, Charge, Slots } from "./api/types";
-import { billingNotice, cardLabel, chargeLabel, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges } from "./billing";
+import { billingNotice, cardLabel, chargeLabel, expansionText, invoiceUrl, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges, vatOn, vatText } from "./billing";
 
 const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, suspended: false, warning: true };
 
@@ -16,8 +16,13 @@ const renewal: Charge = {
     { description: "Package with 25 slots, November 2026", quantity: 25, amount: 500 },
     { description: "25 extra slots, November 2026", quantity: 25, amount: 125 },
   ],
-  amount: 625,
+  netAmount: 625,
+  vatTreatment: "Charged",
+  vatPercent: 25,
+  vatAmount: 156.25,
+  amount: 781.25,
   currency: "USD",
+  invoice: null,
   failure: "The test card was declined.",
   attempts: 1,
   nextAttemptAt: "2026-10-28T00:00:01Z",
@@ -55,6 +60,9 @@ const billing: Billing = {
   review: null,
   depositPaid: 0,
   suspension: null,
+  shopProblem: null,
+  vat: { treatment: "Charged", percent: 25 },
+  sandboxAccounts: 0,
 };
 
 describe("slots", () => {
@@ -88,6 +96,24 @@ describe("prices and cards", () => {
     expect(chargeLabel(renewal)).toBe("Slots for November 2026");
     expect(chargeLabel({ ...renewal, kind: "Activation" })).toBe("Startup fee and the first month");
     expect(chargeLabel({ ...renewal, kind: "Deposit" })).toBe("Deposit for the review, taken off the startup fee");
+  });
+});
+
+describe("VAT and invoices", () => {
+  it("say how VAT applies, and work out the VAT in whole cents", () => {
+    expect(vatText({ treatment: "Charged", percent: 25 })).toBe("Prices are without VAT. 25% VAT is added for your company.");
+    expect(vatText({ treatment: "ReverseCharge", percent: 0 })).toMatch(/reverse charge/);
+    expect(vatText({ treatment: "OutsideEu", percent: 0 })).toMatch(/outside the EU/);
+    expect(vatOn(200, { treatment: "Charged", percent: 25 })).toBe(50);
+    expect(vatOn(1157.25, { treatment: "Charged", percent: 25 })).toBe(289.31);
+    expect(vatOn(1157.25, { treatment: "ReverseCharge", percent: 0 })).toBe(0);
+  });
+
+  it("find each paid charge's invoice, and say what an expansion adds", () => {
+    expect(invoiceUrl(renewal)).toBe(`/api/portal/admin/billing/charges/${renewal.id}/invoice`);
+    expect(expansionText({ slots: 10, monthlyPrice: 50, restOfMonth: 43.55, month: "2026-10-01" }, "USD")).toBe(
+      "Adds 10 slots for 50.00 USD a month, and 43.55 USD for the rest of October if it happens today. Without VAT.",
+    );
   });
 });
 

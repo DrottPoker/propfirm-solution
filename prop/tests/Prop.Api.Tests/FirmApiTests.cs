@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 
+using Prop.Api.Json;
 using Prop.Api.Tests.Support;
+using Prop.Rules;
 
 namespace Prop.Api.Tests;
 
@@ -50,6 +52,25 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
         Assert.Equal(["one-step-50k", "quick-test-100k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
     }
 
+    // Instant funding: no evaluation, so the first trading account is the funded one.
+    [Fact]
+    public async Task AnInstantlyFundedTraderStartsOnTheFundedAccount()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var firm = factory.CreateFirmClient();
+        using var saved = await firm.PutAsJsonAsync(
+            new Uri("/api/firm/v1/challenges/instant-funded-100k", UriKind.Relative),
+            ChallengeTemplates.InstantFunded("instant-funded-100k", 100_000m),
+            PropJson.Options,
+            TestContext.Current.CancellationToken);
+
+        var account = await factory.StartActiveAccountAsync(challengeId: "instant-funded-100k");
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal((true, 0, "Funded", "demo-firm-1001-1"), (account.GetProperty("funded").GetBoolean(), account.GetProperty("stage").GetInt32(), account.GetProperty("stageName").GetString(), account.GetProperty("tradingAccountId").GetString()));
+        Assert.Equal(70m, account.GetProperty("nextPayout").GetProperty("profitSplitPercent").GetDecimal());
+    }
+
     [Theory]
     [InlineData("Mars/Olympus_Mons", "one-step-50k", "Unknown time zone")]
     [InlineData("Europe/Stockholm", "another-id", "The id in the body must be the id in the address.")]
@@ -88,7 +109,9 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
         Assert.Equal((110_000m, 95_000m, 90_000m), (active.GetProperty("profitTarget").GetDecimal(), active.GetProperty("dailyFloor").GetDecimal(), active.GetProperty("maxLossFloor").GetDecimal()));
 
         // The account is opened before its floors are set.
-        Assert.Equal(["user anna@test.example", "open demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily"], factory.Trading.Commands);
+        Assert.Equal(
+            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily"],
+            factory.Trading.Commands);
     }
 
     [Fact]

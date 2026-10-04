@@ -10,7 +10,8 @@ namespace Trading.Engine;
 /// <param name="LatestQuotes">The latest raw price per symbol.</param>
 /// <param name="Accounts">In creation order, which is the order accounts are processed in.</param>
 /// <param name="Groups">
-/// Groups created with <see cref="CreateGroup"/>, in creation order. Configured groups are not included.
+/// Groups created with <see cref="CreateGroup"/>, in creation order, with their symbols as they are now.
+/// Configured groups are not included.
 /// Missing in snapshots taken before groups could be created.
 /// </param>
 public sealed record EngineState(

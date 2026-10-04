@@ -15,6 +15,9 @@ internal interface ITradingPlatform
     /// <summary>Opens the account in the firm's group. Done if the firm already has it, so a retry is safe.</summary>
     Task OpenAccountAsync(FirmTrading firm, string accountId, decimal initialBalance, Guid ownerUserId, CancellationToken cancellationToken);
 
+    /// <summary>What the terminal shows about the account. Replaces what it showed before.</summary>
+    Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken);
+
     /// <summary>Sets or replaces the floor. Done if the account is already disabled, since there is nothing left to protect.</summary>
     Task SetFloorAsync(FirmTrading firm, string accountId, string floorId, FloorSpec floor, CancellationToken cancellationToken);
 
@@ -36,6 +39,9 @@ internal interface ITradingPlatform
     /// </summary>
     Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken);
 
+    /// <summary>Deposits the amount once: the same operation id again changes nothing.</summary>
+    Task DepositAsync(FirmTrading firm, string accountId, string operationId, decimal amount, CancellationToken cancellationToken);
+
     /// <summary>The account valued at the latest prices, as the trader sees it. Null if the firm has no such account.</summary>
     Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
@@ -44,7 +50,28 @@ internal interface ITradingPlatform
 
     /// <summary>A one-time link that logs the user in to the terminal, optionally on one account.</summary>
     Task<TradingLoginLink> CreateLoginLinkAsync(FirmTrading firm, Guid userId, string? accountId, CancellationToken cancellationToken);
+
+    /// <summary>Every instrument on the platform, which the firm's group can trade.</summary>
+    Task<IReadOnlyList<TradingInstrument>> GetInstrumentsAsync(FirmTrading firm, CancellationToken cancellationToken);
+
+    /// <summary>The firm's group with the symbols it trades and their conditions. Null if the firm has no such group.</summary>
+    Task<TradingGroupConditions?> GetGroupAsync(FirmTrading firm, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Replaces the symbols the firm's group trades, at once also for open positions. Refused with the platform's reason, for
+    /// example SymbolInUse for a symbol with open positions, or GroupNotChangeable for a group from the platform's configuration.
+    /// </summary>
+    Task SetGroupSymbolsAsync(FirmTrading firm, IReadOnlyList<TradingSymbolConditions> symbols, CancellationToken cancellationToken);
 }
+
+/// <summary>An instrument on the trading platform. <paramref name="ContractSize"/> is units of the base currency in one lot.</summary>
+internal sealed record TradingInstrument(string Symbol, string BaseCurrency, string QuoteCurrency, decimal ContractSize, int Digits);
+
+/// <summary>A symbol the group trades: its leverage, the points added to the spread and the commission per lot on each side.</summary>
+internal sealed record TradingSymbolConditions(string Symbol, int Leverage, int SpreadMarkupPoints, decimal CommissionPerLotPerSide);
+
+/// <summary>The firm's group. Only a <paramref name="Changeable"/> group, created for the firm, can get other symbols.</summary>
+internal sealed record TradingGroupConditions(string Id, string Currency, bool Changeable, IReadOnlyList<TradingSymbolConditions> Symbols);
 
 internal sealed record TradingEventPage(IReadOnlyList<TradingEvent> Events, long Cursor);
 
@@ -165,3 +192,10 @@ internal sealed class TradingPlatformRejectedException : Exception
     /// <summary>The platform's reason, such as InsufficientFunds, when it gave one.</summary>
     public string? Reason { get; }
 }
+
+/// <summary>
+/// What the terminal shows about an account: <paramref name="Label"/> names it for the trader, <paramref name="ProfitTarget"/>
+/// is the balance that passes the stage, <paramref name="TimeZone"/> is its trading day's and <paramref name="DetailsUrl"/>
+/// its page in the firm's portal.
+/// </summary>
+internal sealed record TradingAccountDetails(string Label, decimal? ProfitTarget, string TimeZone, Uri DetailsUrl);

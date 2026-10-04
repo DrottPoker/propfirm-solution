@@ -10,6 +10,7 @@ internal sealed partial class FakeEmailSender : IEmailSender
     private readonly Lock _lock = new();
     private readonly List<EmailMessage> _sent = [];
     private int _failures;
+    private string? _failingRecipient;
 
     public IReadOnlyList<EmailMessage> Sent
     {
@@ -22,12 +23,13 @@ internal sealed partial class FakeEmailSender : IEmailSender
         }
     }
 
-    /// <summary>The next emails cannot be sent.</summary>
-    public void FailNext(int emails)
+    /// <summary>The next emails cannot be sent, or only the next ones to <paramref name="to"/>.</summary>
+    public void FailNext(int emails, string? to = null)
     {
         lock (_lock)
         {
             _failures = emails;
+            _failingRecipient = to;
         }
     }
 
@@ -35,7 +37,7 @@ internal sealed partial class FakeEmailSender : IEmailSender
     {
         lock (_lock)
         {
-            if (_failures > 0)
+            if (_failures > 0 && (_failingRecipient is null || string.Equals(_failingRecipient, message.To, StringComparison.OrdinalIgnoreCase)))
             {
                 _failures--;
                 throw new EmailNotSentException("The fake mail server is down.");
@@ -44,6 +46,16 @@ internal sealed partial class FakeEmailSender : IEmailSender
             _sent.Add(message);
             return Task.CompletedTask;
         }
+    }
+
+    /// <summary>Waits for an email to the address with the subject, since queued emails are sent in the background.</summary>
+    public async Task<EmailMessage> WaitForAsync(string to, string subject)
+    {
+        EmailMessage? found = null;
+        await Eventually.ThatAsync(
+            () => (found = Sent.LastOrDefault(e => e.To == to && e.Subject.Contains(subject, StringComparison.Ordinal))) is not null,
+            $"the email \"{subject}\" to {to}");
+        return found!;
     }
 
     /// <summary>The token in the link of the newest email to the address.</summary>

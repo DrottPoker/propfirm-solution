@@ -16,10 +16,15 @@ public interface ITenantStore
 
     /// <summary>Replaces the hash of the firm's admin API key.</summary>
     Task SetAdminApiKeyAsync(string tenantId, byte[] adminApiKeyHash, CancellationToken cancellationToken);
+
+    /// <summary>Whether the firm's server is listed, and where its traders log in.</summary>
+    Task SetListingAsync(string tenantId, bool listed, Uri? loginUrl, Uri? logoUrl, CancellationToken cancellationToken);
 }
 
 /// <summary>
 /// A firm on the platform. <paramref name="Id"/> is the server traders log in to. <paramref name="PartnerId"/> is
 /// the partner that created it, or null for a configured firm. Only listed servers are shown to traders.
+/// <paramref name="LoginUrl"/> is where the firm's traders log in when they have no password for the terminal,
+/// for example the firm's portal.
 /// </summary>
-public sealed record Tenant(string Id, string Name, IReadOnlyList<string> Groups, byte[] AdminApiKeyHash, string? PartnerId, bool Listed);
+public sealed record Tenant(string Id, string Name, IReadOnlyList<string> Groups, byte[] AdminApiKeyHash, string? PartnerId, bool Listed, Uri? LoginUrl = null, Uri? LogoUrl = null);

@@ -68,6 +68,151 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         Assert.Equal("Cancelled", account.GetProperty("account").GetProperty("status").GetString());
     }
 
+    // A Swedish firm pays our VAT, its charges and invoices count in its own series, and going live emails the receipt.
+    [Fact]
+    public async Task ASwedishFirmPaysVatAndGetsAnInvoiceForEachPaidCharge()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme", approved: false);
+        await factory.ApproveAsync(admin, "acme", PropFactory.Application(country: "SE", vatNumber: "SE559000123401"));
+        using var other = await SandboxFirmAsync(factory, "beta", "owner@beta.test");
+        using var otherPaid = await CompleteAsync(other, await ActivateAsync(other, 30), declines: false);
+        await StartAsync(admin, "tester@firm.test");
+        var before = await GetAsync(admin, "admin/billing");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=30&expandBy=10");
+
+        using var paid = await CompleteAsync(admin, await ActivateAsync(admin, 30), declines: false);
+        var billing = await GetAsync(admin, "admin/billing");
+        var charge = Assert.Single(billing.GetProperty("charges").EnumerateArray());
+        var chargeId = charge.GetProperty("id").GetGuid();
+        using var invoice = await admin.GetAsync(Url($"admin/billing/charges/{chargeId}/invoice"), TestContext.Current.CancellationToken);
+        var pdf = await invoice.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
+        using var othersInvoice = await other.GetAsync(Url($"admin/billing/charges/{chargeId}/invoice"), TestContext.Current.CancellationToken);
+        var otherCharge = Assert.Single((await GetAsync(other, "admin/billing")).GetProperty("charges").EnumerateArray());
+        var live = await factory.Emails.WaitForAsync(Owner, "Firm acme is live");
+        var ended = await factory.Emails.WaitForAsync("tester@firm.test", "Your test account with Firm acme has ended");
+
+        Assert.Equal(("Charged", 25m, 1), (before.GetProperty("vat").GetProperty("treatment").GetString(), before.GetProperty("vat").GetProperty("percent").GetDecimal(), before.GetProperty("sandboxAccounts").GetInt32()));
+        Assert.Equal((1157.25m, 289.31m, 1446.56m), (quote.GetProperty("netAmount").GetDecimal(), quote.GetProperty("vatAmount").GetDecimal(), quote.GetProperty("amount").GetDecimal()));
+        Assert.Equal((10, 50m, 43.55m), (
+            quote.GetProperty("expansion").GetProperty("slots").GetInt32(),
+            quote.GetProperty("expansion").GetProperty("monthlyPrice").GetDecimal(),
+            quote.GetProperty("expansion").GetProperty("restOfMonth").GetDecimal()));
+        Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
+        Assert.Equal((1001L, "ACME-0001", 1157.25m, 289.31m, 1446.56m), (
+            charge.GetProperty("number").GetInt64(),
+            charge.GetProperty("invoice").GetString(),
+            charge.GetProperty("netAmount").GetDecimal(),
+            charge.GetProperty("vatAmount").GetDecimal(),
+            charge.GetProperty("amount").GetDecimal()));
+        Assert.Equal((HttpStatusCode.OK, "application/pdf"), (invoice.StatusCode, invoice.Content.Headers.ContentType?.MediaType));
+        Assert.Equal("%PDF-"u8.ToArray(), pdf[..5]);
+        Assert.Equal(HttpStatusCode.NotFound, othersInvoice.StatusCode);
+        Assert.Equal((1001L, "BETA-0001", "ReverseCharge", 0m, 1157.25m), (
+            otherCharge.GetProperty("number").GetInt64(),
+            otherCharge.GetProperty("invoice").GetString(),
+            otherCharge.GetProperty("vatTreatment").GetString(),
+            otherCharge.GetProperty("vatAmount").GetDecimal(),
+            otherCharge.GetProperty("amount").GetDecimal()));
+        Assert.Contains("Receipt for invoice ACME-0001", live.Body, StringComparison.Ordinal);
+        Assert.Contains("VAT 25%: 289.31 USD", live.Body, StringComparison.Ordinal);
+        Assert.Contains("Total paid: 1,446.56 USD", live.Body, StringComparison.Ordinal);
+        Assert.Contains("Your test account from the sandbox has ended", live.Body, StringComparison.Ordinal);
+        Assert.Equal("Firm acme", ended.FromName);
+        Assert.Contains("account #1001", ended.Body, StringComparison.Ordinal);
+    }
+
+    // Where test payments stop when the firm is live, a shop on them would close at once, so the firm sets it up first.
+    [Fact]
+    public async Task AShopThatWouldStopTakingPaymentKeepsTheFirmFromGoingLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), new Dictionary<string, string> { ["Payments:TestPaymentsForLiveFirms"] = "false" });
+        using var admin = await SandboxFirmAsync(factory, "acme");
+
+        using var test = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Test" }, TestContext.Current.CancellationToken);
+        var billing = await GetAsync(admin, "admin/billing");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=30");
+        using var refused = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
+        using var noSales = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = (string?)null }, TestContext.Current.CancellationToken);
+        var after = await GetAsync(admin, "admin/billing");
+
+        // Live, the shop takes only real money.
+        using var paid = await CompleteAsync(admin, await ActivateAsync(admin, 30), declines: false);
+        using var testAgain = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Test" }, TestContext.Current.CancellationToken);
+        using var testKeys = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Stripe", stripeSecretKey = FakeStripe.SecretKey }, TestContext.Current.CancellationToken);
+        var live = await GetAsync(admin, "admin/billing");
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (test.StatusCode, noSales.StatusCode));
+        Assert.StartsWith("Your shop takes test payments, which stop when you go live.", billing.GetProperty("goLiveProblem").GetString(), StringComparison.Ordinal);
+        Assert.Equal(billing.GetProperty("goLiveProblem").GetString(), billing.GetProperty("shopProblem").GetString());
+        Assert.Equal(billing.GetProperty("goLiveProblem").GetString(), quote.GetProperty("problem").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal((JsonValueKind.Null, JsonValueKind.Null), (after.GetProperty("goLiveProblem").ValueKind, after.GetProperty("shopProblem").ValueKind));
+        Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity), (testAgain.StatusCode, testKeys.StatusCode));
+        Assert.Empty(factory.Stripe.Webhooks);
+        Assert.Equal(JsonValueKind.Null, live.GetProperty("shopProblem").ValueKind);
+    }
+
+    // The firm's tests show in its figures while it tries the platform, but not once it is live.
+    [Fact]
+    public async Task TestPurchasesInTheSandboxCountUntilTheFirmGoesLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme");
+        (await admin.PutAsJsonAsync(Url("admin/challenges/two-step-100k/price"), new { amount = 99m, currency = "USD", forSale = true }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        (await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Test" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        using var ordered = await PostAsync(buyer, "orders", new { challengeId = "two-step-100k", email = "tester@test.example", acceptTerms = true, name = "Ann Buyer", country = "SE" });
+        var order = await ordered.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var token = order.GetProperty("checkoutUrl").GetString()!.Split("token=")[1].Split('&')[0];
+        (await PostAsync(buyer, $"orders/{order.GetProperty("orderId").GetGuid()}/test-payment", new { token })).EnsureSuccessStatusCode();
+        var sale = await factory.Emails.WaitForAsync(Owner, "New sale: Two-step 100K for 99.00 USD");
+
+        var inSandbox = await GetAsync(admin, "admin/overview");
+        using var paid = await CompleteAsync(admin, await ActivateAsync(admin, 30), declines: false);
+        var live = await GetAsync(admin, "admin/overview");
+
+        Assert.Contains("tester@test.example bought Two-step 100K", sale.Body, StringComparison.Ordinal);
+        Assert.Equal(1, inSandbox.GetProperty("sales").GetProperty("orders").GetInt32());
+        Assert.Single(inSandbox.GetProperty("weeks").EnumerateArray().Last().GetProperty("sales").EnumerateArray());
+        Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
+        Assert.Equal(0, live.GetProperty("sales").GetProperty("orders").GetInt32());
+        Assert.Empty(live.GetProperty("weeks").EnumerateArray().Last().GetProperty("sales").EnumerateArray());
+        Assert.Equal((true, true), (await factory.ScalarAsync("select sandbox from orders"), await factory.ScalarAsync("select sandbox from challenge_accounts")));
+    }
+
+    // Its traders find the firm's server in the terminal once it is live, and log in through its portal.
+    [Fact]
+    public async Task TheTerminalListsTheFirmOnceItIsLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme");
+        await Eventually.ThatAsync(() => factory.Trading.ListingOf("acme") is not null, "the trading platform to hear where the firm's traders log in");
+        var inSandbox = factory.Trading.ListingOf("acme");
+
+        using var paid = await CompleteAsync(admin, await ActivateAsync(admin, 30), declines: false);
+        await Eventually.ThatAsync(() => factory.Trading.ListingOf("acme") is { Listed: true }, "the firm's server to be listed");
+
+        // The terminal shows the firm's logo with its name, from the portal's address.
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52];
+        using (var form = new MultipartFormDataContent())
+        {
+            form.Add(new ByteArrayContent(png), "file", "logo.png");
+            (await admin.PutAsync(Url("admin/firm/logo"), form, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        }
+
+        await Eventually.ThatAsync(() => factory.Trading.ListingOf("acme") is { LogoUrl: not null }, "the trading platform to hear about the logo");
+
+        Assert.Equal((false, new Uri("http://acme.localhost:3002/terminal"), (Uri?)null), inSandbox);
+        Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
+        Assert.Equal(new Uri("http://acme.localhost:3002/terminal"), factory.Trading.ListingOf("acme")!.Value.LoginUrl);
+        Assert.Equal(
+            new Uri($"http://acme.localhost:3002/api/portal/logo/{Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(png))}"),
+            factory.Trading.ListingOf("acme")!.Value.LogoUrl);
+        Assert.Null(factory.Trading.ListingOf("demo-firm"));
+    }
+
     [Fact]
     public async Task GoingLiveNeedsOurApprovalOfTheFirm()
     {
@@ -77,10 +222,12 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         var billing = await GetAsync(admin, "admin/billing");
         var quote = await GetAsync(admin, "admin/billing/quote?slots=30");
+        var tooFew = await GetAsync(admin, "admin/billing/quote?slots=10");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.StartsWith("Choose 25 to 10,000 slots.", tooFew.GetProperty("problem").GetString(), StringComparison.Ordinal);
         Assert.StartsWith("We review your company before you go live", billing.GetProperty("goLiveProblem").GetString(), StringComparison.Ordinal);
-        Assert.Equal("Draft", billing.GetProperty("review").GetString());
+        Assert.Equal(JsonValueKind.Null, billing.GetProperty("review").ValueKind);
         Assert.Equal(billing.GetProperty("goLiveProblem").GetString(), quote.GetProperty("problem").GetString());
     }
 

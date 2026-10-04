@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { InstrumentInfo } from "./api/types";
-import { categoriesOf, categoryOf, currencySign, spreadPoints } from "./instruments";
+import { categoriesOf, categoryOf, currencySign, initialInstrument, spreadPoints } from "./instruments";
 
 function instrument(symbol: string, baseCurrency: string, quoteCurrency: string): InstrumentInfo {
   return {
@@ -46,5 +46,13 @@ describe("currencySign", () => {
     expect(currencySign("EUR")).toBe("€");
     expect(currencySign("XAU")).toBe("Au");
     expect(currencySign("SEK")).toBe("S");
+  });
+});
+
+describe("the symbol the terminal opens on", () => {
+  it("is EURUSD when the group has it, otherwise the first", () => {
+    expect(initialInstrument([instrument("AUDUSD", "AUD", "USD"), instrument("EURUSD", "EUR", "USD")])?.symbol).toBe("EURUSD");
+    expect(initialInstrument([instrument("GBPUSD", "GBP", "USD"), instrument("XAUUSD", "XAU", "USD")])?.symbol).toBe("GBPUSD");
+    expect(initialInstrument([])).toBeNull();
   });
 });

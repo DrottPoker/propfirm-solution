@@ -1,13 +1,18 @@
 using System.Security.Claims;
 
+using Common.Postgres;
+
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
+
+using Npgsql;
 
 using Prop.Api.Api;
 using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
+using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Payments;
@@ -38,6 +43,9 @@ internal static class PortalEndpoints
                     LoginAsync(PortalRoles.Trader, request, context, users, hasher, cancellationToken))
             .RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        portal.MapPost("/invites/confirm", ConfirmInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        portal.MapPost("/me/confirm-email", SendEmailConfirmationAsync).RequireAuthorization(PortalAuth.TraderPolicy).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        portal.MapPasswordResets();
         portal.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Trader)));
         portal.MapGet("/me", MeAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapShop();
@@ -51,6 +59,8 @@ internal static class PortalEndpoints
         trader.MapPost("/{accountId:guid}/terminal-link", CreateTerminalLinkAsync);
         trader.MapPost("/{accountId:guid}/payouts", RequestPayoutAsync);
         portal.MapGet("/payouts", ListMyPayoutsAsync).RequireAuthorization(PortalAuth.TraderPolicy);
+        portal.MapGet("/payout-method", GetMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
+        portal.MapPut("/payout-method", SaveMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
 
         portal.MapPost(
                 "/admin/login",
@@ -74,7 +84,10 @@ internal static class PortalEndpoints
         admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         admin.MapAdminPanel();
         admin.MapAdminSettings();
+        admin.MapTradingConditions();
         admin.MapAdminOrders();
+        admin.MapAdminDiscounts();
+        admin.MapAdminDomain();
         admin.MapAdminBilling();
         admin.MapAdminVerification();
         return app;
@@ -101,7 +114,7 @@ internal static class PortalEndpoints
         }
 
         await PortalAuth.SignInAsync(context, user);
-        return TypedResults.Ok(new PortalMeResponse(user.Id, user.Email, user.Role, firm.Name));
+        return TypedResults.Ok(PortalMeResponse.Of(user, firm.Name));
     }
 
     /// <summary>The trader chooses a password with an invitation from the firm, and is logged in.</summary>
@@ -130,9 +143,85 @@ internal static class PortalEndpoints
             return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The invitation has expired or was already used.");
         }
 
-        await users.SetTraderPasswordAsync(trader.Id, hasher.HashPassword(trader, request.Password), cancellationToken);
-        await PortalAuth.SignInAsync(context, trader);
-        return TypedResults.Ok(new PortalMeResponse(trader.Id, trader.Email, trader.Role, firm.Name));
+        await users.SetTraderPasswordAsync(trader.Id, hasher.HashPassword(trader, request.Password), time.GetUtcNow(), cancellationToken);
+        await users.ConfirmTraderEmailAsync(trader.Id, time.GetUtcNow(), cancellationToken);
+
+        // Read again, so the session carries the password's time as it is stored.
+        var changed = (await users.FindByIdAsync(trader.Id, PortalRoles.Trader, cancellationToken))!;
+        await PortalAuth.SignInAsync(context, changed);
+        return TypedResults.Ok(PortalMeResponse.Of(changed, firm.Name));
+    }
+
+    /// <summary>
+    /// A trader who already chose a password, on an order's page, opens the link from the email: it confirms the email and
+    /// logs the trader in. A trader without a password chooses one with the link instead.
+    /// </summary>
+    private static async Task<Results<Ok<PortalMeResponse>, ProblemHttpResult>> ConfirmInviteAsync(
+        LinkCheckRequest request,
+        HttpContext context,
+        PortalUsers users,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        var now = time.GetUtcNow();
+        if (string.IsNullOrEmpty(request.Token)
+            || await users.FindInviteAsync(firm.Id, request.Token, now, cancellationToken) is not { Status: LinkStatus.Valid } invite
+            || await users.FindByIdAsync(invite.UserId, PortalRoles.Trader, cancellationToken) is not { } trader)
+        {
+            return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The invitation has expired or was already used.");
+        }
+
+        if (trader.PasswordHash is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "Choose a password.");
+        }
+
+        if (await users.UseInviteAsync(firm.Id, request.Token, now, cancellationToken) is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The invitation has expired or was already used.");
+        }
+
+        await users.ConfirmTraderEmailAsync(trader.Id, now, cancellationToken);
+        var confirmed = (await users.FindByIdAsync(trader.Id, PortalRoles.Trader, cancellationToken))!;
+        await PortalAuth.SignInAsync(context, confirmed);
+        return TypedResults.Ok(PortalMeResponse.Of(confirmed, firm.Name));
+    }
+
+    /// <summary>Emails the logged-in trader a new link that confirms the email. 409 when it is confirmed already.</summary>
+    private static async Task<Results<Accepted, ProblemHttpResult>> SendEmailConfirmationAsync(
+        ClaimsPrincipal principal,
+        HttpContext context,
+        PortalUsers users,
+        WorkSignals signals,
+        NpgsqlDataSource dataSource,
+        DatabaseSchema schema,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await users.FindByIdAsync(PortalAuth.UserIdOf(principal), PortalRoles.Trader, cancellationToken) is not { } trader)
+        {
+            return AccountActions.Problem(StatusCodes.Status401Unauthorized, "Log in again.");
+        }
+
+        if (trader.EmailConfirmedAt is not null)
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "Your email is confirmed already.");
+        }
+
+        var now = time.GetUtcNow();
+        var invite = await users.CreateInviteAsync(trader.Id, now, cancellationToken);
+        await EmailOutbox.AddAsync(
+            dataSource,
+            schema,
+            signals,
+            TraderEmails.ConfirmEmail(firm, trader.Email, new Uri(firm.Portal.Url, $"invite?token={invite.Token}"), PortalUsers.InviteLifetime),
+            "email_confirmation",
+            firm.Id,
+            now,
+            cancellationToken);
+        return TypedResults.Accepted((string?)null);
     }
 
     private static async Task<NoContent> LogoutAsync(HttpContext context, string role)
@@ -149,7 +238,7 @@ internal static class PortalEndpoints
     {
         var role = principal.FindFirstValue(ClaimTypes.Role) ?? "";
         return await users.FindByIdAsync(PortalAuth.UserIdOf(principal), role, cancellationToken) is { } user
-            ? TypedResults.Ok(new PortalMeResponse(user.Id, user.Email, user.Role, PortalFirmFilter.FirmOf(context).Name))
+            ? TypedResults.Ok(PortalMeResponse.Of(user, PortalFirmFilter.FirmOf(context).Name))
             : TypedResults.Unauthorized();
     }
 
@@ -218,26 +307,65 @@ internal static class PortalEndpoints
         CancellationToken cancellationToken) =>
         PayoutActions.ListForTraderAsync(PortalFirmFilter.FirmOf(context), PortalAuth.UserIdOf(principal), accounts, payouts, cancellationToken);
 
-    /// <summary>The trader asks for a payout of the funded account's profit. 409 with the reason when one cannot be had now.</summary>
-    private static Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
+    /// <summary>
+    /// The trader asks for a payout of the funded account's profit. 409 with the reason when one cannot be had now, for
+    /// example before the trader has said how to be paid.
+    /// </summary>
+    private static async Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
         Guid accountId,
         ClaimsPrincipal principal,
         HttpContext context,
         ChallengeService challenges,
         ChallengeQueries accounts,
         PayoutQueries payouts,
+        PayoutMethods methods,
+        PortalUsers users,
         TimeProvider time,
-        CancellationToken cancellationToken) =>
-        PayoutActions.RequestAsync(
+        CancellationToken cancellationToken)
+    {
+        var traderId = PortalAuth.UserIdOf(principal);
+        if (await users.FindByIdAsync(traderId, PortalRoles.Trader, cancellationToken) is { EmailConfirmedAt: null })
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "Confirm your email first, with the link we emailed you. You can ask for a new link in the portal.");
+        }
+
+        if (await methods.GetAsync(traderId, cancellationToken) is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "Add how you want to be paid under Payouts first.");
+        }
+
+        return await PayoutActions.RequestAsync(
             PortalFirmFilter.FirmOf(context),
             accountId,
-            PortalAuth.UserIdOf(principal),
+            traderId,
             _ => $"/api/portal/accounts/{accountId}",
             challenges,
             accounts,
             payouts,
             time,
             cancellationToken);
+    }
+
+    private static async Task<Ok<PayoutMethodResponse>> GetMyPayoutMethodAsync(ClaimsPrincipal principal, PayoutMethods methods, CancellationToken cancellationToken) =>
+        TypedResults.Ok(new PayoutMethodResponse(await methods.GetAsync(PortalAuth.UserIdOf(principal), cancellationToken)));
+
+    /// <summary>How the trader wants to be paid. Payouts asked for from now on are paid there; those on their way keep theirs.</summary>
+    private static async Task<Results<Ok<PayoutMethodResponse>, ProblemHttpResult>> SaveMyPayoutMethodAsync(
+        PayoutMethod request,
+        ClaimsPrincipal principal,
+        PayoutMethods methods,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var method = request.Normalized();
+        if (method.Problem() is { } problem)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, problem);
+        }
+
+        await methods.SaveAsync(PortalAuth.UserIdOf(principal), method, time.GetUtcNow(), cancellationToken);
+        return TypedResults.Ok(new PayoutMethodResponse(method));
+    }
 
     private static Task<Results<Ok<LoginLinkResponse>, ProblemHttpResult>> CreateTerminalLinkAsync(
         Guid accountId,

@@ -53,6 +53,29 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
     }
 
     [Fact]
+    public async Task AConsistencyRuleKeepsOneLuckyDayFromAPayout()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.LogInAsAdminAsync();
+        var challenges = await admin.GetFromJsonAsync<JsonElement>(new Uri("/api/portal/admin/challenges", UriKind.Relative), TestContext.Current.CancellationToken);
+        var quick = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(challenges.EnumerateArray().Single(c => c.GetProperty("id").GetString() == "quick-test-100k").GetRawText())!;
+        var funded = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(quick["funded"].GetRawText())!;
+        funded["consistencyPercent"] = JsonSerializer.SerializeToElement(50m);
+        quick["funded"] = JsonSerializer.SerializeToElement(funded);
+        using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/challenges/quick-test-100k", UriKind.Relative), quick, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+
+        var id = await FundedWithProfitAsync(factory, 8_000m);
+        var quote = (await factory.GetAccountAsync(id)).GetProperty("nextPayout");
+
+        Assert.False(quote.GetProperty("canRequest").GetBoolean());
+        Assert.Equal((8_000m, 50m), (quote.GetProperty("bestDayProfit").GetDecimal(), quote.GetProperty("consistencyPercent").GetDecimal()));
+        Assert.Equal(
+            "Your best day made 8,000.00, 100% of the profit. A payout needs the best day to be at most 50% of it, so keep trading.",
+            quote.GetProperty("refusal").GetString());
+    }
+
+    [Fact]
     public async Task APayoutIsRefusedWithTheReason()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
@@ -110,6 +133,27 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.Equal("Copy trading is not allowed.", webhook.GetProperty("data").GetProperty("reason").GetString());
     }
 
+    // The firm waits for the trader's ID, so it rejects without taking the profit: it goes back on the account.
+    [Fact]
+    public async Task ARejectedPayoutCanReturnItsProfitToTheAccount()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = await FundedWithProfitAsync(factory, 8_000m);
+        using var firm = factory.CreateFirmClient();
+        var payoutId = (await firm.PostJsonAsync($"accounts/{id}/payouts", null, HttpStatusCode.Created)).GetProperty("id").GetGuid();
+        await WaitForPayoutAsync(factory, payoutId, "Pending");
+
+        var rejected = await firm.PostJsonAsync($"payouts/{payoutId}/reject", new { reason = "Send us your ID first.", returnProfit = true });
+        var account = await factory.WaitForAccountAsync(id, a => a.GetProperty("balance").GetDecimal() == 108_000m);
+        var email = await factory.Emails.WaitForAsync("anna@test.example", "was rejected");
+
+        Assert.Equal(("Rejected", true), (rejected.GetProperty("status").GetString(), rejected.GetProperty("profitReturned").GetBoolean()));
+        Assert.Contains($"deposit {Funded} 8000", factory.Trading.Commands);
+        Assert.Equal(108_000m, factory.Trading.AccountOf(Funded).Balance);
+        Assert.Equal(JsonValueKind.Object, account.GetProperty("nextPayout").ValueKind);
+        Assert.Contains("is back on your account", email.Body, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheTraderAsksInThePortalAndTheAdministratorPays()
     {
@@ -119,8 +163,13 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
         using var trader = await factory.LogInAsTraderAsync(id);
         using var admin = await factory.LogInAsAdminAsync();
 
+        using var withoutMethod = await trader.PostAsync(Portal($"accounts/{id}/payouts"), null, TestContext.Current.CancellationToken);
+        (await trader.PutAsJsonAsync(Portal("payout-method"), BankAccount, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var notMine = await trader.PostAsync(Portal($"accounts/{others}/payouts"), null, TestContext.Current.CancellationToken);
         using var asked = await trader.PostAsync(Portal($"accounts/{id}/payouts"), null, TestContext.Current.CancellationToken);
+
+        // A new account afterwards does not move the payout that is on its way.
+        (await trader.PutAsJsonAsync(Portal("payout-method"), new { kind = "Crypto", asset = "USDT", network = "TRC20", address = "TXyz123" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         var payoutId = (await asked.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
         await WaitForPayoutAsync(factory, payoutId, "Pending");
         var waiting = await admin.GetFromJsonAsync<JsonElement>(Portal("admin/payouts?status=Pending&status=Approved"), TestContext.Current.CancellationToken);
@@ -129,11 +178,38 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
         using var traderApproves = await trader.PostAsync(Portal($"admin/payouts/{payoutId}/approve"), null, TestContext.Current.CancellationToken);
         var details = await trader.GetFromJsonAsync<JsonElement>(Portal($"accounts/{id}"), TestContext.Current.CancellationToken);
 
-        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.Created), (notMine.StatusCode, asked.StatusCode));
+        Assert.Equal((HttpStatusCode.Conflict, HttpStatusCode.NotFound, HttpStatusCode.Created), (withoutMethod.StatusCode, notMine.StatusCode, asked.StatusCode));
         Assert.Equal((payoutId, "anna@test.example"), (Assert.Single(waiting.EnumerateArray()).GetProperty("payout").GetProperty("id").GetGuid(), waiting[0].GetProperty("payout").GetProperty("email").GetString()));
+        var payTo = waiting[0].GetProperty("payout").GetProperty("payTo");
+        Assert.Equal(("Bank", "Anna Andersson", "SE45 5000 0000 0583 9825 7466"), (payTo.GetProperty("kind").GetString(), payTo.GetProperty("accountHolder").GetString(), payTo.GetProperty("accountNumber").GetString()));
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.Unauthorized), (approved.StatusCode, paid.StatusCode, traderApproves.StatusCode));
         var payout = Assert.Single(details.GetProperty("payouts").EnumerateArray());
         Assert.Equal(("Paid", 6_400m), (payout.GetProperty("status").GetString(), payout.GetProperty("amount").GetDecimal()));
+    }
+
+    /// <summary>A trader's bank account, as the tests save it before asking for a payout in the portal.</summary>
+    internal static readonly object BankAccount = new { kind = "Bank", accountHolder = " Anna Andersson ", accountNumber = "SE45 5000 0000 0583 9825 7466", bankCode = "", bankName = "" };
+
+    // Stored encrypted and read back the same, without the fields of other kinds or blanks.
+    [Fact]
+    public async Task TheTraderSavesHowToBePaid()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var started = await factory.StartActiveAccountAsync("anna@test.example");
+        using var trader = await factory.LogInAsTraderAsync(started.GetProperty("id").GetGuid());
+
+        var before = await trader.GetFromJsonAsync<JsonElement>(Portal("payout-method"), TestContext.Current.CancellationToken);
+        using var incomplete = await trader.PutAsJsonAsync(Portal("payout-method"), new { kind = "Crypto", asset = "USDT", network = "" }, TestContext.Current.CancellationToken);
+        using var saved = await trader.PutAsJsonAsync(Portal("payout-method"), new { kind = "Bank", accountHolder = "Anna Andersson", accountNumber = "SE45 5000", asset = "USDT" }, TestContext.Current.CancellationToken);
+        var after = await trader.GetFromJsonAsync<JsonElement>(Portal("payout-method"), TestContext.Current.CancellationToken);
+        var stored = await factory.ScalarAsync("select details from trader_payout_methods");
+
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("method").ValueKind);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, incomplete.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var method = after.GetProperty("method");
+        Assert.Equal(("Bank", "Anna Andersson", JsonValueKind.Null), (method.GetProperty("kind").GetString(), method.GetProperty("accountHolder").GetString(), method.GetProperty("asset").ValueKind));
+        Assert.DoesNotContain("Anna", (string)stored!, StringComparison.Ordinal);
     }
 
     [Fact]

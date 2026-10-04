@@ -31,6 +31,9 @@ public interface IEngineJournal
     /// <summary>The account's last events before the sequence number, oldest first.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadEventsBeforeAsync(string accountId, long beforeSequence, int limit, CancellationToken cancellationToken);
 
+    /// <summary>All events after the sequence number, oldest first, whoever they belong to.</summary>
+    Task<IReadOnlyList<EventEnvelope>> ReadAllEventsAsync(long afterSequence, int limit, CancellationToken cancellationToken);
+
     /// <summary>Events of accounts in the groups after the sequence number, oldest first. A firm reads its own groups.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken);
 

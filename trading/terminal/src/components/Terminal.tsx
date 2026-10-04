@@ -1,26 +1,41 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { sessionExpired } from "@/lib/api/client";
+import type { AccountDetails, ServerInfo } from "@/lib/api/types";
+import { usableTimeZone } from "@/lib/format";
+import { initialInstrument } from "@/lib/instruments";
 import { useInstruments, useMe } from "@/lib/queries";
 import { useTradingConnection } from "@/lib/realtime";
+import { rememberAccount, rememberServer } from "@/lib/servers";
+import { TimeZoneContext } from "@/lib/timeZone";
 
 import { AccountBar } from "./AccountBar";
 import { BottomPanel } from "./BottomPanel";
+import { EndedNotice } from "./EndedNotice";
 import { OrderPanel } from "./OrderPanel";
 import { PriceChart } from "./PriceChart";
 import { StatusBar } from "./StatusBar";
 import { Watchlist } from "./Watchlist";
 
-/** Sends visitors who are not logged in to the login page, and picks which of the trader's accounts to show. */
+/**
+ * Sends visitors who are not logged in to the login page, and picks which of the trader's accounts to show. A session
+ * that ends while the terminal is open, without the trader logging out, goes to the login page too, which sends a
+ * trader of a firm with a portal back there to be logged in again.
+ */
 export function Terminal({ requestedAccountId }: { requestedAccountId: string | null }) {
   const router = useRouter();
   const me = useMe();
+  const hadSession = useRef(false);
 
   useEffect(() => {
-    if (me.data === null) {
-      router.replace("/login");
+    if (me.data) {
+      hadSession.current = true;
+      rememberServer(me.data.server.id);
+    } else if (me.data === null) {
+      router.replace(hadSession.current && sessionExpired() ? "/login?ended=1" : "/login");
     }
   }, [me.data, router]);
 
@@ -39,45 +54,62 @@ export function Terminal({ requestedAccountId }: { requestedAccountId: string | 
   }
 
   return (
-    <TradingTerminal key={accountId} accountId={accountId} accounts={accounts} email={me.data.email} serverName={me.data.server.name} />
+    <TradingTerminal
+      key={accountId}
+      accountId={accountId}
+      accounts={accounts}
+      details={me.data.accountDetails}
+      email={me.data.email}
+      server={me.data.server}
+    />
   );
 }
 
 function TradingTerminal({
   accountId,
   accounts,
+  details,
   email,
-  serverName,
+  server,
 }: {
   accountId: string;
   accounts: string[];
+  details: AccountDetails[];
   email: string;
-  serverName: string;
+  server: ServerInfo;
 }) {
   useTradingConnection(accountId);
   const instruments = useInstruments(accountId);
+  const current = details.find((d) => d.accountId === accountId);
+  // Every time on screen is in the zone the account's trading day follows, so it agrees with the firm's portal.
+  const timeZone = usableTimeZone(current?.timeZone);
+
+  useEffect(() => rememberAccount(accountId), [accountId]);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
   const list = instruments.data ?? [];
-  const instrument = list.find((i) => i.symbol === selectedSymbol) ?? list[0] ?? null;
+  const instrument = list.find((i) => i.symbol === selectedSymbol) ?? initialInstrument(list);
 
   if (instruments.isError) {
     return <Message text={`Could not load account ${accountId}.`} />;
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <AccountBar accounts={accounts} email={email} serverName={serverName} />
-      <main className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_13rem] gap-2 p-2">
-        <div className="grid min-h-0 grid-cols-[19rem_minmax(0,1fr)_18rem] gap-2">
-          <Watchlist accountId={accountId} instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
-          <PriceChart accountId={accountId} instrument={instrument} />
-          <OrderPanel accountId={accountId} instrument={instrument} />
-        </div>
-        <BottomPanel accountId={accountId} instruments={list} />
-      </main>
-      <StatusBar serverName={serverName} />
-    </div>
+    <TimeZoneContext value={timeZone}>
+      <div className="flex h-full flex-col">
+        <AccountBar accounts={accounts} details={details} email={email} server={server} />
+        <EndedNotice details={current} server={server} />
+        <main className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_13rem] gap-2 p-2">
+          <div className="grid min-h-0 grid-cols-[19rem_minmax(0,1fr)_18rem] gap-2">
+            <Watchlist accountId={accountId} instruments={list} selected={instrument?.symbol ?? null} onSelect={setSelectedSymbol} />
+            <PriceChart accountId={accountId} instrument={instrument} />
+            <OrderPanel accountId={accountId} instrument={instrument} />
+          </div>
+          <BottomPanel accountId={accountId} instruments={list} />
+        </main>
+        <StatusBar serverName={server.name} />
+      </div>
+    </TimeZoneContext>
   );
 }
 

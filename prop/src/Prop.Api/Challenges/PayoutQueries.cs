@@ -6,7 +6,7 @@ using Prop.Rules;
 
 namespace Prop.Api.Challenges;
 
-/// <summary>A payout with its challenge account and trader.</summary>
+/// <summary>A payout with its challenge account and trader, and where the trader asked to be paid.</summary>
 internal sealed record PayoutView(
     Guid Id,
     Guid ChallengeAccountId,
@@ -26,7 +26,10 @@ internal sealed record PayoutView(
     DateTimeOffset? RejectedAt,
     DateTimeOffset? FailedAt,
     string? Reason,
-    string? Reference);
+    string? Reference,
+    PayoutMethod? PayTo = null,
+    bool ProfitReturned = false,
+    string TimeZone = "UTC");
 
 /// <summary>
 /// A payout as the admin panel lists it: with the challenge's name, and how many payouts the account had paid before it
@@ -47,12 +50,13 @@ internal sealed record PayoutGroup(int Count, IReadOnlyList<MoneyAmount> Totals,
 internal sealed record PayoutSummary(PayoutGroup ToApprove, PayoutGroup ToPay, PayoutGroup Paid, TimeSpan? AverageTimeToPay);
 
 /// <summary>Reads payouts for the API. Every query is limited to one firm.</summary>
-internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema schema)
+internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema schema, PayoutMethods methods)
 {
     private const string ViewColumns =
         """
         p.id, p.challenge_account_id, a.number, a.trader_id, t.email, p.trading_account_id, p.status, p.profit, p.profit_split_percent,
-        p.amount, p.currency, p.requested_at, p.withdrawn_at, p.approved_at, p.paid_at, p.rejected_at, p.failed_at, p.reason, p.reference
+        p.amount, p.currency, p.requested_at, p.withdrawn_at, p.approved_at, p.paid_at, p.rejected_at, p.failed_at, p.reason, p.reference,
+        p.payout_details, p.profit_returned, a.day_time_zone
         """;
 
     private const string ViewTables =
@@ -106,7 +110,7 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
         var payouts = new List<AdminPayoutView>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            payouts.Add(new AdminPayoutView(ReadView(reader), reader.GetString(19), (int)reader.GetInt64(20), reader.GetDecimal(21)));
+            payouts.Add(new AdminPayoutView(ReadView(reader), reader.GetString(22), (int)reader.GetInt64(23), reader.GetDecimal(24)));
         }
 
         return payouts;
@@ -118,10 +122,10 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
         await schema.EnsureAsync(cancellationToken);
         var rows = new List<(PayoutStatus Status, MoneyAmount Total, int Count, DateTimeOffset Oldest)>();
         await using (var command = dataSource.CreateCommand(
-            """
+            $"""
             select p.status, p.currency, count(*), sum(p.amount), min(case when p.status = 'Approved' then p.approved_at else p.requested_at end)
-            from payouts p
-            where p.firm_id = $1 and (p.status in ('Pending', 'Approved') or (p.status = 'Paid' and p.paid_at >= $2))
+            from payouts p join challenge_accounts a on a.id = p.challenge_account_id
+            where p.firm_id = $1 and (p.status in ('Pending', 'Approved') or (p.status = 'Paid' and p.paid_at >= $2 and {Portal.AdminFigures.CountedSql("a")}))
             group by p.status, p.currency
             order by p.currency
             """))
@@ -140,7 +144,11 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
         }
 
         await using var averageCommand = dataSource.CreateCommand(
-            "select extract(epoch from avg(p.paid_at - p.requested_at))::float8 from payouts p where p.firm_id = $1 and p.status = 'Paid' and p.paid_at >= $2");
+            $"""
+            select extract(epoch from avg(p.paid_at - p.requested_at))::float8
+            from payouts p join challenge_accounts a on a.id = p.challenge_account_id
+            where p.firm_id = $1 and p.status = 'Paid' and p.paid_at >= $2 and {Portal.AdminFigures.CountedSql("a")}
+            """);
         averageCommand.Parameters.AddWithValue(firmId);
         averageCommand.Parameters.AddWithValue(paidSince);
         var average = await averageCommand.ExecuteScalarAsync(cancellationToken) is double seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null;
@@ -187,8 +195,8 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
         return payouts;
     }
 
-    // The view's own columns, the first 19 of a query that starts with SelectView.
-    private static PayoutView ReadView(NpgsqlDataReader reader) =>
+    // The view's own columns, the first 22 of a query that starts with SelectView.
+    private PayoutView ReadView(NpgsqlDataReader reader) =>
         new(
             reader.GetGuid(0),
             reader.GetGuid(1),
@@ -208,7 +216,10 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
             Time(reader, 15),
             Time(reader, 16),
             reader.IsDBNull(17) ? null : reader.GetString(17),
-            reader.IsDBNull(18) ? null : reader.GetString(18));
+            reader.IsDBNull(18) ? null : reader.GetString(18),
+            reader.IsDBNull(19) ? null : methods.Open(reader.GetGuid(3), reader.GetString(19)),
+            reader.GetBoolean(20),
+            reader.GetString(21));
 
     private static DateTimeOffset? Time(NpgsqlDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? null : reader.GetFieldValue<DateTimeOffset>(ordinal);

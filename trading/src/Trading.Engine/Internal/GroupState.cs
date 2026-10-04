@@ -4,7 +4,7 @@ namespace Trading.Engine.Internal;
 
 internal sealed class GroupState
 {
-    private readonly Dictionary<string, SymbolConditions> _symbols;
+    private Dictionary<string, SymbolConditions> _symbols;
 
     public GroupState(TradingGroup group)
     {
@@ -24,6 +24,10 @@ internal sealed class GroupState
 
     public bool TryGetConditions(string symbol, [NotNullWhen(true)] out SymbolConditions? conditions) =>
         _symbols.TryGetValue(symbol, out conditions);
+
+    /// <summary>Replaces the symbols. The caller has validated them.</summary>
+    public void ReplaceSymbols(IEnumerable<SymbolConditions> symbols) =>
+        _symbols = symbols.ToDictionary(s => s.Symbol, StringComparer.Ordinal);
 
     /// <summary>The group as a definition, with its symbols in symbol order.</summary>
     public TradingGroup ToDefinition() => new(Id, Currency, StopOutLevelPercent, Symbols.ToList());

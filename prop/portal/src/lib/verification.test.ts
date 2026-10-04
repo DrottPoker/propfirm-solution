@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { FirmApplication, OpsEvent, Verification } from "./api/types";
 import { countries, countryName } from "./countries";
-import { applicationOf, depositDue, eventText, fileSize, formOf, reviewText, sharesTotal } from "./verification";
+import { applicationOf, depositDue, eventText, fileSize, formOf, problemsByField, sharesTotal } from "./verification";
 
 const application: FirmApplication = {
   companyName: "Acme Trading Ltd",
@@ -36,6 +36,7 @@ const verification: Verification = {
   maxDocuments: 10,
   maxDocumentBytes: 10 * 1024 * 1024,
   euCountries: ["DE", "SE"],
+  problems: [],
 };
 
 describe("the application form", () => {
@@ -82,11 +83,23 @@ describe("the review", () => {
     expect(depositDue({ ...verification, deposit: { ...verification.deposit, amount: 0 } })).toBe(false);
   });
 
-  it("tells the firm where it is", () => {
-    expect(reviewText(verification)).toBe("Before your firm goes live, we review your company. Fill in its details below and send them.");
-    expect(reviewText({ ...verification, deposit: { ...verification.deposit, paid: true } })).toMatch(/^Your deposit of 100\.00 USD is paid\./);
-    expect(reviewText({ ...verification, status: "ChangesRequested" })).toMatch(/You do not pay the deposit again\.$/);
-    expect(reviewText({ ...verification, status: "Approved" })).toMatch(/under Billing\.$/);
+  it("marks the fields the saved application is missing, but not one changed since", () => {
+    const missing: Verification = {
+      ...verification,
+      application: { ...application, companyName: null },
+      problems: [
+        { field: "companyName", problem: "Fill in the company's legal name." },
+        { field: "vatNumber", problem: "Fill in the company's VAT number, or tick that it has none." },
+      ],
+    };
+    const form = formOf(missing.application);
+
+    expect(problemsByField(missing, form)).toEqual({
+      companyName: "Fill in the company's legal name.",
+      vatNumber: "Fill in the company's VAT number, or tick that it has none.",
+    });
+    expect(problemsByField(missing, { ...form, companyName: "Acme" })).toEqual({ vatNumber: "Fill in the company's VAT number, or tick that it has none." });
+    expect(problemsByField(missing, { ...form, noVatNumber: true })).toEqual({ companyName: "Fill in the company's legal name." });
   });
 
   it("describes what happened, with the message, reason or file", () => {

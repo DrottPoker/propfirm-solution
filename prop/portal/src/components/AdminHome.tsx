@@ -10,7 +10,7 @@ import { goLiveSteps, type GoLiveStep, type StepStatus } from "@/lib/goLive";
 import { useAdminOverview, useBilling, useChallenges, useFirmSettings, usePrices, useWaitingAccounts } from "@/lib/queries";
 
 import { ActivityList, toneMarks } from "./ActivityList";
-import { AlertIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon } from "./icons";
+import { AlertIcon, BagIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon } from "./icons";
 import { StartChallengeButton } from "./StartChallenge";
 import { AdminPage, buttonClass, Message, PageHeader, Panel, ProgressBar, secondaryButtonClass, StatTile } from "./ui";
 import { WeeklyChart } from "./WeeklyChart";
@@ -70,6 +70,7 @@ function LiveOverview({ settings }: { settings: FirmSettings }) {
     slots: billing.data?.slots ?? null,
     currency,
     now,
+    shopProblem: settings.status === "Live" ? (billing.data?.shopProblem ?? null) : null,
   });
 
   return (
@@ -106,6 +107,7 @@ const needsYouIcons: Record<NeedsYouIcon, (props: { className?: string }) => Rea
   payout: PayoutIcon,
   approve: ShieldCheckIcon,
   slots: AlertIcon,
+  shop: BagIcon,
 };
 
 /** What the firm has to do, the most urgent first, each with a way to do it. */
@@ -187,8 +189,8 @@ function SlotsCard({ billing }: { billing: Billing }) {
     <Panel
       title="Slots"
       actions={
-        <Link href="/admin/billing" className="text-sm text-accent hover:underline">
-          Plan and billing
+        <Link href={billing.status === "Live" ? "/admin/billing" : "/admin/go-live"} className="text-sm text-accent hover:underline">
+          {billing.status === "Live" ? "Plan and billing" : "Go live"}
         </Link>
       }
     >
@@ -265,7 +267,14 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
       <PageHeader
         title={`Get ${settings.name} live`}
         description={`Everything already works here, with up to ${settings.sandboxMaxOpenAccounts ?? 5} open test accounts. Do the steps in any order. Going live comes last, after we have reviewed your firm.`}
-        actions={<StartChallengeButton secondary />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/get-started" className={secondaryButtonClass}>
+              Open the guide
+            </Link>
+            <StartChallengeButton secondary />
+          </div>
+        }
       />
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <section aria-labelledby="steps" className="flex flex-col rounded-lg border border-border bg-panel">
@@ -304,7 +313,7 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
             </div>
             <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted">
               <li>Test payments move no money.</li>
-              <li>Stripe works with test keys only.</li>
+              <li>Stripe takes test payments with test keys, and real ones with live keys from when you go live.</li>
               <li>Your test accounts end when you go live.</li>
             </ul>
           </Panel>

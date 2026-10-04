@@ -4,18 +4,20 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { accountStatus, formatTotals } from "@/lib/admin";
+import { countryName } from "@/lib/countries";
 import type { Account, TraderSummary } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { providerLabels } from "@/lib/orders";
-import { useEmailTrader, useInvite, useTraderSummary } from "@/lib/queries";
+import { useEmailTrader, useInvite, useSetTraderCheck, useTraderEmailPreview, useTraderSummary } from "@/lib/queries";
 
+import { ConfirmDialog } from "./Dialog";
 import { CopyIcon, MailIcon } from "./icons";
 import { Badge, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
 
 /**
- * The account's trader as the firm sees them: since when, their way into the portal, what they bought and were paid
- * out, their accounts at the firm, and what started this account.
+ * The account's trader as the firm sees them: since when, the firm's own checks of them, their way into the portal, what
+ * they bought and were paid out, their accounts at the firm, and what started this account.
  */
 export function TraderCard({ account, challengeName }: { account: Account; challengeName: (id: string) => string }) {
   const trader = useTraderSummary(account.id);
@@ -40,9 +42,12 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
         </span>
         <div className="flex min-w-0 flex-col">
           <h2 id="trader-heading" className="truncate font-semibold">
-            {data.email}
+            {data.name ?? data.email}
           </h2>
-          <span className="text-xs text-muted">Trader since {formatDate(data.since)}</span>
+          {data.name && <span className="truncate text-sm text-muted">{data.email}</span>}
+          <span className="text-xs text-muted">
+            {data.country ? `${countryName(data.country)} · ` : ""}Trader since {formatDate(data.since)}
+          </span>
         </div>
       </div>
 
@@ -56,6 +61,8 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
           <dd className="font-mono text-sm">{formatTotals(data.paidOut, account.currency)}</dd>
         </div>
       </dl>
+
+      <Checks account={account} trader={data} />
 
       <PortalAccess account={account} trader={data} />
 
@@ -99,6 +106,47 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
   );
 }
 
+/**
+ * The firm's checks of the trader before it funds them or pays them out, such as their ID, ticked by hand until a
+ * verification provider does them. Approving without them asks first.
+ */
+function Checks({ account, trader }: { account: Account; trader: TraderSummary }) {
+  const setCheck = useSetTraderCheck(account.id);
+  // A tick shows at once, in the same render as the click, while it is saved.
+  const [saving, setSaving] = useState<{ item: string; checked: boolean } | null>(null);
+  const toggle = (item: string, checked: boolean) => {
+    setSaving({ item, checked });
+    setCheck.mutate({ item, checked }, { onSettled: () => setSaving(null) });
+  };
+  return (
+    <fieldset className="flex flex-col gap-2 rounded-lg border border-border p-3.5 text-sm">
+      <legend className="px-1 font-medium">Your checks</legend>
+      <p className="text-xs text-muted">Tick these once you have seen the documents, before you fund the trader or pay them out.</p>
+      {trader.checks.map((check) => (
+        <label key={check.item} className="flex items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={saving?.item === check.item ? saving.checked : check.checkedAt !== null}
+            disabled={saving !== null}
+            onChange={(e) => toggle(check.item, e.target.checked)}
+            className="mt-0.5"
+          />
+          <span className="flex flex-col">
+            <span>{check.label}</span>
+            {check.checkedAt && (
+              <span className="text-xs text-muted">
+                {formatDate(check.checkedAt)}
+                {check.checkedBy ? ` by ${check.checkedBy}` : ""}
+              </span>
+            )}
+          </span>
+        </label>
+      ))}
+      <ErrorText error={setCheck.error} />
+    </fieldset>
+  );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
@@ -116,6 +164,9 @@ function PortalAccess({ account, trader }: { account: Account; trader: TraderSum
   const emailTrader = useEmailTrader();
   const invite = useInvite(account.id);
   const [copied, setCopied] = useState(false);
+  // The email is shown before it is sent.
+  const [previewing, setPreviewing] = useState(false);
+  const preview = useTraderEmailPreview(account.id, previewing);
 
   const copy = async (url: string) => {
     await navigator.clipboard.writeText(url);
@@ -131,7 +182,7 @@ function PortalAccess({ account, trader }: { account: Account; trader: TraderSum
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <button type="button" disabled={emailTrader.isPending} onClick={() => emailTrader.mutate(account.id)} className={`${secondaryButtonClass} flex items-center gap-1.5 text-sm`}>
+        <button type="button" disabled={emailTrader.isPending} onClick={() => setPreviewing(true)} className={`${secondaryButtonClass} flex items-center gap-1.5 text-sm`}>
           <MailIcon className="size-3.5" />
           {emailTrader.isPending ? "Emailing..." : trader.hasPassword ? "Email about this challenge" : "Email an invitation"}
         </button>
@@ -145,7 +196,25 @@ function PortalAccess({ account, trader }: { account: Account; trader: TraderSum
           {emailTrader.data.kind === "Invitation" ? `We emailed ${emailTrader.data.email} an invitation.` : `We emailed ${emailTrader.data.email} that the challenge has started.`}
         </p>
       )}
-      <ErrorText error={emailTrader.error ?? invite.error} />
+      <ErrorText error={invite.error} />
+      <ConfirmDialog
+        open={previewing}
+        onClose={() => setPreviewing(false)}
+        onConfirm={() => emailTrader.mutate(account.id, { onSuccess: () => setPreviewing(false) })}
+        title={preview.data ? `Send "${preview.data.subject}"?` : "Send the email?"}
+        description={preview.data ? `To ${preview.data.email}, in your firm's name.` : undefined}
+        confirmLabel="Send email"
+        pendingLabel="Sending..."
+        pending={emailTrader.isPending || !preview.data}
+      >
+        <ErrorText error={preview.error ?? emailTrader.error} />
+        {preview.data ? (
+          <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3.5 font-sans text-sm">{preview.data.body}</pre>
+        ) : (
+          !preview.error && <p className="text-sm text-muted">Loading the email...</p>
+        )}
+        {preview.data?.kind === "Invitation" && <p className="text-xs text-muted">The link in the email is made when it is sent.</p>}
+      </ConfirmDialog>
       {invite.data && (
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-xs">

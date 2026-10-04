@@ -30,7 +30,7 @@ public sealed record FirmApplication(
 }
 
 /// <summary>What is wrong with a field of the application.</summary>
-internal sealed record FieldProblem(string Field, string Problem);
+public sealed record FieldProblem(string Field, string Problem);
 
 /// <summary>The rules for an application, the same for a draft and one that is sent.</summary>
 internal static partial class ApplicationRules
@@ -64,23 +64,34 @@ internal static partial class ApplicationRules
     /// The first problem with the fields that are filled in, and with <paramref name="complete"/> also with what is
     /// missing. Null when there is none. Expects a normalized application.
     /// </summary>
-    public static FieldProblem? Problem(FirmApplication application, bool complete)
+    public static FieldProblem? Problem(FirmApplication application, bool complete) => Problems(application, complete) is [var first, ..] ? first : null;
+
+    /// <summary>
+    /// The problem with each field, in the order of the form: with the fields that are filled in, and with
+    /// <paramref name="complete"/> also with what is missing. Empty when there is none. Expects a normalized application.
+    /// </summary>
+    public static IReadOnlyList<FieldProblem> Problems(FirmApplication application, bool complete)
     {
         var owners = application.Owners ?? [];
         var links = application.Links ?? [];
-        return Text("companyName", "the company's legal name", application.CompanyName, 200, complete)
-            ?? Text("registrationNumber", "the company's registration number", application.RegistrationNumber, 100, complete)
-            ?? CountryProblem(application.Country, complete)
-            ?? VatNumbers.Problem(application.VatNumber, application.NoVatNumber == true, application.Country, complete)
-            ?? Text("address", "the company's registered address", application.Address, 500, complete)
-            ?? Url("website", "The website", application.Website, required: false)
-            ?? Text("contactName", "the name of the person we talk to", application.ContactName, 200, complete)
-            ?? Text("contactPhone", "a phone number", application.ContactPhone, 50, required: false)
-            ?? OwnersProblem(owners, complete)
-            ?? Url("termsUrl", "Your terms for traders", application.TermsUrl, complete)
-            ?? (links.Count > MaxLinks ? new FieldProblem("links", $"Add at most {MaxLinks} links.") : null)
-            ?? links.Select(link => Url("links", "Each link", link, required: true)).FirstOrDefault(p => p is not null)
-            ?? Text("description", "a description", application.Description, MaxDescriptionLength, required: false);
+        FieldProblem?[] problems =
+        [
+            Text("companyName", "the company's legal name", application.CompanyName, 200, complete),
+            Text("registrationNumber", "the company's registration number", application.RegistrationNumber, 100, complete),
+            CountryProblem(application.Country, complete),
+            VatNumbers.Problem(application.VatNumber, application.NoVatNumber == true, application.Country, complete),
+            Text("address", "the company's registered address", application.Address, 500, complete),
+            Url("website", "The website", application.Website, required: false),
+            Text("contactName", "the name of the person we talk to", application.ContactName, 200, complete),
+            Text("contactPhone", "a phone number", application.ContactPhone, 50, required: false),
+            OwnersProblem(owners, complete),
+            Url("termsUrl", "Your terms for traders", application.TermsUrl, complete),
+            links.Count > MaxLinks
+                ? new FieldProblem("links", $"Add at most {MaxLinks} links.")
+                : links.Select(link => Url("links", "Each link", link, required: true)).OfType<FieldProblem>().FirstOrDefault(),
+            Text("description", "a description", application.Description, MaxDescriptionLength, required: false),
+        ];
+        return [.. problems.OfType<FieldProblem>()];
     }
 
     private static FieldProblem? Text(string field, string what, string? value, int maxLength, bool required) =>

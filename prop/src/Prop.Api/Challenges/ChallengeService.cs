@@ -8,6 +8,7 @@ using Npgsql;
 using NpgsqlTypes;
 
 using Prop.Api.Billing;
+using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Rules;
@@ -44,6 +45,7 @@ internal sealed class ChallengeService(
     DatabaseSchema schema,
     FirmCatalog firms,
     SlotService slots,
+    Notifications notifications,
     WorkSignals signals,
     TimeProvider time)
 {
@@ -123,8 +125,8 @@ internal sealed class ChallengeService(
             connection,
             """
             insert into challenge_accounts
-                (id, firm_id, number, trader_id, definition_id, reference, status, stage, day_time_zone, day_start, current_day, state, steps, created_at, updated_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, null, $11, 0, $12, $12)
+                (id, firm_id, number, trader_id, definition_id, reference, status, stage, day_time_zone, day_start, current_day, state, steps, created_at, updated_at, sandbox)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, null, $11, 0, $12, $12, (select f.status <> 'Live' from firms f where f.id = $2))
             """,
             [
                 id, firm.Id, number, traderId, definitionId, (object?)reference ?? DBNull.Value, started.State.Status.ToString(), started.State.Stage,
@@ -198,6 +200,7 @@ internal sealed class ChallengeService(
     {
         signals.CommandsOf(firm.Id).Set();
         signals.Webhooks.Set();
+        signals.Emails.Set();
     }
 
     private static async Task RecordStepAsync(
@@ -219,7 +222,7 @@ internal sealed class ChallengeService(
             ],
             cancellationToken);
 
-    /// <summary>Queues what the decisions need: commands for the trading platform and webhooks for the firm.</summary>
+    /// <summary>Queues what the decisions need: commands for the trading platform, webhooks for the firm and emails about them.</summary>
     private async Task QueueAsync(
         NpgsqlConnection connection,
         Firm firm,
@@ -242,6 +245,8 @@ internal sealed class ChallengeService(
                         [tradingAccountId, account.Id, open.Stage],
                         cancellationToken);
                     await QueueCommandAsync(connection, firm, account, new OpenTradingAccount(tradingAccountId, open.InitialBalance, account.TraderId), now, cancellationToken);
+                    await QueueCommandAsync(connection, firm, account, Describe(firm, account, tradingAccountId, open.Stage), now, cancellationToken);
+                    await ExecuteAsync(connection, "update challenge_accounts set described_account_id = $2 where id = $1", [account.Id, tradingAccountId], cancellationToken);
                     break;
                 case FloorRequested floor:
                     await QueueCommandAsync(connection, firm, account, new SetTradingFloor(floor.AccountId, floor.FloorId, floor.Floor), now, cancellationToken);
@@ -300,6 +305,10 @@ internal sealed class ChallengeService(
                         now,
                         cancellationToken);
                     break;
+                case DepositRequested deposit:
+                    await QueueCommandAsync(
+                        connection, firm, account, new DepositToTradingAccount(deposit.AccountId, deposit.OperationId, deposit.Amount), now, cancellationToken);
+                    break;
                 case PayoutWithdrawn withdrawn:
                     await UpdatePayoutAsync(connection, withdrawn.Payout, "withdrawn_at", withdrawn.Time, cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "payout.requested", output, now, cancellationToken);
@@ -313,7 +322,8 @@ internal sealed class ChallengeService(
                     await QueueWebhookAsync(connection, firm, account, "payout.paid", output, now, cancellationToken);
                     break;
                 case PayoutRejected rejected:
-                    await UpdatePayoutAsync(connection, rejected.Payout, "rejected_at", rejected.Time, cancellationToken, reason: rejected.Reason);
+                    await UpdatePayoutAsync(
+                        connection, rejected.Payout, "rejected_at", rejected.Time, cancellationToken, reason: rejected.Reason, profitReturned: rejected.ProfitReturned);
                     await QueueWebhookAsync(connection, firm, account, "payout.rejected", output, now, cancellationToken);
                     break;
                 case PayoutFailed failed:
@@ -324,6 +334,14 @@ internal sealed class ChallengeService(
                     // Progress and ignored inputs are kept in the steps only.
                     break;
             }
+
+            await notifications.QueueAsync(
+                connection,
+                firm,
+                new NotifiedAccount(account.Id, account.Number, account.Email, account.State.Definition),
+                output,
+                now,
+                cancellationToken);
         }
     }
 
@@ -340,12 +358,12 @@ internal sealed class ChallengeService(
             connection,
             """
             insert into payouts
-                (id, firm_id, challenge_account_id, trading_account_id, status, profit, profit_split_percent, amount, currency, requested_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                (id, firm_id, challenge_account_id, trading_account_id, status, profit, profit_split_percent, amount, currency, requested_at, payout_details)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (select m.details from trader_payout_methods m where m.trader_id = $11))
             """,
             [
                 Guid.Parse(payout.Id), firm.Id, account.Id, payout.AccountId, payout.Status.ToString(), payout.Profit, payout.ProfitSplitPercent, payout.Amount,
-                account.State.Definition.Currency, payout.RequestedAt,
+                account.State.Definition.Currency, payout.RequestedAt, account.TraderId,
             ],
             cancellationToken);
 
@@ -357,12 +375,75 @@ internal sealed class ChallengeService(
         DateTimeOffset time,
         CancellationToken cancellationToken,
         string? reference = null,
-        string? reason = null) =>
+        string? reason = null,
+        bool profitReturned = false) =>
         ExecuteAsync(
             connection,
-            $"update payouts set status = $2, {timeColumn} = $3, reference = coalesce($4, reference), reason = coalesce($5, reason) where id = $1",
-            [Guid.Parse(payout.Id), payout.Status.ToString(), time, Text(reference), Text(reason)],
+            $"update payouts set status = $2, {timeColumn} = $3, reference = coalesce($4, reference), reason = coalesce($5, reason), profit_returned = profit_returned or $6 where id = $1",
+            [Guid.Parse(payout.Id), payout.Status.ToString(), time, Text(reference), Text(reason), profitReturned],
             cancellationToken);
+
+    /// <summary>
+    /// What the terminal shows about the stage's account: the challenge and stage as the portal names them, for example
+    /// "#1001 Two-step 100K · Phase 1", the balance that passes the stage, the trading day's time zone and the account's page.
+    /// </summary>
+    /// <summary>
+    /// Tells the trading platform how to show the firm's open trading accounts it was not told about, such as those opened
+    /// before it could be (ADR 0035). Each trading account is described once; new ones already are when they open.
+    /// </summary>
+    public async Task<int> DescribeOpenAccountsAsync(Firm firm, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        var now = time.GetUtcNow();
+        var described = 0;
+        await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
+        {
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            var accounts = new List<ChallengeAccount>();
+            await using (var command = new NpgsqlCommand(
+                $"""
+                {SelectAccount}
+                where a.firm_id = $1 and a.status not in ('Failed', 'Cancelled') and a.state ->> 'accountId' is not null
+                  and a.described_account_id is distinct from a.state ->> 'accountId'
+                for update of a
+                """,
+                connection))
+            {
+                command.Parameters.AddWithValue(firm.Id);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    accounts.Add(ReadAccount(reader));
+                }
+            }
+
+            foreach (var account in accounts)
+            {
+                var tradingAccountId = account.State.AccountId!;
+                await QueueCommandAsync(connection, firm, account, Describe(firm, account, tradingAccountId, account.State.Stage), now, cancellationToken);
+                await ExecuteAsync(connection, "update challenge_accounts set described_account_id = $2 where id = $1", [account.Id, tradingAccountId], cancellationToken);
+                described++;
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        if (described > 0)
+        {
+            Notify(firm);
+        }
+
+        return described;
+    }
+
+    private static DescribeTradingAccount Describe(Firm firm, ChallengeAccount account, string tradingAccountId, int stage)
+    {
+        var definition = account.State.Definition;
+        var rules = definition.Stage(stage);
+        var label = FormattableString.Invariant($"#{account.Number} {definition.Name} \u00b7 {rules.Name}");
+        var target = rules.ProfitTargetPercent is { } percent ? definition.InitialBalance + definition.PercentOfInitialBalance(percent) : (decimal?)null;
+        return new DescribeTradingAccount(tradingAccountId, label, target, definition.TradingDay.TimeZone, new Uri(firm.Portal.Url, $"accounts/{account.Id}"));
+    }
 
     private static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };
 

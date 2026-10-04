@@ -78,7 +78,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
 
         Assert.Equal("anna@test.example", order.GetProperty("email").GetString());
         Assert.True(order.GetProperty("canLogIn").GetBoolean());
-        Assert.Empty(factory.Emails.Sent);
+        Assert.DoesNotContain(factory.Emails.Sent, e => e.To == "anna@test.example" || e.To == "someone.else@test.example");
         Assert.Equal(["quick-test-100k", Challenge], accounts.EnumerateArray().Select(a => a.GetProperty("account").GetProperty("challengeId").GetString()).Order());
     }
 
@@ -201,7 +201,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         factory.Stripe.RefuseNext("Invalid API Key provided.");
 
         using var refused = await buyer.PostAsJsonAsync(
-            Url("orders"), new { challengeId = Challenge, email = "buyer@test.example", acceptTerms = false }, TestContext.Current.CancellationToken);
+            Url("orders"), new { challengeId = Challenge, email = "buyer@test.example", acceptTerms = false, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         var orders = await admin.GetFromJsonAsync<JsonElement>(Url("admin/orders"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, refused.StatusCode);
@@ -209,10 +209,9 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
     }
 
     [Theory]
-    [InlineData("sk_live_51LiveStripeSecretKey", "whsec_FakeStripeWebhookSecret")]
     [InlineData("pk_test_51PublishableKeyOnly", "whsec_FakeStripeWebhookSecret")]
     [InlineData(FakeStripe.SecretKey, "not-a-signing-secret")]
-    public async Task OnlyStripeTestKeysAreAcceptedInTheSandbox(string secretKey, string webhookSecret)
+    public async Task InvalidStripeKeysAreRefused(string secretKey, string webhookSecret)
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await factory.SignUpAsync("acme");
@@ -221,6 +220,57 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
             Url("admin/firm/payments"), new { provider = "Stripe", stripeSecretKey = secretKey, stripeWebhookSecret = webhookSecret }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+    }
+
+    // So the shop takes real money from the moment the firm goes live, and never before.
+    [Fact]
+    public async Task LiveStripeKeysCanBeSavedInTheSandboxButTakePaymentOnlyOnceLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+
+        using var saved = await admin.PutAsJsonAsync(
+            Url("admin/firm/payments"),
+            new { provider = "Stripe", stripeSecretKey = "sk_live_51LiveStripeSecretKey", stripeWebhookSecret = FakeStripe.WebhookSecret },
+            TestContext.Current.CancellationToken);
+        var payments = (await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("payments");
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal((false, false), (payments.GetProperty("active").GetBoolean(), payments.GetProperty("stripeTestMode").GetBoolean()));
+    }
+
+    // The firm pastes only its secret key, and we add the webhook to its Stripe account with the events orders need.
+    [Fact]
+    public async Task ASecretKeyAloneSetsUpTheWebhookInStripe()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+
+        using var first = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Stripe", stripeSecretKey = FakeStripe.SecretKey }, TestContext.Current.CancellationToken);
+        using var again = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Stripe", stripeSecretKey = FakeStripe.SecretKey }, TestContext.Current.CancellationToken);
+        var payments = (await again.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("payments");
+
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (first.StatusCode, again.StatusCode));
+        var webhook = Assert.Single(factory.Stripe.Webhooks);
+        Assert.Equal(("http://localhost:5201/api/payments/v1/stripe/acme", FakeStripe.SecretKey), (webhook.Url, webhook.Key));
+        Assert.True(payments.GetProperty("active").GetBoolean());
+        Assert.Contains("checkout.session.completed", payments.GetProperty("stripeWebhookEvents").EnumerateArray().Select(e => e.GetString()));
+    }
+
+    // In development, Stripe cannot reach the local service, so the firm adds the webhook through Stripe's CLI.
+    [Fact]
+    public async Task AWebhookStripeRefusesSaysHowToAddItByHand()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+        factory.Stripe.RefuseNextWebhook("Invalid URL: URL must be publicly accessible.");
+
+        using var refused = await admin.PutAsJsonAsync(Url("admin/firm/payments"), new { provider = "Stripe", stripeSecretKey = FakeStripe.SecretKey }, TestContext.Current.CancellationToken);
+        var problem = await refused.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+        Assert.Contains("URL must be publicly accessible", problem.GetProperty("title").GetString(), StringComparison.Ordinal);
+        Assert.Contains("paste its signing secret", problem.GetProperty("title").GetString(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -329,7 +379,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
 
         using var refused = await buyer.PostAsJsonAsync(
-            Url("orders"), new { challengeId = Challenge, email = "second@test.example", acceptTerms = false }, TestContext.Current.CancellationToken);
+            Url("orders"), new { challengeId = Challenge, email = "second@test.example", acceptTerms = false, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
     }
@@ -343,7 +393,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
 
         using var refused = await buyer.PostAsJsonAsync(
-            Url("orders"), new { challengeId = Challenge, email = "buyer@test.example", acceptTerms = false }, TestContext.Current.CancellationToken);
+            Url("orders"), new { challengeId = Challenge, email = "buyer@test.example", acceptTerms = false, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         var shop = await GetAsync(buyer, "shop");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
@@ -357,7 +407,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var admin = await OpenTestShopAsync(factory, "acme");
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
         var (orderId, token, _) = await BuyAsync(buyer, "buyer@test.example");
-        factory.Emails.FailNext(1);
+        factory.Emails.FailNext(1, "buyer@test.example");
 
         (await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken)).Dispose();
         var notSent = await GetAsync(buyer, $"orders/{orderId}?token={token}");
@@ -369,7 +419,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal(HttpStatusCode.Accepted, resent.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, tooSoon.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, wrongToken.StatusCode);
-        Assert.Single(factory.Emails.Sent);
+        Assert.Single(factory.Emails.Sent, e => e.To == "buyer@test.example");
     }
 
     [Fact]
@@ -422,9 +472,116 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Empty(otherOrders.EnumerateArray());
     }
 
+    // The buyer chooses the password right after paying, and confirms the email with a link from it afterwards.
+    [Fact]
+    public async Task ABuyerChoosesAPasswordOnTheOrdersPageAndConfirmsTheEmailLater()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        var (orderId, token, _) = await BuyAsync(buyer, "new.trader@test.example");
+        using var paidResponse = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken);
+        var paid = await paidResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        using var tooShort = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/password"), new { token, password = "short" }, TestContext.Current.CancellationToken);
+        using var wrongToken = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/password"), new { token = "not-the-token", password = PropFactory.TraderPassword }, TestContext.Current.CancellationToken);
+        using var chosen = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/password"), new { token, password = PropFactory.TraderPassword }, TestContext.Current.CancellationToken);
+        var me = await chosen.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var accounts = await GetAsync(buyer, "accounts");
+        var after = await GetAsync(buyer, $"orders/{orderId}?token={token}");
+        using var again = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/password"), new { token, password = "another-password-1" }, TestContext.Current.CancellationToken);
+        using var payout = await buyer.PostAsync(Url($"accounts/{paid.GetProperty("accountId").GetGuid()}/payouts"), null, TestContext.Current.CancellationToken);
+        using var resend = await buyer.PostAsync(Url("me/confirm-email"), null, TestContext.Current.CancellationToken);
+        var confirmation = await factory.Emails.WaitForAsync("new.trader@test.example", "Confirm your email for Firm acme");
+        using var confirmed = await buyer.PostAsJsonAsync(Url("invites/confirm"), new { token = FakeEmailSender.TokenIn(confirmation) }, TestContext.Current.CancellationToken);
+        var meAfter = await GetAsync(buyer, "me");
+        using var resendAfter = await buyer.PostAsync(Url("me/confirm-email"), null, TestContext.Current.CancellationToken);
+
+        Assert.True(paid.GetProperty("canChoosePassword").GetBoolean());
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.NotFound, HttpStatusCode.OK), (tooShort.StatusCode, wrongToken.StatusCode, chosen.StatusCode));
+        Assert.Equal(("new.trader@test.example", false), (me.GetProperty("email").GetString(), me.GetProperty("emailConfirmed").GetBoolean()));
+        Assert.Single(accounts.EnumerateArray());
+        Assert.Equal((false, true), (after.GetProperty("canChoosePassword").GetBoolean(), after.GetProperty("canLogIn").GetBoolean()));
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, payout.StatusCode);
+        Assert.StartsWith("Confirm your email first", await TitleOfAsync(payout), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Accepted, resend.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
+        Assert.True(meAfter.GetProperty("emailConfirmed").GetBoolean());
+        Assert.Equal(HttpStatusCode.Conflict, resendAfter.StatusCode);
+    }
+
+    // Anyone can type any email in the shop, so the order's page never opens what a trader had before.
+    [Fact]
+    public async Task TheOrdersPageNeverSetsThePasswordOfATraderWithOtherAccounts()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        using var started = await admin.PostAsJsonAsync(Url("admin/accounts"), new { email = "anna@test.example", challengeId = Challenge }, TestContext.Current.CancellationToken);
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        var (orderId, token, _) = await BuyAsync(buyer, "anna@test.example");
+        using var paidResponse = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken);
+        var paid = await paidResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+
+        using var chosen = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/password"), new { token, password = PropFactory.TraderPassword }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, started.StatusCode);
+        Assert.False(paid.GetProperty("canChoosePassword").GetBoolean());
+        Assert.Equal(HttpStatusCode.Conflict, chosen.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheShopAsksForTheBuyersNameAndCountryAndTheFirmSeesThem()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+
+        using var noName = await buyer.PostAsJsonAsync(
+            Url("orders"), new { challengeId = Challenge, email = "ann@test.example", acceptTerms = true, country = "SE" }, TestContext.Current.CancellationToken);
+        using var noCountry = await buyer.PostAsJsonAsync(
+            Url("orders"), new { challengeId = Challenge, email = "ann@test.example", acceptTerms = true, name = "Ann Buyer", country = "Sweden" }, TestContext.Current.CancellationToken);
+        var (orderId, token, _) = await BuyAsync(buyer, "ann@test.example");
+        using var paidResponse = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken);
+        var accountId = (await paidResponse.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("accountId").GetGuid();
+        var order = await GetAsync(admin, $"admin/orders/{orderId}");
+        var trader = await GetAsync(admin, $"admin/accounts/{accountId}/trader");
+
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity), (noName.StatusCode, noCountry.StatusCode));
+        Assert.Equal(("Ann Buyer", "SE"), (order.GetProperty("order").GetProperty("buyerName").GetString(), order.GetProperty("order").GetProperty("buyerCountry").GetString()));
+        Assert.Equal(("Ann Buyer", "SE"), (trader.GetProperty("name").GetString(), trader.GetProperty("country").GetString()));
+    }
+
+    // Emails to traders come in the firm's name and look, and replies go to the firm, not to us.
+    [Fact]
+    public async Task EmailsToTradersComeInTheFirmsLookWithRepliesToItsSupport()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+
+        using var invalid = await admin.PutAsJsonAsync(Url("admin/firm/support-email"), new { email = "not an email" }, TestContext.Current.CancellationToken);
+        using var saved = await admin.PutAsJsonAsync(Url("admin/firm/support-email"), new { email = " support@acme.test " }, TestContext.Current.CancellationToken);
+        var settings = await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var (orderId, token, _) = await BuyAsync(buyer, "new.trader@test.example");
+        (await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken)).Dispose();
+        var invitation = factory.Emails.Sent.Single(e => e.To == "new.trader@test.example");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, invalid.StatusCode);
+        Assert.Equal("support@acme.test", settings.GetProperty("supportEmail").GetString());
+        Assert.Equal(("Firm acme", "support@acme.test"), (invitation.FromName, invitation.ReplyTo));
+        Assert.Contains("Questions? Reply to this email.", invitation.Body, StringComparison.Ordinal);
+        Assert.NotNull(invitation.Html);
+        Assert.Contains("http://acme.localhost:3002/invite?token=", invitation.Html, StringComparison.Ordinal);
+        Assert.Contains("Firm acme", invitation.Html, StringComparison.Ordinal);
+    }
+
     private static Uri Url(string path) => new($"/api/portal/{path}", UriKind.Relative);
 
     private static Uri FirmUrl(string path) => new($"/api/firm/v1/{path}", UriKind.Relative);
+
+    private static async Task<string> TitleOfAsync(HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("title").GetString()!;
 
     private static async Task<JsonElement> GetAsync(HttpClient client, string path) =>
         await client.GetFromJsonAsync<JsonElement>(Url(path), TestContext.Current.CancellationToken);
@@ -432,7 +589,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
     /// <summary>Buys the challenge on the portal. Returns the order, the token from the buyer's link and where the buyer pays.</summary>
     private static async Task<(Guid OrderId, string Token, string CheckoutUrl)> BuyAsync(HttpClient buyer, string email, string challengeId = Challenge)
     {
-        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId, email, acceptTerms = true }, TestContext.Current.CancellationToken);
+        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId, email, acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var checkoutUrl = created.GetProperty("checkoutUrl").GetString()!;

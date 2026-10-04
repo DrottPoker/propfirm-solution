@@ -6,6 +6,13 @@ export type Category = "Forex" | "Metals";
 const metals = new Set(["XAU", "XAG", "XPT", "XPD"]);
 
 /** The watchlist group of an instrument. Every instrument is a currency pair, and metals are priced as one. */
+/** The symbol the terminal opens on: EURUSD, the most traded pair, when the group has it, otherwise the first. */
+export const preferredSymbol = "EURUSD";
+
+export function initialInstrument<T extends { symbol: string }>(instruments: readonly T[]): T | null {
+  return instruments.find((i) => i.symbol === preferredSymbol) ?? instruments[0] ?? null;
+}
+
 export function categoryOf(instrument: InstrumentInfo): Category {
   return metals.has(instrument.baseCurrency) ? "Metals" : "Forex";
 }

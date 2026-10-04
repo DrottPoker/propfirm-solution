@@ -19,7 +19,8 @@ public enum OrderStatus
 
 /// <summary>
 /// A purchase of a challenge in the firm's portal. <paramref name="AccountId"/> is the account the payment
-/// started, and <paramref name="Problem"/> says why a paid order has none.
+/// started, and <paramref name="Problem"/> says why a paid order has none. <paramref name="Amount"/> is what the buyer
+/// pays, and <paramref name="ListAmount"/> the price before the <paramref name="DiscountCode"/>.
 /// </summary>
 internal sealed record Order(
     Guid Id,
@@ -42,12 +43,19 @@ internal sealed record Order(
     DateTimeOffset? RefundedAt,
     DateTimeOffset? DisputedAt,
     DateTimeOffset? InviteSentAt,
-    byte[] AccessTokenHash)
+    byte[] AccessTokenHash,
+    string? BuyerName = null,
+    string? BuyerCountry = null,
+    string? DiscountCode = null,
+    decimal? ListAmount = null)
 {
     /// <summary>Whether the token from the buyer's link is this order's. Compared in constant time.</summary>
     public bool HasAccessToken(string? token) =>
         !string.IsNullOrEmpty(token) && CryptographicOperations.FixedTimeEquals(OrderStore.HashToken(token), AccessTokenHash);
 }
+
+/// <summary>The discount code an order uses, as the buyer typed it, and the price with it.</summary>
+internal sealed record OrderDiscount(Guid CodeId, string Code, DiscountedPrice Price);
 
 /// <summary>Something that happened to an order, and who said so.</summary>
 internal sealed record OrderEvent(string Type, DateTimeOffset RecordedAt, string Source, string? Detail);
@@ -69,7 +77,8 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
     private const string SelectOrder =
         """
         select id, firm_id, number, email, challenge_id, amount, currency, provider, status, checkout_id, checkout_url, payment_reference,
-               challenge_account_id, problem, created_at, expires_at, paid_at, refunded_at, disputed_at, invite_sent_at, access_token_sha256
+               challenge_account_id, problem, created_at, expires_at, paid_at, refunded_at, disputed_at, invite_sent_at, access_token_sha256,
+               buyer_name, buyer_country, discount_code, list_amount
         from orders
         """;
 
@@ -77,29 +86,33 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
 
     /// <summary>
     /// Saves a new order with the next number of the firm, and records that it was made. <paramref name="reserve"/>
-    /// runs first in the same transaction and says whether the order may hold a slot. Null when it may not.
+    /// runs first in the same transaction and says why the order may not be made, for example that it cannot hold a slot
+    /// or its discount code was just used up. The order or that reason.
     /// </summary>
-    public async Task<Order?> InsertAsync(
+    public async Task<(Order? Order, string? Refusal)> InsertAsync(
         Guid id,
         string firmId,
         string email,
+        string? buyerName,
+        string? buyerCountry,
         string challengeId,
         ChallengePrice price,
+        OrderDiscount? discount,
         PaymentProvider provider,
         string accessToken,
         string? checkoutId,
         Uri checkoutUrl,
         DateTimeOffset now,
         DateTimeOffset expiresAt,
-        Func<NpgsqlConnection, CancellationToken, Task<bool>> reserve,
+        Func<NpgsqlConnection, CancellationToken, Task<string?>> reserve,
         CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-        if (!await reserve(connection, cancellationToken))
+        if (await reserve(connection, cancellationToken) is { } refusal)
         {
-            return null;
+            return (null, refusal);
         }
 
         long number;
@@ -119,17 +132,21 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
             connection,
             """
             insert into orders (id, firm_id, number, email, challenge_id, amount, currency, provider, status, access_token_sha256,
-                                checkout_id, checkout_url, created_at, expires_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                                checkout_id, checkout_url, created_at, expires_at, sandbox, buyer_name, buyer_country,
+                                discount_code_id, discount_code, list_amount)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, (select f.status <> 'Live' from firms f where f.id = $2), $15, $16,
+                    $17, $18, $19)
             """,
             [
-                id, firmId, number, email.Trim(), challengeId, price.Amount, price.Currency, provider.ToString(), OrderStatus.Pending.ToString(),
-                HashToken(accessToken), Text(checkoutId), checkoutUrl.AbsoluteUri, now, expiresAt,
+                id, firmId, number, email.Trim(), challengeId, discount?.Price.Amount ?? price.Amount, price.Currency, provider.ToString(),
+                OrderStatus.Pending.ToString(), HashToken(accessToken), Text(checkoutId), checkoutUrl.AbsoluteUri, now, expiresAt, Text(buyerName),
+                Text(buyerCountry), new NpgsqlParameter { Value = (object?)discount?.CodeId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Uuid },
+                Text(discount?.Code), new NpgsqlParameter { Value = (object?)discount?.Price.ListAmount ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Numeric },
             ],
             cancellationToken);
         await AddEventAsync(connection, id, "created", OrderSources.Buyer, null, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return (await GetAsync(firmId, id, now, cancellationToken))!;
+        return ((await GetAsync(firmId, id, now, cancellationToken))!, null);
     }
 
     public async Task<Order?> GetAsync(string firmId, Guid id, DateTimeOffset now, CancellationToken cancellationToken)
@@ -270,7 +287,11 @@ internal sealed class OrderStore(NpgsqlDataSource dataSource, DatabaseSchema sch
                 NullableTime(reader, 17),
                 NullableTime(reader, 18),
                 NullableTime(reader, 19),
-                reader.GetFieldValue<byte[]>(20)));
+                reader.GetFieldValue<byte[]>(20),
+                reader.IsDBNull(21) ? null : reader.GetString(21),
+                reader.IsDBNull(22) ? null : reader.GetString(22),
+                reader.IsDBNull(23) ? null : reader.GetString(23),
+                reader.IsDBNull(24) ? null : reader.GetDecimal(24)));
         }
 
         return orders;

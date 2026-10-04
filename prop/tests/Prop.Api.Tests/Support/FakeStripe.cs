@@ -30,7 +30,9 @@ internal sealed class FakeStripe : HttpMessageHandler
     private readonly List<StripeRequest> _requests = [];
     private readonly List<StripeRequest> _charges = [];
     private readonly List<string> _expired = [];
+    private readonly List<(string Id, string Url, string Key)> _webhooks = [];
     private string? _refusal;
+    private string? _webhookRefusal;
     private bool _declineCharges;
     private int _failingCharges;
 
@@ -76,6 +78,27 @@ internal sealed class FakeStripe : HttpMessageHandler
         lock (_lock)
         {
             _refusal = message;
+        }
+    }
+
+    /// <summary>The webhooks set up in firms' Stripe accounts: their address and the key that made them.</summary>
+    public IReadOnlyList<(string Id, string Url, string Key)> Webhooks
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _webhooks];
+            }
+        }
+    }
+
+    /// <summary>The next webhook is refused with Stripe's error message, as for an address Stripe cannot reach.</summary>
+    public void RefuseNextWebhook(string message)
+    {
+        lock (_lock)
+        {
+            _webhookRefusal = message;
         }
     }
 
@@ -165,7 +188,10 @@ internal sealed class FakeStripe : HttpMessageHandler
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
         var form = body.Length == 0
             ? new Dictionary<string, string>()
-            : body.Split('&').Select(pair => pair.Split('=', 2)).ToDictionary(p => WebUtility.UrlDecode(p[0]), p => WebUtility.UrlDecode(p[1]));
+            : body.Split('&')
+                .Select(pair => pair.Split('=', 2))
+                .GroupBy(p => WebUtility.UrlDecode(p[0]))
+                .ToDictionary(g => g.Key, g => string.Join(',', g.Select(p => WebUtility.UrlDecode(p[1]))));
         var key = request.Headers.TryGetValues("Idempotency-Key", out var keys) ? keys.Single() : "";
         lock (_lock)
         {
@@ -187,6 +213,33 @@ internal sealed class FakeStripe : HttpMessageHandler
                 var sessionId = path.Split('/')[4];
                 _expired.Add(sessionId);
                 return Json(HttpStatusCode.OK, new JsonObject { ["id"] = sessionId, ["status"] = "expired" });
+            }
+
+            var bearer = request.Headers.Authorization?.Parameter ?? "";
+            if (request.Method == HttpMethod.Get && path == "/v1/webhook_endpoints")
+            {
+                var data = new JsonArray([.. _webhooks.Where(w => w.Key == bearer).Select(w => (JsonNode)new JsonObject { ["id"] = w.Id, ["url"] = w.Url })]);
+                return Json(HttpStatusCode.OK, new JsonObject { ["object"] = "list", ["data"] = data });
+            }
+
+            if (request.Method == HttpMethod.Delete && path.StartsWith("/v1/webhook_endpoints/", StringComparison.Ordinal))
+            {
+                var id = path.Split('/')[3];
+                _webhooks.RemoveAll(w => w.Id == id && w.Key == bearer);
+                return Json(HttpStatusCode.OK, new JsonObject { ["id"] = id, ["deleted"] = true });
+            }
+
+            if (request.Method == HttpMethod.Post && path == "/v1/webhook_endpoints")
+            {
+                if (_webhookRefusal is { } webhookRefusal)
+                {
+                    _webhookRefusal = null;
+                    return Error(HttpStatusCode.BadRequest, new JsonObject { ["type"] = "invalid_request_error", ["message"] = webhookRefusal });
+                }
+
+                var id = $"we_{_webhooks.Count + 1}";
+                _webhooks.Add((id, form["url"], bearer));
+                return Json(HttpStatusCode.OK, new JsonObject { ["id"] = id, ["url"] = form["url"], ["secret"] = $"whsec_CreatedFor{id}" });
             }
 
             if (request.Method == HttpMethod.Post && path == "/v1/payment_intents")

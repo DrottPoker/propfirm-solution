@@ -9,8 +9,11 @@ import { useWelcome } from "@/lib/queries";
 import { FirmName } from "./FirmName";
 import { ErrorText } from "./ui";
 
-/** Right after signing up: the one-time link logs the administrator in on the firm's own address. */
-export function AdminWelcome({ token }: { token: string | null }) {
+/**
+ * Right after signing up, or from a login link by email: the one-time link logs the administrator in on the firm's own
+ * address, and opens the next page, the guide for a new firm, or else the admin panel.
+ */
+export function AdminWelcome({ token, next = null }: { token: string | null; next?: string | null }) {
   const router = useRouter();
   const welcome = useWelcome();
   const { mutate } = welcome;
@@ -20,9 +23,9 @@ export function AdminWelcome({ token }: { token: string | null }) {
   useEffect(() => {
     if (token && !used.current) {
       used.current = true;
-      mutate(token, { onSuccess: () => router.replace("/admin") });
+      mutate(token, { onSuccess: () => router.replace(next ?? "/admin") });
     }
-  }, [token, mutate, router]);
+  }, [token, next, mutate, router]);
 
   return (
     <main className="flex flex-1 items-center justify-center p-6">

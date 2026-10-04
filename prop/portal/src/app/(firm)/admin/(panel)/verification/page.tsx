@@ -1,7 +1,6 @@
-import { AdminVerification } from "@/components/AdminVerification";
+import { VerificationRedirect } from "@/components/AdminGoLive";
 
-// The payment provider sends the firm back here after paying the deposit, with ?checkout=<id>.
-export default async function AdminVerificationPage({ searchParams }: PageProps<"/admin/verification">) {
-  const { checkout } = await searchParams;
-  return <AdminVerification returnedFromCheckout={typeof checkout === "string" && checkout.length > 0} />;
+// Links from before Go live: the way to live in the sandbox, and the company's details once live.
+export default function AdminVerificationPage() {
+  return <VerificationRedirect />;
 }

@@ -1,10 +1,14 @@
 "use client";
 
+import Link from "next/link";
+import { useState } from "react";
+
 import type { AccountDetails, Payout, PayoutStatus } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { payoutNote, payoutStatusLabels } from "@/lib/payouts";
-import { useRequestPayout } from "@/lib/queries";
+import { useMyPayoutMethod, useRequestPayout } from "@/lib/queries";
 
+import { ConfirmDialog } from "./Dialog";
 import { PayoutBadge } from "./Payouts";
 import { buttonClass, ErrorText, Panel, StepBar } from "./ui";
 
@@ -17,6 +21,8 @@ const inProgress: PayoutStatus[] = ["Withdrawing", "Pending", "Approved"];
 export function PayoutPanel({ details }: { details: AccountDetails }) {
   const { account, payouts } = details;
   const request = useRequestPayout(account.id);
+  const method = useMyPayoutMethod();
+  const [asking, setAsking] = useState(false);
   const quote = account.nextPayout;
   if (!quote || account.status !== "Active") {
     return null;
@@ -43,14 +49,6 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
     );
   }
 
-  const ask = () => {
-    const question =
-      `Ask for a payout of ${formatMoney(quote.amount)} ${account.currency}? The profit of ${formatMoney(quote.profit)} is taken off ` +
-      `the trading account, which starts again from ${formatMoney(account.initialBalance)}.`;
-    if (window.confirm(question)) {
-      request.mutate();
-    }
-  };
 
   return (
     <section
@@ -73,15 +71,46 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
             <StepBar filled={Math.min(quote.tradingDays, quote.minTradingDays)} total={quote.minTradingDays} label={`${quote.tradingDays} of ${quote.minTradingDays} trading days`} />
           </div>
         )}
+        {quote.consistencyPercent != null && quote.bestDayProfit != null && (
+          <p className="text-sm text-muted">
+            Best day <span className="font-mono text-foreground">{formatMoney(quote.bestDayProfit)}</span>, at most {quote.consistencyPercent}% of the profit.
+          </p>
+        )}
       </div>
       <div className="flex max-w-sm flex-col items-start gap-2 sm:items-end">
-        <button type="button" disabled={!quote.canRequest || request.isPending} onClick={ask} className={`${buttonClass} px-5 py-2.5`}>
+        <button
+          type="button"
+          disabled={!quote.canRequest || method.data === null || request.isPending}
+          onClick={() => setAsking(true)}
+          className={`${buttonClass} px-5 py-2.5`}
+        >
           {request.isPending ? "Asking..." : "Request payout"}
         </button>
-        <span className="text-xs text-muted sm:text-right">
-          {quote.refusal ??
-            `The whole profit leaves the trading account at once, and it starts again from ${formatMoney(account.initialBalance)}. Your firm checks and pays it.`}
-        </span>
+        <ConfirmDialog
+          open={asking}
+          onClose={() => setAsking(false)}
+          onConfirm={() => request.mutate(undefined, { onSuccess: () => setAsking(false) })}
+          title={`Ask for a payout of ${formatMoney(quote.amount)} ${account.currency}?`}
+          description={`The profit of ${formatMoney(quote.profit)} is taken off the trading account, which starts again from ${formatMoney(account.initialBalance)}. Your firm checks and pays it.`}
+          confirmLabel="Request payout"
+          pendingLabel="Asking..."
+          pending={request.isPending}
+        >
+          <ErrorText error={request.error} />
+        </ConfirmDialog>
+        {quote.canRequest && method.data === null ? (
+          <span className="text-xs sm:text-right">
+            <Link href="/payouts#payout-method" className="text-accent hover:underline">
+              Add how you want to be paid
+            </Link>{" "}
+            first, so your firm knows where to send the money.
+          </span>
+        ) : (
+          <span className="text-xs text-muted sm:text-right">
+            {quote.refusal ??
+              `The whole profit leaves the trading account at once, and it starts again from ${formatMoney(account.initialBalance)}. Your firm checks and pays it.`}
+          </span>
+        )}
         <ErrorText error={request.error} />
       </div>
     </section>
@@ -109,7 +138,7 @@ export function PayoutSteps({ payout }: { payout: Payout }) {
             {index > 0 && <span aria-hidden="true" className={`h-px w-4 ${at ? "bg-profit" : "bg-border"}`} />}
             <span>
               {step.label}
-              {at && ` ${formatDate(at)}`}
+              {at && ` ${formatDate(at, payout.timeZone)}`}
             </span>
           </li>
         );
@@ -146,7 +175,7 @@ export function PayoutHistory({ payouts }: { payouts: Payout[] }) {
           <tbody>
             {payouts.map((payout) => (
               <tr key={payout.id} className="border-t border-border align-top">
-                <td className="whitespace-nowrap py-3 text-muted">{formatDateTime(payout.requestedAt)}</td>
+                <td className="whitespace-nowrap py-3 text-muted">{formatDateTime(payout.requestedAt, payout.timeZone)}</td>
                 <td className="py-3 pl-6 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
                 <td className="whitespace-nowrap py-3 pl-6 text-right font-mono tabular-nums">
                   {formatMoney(payout.amount)} {payout.currency}

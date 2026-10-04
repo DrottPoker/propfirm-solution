@@ -7,7 +7,8 @@ namespace Prop.Api.Portal;
 
 /// <summary>
 /// Creates each firm's configured administrators and traders at startup, with the configured passwords. For
-/// development: the configuration decides, so a changed or forgotten password is set again on the next start.
+/// development: the configuration decides, so a changed or forgotten password is set again on the next start. A password
+/// that is already the configured one is kept, since a new hash would log out its sessions.
 /// </summary>
 internal sealed class PortalSeeder(
     FirmCatalog firms,
@@ -23,15 +24,24 @@ internal sealed class PortalSeeder(
             var firm = firms.ById(firmOptions.Id)!;
             foreach (var admin in firmOptions.SeedAdmins)
             {
-                await users.SaveAdminAsync(firm.Id, admin.Email, hasher.HashPassword(null!, admin.Password), time.GetUtcNow(), cancellationToken);
+                if (!HasPassword(await users.FindAdminAsync(firm.Id, admin.Email, cancellationToken), admin.Password))
+                {
+                    await users.SaveAdminAsync(firm.Id, admin.Email, hasher.HashPassword(null!, admin.Password), time.GetUtcNow(), cancellationToken);
+                }
             }
 
             foreach (var trader in firmOptions.SeedTraders)
             {
-                await users.SaveTraderAsync(firm.Id, trader.Email, hasher.HashPassword(null!, trader.Password), time.GetUtcNow(), cancellationToken);
+                if (!HasPassword(await users.FindTraderAsync(firm.Id, trader.Email, cancellationToken), trader.Password))
+                {
+                    await users.SaveTraderAsync(firm.Id, trader.Email, hasher.HashPassword(null!, trader.Password), time.GetUtcNow(), cancellationToken);
+                }
             }
         }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    private bool HasPassword(PortalUser? user, string password) =>
+        user?.PasswordHash is { } hash && hasher.VerifyHashedPassword(user, hash, password) == PasswordVerificationResult.Success;
 }

@@ -12,6 +12,9 @@ internal sealed class WorkSignals
 
     public WakeUp Webhooks { get; } = new();
 
+    /// <summary>An email waits in the outbox.</summary>
+    public WakeUp Emails { get; } = new();
+
     /// <summary>A firm waits for its server on the trading platform.</summary>
     public WakeUp Provisioning { get; } = new();
 

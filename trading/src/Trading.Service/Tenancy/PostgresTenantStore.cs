@@ -14,7 +14,7 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
         await using var command = dataSource.CreateCommand(
             """
             select t.id, t.name, t.admin_api_key_sha256, t.partner_id, t.listed,
-                   coalesce(array_agg(g.group_id order by g.group_id) filter (where g.group_id is not null), '{}')
+                   coalesce(array_agg(g.group_id order by g.group_id) filter (where g.group_id is not null), '{}'), t.login_url, t.logo_url
             from tenants t left join tenant_groups g on g.tenant_id = t.id
             group by t.id
             order by t.id
@@ -29,7 +29,9 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
                 reader.GetFieldValue<string[]>(5),
                 reader.GetFieldValue<byte[]>(2),
                 reader.IsDBNull(3) ? null : reader.GetString(3),
-                reader.GetBoolean(4)));
+                reader.GetBoolean(4),
+                reader.IsDBNull(6) ? null : new Uri(reader.GetString(6)),
+                reader.IsDBNull(7) ? null : new Uri(reader.GetString(7))));
         }
 
         return tenants;
@@ -44,8 +46,9 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
         // A partner's firm is never taken over by the configuration.
         await using (var upsert = new NpgsqlCommand(
             """
-            insert into tenants (id, name, admin_api_key_sha256, partner_id, listed, created_at) values ($1, $2, $3, null, $4, $5)
-            on conflict (id) do update set name = excluded.name, admin_api_key_sha256 = excluded.admin_api_key_sha256, listed = excluded.listed
+            insert into tenants (id, name, admin_api_key_sha256, partner_id, listed, login_url, created_at) values ($1, $2, $3, null, $4, $6, $5)
+            on conflict (id) do update set name = excluded.name, admin_api_key_sha256 = excluded.admin_api_key_sha256, listed = excluded.listed,
+                login_url = excluded.login_url
             where tenants.partner_id is null
             """,
             connection))
@@ -55,6 +58,7 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
             upsert.Parameters.AddWithValue(tenant.AdminApiKeyHash);
             upsert.Parameters.AddWithValue(tenant.Listed);
             upsert.Parameters.AddWithValue(now);
+            upsert.Parameters.AddWithValue((object?)tenant.LoginUrl?.ToString() ?? DBNull.Value);
             if (await upsert.ExecuteNonQueryAsync(cancellationToken) == 0)
             {
                 throw new InvalidOperationException($"Invalid tenant configuration: tenant {tenant.Id} was created by a partner.");
@@ -87,7 +91,7 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
         try
         {
             await using (var insert = new NpgsqlCommand(
-                "insert into tenants (id, name, admin_api_key_sha256, partner_id, listed, created_at) values ($1, $2, $3, $4, $5, $6)",
+                "insert into tenants (id, name, admin_api_key_sha256, partner_id, listed, login_url, created_at) values ($1, $2, $3, $4, $5, $7, $6)",
                 connection))
             {
                 insert.Parameters.AddWithValue(tenant.Id);
@@ -96,6 +100,7 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
                 insert.Parameters.AddWithValue((object?)tenant.PartnerId ?? DBNull.Value);
                 insert.Parameters.AddWithValue(tenant.Listed);
                 insert.Parameters.AddWithValue(now);
+                insert.Parameters.AddWithValue((object?)tenant.LoginUrl?.ToString() ?? DBNull.Value);
                 await insert.ExecuteNonQueryAsync(cancellationToken);
             }
 
@@ -116,6 +121,17 @@ internal sealed class PostgresTenantStore(NpgsqlDataSource dataSource, DatabaseS
         await using var command = dataSource.CreateCommand("update tenants set admin_api_key_sha256 = $2 where id = $1");
         command.Parameters.AddWithValue(tenantId);
         command.Parameters.AddWithValue(adminApiKeyHash);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task SetListingAsync(string tenantId, bool listed, Uri? loginUrl, Uri? logoUrl, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update tenants set listed = $2, login_url = $3, logo_url = $4 where id = $1");
+        command.Parameters.AddWithValue(tenantId);
+        command.Parameters.AddWithValue(listed);
+        command.Parameters.AddWithValue((object?)loginUrl?.ToString() ?? DBNull.Value);
+        command.Parameters.AddWithValue((object?)logoUrl?.ToString() ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

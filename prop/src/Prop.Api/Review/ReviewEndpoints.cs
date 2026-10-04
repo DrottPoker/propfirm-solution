@@ -120,7 +120,8 @@ internal static class ReviewEndpoints
             ReviewService.SubmitProblem(firm, review),
             ReviewService.MaxDocuments,
             ReviewService.MaxDocumentBytes,
-            VatNumbers.EuCountries);
+            VatNumbers.EuCountries,
+            review.CanEdit && firm.Status != FirmStatus.Live ? ApplicationRules.Problems(review.Application, complete: true) : []);
     }
 
     /// <summary>A document as a download, never shown in the browser, so a file cannot run as a page on our address.</summary>

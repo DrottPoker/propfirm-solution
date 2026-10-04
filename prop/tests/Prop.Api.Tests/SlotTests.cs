@@ -61,7 +61,7 @@ public sealed class SlotTests(PostgresFixture postgres) : IClassFixture<Postgres
 
         using var start = await StartResponseAsync(factory, "anna@test.example");
         var shop = await buyer.GetFromJsonAsync<JsonElement>(Url("shop"), TestContext.Current.CancellationToken);
-        using var secondOrder = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = "two-step-100k", email = "other@test.example", acceptTerms = true }, TestContext.Current.CancellationToken);
+        using var secondOrder = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = "two-step-100k", email = "other@test.example", acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         var slots = await SlotsAsync(factory);
         using var paid = await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken);
         var order = await paid.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
@@ -131,7 +131,7 @@ public sealed class SlotTests(PostgresFixture postgres) : IClassFixture<Postgres
 
     private static async Task<(Guid OrderId, string Token)> OrderAsync(HttpClient buyer, string email)
     {
-        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = "two-step-100k", email, acceptTerms = true }, TestContext.Current.CancellationToken);
+        using var response = await buyer.PostAsJsonAsync(Url("orders"), new { challengeId = "two-step-100k", email, acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return (created.GetProperty("orderId").GetGuid(), created.GetProperty("checkoutUrl").GetString()!.Split("token=")[1]);

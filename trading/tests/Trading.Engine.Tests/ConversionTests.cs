@@ -57,6 +57,35 @@ public sealed class ConversionTests
         Assert.Equal(RejectReason.NoConversionRate, EventAssert.Rejected(driver.Buy(1.00m, symbol: "EURGBP")));
     }
 
+    // No instrument has XAU against EUR, so the margin goes through USD: XAUUSD, then EURUSD the other way.
+    [Fact]
+    public void AnAccountInEurTradesGoldThroughUsd()
+    {
+        var driver = new EngineDriver(EurConfiguration());
+        driver.CreateAccount(groupId: "eur");
+        driver.Quote(1.08000m, 1.08010m, "EURUSD");
+        driver.Quote(2650.00m, 2650.30m, "XAUUSD");
+
+        driver.Buy(0.10m, symbol: "XAUUSD");
+        // 0.10 lot x 100 oz x 2650.15 / 1.08005 / 30
+        Assert.Equal(817.91m, Assert.Single(driver.Account().Positions).Margin);
+
+        // 97.00 USD at the mid rate 1.08005
+        driver.Quote(2660.00m, 2660.30m, "XAUUSD");
+        Assert.Equal(89.81m, Assert.Single(driver.Account().Positions).Profit);
+    }
+
+    [Fact]
+    public void OrderIsRejectedWithoutARateThroughUsdEither()
+    {
+        // EURUSD is configured but has no price yet
+        var driver = new EngineDriver(EurConfiguration());
+        driver.CreateAccount(groupId: "eur");
+        driver.Quote(2650.00m, 2650.30m, "XAUUSD");
+
+        Assert.Equal(RejectReason.NoConversionRate, EventAssert.Rejected(driver.Buy(0.10m, symbol: "XAUUSD")));
+    }
+
     [Fact]
     public void GoldUsesItsContractSizeAndTheGroupLeverage()
     {
@@ -70,5 +99,11 @@ public sealed class ConversionTests
 
         driver.Quote(2660.00m, 2660.30m, "XAUUSD");
         Assert.Equal(97.00m, Assert.Single(driver.Account().Positions).Profit);
+    }
+
+    private static EngineConfiguration EurConfiguration()
+    {
+        var usd = TestMarket.Configuration();
+        return usd with { Groups = [usd.Groups[0] with { Id = "eur", Currency = "EUR" }] };
     }
 }

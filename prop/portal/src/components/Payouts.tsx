@@ -19,8 +19,11 @@ export function PayoutBadge({ status }: { status: PayoutStatus }) {
   return <span className={`whitespace-nowrap rounded px-2 py-0.5 text-sm ${statusStyles[status]}`}>{payoutStatusLabels[status]}</span>;
 }
 
-/** An account's payouts, newest first, with the firm's decisions: approve, mark as paid or reject. */
-export function PayoutTable({ payouts }: { payouts: Payout[] }) {
+/**
+ * An account's payouts, newest first, with the firm's decisions: approve, mark as paid or reject. <code>traderChecked</code>
+ * is whether the firm has ticked its checks of the trader, when known.
+ */
+export function PayoutTable({ payouts, traderChecked }: { payouts: Payout[]; traderChecked?: boolean }) {
   // Every column after the first keeps its distance, also when a right-aligned amount meets a left-aligned column.
   const cell = "py-2.5 pl-6";
   return (
@@ -40,7 +43,7 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
         <tbody>
           {payouts.map((payout) => (
             <tr key={payout.id} className="border-t border-border align-top">
-              <td className="whitespace-nowrap py-2.5 text-muted">{formatDateTime(payout.requestedAt)}</td>
+              <td className="whitespace-nowrap py-2.5 text-muted">{formatDateTime(payout.requestedAt, payout.timeZone)}</td>
               <td className={`${cell} text-right font-mono tabular-nums`}>{formatMoney(payout.profit)}</td>
               <td className={`${cell} whitespace-nowrap text-right font-mono tabular-nums`}>
                 {formatMoney(payout.amount)} {payout.currency}
@@ -51,7 +54,7 @@ export function PayoutTable({ payouts }: { payouts: Payout[] }) {
                 <span className="mt-1 block max-w-64 text-xs text-muted">{payoutNote(payout)}</span>
               </td>
               <td className={cell}>
-                <PayoutDecisions payout={payout} />
+                <PayoutDecisions payout={payout} traderChecked={traderChecked} />
               </td>
             </tr>
           ))}

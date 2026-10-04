@@ -111,7 +111,7 @@ public sealed class TraderDashboardTests(PostgresFixture postgres) : IClassFixtu
         var account = await DashboardAccountAsync(portal, a => a.GetProperty("results").GetProperty("today").ValueKind == JsonValueKind.Number
             && a.GetProperty("results").GetProperty("today").GetDecimal() == 800m);
 
-        Assert.Equal("Two-step 100000 USD", account.GetProperty("challenge").GetProperty("name").GetString());
+        Assert.Equal("Two-step 100K", account.GetProperty("challenge").GetProperty("name").GetString());
         Assert.Equal(
             [("Phase 1", "Current", 2), ("Phase 2", "Upcoming", -1), ("Funded", "Upcoming", -1)],
             account.GetProperty("stages").EnumerateArray().Select(s => (
@@ -274,6 +274,7 @@ public sealed class TraderDashboardTests(PostgresFixture postgres) : IClassFixtu
         await factory.WaitForAccountAsync(id, a => a.GetProperty("nextPayout").GetProperty("canRequest").GetBoolean());
 
         var ready = await portal.GetFromJsonAsync<JsonElement>(Url("payouts"), TestContext.Current.CancellationToken);
+        (await portal.PutAsJsonAsync(Url("payout-method"), PayoutFlowTests.BankAccount, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
         using var requested = await portal.PostAsync(Url($"accounts/{id}/payouts"), null, TestContext.Current.CancellationToken);
         var payoutId = (await requested.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
         await factory.WaitForAccountAsync(id, a => a.GetProperty("balance").GetDecimal() == 100_000m);

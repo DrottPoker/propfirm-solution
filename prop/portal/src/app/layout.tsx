@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
       site.kind === "firm"
         ? site.branding.name
         : site.kind === "platform"
-          ? `Sign up - ${site.platform.name}`
+          ? site.platform.name
           : site.kind === "ops"
             ? `Admin - ${site.ops.name}`
             : "Portal",

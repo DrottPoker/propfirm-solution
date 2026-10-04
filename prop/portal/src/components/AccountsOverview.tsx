@@ -3,12 +3,12 @@
 import Link from "next/link";
 
 import type { AccountDetails } from "@/lib/api/types";
-import { attentionItems, endingText, hasEnded, type AttentionItem } from "@/lib/dashboard";
+import { attentionItems, endingText, hasEnded, retryOf, type AttentionItem } from "@/lib/dashboard";
 import { formatDate, formatMoney } from "@/lib/format";
-import { useMyAccounts, useShop } from "@/lib/queries";
+import { useMe, useMyAccounts, useSendEmailConfirmation, useShop } from "@/lib/queries";
 
 import { AccountCard } from "./AccountCard";
-import { buttonClass, Message, SectionLabel } from "./ui";
+import { buttonClass, ErrorText, Message, SectionLabel } from "./ui";
 
 /**
  * The trader's start page: what needs attention, a card for every account that is trading or on its way, and the
@@ -26,37 +26,43 @@ export function AccountsOverview() {
     return <Message text="Loading..." />;
   }
 
-  const all = accounts.data;
-  if (all.length === 0) {
-    return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center text-muted">
-        <p>You have no challenge yet.</p>
-        {shop.data?.open ? (
-          <Link href="/buy" className={buttonClass}>
-            Buy a challenge
-          </Link>
-        ) : (
-          <p>Your firm opens one for you when you buy it.</p>
-        )}
-      </main>
-    );
-  }
-
   // The newest first, since a trader usually cares about the latest challenge.
+  const all = accounts.data;
   const current = all.filter((a) => !hasEnded(a.account.status)).reverse();
   const ended = all.filter((a) => hasEnded(a.account.status)).reverse();
   const attention = attentionItems(current);
   const trading = current.filter((a) => a.account.status === "Active").length;
+  const canBuy = shop.data?.open === true;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Your accounts</h1>
-        <p className="text-muted">
-          {trading === 0 ? "No account is trading right now." : trading === 1 ? "One account is trading right now." : `${trading} accounts are trading right now.`}{" "}
-          The figures update every few seconds.
-        </p>
+        {current.length > 0 && (
+          <p className="text-muted">
+            {trading === 0 ? "No account is trading right now." : trading === 1 ? "One account is trading right now." : `${trading} accounts are trading right now.`}{" "}
+            The figures update every few seconds.
+          </p>
+        )}
       </div>
+
+      <ConfirmEmailNotice />
+
+      {current.length === 0 && (
+        <section className="flex flex-col items-start gap-3 rounded-lg border border-border bg-panel p-6">
+          <h2 className="text-lg font-semibold">You have no active challenge</h2>
+          <p className="text-muted">
+            {ended.length > 0 ? "Your challenges have ended. Start a new one to trade again." : "Buy a challenge to start trading, and it shows up here."}
+          </p>
+          {canBuy ? (
+            <Link href="/buy" className={buttonClass}>
+              Buy a challenge
+            </Link>
+          ) : (
+            <p className="text-sm text-muted">Ask your firm for a new challenge.</p>
+          )}
+        </section>
+      )}
 
       {attention.length > 0 && (
         <section aria-label="Needs your attention" className="flex flex-col gap-2">
@@ -131,12 +137,74 @@ function AttentionIcon({ tone, className }: { tone: AttentionItem["tone"]; class
   );
 }
 
+/** A trader who chose the password on an order's page has not confirmed the email yet, which payouts need. */
+function ConfirmEmailNotice() {
+  const me = useMe("trader");
+  const send = useSendEmailConfirmation();
+  if (!me.data || me.data.emailConfirmed) {
+    return null;
+  }
+
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+      <p className="min-w-0 flex-1">
+        <span className="font-medium">Confirm your email.</span>{" "}
+        <span className="text-muted">Open the link we sent to {me.data.email}. Payouts are paid only once it is confirmed.</span>
+      </p>
+      {send.isSuccess ? (
+        <span className="text-profit">Sent. Check your inbox.</span>
+      ) : (
+        <button type="button" disabled={send.isPending} onClick={() => send.mutate()} className="font-medium text-warning hover:underline">
+          {send.isPending ? "Sending..." : "Send the link again"}
+        </button>
+      )}
+      <ErrorText error={send.error} />
+    </div>
+  );
+}
+
+function Outcome({ details }: { details: AccountDetails }) {
+  return details.account.status === "Cancelled" ? (
+    <span className="text-muted">Cancelled by the firm</span>
+  ) : (
+    <>
+      <span className={details.breach ? "text-loss" : "text-muted"}>{details.breach ? "Failed" : "Ended"}</span>{" "}
+      <span className="text-muted">· {endingText(details)}</span>
+    </>
+  );
+}
+
+/** The accounts that have ended: a table on wider screens, and a card each on a phone, so nothing is cut off. */
 function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
   return (
     <section aria-labelledby="ended-heading" className="flex flex-col gap-3">
       <SectionLabel id="ended-heading">Ended</SectionLabel>
-      <div className="overflow-x-auto rounded-lg border border-border bg-panel">
-        <table className="w-full min-w-[40rem] text-sm">
+      <ul className="flex flex-col gap-2 sm:hidden">
+        {accounts.map((details) => (
+          <li key={details.account.id}>
+            <Link href={`/accounts/${details.account.id}`} className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-4 text-sm hover:border-muted">
+              <span className="flex items-baseline justify-between gap-3">
+                <span className="font-medium">
+                  {details.challenge.name} <span className="text-muted">#{details.account.number}</span>
+                </span>
+                <span className="font-mono tabular-nums">
+                  {formatMoney(details.results.balance)} {details.account.currency}
+                </span>
+              </span>
+              <span>
+                <Outcome details={details} />
+              </span>
+              <span className="text-xs text-muted">
+                {details.account.stageName}
+                {details.endedAt && ` · ended ${formatDate(details.endedAt, details.challenge.tradingDay.timeZone)}`}
+              </span>
+            </Link>
+            <RetryLink details={details} className="mt-2 block text-sm" />
+          </li>
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-lg border border-border bg-panel sm:block">
+        <table className="w-full text-sm">
           <thead className="text-left text-muted">
             <tr>
               <th scope="col" className="px-5 py-3 font-normal">
@@ -168,16 +236,10 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
                   {details.challenge.name} · {details.account.stageName}
                 </td>
                 <td className="px-5 py-3">
-                  {details.account.status === "Cancelled" ? (
-                    <span className="text-muted">Cancelled by the firm</span>
-                  ) : (
-                    <>
-                      <span className={details.breach ? "text-loss" : "text-muted"}>{details.breach ? "Failed" : "Ended"}</span>{" "}
-                      <span className="text-muted">· {endingText(details)}</span>
-                    </>
-                  )}
+                  <Outcome details={details} />
+                  <RetryLink details={details} className="mt-1 block text-xs" />
                 </td>
-                <td className="px-5 py-3 text-muted">{details.endedAt ? formatDate(details.endedAt) : "-"}</td>
+                <td className="px-5 py-3 text-muted">{details.endedAt ? formatDate(details.endedAt, details.challenge.tradingDay.timeZone) : "-"}</td>
                 <td className="px-5 py-3 text-right font-mono tabular-nums">
                   {formatMoney(details.results.balance)} {details.account.currency}
                 </td>
@@ -188,4 +250,14 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
       </div>
     </section>
   );
+}
+
+// A failed challenge still for sale can be bought again, with the firm's code for retries when it has one.
+function RetryLink({ details, className }: { details: AccountDetails; className: string }) {
+  const retry = retryOf(details);
+  return retry ? (
+    <Link href={retry.href} className={`${className} text-accent hover:underline`}>
+      {retry.label}
+    </Link>
+  ) : null;
 }

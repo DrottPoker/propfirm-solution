@@ -80,6 +80,16 @@ internal sealed class InMemoryTenantStore : ITenantStore
             return Task.CompletedTask;
         }
     }
+
+    public Task SetListingAsync(string tenantId, bool listed, Uri? loginUrl, Uri? logoUrl, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var index = _tenants.FindIndex(t => t.Id == tenantId);
+            _tenants[index] = _tenants[index] with { Listed = listed, LoginUrl = loginUrl, LogoUrl = logoUrl };
+            return Task.CompletedTask;
+        }
+    }
 }
 
 internal sealed class InMemoryUserStore : IUserStore
@@ -87,6 +97,7 @@ internal sealed class InMemoryUserStore : IUserStore
     private readonly Lock _lock = new();
     private readonly List<User> _users = [];
     private readonly Dictionary<string, Guid> _owners = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AccountDetails> _details = new(StringComparer.Ordinal);
 
     public Task<User?> CreateAsync(string tenantId, string email, string passwordHash, CancellationToken cancellationToken)
     {
@@ -165,6 +176,24 @@ internal sealed class InMemoryUserStore : IUserStore
         {
             IReadOnlyList<string> accounts = _owners.Where(o => o.Value == userId).Select(o => o.Key).Order(StringComparer.Ordinal).ToList();
             return Task.FromResult(accounts);
+        }
+    }
+
+    public Task SetAccountDetailsAsync(AccountDetails details, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _details[details.AccountId] = details;
+            return Task.CompletedTask;
+        }
+    }
+
+    public async Task<IReadOnlyList<AccountDetails>> AccountDetailsOfAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        var accounts = await AccountsOfAsync(userId, cancellationToken);
+        lock (_lock)
+        {
+            return [.. accounts.Select(a => _details.TryGetValue(a, out var details) ? details : new AccountDetails(a, null, null, null, null))];
         }
     }
 

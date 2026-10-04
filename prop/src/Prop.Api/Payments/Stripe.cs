@@ -39,13 +39,103 @@ internal sealed class CheckoutNotStartedException : Exception
     }
 }
 
+/// <summary>Stripe did not let us set up the firm's webhook. The message is Stripe's, safe to show the firm.</summary>
+internal sealed class StripeSetupException : Exception
+{
+    public StripeSetupException()
+    {
+    }
+
+    public StripeSetupException(string message)
+        : base(message)
+    {
+    }
+
+    public StripeSetupException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
 /// <summary>
 /// Creates Stripe Checkout Sessions with the firm's own secret key, so the money goes straight to the firm. The
-/// buyer pays on Stripe's page, and the card never reaches us.
+/// buyer pays on Stripe's page, and the card never reaches us. Also sets up the firm's webhook in its Stripe account.
 /// </summary>
 internal sealed class StripeClient(IHttpClientFactory httpClients)
 {
     public const string HttpClientName = "Stripe";
+
+    /// <summary>The Stripe events that move the firm's orders along.</summary>
+    public static readonly IReadOnlyList<string> WebhookEvents =
+    [
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+        "checkout.session.async_payment_failed",
+        "checkout.session.expired",
+        "charge.refunded",
+        "charge.dispute.created",
+    ];
+
+    /// <summary>
+    /// Points a webhook in the firm's Stripe account at <paramref name="url"/> for <see cref="WebhookEvents"/>, and returns its
+    /// signing secret, which Stripe shows only when the webhook is made. Webhooks we made at the same address before are
+    /// removed, so a new key never leaves two behind. Also proves that the key works.
+    /// </summary>
+    public async Task<string> SetUpWebhookAsync(string secretKey, Uri url, string firmId, CancellationToken cancellationToken)
+    {
+        var client = httpClients.CreateClient(HttpClientName);
+        try
+        {
+            using (var list = Request(HttpMethod.Get, "v1/webhook_endpoints?limit=100", secretKey))
+            {
+                using var response = await client.SendAsync(list, cancellationToken);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new StripeSetupException(ErrorMessageOf(body));
+                }
+
+                using var endpoints = JsonDocument.Parse(body);
+                foreach (var endpoint in endpoints.RootElement.GetProperty("data").EnumerateArray())
+                {
+                    if (endpoint.GetProperty("url").GetString() == url.ToString())
+                    {
+                        using var delete = Request(HttpMethod.Delete, $"v1/webhook_endpoints/{endpoint.GetProperty("id").GetString()}", secretKey);
+                        using var deleted = await client.SendAsync(delete, cancellationToken);
+                    }
+                }
+            }
+
+            using var create = Request(HttpMethod.Post, "v1/webhook_endpoints", secretKey);
+            create.Content = new FormUrlEncodedContent(
+            [
+                new("url", url.ToString()),
+                .. WebhookEvents.Select(e => new KeyValuePair<string, string>("enabled_events[]", e)),
+                new("description", "Orders in the firm's portal"),
+                new("metadata[firm_id]", firmId),
+            ]);
+            using var created = await client.SendAsync(create, cancellationToken);
+            var createdBody = await created.Content.ReadAsStringAsync(cancellationToken);
+            if (!created.IsSuccessStatusCode)
+            {
+                throw new StripeSetupException(ErrorMessageOf(createdBody));
+            }
+
+            using var webhook = JsonDocument.Parse(createdBody);
+            return webhook.RootElement.GetProperty("secret").GetString() ?? throw new StripeSetupException("Stripe sent no signing secret.");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException && !cancellationToken.IsCancellationRequested)
+        {
+            throw new StripeSetupException("Stripe could not be reached.", exception);
+        }
+    }
+
+    private static HttpRequestMessage Request(HttpMethod method, string path, string secretKey)
+    {
+        var request = new HttpRequestMessage(method, new Uri(path, UriKind.Relative));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secretKey);
+        return request;
+    }
 
     public async Task<StripeCheckout> CreateCheckoutAsync(string secretKey, StripeCheckoutRequest checkout, CancellationToken cancellationToken)
     {

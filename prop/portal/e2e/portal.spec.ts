@@ -3,10 +3,10 @@ import { expect, test } from "@playwright/test";
 import { terminalUrl, tradingPort } from "../playwright.config";
 import { acceptInvitation, admin, firmName, logIn, startChallenge } from "./support";
 
-test("visitors who are not logged in are sent to the login page of the firm", async ({ page }) => {
-  await page.goto("/");
+test("a page for traders sends visitors who are not logged in to the login page of the firm", async ({ page }) => {
+  await page.goto("/payouts");
 
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login\?next=%2Fpayouts$/);
   await expect(page).toHaveTitle(firmName);
   await expect(page.getByText(firmName)).toBeVisible();
 });
@@ -23,7 +23,7 @@ test("a trader from the development configuration logs in with its short passwor
   await logIn(page, "/login", "anna@test.com", "anna");
 
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText("You have no challenge yet.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "You have no active challenge" })).toBeVisible();
 });
 
 test("the firm starts a challenge and invites the trader, who opens the terminal from the portal", async ({ context, page, request }) => {
@@ -46,7 +46,7 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
 
   // The start page has a card for the account, and its page has the objectives and the rules.
   await expect(trader.getByText("100,000.00 USD")).toBeVisible();
-  await expect(trader.getByText("Daily loss room")).toBeVisible();
+  await expect(trader.getByText("Daily loss limit", { exact: true })).toBeVisible();
   await trader.getByRole("link", { name: /^Details of account/ }).click();
   await expect(trader).toHaveURL(/\/accounts\/[0-9a-f-]+$/);
   await expect(trader.getByRole("heading", { name: "Objectives for Phase 1" })).toBeVisible();

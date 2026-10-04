@@ -22,6 +22,9 @@ using Prop.Rules;
 
 namespace Prop.Api.Payments;
 
+/// <summary>Who buys: the email, and the name and country, a two-letter code, as given in the shop.</summary>
+internal sealed record Buyer(string? Email, string? Name, string? Country);
+
 /// <summary>A challenge for sale in the firm's portal, and its price.</summary>
 internal sealed record ShopItem(ChallengeDefinition Challenge, ChallengePrice Price);
 
@@ -69,9 +72,11 @@ internal enum InviteOutcome
 internal sealed partial class OrderService(
     OrderStore orders,
     PriceCatalog prices,
+    DiscountStore discounts,
     ChallengeCatalog challenges,
     ChallengeService accounts,
     SlotService slots,
+    Notifications notifications,
     WorkSignals signals,
     PortalUsers users,
     IEmailSender email,
@@ -83,23 +88,59 @@ internal sealed partial class OrderService(
     TimeProvider time,
     ILogger<OrderService> logger)
 {
+    public const int MaxBuyerNameLength = 100;
+
     /// <summary>How long a buyer waits before the invitation can be sent again.</summary>
     public static readonly TimeSpan InviteResendDelay = TimeSpan.FromMinutes(1);
 
-    /// <summary>Test payments are for the sandbox. Development may allow them for live firms too.</summary>
-    public bool TestPaymentsAllowed(Firm firm) => firm.Status != FirmStatus.Live || options.Value.TestPaymentsForLiveFirms;
+    /// <summary>Test payments, and Stripe's test keys, are for the sandbox. Development may allow them for live firms too.</summary>
+    public bool TestPaymentsAllowed(Firm firm) => TestPaymentsAllowed(firm, options.Value.TestPaymentsForLiveFirms);
+
+    public static bool TestPaymentsAllowed(Firm firm, bool testPaymentsForLiveFirms) => firm.Status != FirmStatus.Live || testPaymentsForLiveFirms;
 
     /// <summary>
-    /// The provider the firm's portal takes payment with now, or null when it cannot sell. Stripe's live keys work
-    /// only once the firm is live, so no real money is taken in the sandbox.
+    /// The provider the firm's portal takes payment with now, or null when it cannot sell. Stripe's live keys work only once
+    /// the firm is live, so no real money is taken in the sandbox, and its test keys only where test payments are allowed,
+    /// so a live firm never sells for test money.
     /// </summary>
-    public PaymentProvider? ProviderOf(Firm firm) => firm.Payments.Provider switch
+    public PaymentProvider? ProviderOf(Firm firm) => ProviderOf(firm, options.Value.TestPaymentsForLiveFirms);
+
+    public static PaymentProvider? ProviderOf(Firm firm, bool testPaymentsForLiveFirms) => firm.Payments.Provider switch
     {
-        PaymentProvider.Test when TestPaymentsAllowed(firm) => PaymentProvider.Test,
-        PaymentProvider.Stripe when firm.Payments.Stripe is { } keys && (firm.Status == FirmStatus.Live || keys.IsTestMode) => PaymentProvider.Stripe,
+        PaymentProvider.Test when TestPaymentsAllowed(firm, testPaymentsForLiveFirms) => PaymentProvider.Test,
+        PaymentProvider.Stripe when firm.Payments.Stripe is { } keys && (keys.IsTestMode ? TestPaymentsAllowed(firm, testPaymentsForLiveFirms) : firm.Status == FirmStatus.Live)
+            => PaymentProvider.Stripe,
         PaymentProvider.External when firm.Payments.CheckoutUrl is not null => PaymentProvider.External,
         _ => null,
     };
+
+    /// <summary>
+    /// Why the firm's shop does not take payment once the firm is live, or null when it does, or the firm chose not to sell
+    /// in its portal. A firm in the sandbox cannot go live like that, so its shop is never closed or selling for test money;
+    /// a live firm is told, since its shop sells nothing.
+    /// </summary>
+    public static string? LiveShopProblem(Firm firm, bool testPaymentsForLiveFirms)
+    {
+        if (firm.Payments.Provider is not { } provider || ProviderOf(firm with { Status = FirmStatus.Live }, testPaymentsForLiveFirms) is not null)
+        {
+            return null;
+        }
+
+        const string Choose = "or choose No sales in the portal.";
+        return (provider, firm.Status == FirmStatus.Live) switch
+        {
+            (PaymentProvider.Test, false) =>
+                $"Your shop takes test payments, which stop when you go live. Under Checkout, connect Stripe with your live keys or your own checkout page, {Choose}",
+            (PaymentProvider.Test, true) =>
+                $"Your shop sells nothing, since test payments stopped when you went live. Under Checkout, connect Stripe with your live keys or your own checkout page, {Choose}",
+            (PaymentProvider.Stripe, false) =>
+                $"Your Stripe keys are test keys, which take no real money once you are live. Under Checkout, paste your live secret key (sk_live_), {Choose}",
+            (PaymentProvider.Stripe, true) =>
+                $"Your shop sells nothing, since your Stripe keys are test keys. Under Checkout, paste your live secret key (sk_live_), {Choose}",
+            (_, false) => $"Your shop cannot take payment yet. Under Checkout, finish how traders pay, {Choose}",
+            (_, true) => $"Your shop sells nothing, since how traders pay is not finished. Under Checkout, finish it, {Choose}",
+        };
+    }
 
     /// <summary>The challenges for sale in the firm's portal. Empty when the firm cannot take payment.</summary>
     public async Task<IReadOnlyList<ShopItem>> ShopAsync(Firm firm, CancellationToken cancellationToken)
@@ -120,19 +161,65 @@ internal sealed partial class OrderService(
     }
 
     /// <summary>
-    /// Makes an order for the challenge at its price now, and starts the payment with the firm's provider. The
-    /// buyer pays on the page the order's checkout address leads to.
+    /// What the challenge costs with the discount code, or why the code cannot be used on it. A code for retries needs
+    /// the buyer's email, so without one it is only checked once the order is made.
     /// </summary>
-    public async Task<NewOrder> CreateAsync(Firm firm, string? buyerEmail, string? challengeId, bool acceptedTerms, CancellationToken cancellationToken)
+    public async Task<(DiscountedPrice? Price, DiscountCode? Code, string? Refusal)> QuoteDiscountAsync(
+        Firm firm,
+        string? challengeId,
+        string? code,
+        string? email,
+        CancellationToken cancellationToken)
+    {
+        var item = (await ShopAsync(firm, cancellationToken)).FirstOrDefault(i => i.Challenge.Id == challengeId);
+        if (item is null)
+        {
+            return (null, null, "That challenge is not for sale.");
+        }
+
+        if (string.IsNullOrWhiteSpace(code) || await discounts.FindAsync(firm.Id, code, time.GetUtcNow(), cancellationToken) is not { } found)
+        {
+            return (null, null, "There is no such code.");
+        }
+
+        if (found.ForRetries && !string.IsNullOrWhiteSpace(email) && !await discounts.HasFailedAccountAsync(firm.Id, email, cancellationToken))
+        {
+            return (null, found, RetryOnly);
+        }
+
+        var (price, refusal) = DiscountRules.Apply(found, item.Price, time.GetUtcNow());
+        return (price, found, refusal);
+    }
+
+    private const string RetryOnly = "That code is for a new try after a challenge that failed, with the email it was bought with.";
+
+    /// <summary>
+    /// Makes an order for the challenge at its price now, with the discount code when there is one, and starts the
+    /// payment with the firm's provider. The buyer pays on the page the order's checkout address leads to.
+    /// </summary>
+    public async Task<NewOrder> CreateAsync(Firm firm, Buyer buyer, string? challengeId, bool acceptedTerms, string? discountCode, CancellationToken cancellationToken)
     {
         if (ProviderOf(firm) is not { } provider)
         {
             return new NewOrder.Refused(StatusCodes.Status409Conflict, "The firm does not sell challenges here right now.");
         }
 
+        var buyerEmail = buyer.Email;
         if (string.IsNullOrWhiteSpace(buyerEmail) || !buyerEmail.Contains('@', StringComparison.Ordinal))
         {
             return new NewOrder.Refused(StatusCodes.Status422UnprocessableEntity, "A valid email address is required.");
+        }
+
+        var buyerName = buyer.Name?.Trim();
+        if (string.IsNullOrEmpty(buyerName) || buyerName.Length > MaxBuyerNameLength)
+        {
+            return new NewOrder.Refused(StatusCodes.Status422UnprocessableEntity, FormattableString.Invariant($"Write your name, in at most {MaxBuyerNameLength} characters."));
+        }
+
+        var buyerCountry = buyer.Country?.Trim().ToUpperInvariant();
+        if (buyerCountry is not { Length: 2 } || !buyerCountry.All(char.IsAsciiLetterUpper))
+        {
+            return new NewOrder.Refused(StatusCodes.Status422UnprocessableEntity, "Choose your country.");
         }
 
         if (firm.Payments.TermsUrl is not null && !acceptedTerms)
@@ -151,6 +238,19 @@ internal sealed partial class OrderService(
             return NoRoom();
         }
 
+        OrderDiscount? discount = null;
+        if (!string.IsNullOrWhiteSpace(discountCode))
+        {
+            var (discounted, code, refusal) = await QuoteDiscountAsync(firm, item.Challenge.Id, discountCode, buyerEmail, cancellationToken);
+            if (discounted is null || code is null)
+            {
+                return new NewOrder.Refused(StatusCodes.Status422UnprocessableEntity, refusal ?? "There is no such code.");
+            }
+
+            discount = new OrderDiscount(code.Id, code.Code, discounted);
+        }
+
+        var amount = discount?.Price.Amount ?? item.Price.Amount;
         var now = time.GetUtcNow();
         var id = Guid.CreateVersion7(now);
         var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
@@ -167,7 +267,16 @@ internal sealed partial class OrderService(
                 {
                     var checkout = await stripe.CreateCheckoutAsync(
                         firm.Payments.Stripe!.SecretKey,
-                        new StripeCheckoutRequest(id, firm.Id, email, item.Challenge.Name, item.Price.Amount, item.Price.Currency, returnUrl, new Uri(firm.Portal.Url, "buy"), expiresAt),
+                        new StripeCheckoutRequest(
+                            id,
+                            firm.Id,
+                            email,
+                            discount is null ? item.Challenge.Name : $"{item.Challenge.Name} (code {discount.Code})",
+                            amount,
+                            item.Price.Currency,
+                            returnUrl,
+                            new Uri(firm.Portal.Url, "buy"),
+                            expiresAt),
                         cancellationToken);
                     (checkoutId, checkoutUrl) = (checkout.Id, checkout.Url);
                 }
@@ -187,13 +296,17 @@ internal sealed partial class OrderService(
                 break;
         }
 
-        // The order holds a slot while the buyer pays, so the payment always has room to start the challenge.
-        var order = await orders.InsertAsync(
+        // The order holds a slot while the buyer pays, so the payment always has room to start the challenge, and a use
+        // of its code, so the code is never used more often than the firm allows.
+        var (order, refused) = await orders.InsertAsync(
             id,
             firm.Id,
             email,
+            buyerName,
+            buyerCountry,
             item.Challenge.Id,
             item.Price,
+            discount,
             provider,
             token,
             checkoutId,
@@ -202,6 +315,13 @@ internal sealed partial class OrderService(
             expiresAt,
             async (connection, ct) =>
             {
+                if (discount is not null
+                    && (await DiscountStore.LockAsync(connection, firm.Id, discount.CodeId, now, ct) is not { } code
+                        || DiscountRules.Apply(code, item.Price, now).Refusal is not null))
+                {
+                    return "That code has just been used up.";
+                }
+
                 await SlotService.LockAsync(connection, firm.Id, ct);
                 var usage = await slots.UsageAsync(connection, firm, null, ct);
                 if (usage.Free == 1)
@@ -209,14 +329,17 @@ internal sealed partial class OrderService(
                     signals.Billing.Set();
                 }
 
-                return usage.HasRoom;
+                return usage.HasRoom ? null : NoRoomProblem;
             },
             cancellationToken);
-        return order is null ? NoRoom() : new NewOrder.Created(order, token);
+        return order is not null
+            ? new NewOrder.Created(order, token)
+            : new NewOrder.Refused(StatusCodes.Status409Conflict, refused ?? NoRoomProblem);
     }
 
-    private static NewOrder.Refused NoRoom() =>
-        new(StatusCodes.Status409Conflict, "The firm cannot start more challenges right now. Try again later.");
+    private const string NoRoomProblem = "The firm cannot start more challenges right now. Try again later.";
+
+    private static NewOrder.Refused NoRoom() => new(StatusCodes.Status409Conflict, NoRoomProblem);
 
     /// <summary>
     /// The order is paid: it becomes Paid and its account starts, in one transaction. A payment reported again
@@ -258,6 +381,17 @@ internal sealed partial class OrderService(
             }
 
             var started = await accounts.StartAsync(connection, firm, order.Email, order.ChallengeId, null, order.Id, cancellationToken);
+
+            // The trader keeps the name and country from the first order that gave them.
+            await using (var details = new NpgsqlCommand(
+                "update traders set name = coalesce(name, $3), country = coalesce(country, $4) where firm_id = $1 and normalized_email = $2", connection))
+            {
+                details.Parameters.AddWithValue(firm.Id);
+                details.Parameters.AddWithValue(Emails.Normalize(order.Email));
+                details.Parameters.Add(OrderStore.Text(order.BuyerName));
+                details.Parameters.Add(OrderStore.Text(order.BuyerCountry));
+                await details.ExecuteNonQueryAsync(cancellationToken);
+            }
             var problem = started.Account is not null
                 ? null
                 : started.Refusal is { } refusal
@@ -283,6 +417,17 @@ internal sealed partial class OrderService(
             await OrderStore.AddEventAsync(connection, order.Id, "paid", payment.Source, payment.Detail, now, cancellationToken);
             var account = started.Account is { } a ? WebhookOutbox.Account(a.Id, a.Number, a.Email, a.DefinitionId, a.Reference) : null;
             await WebhookOutbox.AddAsync(connection, firm, "order.paid", account, OrderData(paid), now, cancellationToken);
+            await notifications.QueueSaleAsync(
+                connection,
+                firm,
+                paid.Email,
+                started.Account?.State.Definition.Name ?? order.ChallengeId,
+                paid.Number,
+                paid.Amount,
+                paid.Currency,
+                paid.AccountId,
+                now,
+                cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -348,7 +493,7 @@ internal sealed partial class OrderService(
         try
         {
             await email.SendAsync(
-                PlatformEmails.InviteBuyer(firm.Name, challengeName, order.Email, new Uri(firm.Portal.Url, $"invite?token={invite.Token}"), PortalUsers.InviteLifetime),
+                TraderEmails.InviteBuyer(firm, challengeName, order.Email, new Uri(firm.Portal.Url, $"invite?token={invite.Token}"), PortalUsers.InviteLifetime),
                 cancellationToken);
         }
         catch (EmailNotSentException exception)

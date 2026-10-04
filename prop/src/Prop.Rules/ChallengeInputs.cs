@@ -37,8 +37,11 @@ public sealed record ApprovePayout(DateTimeOffset Time, string PayoutId) : Chall
 /// <summary>The firm has sent the money. <paramref name="Reference"/> is the firm's own, for example a bank transfer id.</summary>
 public sealed record MarkPayoutPaid(DateTimeOffset Time, string PayoutId, string? Reference) : ChallengeInput(Time);
 
-/// <summary>The firm refuses the payout.</summary>
-public sealed record RejectPayout(DateTimeOffset Time, string PayoutId, string Reason) : ChallengeInput(Time);
+/// <summary>
+/// The firm refuses the payout. With <paramref name="ReturnProfit"/> the withdrawn profit goes back on the trader's account,
+/// for example when the trader only has to finish the firm's checks; otherwise it is forfeited, for example for a broken rule.
+/// </summary>
+public sealed record RejectPayout(DateTimeOffset Time, string PayoutId, string Reason, bool ReturnProfit = false) : ChallengeInput(Time);
 
 /// <summary>
 /// The trading platform refused a withdrawal the rule engine asked for, for example because the balance

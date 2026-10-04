@@ -9,6 +9,7 @@ import { payoutNote, payoutViews, type PayoutView } from "@/lib/payouts";
 import { useAdminPayouts, useFirmSettings, usePayoutSummary } from "@/lib/queries";
 
 import { PayoutDecisions } from "./PayoutDecisions";
+import { PayTo } from "./PayTo";
 import { PayoutBadge } from "./Payouts";
 import { AdminPage, ErrorText, FilterTabs, PageHeader, StatTile } from "./ui";
 
@@ -40,7 +41,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
     <AdminPage>
       <PageHeader
         title="Payouts"
-        description="The profit leaves the trading account when a funded trader asks. Approve after your checks, such as KYC, send the money yourself, then mark the payout as paid."
+        description="The profit leaves the trading account when a funded trader asks. Approve after your checks of the trader, which you tick on the trader card, send the money yourself, then mark the payout as paid."
       />
 
       {data && (
@@ -92,7 +93,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
           <p className="px-4 py-6 text-sm text-muted">{viewId === "to-approve" ? "No payout waits for your approval." : viewId === "to-pay" ? "No approved payout waits to be paid." : "No payouts here."}</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[58rem] text-sm">
+            <table className="w-full min-w-[68rem] text-sm">
               <thead className="text-left text-muted">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-normal">
@@ -108,6 +109,9 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                     Profit
                   </th>
                   <th scope="col" className="px-4 py-3 font-normal">
+                    Pay to
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
                     Paid before
                   </th>
                   <th scope="col" className="px-4 py-3 font-normal">
@@ -119,7 +123,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                 </tr>
               </thead>
               <tbody>
-                {(payouts.data ?? []).map(({ payout, challengeName, paidBefore, paidBeforeAmount }) => {
+                {(payouts.data ?? []).map(({ payout, challengeName, paidBefore, paidBeforeAmount, traderChecked }) => {
                   const late = payout.status === "Pending" && now - Date.parse(payout.requestedAt) > lateAfterDays * 86_400_000;
                   return (
                     <tr key={payout.id} className="border-t border-border align-top">
@@ -143,6 +147,9 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                         <span className="block text-xs text-muted">{payout.profitSplitPercent}% of the profit</span>
                       </td>
                       <td className="px-4 py-3.5 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
+                      <td className="max-w-64 px-4 py-3.5">
+                        <PayTo method={payout.payTo} />
+                      </td>
                       <td className="px-4 py-3.5">
                         {paidBefore === 0 ? (
                           <span className="text-muted">First payout</span>
@@ -162,7 +169,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                         )}
                       </td>
                       <td className="px-4 py-3.5">
-                        <PayoutDecisions payout={payout} />
+                        <PayoutDecisions payout={payout} traderChecked={traderChecked} />
                       </td>
                     </tr>
                   );

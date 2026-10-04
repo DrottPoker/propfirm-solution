@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineEvent } from "./api/types";
-import { describeEvent, isWarning } from "./events";
+import { describeEvent, isWarning, positionCommission, rejectionText } from "./events";
 
 const digitsOf = (symbol: string) => (symbol === "XAUUSD" ? 2 : 5);
 const timestamp = "2026-10-05T08:00:00+00:00";
@@ -24,7 +24,7 @@ describe("describeEvent", () => {
       timestamp,
     };
 
-    expect(describeEvent(event, digitsOf)).toBe("Closed Buy 0.10 XAUUSD at 2660.00 (TakeProfit), profit 97.00");
+    expect(describeEvent(event, digitsOf)).toBe("Closed Buy 0.10 XAUUSD at 2660.00 by its take profit, profit 97.00");
   });
 
   it("describes a breach with equity and level", () => {
@@ -39,7 +39,7 @@ describe("describeEvent", () => {
       timestamp,
     };
 
-    expect(describeEvent(event, digitsOf)).toBe("Floor daily breached: equity 94,990.50 fell below 95,000.00");
+    expect(describeEvent(event, digitsOf)).toBe("Daily loss limit broken: equity 94,990.50 fell below 95,000.00");
     expect(isWarning(event)).toBe(true);
   });
 
@@ -75,7 +75,76 @@ describe("describeEvent", () => {
       timestamp,
     };
 
-    expect(describeEvent(event, digitsOf)).toBe("Rejected PlaceOrder: StalePrice");
+    expect(describeEvent(event, digitsOf)).toBe("Order refused: the price is too old, wait for the next one");
     expect(isWarning(event)).toBe(true);
+  });
+
+  it("says in plain words that the loss limit closed a position and ended trading", () => {
+    const closed: EngineEvent = {
+      kind: "PositionClosed",
+      accountId: "demo",
+      positionId: "o-1",
+      symbol: "EURUSD",
+      side: "Buy",
+      volume: 1,
+      openPrice: 1.08,
+      closePrice: 1.075,
+      profit: -500,
+      commission: 3.5,
+      reason: "EquityFloor",
+      balanceAfter: 9_451,
+      timestamp,
+    };
+    const disabled: EngineEvent = { kind: "AccountDisabled", accountId: "demo", reason: "EquityFloor", timestamp };
+
+    expect(describeEvent(closed, digitsOf)).toBe("Closed Buy 1.00 EURUSD at 1.07500 by the loss limit, profit -500.00");
+    expect(describeEvent(disabled, digitsOf)).toBe("Trading ended: a loss limit was broken");
+  });
+});
+
+describe("rejectionText", () => {
+  it("explains the reason, and shows a reason it does not know as it is", () => {
+    expect(rejectionText("InsufficientMargin")).toBe("Refused: not enough free margin");
+    expect(rejectionText("SomethingNew")).toBe("Refused: SomethingNew");
+  });
+});
+
+describe("positionCommission", () => {
+  const closed = {
+    kind: "PositionClosed" as const,
+    accountId: "demo",
+    positionId: "o-1",
+    symbol: "EURUSD",
+    side: "Buy" as const,
+    volume: 1,
+    openPrice: 1.08,
+    closePrice: 1.081,
+    profit: 100,
+    commission: 3.5,
+    reason: "Manual" as const,
+    balanceAfter: 100_093,
+    timestamp,
+  };
+  const opened: EngineEvent = {
+    kind: "PositionOpened",
+    accountId: "demo",
+    positionId: "o-1",
+    symbol: "EURUSD",
+    side: "Buy",
+    volume: 1,
+    openPrice: 1.08,
+    stopLoss: null,
+    takeProfit: null,
+    commission: 3,
+    balanceAfter: 99_997,
+    timestamp,
+  };
+
+  it("adds the commission charged when the position opened", () => {
+    expect(positionCommission(closed, [opened, closed])).toBe(6.5);
+  });
+
+  it("takes the opening commission to be the closing one when the opened event is not at hand", () => {
+    expect(positionCommission(closed, [closed])).toBe(7);
   });
 });

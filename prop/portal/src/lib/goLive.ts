@@ -58,17 +58,22 @@ export function goLiveSteps(input: {
       action: { label: "Prices", href: "/admin/challenges" },
     },
     {
+      // Test payments are enough to try the shop. What going live needs on top is said at the last step.
       key: "checkout",
-      status: provider === "Stripe" || provider === "External" ? "done" : "todo",
+      status: provider !== null ? "done" : "todo",
       title: "Choose how traders pay",
       detail:
         provider === "Stripe"
-          ? "Buyers pay with Stripe, to your own Stripe account."
+          ? settings.payments.stripeTestMode && billing.shopProblem
+            ? "Stripe's test key is enough to try. Before you go live, paste your live secret key (sk_live_)."
+            : "Buyers pay with Stripe, to your own Stripe account."
           : provider === "External"
             ? "Buyers pay on your own checkout page."
             : provider === "Test"
-              ? "Test payments are on now. Before you go live, connect Stripe with your own keys, or your own checkout page."
-              : "Your shop takes no payment yet. Connect Stripe or your own checkout page, or try test payments first.",
+              ? billing.shopProblem
+                ? "Test payments are on, which is enough to try. Before you go live, connect Stripe or your own checkout page."
+                : "Test payments, which go on working when you go live here."
+              : "Your shop takes no payment yet. Try it with test payments, or connect Stripe or your own checkout page.",
       action: { label: "Set up checkout", href: "/admin/checkout" },
     },
     {
@@ -86,39 +91,51 @@ export function goLiveSteps(input: {
       action: { label: "Open your shop", href: "/buy", external: true },
     },
     reviewStep(review, deposit > 0 && billing.depositPaid === 0 ? `${formatMoney(deposit)} ${billing.prices.currency}` : null),
-    {
-      key: "live",
-      status: settings.status === "Live" ? "done" : review === "Approved" ? "todo" : "locked",
-      title: "Go live",
-      detail:
-        review === "Approved"
-          ? "Choose your slots, and pay the startup fee less the deposit, and your first month."
-          : "After we have approved your firm: choose your slots, and pay the startup fee less the deposit, and your first month.",
-      action: review === "Approved" ? { label: "Go live", href: "/admin/billing" } : null,
-    },
+    liveStep(settings, review, billing.shopProblem),
   ];
 
   const next = steps.findIndex((s) => s.status === "todo");
   return steps.map((s, i) => (i === next ? { ...s, status: "current" } : s));
 }
 
+/** Going live, once we have approved the firm and its shop takes real payments. */
+function liveStep(settings: FirmSettings, review: Billing["review"], shopProblem: string | null): GoLiveStep {
+  const step = { key: "live", title: "Go live" };
+  if (settings.status === "Live") {
+    return { ...step, status: "done", detail: "Your firm is live.", action: null };
+  }
+
+  if (review !== "Approved") {
+    return {
+      ...step,
+      status: "locked",
+      detail: `After we have approved your firm${shopProblem ? ", and your shop takes real payments" : ""}: choose your slots, and pay the startup fee less the deposit, and your first month.`,
+      action: null,
+    };
+  }
+
+  return shopProblem
+    ? { ...step, status: "todo", detail: shopProblem, action: { label: "Set up checkout", href: "/admin/checkout" } }
+    : { ...step, status: "todo", detail: "Choose your slots, and pay the startup fee less the deposit, and your first month.", action: { label: "Go live", href: "/admin/go-live?step=payment" } };
+}
+
 function reviewStep(review: Billing["review"], deposit: string | null): GoLiveStep {
   const step = { key: "review", title: "Send your company for review" };
   switch (review) {
     case "Submitted":
-      return { ...step, status: "waiting", detail: "We are reviewing your firm, usually within a day, and email you when we have.", action: { label: "Your application", href: "/admin/verification" } };
+      return { ...step, status: "waiting", detail: "We are reviewing your firm, usually within a day, and email you when we have.", action: { label: "Our answer", href: "/admin/go-live?step=answer" } };
     case "ChangesRequested":
-      return { ...step, status: "todo", detail: "We asked for changes. Make them and send the application again, with no new deposit.", action: { label: "Make the changes", href: "/admin/verification" } };
+      return { ...step, status: "todo", detail: "We asked for changes. Make them and send the application again, with no new deposit.", action: { label: "Make the changes", href: "/admin/go-live?step=details" } };
     case "Approved":
       return { ...step, status: "done", detail: "We have approved your firm.", action: null };
     case "Rejected":
-      return { ...step, status: "locked", detail: "We could not approve your firm. Our email says why.", action: { label: "Your application", href: "/admin/verification" } };
+      return { ...step, status: "locked", detail: "We could not approve your firm. Our email says why.", action: { label: "Our answer", href: "/admin/go-live?step=answer" } };
     default:
       return {
         ...step,
         status: "todo",
         detail: `Company details, owners and links.${deposit ? ` You pay a ${deposit} deposit when you send it, taken off the startup fee.` : ""} We usually answer within a day.`,
-        action: { label: review === "Draft" ? "Continue the application" : "Start the application", href: "/admin/verification" },
+        action: { label: review === "Draft" ? "Continue the application" : "Start the application", href: "/admin/go-live" },
       };
   }
 }

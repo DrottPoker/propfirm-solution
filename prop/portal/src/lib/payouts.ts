@@ -35,8 +35,10 @@ export function payoutNote(payout: Payout): string {
       return "The firm is sending the money.";
     case "Paid":
       return payout.reference ? `Paid. Reference ${payout.reference}.` : "Paid.";
-    case "Rejected":
-      return payout.reason ? `Rejected: ${payout.reason}` : "Rejected.";
+    case "Rejected": {
+      const profit = payout.profitReturned ? " The profit went back on the account." : "";
+      return payout.reason ? `Rejected: ${payout.reason}${profit}` : `Rejected.${profit}`;
+    }
     case "Failed":
       return "The balance changed before the profit could be taken off, so nothing was paid out.";
   }

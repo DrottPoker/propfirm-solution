@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { AccountDetails } from "./api/types";
 import {
   attentionItems,
+  breachClosesText,
   currentTradingDay,
   deadlineOf,
+  deadlineText,
   endingText,
   floorState,
   initials,
   objectivesOf,
   resultTone,
+  retryOf,
   statusText,
   stepState,
 } from "./dashboard";
@@ -116,6 +119,16 @@ describe("attentionItems", () => {
   });
 });
 
+describe("deadlineText", () => {
+  it("says the last day and the days until it, as the rule counts them", () => {
+    expect(deadlineText("Trade", { lastDay: "2026-11-03", daysLeft: 31 })).toBe("Trade by 3 Nov (30 days)");
+    expect(deadlineText("Pass", { lastDay: "2026-10-07", daysLeft: 2 })).toBe("Pass by 7 Oct (1 day)");
+    expect(deadlineText("Trade", { lastDay: "2026-10-06", daysLeft: 1 })).toBe("Trade today");
+    expect(deadlineText("Trade", { lastDay: "2026-10-05", daysLeft: 0 })).toBe("Ends today");
+    expect(deadlineText("Trade", { lastDay: "2026-11-03", daysLeft: null })).toBe("Trade by 3 Nov");
+  });
+});
+
 describe("objectivesOf", () => {
   it("shows the target, the loss limits, the trading days and how long the trader may wait", () => {
     const objectives = objectivesOf(testDetails());
@@ -125,7 +138,7 @@ describe("objectivesOf", () => {
       ["daily", "kept", "Kept"],
       ["max-loss", "kept", "Kept"],
       ["days", "progress", "2 of 4"],
-      ["activity", "info", "30 days left"],
+      ["activity", "info", "Trade by 4 Nov (29 days)"],
     ]);
     expect(objectives[0]).toMatchObject({ progress: 25, detail: "2,500.00 of 10,000.00 · reach a balance of 110,000.00" });
     expect(objectives[1].detail).toMatch(/^Equity may fall 5,800.00 more today, to 97,000.00. It starts again /);
@@ -145,9 +158,64 @@ describe("objectivesOf", () => {
     expect(daily).toMatchObject({ state: "broken", stateText: "Broken" });
     expect(daily?.detail).toMatch(/^Equity 96,950.00 fell below 97,000.00 on /);
 
-    // What the account no longer works towards is not shown as in progress.
-    expect(objectives.find((o) => o.key === "target")).toMatchObject({ state: "info", stateText: "Not reached" });
+    // What the account no longer works towards is not shown as in progress, nor with a bar towards it.
+    expect(objectives.find((o) => o.key === "target")).toMatchObject({ state: "info", stateText: "Not reached", detail: "The stage ended before the balance reached 110,000.00." });
+    expect(objectives.find((o) => o.key === "target")?.progress).toBeUndefined();
     expect(objectives.find((o) => o.key === "days")).toMatchObject({ state: "info", stateText: "2 of 4" });
+  });
+
+  it("says why a breached account's balance ended below the limit", () => {
+    const failed = testDetails({
+      account: { ...testAccount, status: "Failed" },
+      breach: {
+        time: "2026-10-06T09:30:00Z",
+        floorId: "daily",
+        level: 97_000,
+        equity: 96_950,
+        reason: "DailyLoss",
+        closes: [{ symbol: "EURUSD", side: "Buy", volume: 1, closePrice: 1.07512, profit: -3_040, commission: 3.5 }],
+        balanceAfter: 96_901.5,
+      },
+    });
+
+    expect(breachClosesText(failed)).toBe(
+      "Then every open position was closed at the next price (EURUSD at 1.07512), and 3.50 in commission was charged for closing it, so the balance ended at 96,901.50.",
+    );
+    expect(breachClosesText(testDetails())).toBeNull();
+  });
+
+  it("offers a new try at a failed challenge, with the firm's code for retries", () => {
+    const retry = { challengeId: "two-step-100k", price: 499, currency: "USD", discountCode: "COMEBACK", amount: 349.3 };
+
+    expect(retryOf(testDetails({ retry }))).toEqual({ href: "/buy?challenge=two-step-100k&code=COMEBACK", label: "Try again for 349.30 USD instead of 499.00" });
+    expect(retryOf(testDetails({ retry: { ...retry, discountCode: null, amount: null } }))).toEqual({ href: "/buy?challenge=two-step-100k", label: "Try again for 499.00 USD" });
+    expect(retryOf(testDetails())).toBeNull();
+  });
+
+  it("shows a funded account's consistency rule with its best day", () => {
+    const funded = testDetails({
+      account: {
+        ...testAccount,
+        funded: true,
+        stage: 2,
+        stageName: "Funded",
+        profitTarget: null,
+        nextPayout: {
+          canRequest: false,
+          refusal: "Your best day made 900.00, 90% of the profit.",
+          profit: 1_000,
+          profitSplitPercent: 80,
+          amount: 800,
+          tradingDays: 5,
+          minTradingDays: 0,
+          bestDayProfit: 900,
+          consistencyPercent: 40,
+        },
+      },
+      results: { ...testDetails().results, targetGained: null, targetRequired: null, targetPercent: null },
+    });
+
+    expect(objectivesOf(funded).find((o) => o.key === "consistency")).toMatchObject({ title: "Consistency", state: "warning", stateText: "Best day 90%" });
   });
 
   it("counts a funded account's trading days towards the next payout", () => {

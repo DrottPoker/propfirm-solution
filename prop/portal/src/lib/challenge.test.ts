@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Account } from "./api/types";
-import { canCancel, canOpenTerminal, deadlinesOf, floorLabel, floorsOf, kindOf, kindsOf, targetProgress } from "./challenge";
+import { canCancel, canOpenTerminal, deadlinesOf, floorLabel, floorsOf, kindOf, kindsOf, targetProgress, terminalAccountOf } from "./challenge";
 import { testDetails } from "./testAccounts";
 
 const account: Account = {
@@ -70,6 +70,15 @@ describe("actions", () => {
     expect(canOpenTerminal(account)).toBe(true);
     expect(canOpenTerminal({ ...account, status: "AwaitingFunding" })).toBe(false);
     expect(canOpenTerminal({ ...account, tradingAccountId: null })).toBe(false);
+  });
+
+  it("opens the terminal on the account it was on, or the newest that trades", () => {
+    const second = { ...account, id: "second", tradingAccountId: "demo-firm-1002-1" };
+    const ended = { ...account, id: "ended", status: "Failed" as const, tradingAccountId: "demo-firm-1003-1" };
+    expect(terminalAccountOf([second, account], "demo-firm-1001-1")?.id).toBe(account.id);
+    expect(terminalAccountOf([ended, second, account], "demo-firm-1003-1")?.id).toBe("second");
+    expect(terminalAccountOf([second, account], null)?.id).toBe("second");
+    expect(terminalAccountOf([ended], null)).toBeNull();
   });
 
   it("cancels anything that has not already ended", () => {

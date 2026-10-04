@@ -13,7 +13,8 @@ public sealed record ChargeLine(string Description, int Quantity, decimal Amount
 /// <summary>
 /// What a firm pays us, from the configuration: the currency, the startup fee, the monthly package and the slots
 /// it includes, the prices of slots beyond it, and the deposit paid for our review, which is taken off the startup
-/// fee.
+/// fee. The prices are without VAT, which is <paramref name="VatPercent"/> for firms that pay it, by
+/// <paramref name="SellerCountry"/>, where we are.
 /// </summary>
 internal sealed record BillingTerms(
     string Currency,
@@ -23,7 +24,9 @@ internal sealed record BillingTerms(
     IReadOnlyList<SlotPrice> SlotPrices,
     int MaxSlots,
     int ChargeDaysBeforeMonth,
-    decimal ReviewDeposit)
+    decimal ReviewDeposit,
+    decimal VatPercent = 25,
+    string SellerCountry = "SE")
 {
     public static BillingTerms From(BillingOptions options) =>
         new(
@@ -34,7 +37,9 @@ internal sealed record BillingTerms(
             [.. options.SlotPrices.Select(p => new SlotPrice(p.From, p.Price))],
             options.MaxSlots,
             options.ChargeDaysBeforeMonth,
-            options.ReviewDeposit);
+            options.ReviewDeposit,
+            options.VatPercent,
+            options.Seller.Country);
 
     /// <summary>
     /// The slots a month is charged for: the firm's choice, but never fewer than the package includes or than its
@@ -83,6 +88,16 @@ internal sealed record BillingTerms(
             problems.Add("Billing:ChargeDaysBeforeMonth must be 0 to 27.");
         }
 
+        if (VatPercent is < 0 or >= 100 || decimal.Round(VatPercent, 2) != VatPercent)
+        {
+            problems.Add("Billing:VatPercent must be 0 to under 100, with at most two decimals.");
+        }
+
+        if (SellerCountry.Length != 2 || !SellerCountry.All(char.IsAsciiLetterUpper))
+        {
+            problems.Add("Billing:Seller:Country must be a two-letter country code, for example SE.");
+        }
+
         return problems;
     }
 }
@@ -106,6 +121,20 @@ internal static class BillingRules
     public static DateTimeOffset ChargeTimeOf(DateOnly month, int daysBefore) => StartOf(month).AddDays(-daysBefore);
 
     public static string NameOf(DateOnly month) => month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    /// <summary>A paid charge's invoice number, in the firm's own series, for example ACME-0003.</summary>
+    public static string InvoiceOf(string firmId, long number) => string.Create(CultureInfo.InvariantCulture, $"{firmId.ToUpperInvariant()}-{number:D4}");
+
+    /// <summary>
+    /// What one more round of automatic expansion would cost: the monthly price of <paramref name="step"/> more slots, at
+    /// most up to the most a firm can have, and the part of it for the rest of the month when it happens at the time.
+    /// </summary>
+    public static (int Added, decimal Monthly, decimal RestOfMonth) Expansion(DateTimeOffset time, int slots, int step, BillingTerms terms)
+    {
+        var added = Math.Max(0, Math.Min(slots + step, terms.MaxSlots) - slots);
+        var monthly = MonthlyPrice(slots + added, terms) - MonthlyPrice(slots, terms);
+        return (added, monthly, ForRestOfMonth(monthly, time));
+    }
 
     /// <summary>A month's price of the slots: the package, and each slot beyond it at the price of the tier it falls in.</summary>
     public static decimal MonthlyPrice(int slots, BillingTerms terms) => terms.PackagePrice + ExtraSlotsPrice(slots, terms);

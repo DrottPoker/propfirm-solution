@@ -20,7 +20,10 @@ public enum FirmStatus
 /// <summary>
 /// A firm on the prop platform. <paramref name="ApiKeyHash"/> is empty until the firm makes a key for its own
 /// systems, and <paramref name="Trading"/> until its server on the trading platform exists.
-/// <paramref name="Suspension"/> is set while we have suspended the firm.
+/// <paramref name="Suspension"/> is set while we have suspended the firm. <paramref name="EmailSettings"/> are the
+/// notification emails the firm turned on or off by kind; a kind that is missing is on. <paramref name="AccountCurrency"/>
+/// is the currency of the accounts the firm chose, which its server on the trading platform is created with.
+/// <paramref name="SupportEmail"/> is where replies to the emails to its traders go.
 /// </summary>
 internal sealed record Firm(
     string Id,
@@ -31,7 +34,10 @@ internal sealed record Firm(
     FirmWebhook? Webhook,
     FirmPortal Portal,
     FirmPayments Payments,
-    FirmSuspension? Suspension);
+    FirmSuspension? Suspension,
+    IReadOnlyDictionary<string, bool>? EmailSettings = null,
+    string AccountCurrency = "USD",
+    string? SupportEmail = null);
 
 /// <summary>We suspended the firm, for a reason its administrators see (ADR 0021).</summary>
 internal sealed record FirmSuspension(DateTimeOffset At, string Reason);

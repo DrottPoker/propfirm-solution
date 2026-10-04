@@ -37,19 +37,26 @@ export function summarizeDay(candles: readonly Candle[], nowMs: number): DaySumm
   };
 }
 
+/**
+ * The fewest bars the sparkline is drawn from: two hours. A line of a few bars says little, and its color flips with
+ * every price, for example for a symbol the service has only just started to price.
+ */
+export const minSparklineBars = 8;
+
 export interface DayFigures {
   /** Bid change over 24 hours, null without a reference. */
   change: number | null;
   changePercent: number | null;
   high: number | null;
   low: number | null;
-  /** Sparkline points ending with the live bid. */
+  /** Sparkline points ending with the live bid, or none while there are fewer than {@link minSparklineBars} bars. */
   points: number[];
 }
 
 /** Combines the summary with the live bid, which can be a new high or low. */
 export function dayFigures(summary: DaySummary | undefined, bid: number | undefined): DayFigures {
   const reference = summary?.reference ?? null;
+  const closes = summary?.closes ?? [];
   const highs = [summary?.high, bid].filter((v): v is number => v != null);
   const lows = [summary?.low, bid].filter((v): v is number => v != null);
   const change = reference !== null && bid !== undefined ? bid - reference : null;
@@ -58,6 +65,6 @@ export function dayFigures(summary: DaySummary | undefined, bid: number | undefi
     changePercent: change !== null && reference ? (change / reference) * 100 : null,
     high: highs.length > 0 ? Math.max(...highs) : null,
     low: lows.length > 0 ? Math.min(...lows) : null,
-    points: bid !== undefined ? [...(summary?.closes ?? []), bid] : (summary?.closes ?? []),
+    points: closes.length < minSparklineBars ? [] : bid !== undefined ? [...closes, bid] : closes,
   };
 }

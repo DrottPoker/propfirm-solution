@@ -6,9 +6,11 @@ import {
   createChart,
   HistogramSeries,
   LineStyle,
+  TickMarkType,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -18,11 +20,13 @@ import type { InstrumentInfo, Timeframe } from "@/lib/api/types";
 import { applyPrice, timeframes, toBar, type Bar } from "@/lib/candles";
 import { chartTrades } from "@/lib/chartTrades";
 import { dayFigures } from "@/lib/daySummary";
-import { formatPrice, formatSignedPercent, formatSignedPrice } from "@/lib/format";
+import { rejectionText } from "@/lib/events";
+import { formatChartTick, formatMinute, formatPrice, formatSignedPercent, formatSignedPrice, timeZoneName, type ChartTick } from "@/lib/format";
 import { spreadPoints } from "@/lib/instruments";
 import { useOrderDraft, type GhostLine } from "@/lib/orderDraft";
 import { useCandles, useDaySummary, useModifyStops, usePointValue } from "@/lib/queries";
 import { useTradingStore } from "@/lib/store";
+import { useTimeZone } from "@/lib/timeZone";
 
 import { CollapseIcon, ExpandIcon } from "./icons";
 import { KeepInView } from "./KeepInView";
@@ -30,6 +34,14 @@ import { PriceMenu, type MenuPlacement, type StopLineRef } from "./PriceMenu";
 import { grabDistance, StopHandles, usePositionLines } from "./positionLines";
 import { SymbolIcon } from "./SymbolIcon";
 import { TradeMarkers } from "./TradeMarkers";
+
+const chartTicks: Record<TickMarkType, ChartTick> = {
+  [TickMarkType.Year]: "year",
+  [TickMarkType.Month]: "month",
+  [TickMarkType.DayOfMonth]: "day",
+  [TickMarkType.Time]: "time",
+  [TickMarkType.TimeWithSeconds]: "seconds",
+};
 
 // The chart's own defaults, set explicitly so Reset chart knows where to go back to.
 const defaultBarSpacing = 6;
@@ -91,6 +103,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
 
   const symbol = instrument?.symbol ?? null;
   const candles = useCandles(accountId, symbol, timeframe);
+  const timeZone = useTimeZone();
 
   // The chart lives as long as the component.
   useEffect(() => {
@@ -157,6 +170,16 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     };
   }, []);
 
+  // Bars stay in UTC seconds; only the labels are in the account's time zone, like every other time on screen.
+  useEffect(() => {
+    chartRef.current?.applyOptions({
+      localization: { timeFormatter: (time: Time) => (typeof time === "number" ? formatMinute(new Date(time * 1000), timeZone) : String(time)) },
+      timeScale: {
+        tickMarkFormatter: (time: Time, tick: TickMarkType) => (typeof time === "number" ? formatChartTick(time, chartTicks[tick], timeZone) : null),
+      },
+    });
+  }, [timeZone]);
+
   useEffect(() => {
     if (instrument) {
       seriesRef.current?.applyOptions({
@@ -221,7 +244,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   const modifyStops = (positionId: string, stopLoss: number | null, takeProfit: number | null) =>
     modify.mutate(
       { positionId, stopLoss, takeProfit },
-      { onError: (e) => showMessage(e instanceof CommandRejectedError ? `Rejected: ${e.reason}` : "Could not reach the trading service.") },
+      { onError: (e) => showMessage(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.") },
     );
   useTradeMarkers(markersRef, symbol, timeframe);
 
@@ -241,8 +264,8 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
             {tf}
           </button>
         ))}
-        <span className="ml-auto text-muted" title="Candles show the bid. Times are in UTC.">
-          Bid · UTC
+        <span className="ml-auto text-muted" title={`Candles show the bid. Times are in ${timeZone}, the time zone of the account's trading day.`}>
+          Bid · {timeZoneName(timeZone)}
         </span>
         <button
           type="button"

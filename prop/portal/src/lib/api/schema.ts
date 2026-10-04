@@ -1043,6 +1043,386 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/invites/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/me/confirm-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/password-reset/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkCheckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/password-reset/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkCheckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/invites/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkCheckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/invites/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkCheckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/logout": {
         parameters: {
             query?: never;
@@ -1140,6 +1520,45 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/shop/discount": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DiscountQuoteRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscountQuoteResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1263,6 +1682,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/orders/{orderId}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OrderPasswordRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/orders/{orderId}/test-payment": {
         parameters: {
             query?: never;
@@ -1332,6 +1792,64 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/payout-method": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutMethodResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PayoutMethod"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutMethodResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -2275,7 +2793,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/portal/admin/accounts/{accountId}/email-trader": {
+    "/api/portal/admin/accounts/{accountId}/trader/checks/{item}": {
         parameters: {
             query?: never;
             header?: never;
@@ -2283,6 +2801,69 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    item: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TraderCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderCheckResponse"][];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/email-trader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderEmailPreviewResponse"];
+                    };
+                };
+            };
+        };
         put?: never;
         post: {
             parameters: {
@@ -2612,6 +3193,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/firm/email-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["EmailSettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/support-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SupportEmailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/firm/logo": {
         parameters: {
             query?: never;
@@ -2714,7 +3373,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["WebhookOverviewResponse"];
+                    };
+                };
+            };
+        };
         put: {
             parameters: {
                 query?: never;
@@ -2740,6 +3418,39 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/webhook/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2931,6 +3642,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/admins/invites/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AdminInviteRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/admins/{adminId}": {
         parameters: {
             query?: never;
@@ -2961,6 +3709,64 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/trading-conditions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradingConditionsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TradingConditionsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradingConditionsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3238,6 +4044,250 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/discounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscountCodeResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DiscountCodeRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DiscountCodeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/discounts/{codeId}/active": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    codeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DiscountActiveRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/discounts/{codeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    codeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DomainResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DomainRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DomainResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DomainResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/domain/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DomainResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/billing": {
         parameters: {
             query?: never;
@@ -3284,6 +4334,7 @@ export interface paths {
             parameters: {
                 query: {
                     slots: number;
+                    expandBy?: number;
                 };
                 header?: never;
                 path?: never;
@@ -3530,6 +4581,41 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/billing/charges/{chargeId}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    chargeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3975,6 +5061,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/login-help": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/ops": {
         parameters: {
             query?: never;
@@ -4029,6 +5152,121 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["PortalLoginRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsMeResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequest"];
+                };
+            };
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/password-reset/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LinkCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LinkCheckResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptInviteRequest"];
                 };
             };
             responses: {
@@ -4602,7 +5840,8 @@ export interface components {
          * @description An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought
          *     with, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it
          *     ended, and its payouts, newest first. HistoryVersion changes whenever the account's trading
-         *     history or the rule engine's steps do, so the portal asks for the history again only then.
+         *     history or the rule engine's steps do, so the portal asks for the history again only then. Retry
+         *     is how a failed challenge can be tried again.
          */
         AccountDetailsResponse: {
             account: components["schemas"]["AccountResponse"];
@@ -4616,6 +5855,7 @@ export interface components {
             endedAt: null | string;
             payouts: components["schemas"]["PayoutResponse"][];
             historyVersion: string;
+            retry?: null | components["schemas"]["RetryOffer"];
         };
         /**
          * @description Which accounts the admin panel lists. Evaluation and funded accounts are those trading or opening their trading account.
@@ -4738,8 +5978,8 @@ export interface components {
             activity: components["schemas"]["ActivityResponse"][];
         };
         /**
-         * @description A payout as the admin panel lists it: the payout, its challenge's name, and how many payouts the account had paid
-         *     before it was asked for, and how much.
+         * @description A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid
+         *     before it was asked for, and how much, and whether the firm has done every check of the trader.
          */
         AdminPayoutResponse: {
             payout: components["schemas"]["PayoutResponse"];
@@ -4748,6 +5988,8 @@ export interface components {
             paidBefore: number;
             /** Format: double */
             paidBeforeAmount: number;
+            /** @default false */
+            traderChecked: boolean;
         };
         /** @description IsYou marks the administrator who asked. */
         AdminResponse: {
@@ -4772,10 +6014,12 @@ export interface components {
             /** Format: int32 */
             step: null | number;
         };
+        /** @description Whether the short name can be chosen, and when it is taken or reserved up to three free names like it. */
         AvailabilityResponse: {
             firmId: string;
             available: boolean;
             reason: null | string;
+            suggestions: string[];
         };
         /**
          * @description What changed a trading account's balance.
@@ -4803,8 +6047,12 @@ export interface components {
          * @description The firm's billing for its admin panel. Plan is null until the firm has started paying.
          *     NextMonthSlots is what a paying firm is charged for from the next unpaid month.
          *     GoLiveProblem says why a firm in the sandbox cannot go live by paying now, and
-         *     Review where our review of it is. DepositPaid is taken off the startup fee.
-         *     Suspension is set while we have suspended the firm.
+         *     Review where our review of it is, null before the firm has saved an application.
+         *     ShopProblem says why the shop takes no payment once the firm is live: in the sandbox before it goes
+         *     live, and for a live firm while its shop sells nothing.
+         *     DepositPaid is taken off the startup fee, without VAT. Vat is how VAT applies to
+         *     the firm's charges now, from its application. SandboxAccounts are the test accounts that end when
+         *     the firm goes live. Suspension is set while we have suspended the firm.
          */
         BillingResponse: {
             status: components["schemas"]["FirmStatus"];
@@ -4826,6 +6074,10 @@ export interface components {
             /** Format: double */
             depositPaid: number;
             suspension: null | components["schemas"]["SuspensionResponse"];
+            shopProblem: null | string;
+            vat: components["schemas"]["VatResponse"];
+            /** Format: int32 */
+            sandboxAccounts: number;
         };
         /** @description The portal's colors to override, as #rrggbb. The logo is uploaded on its own. */
         BrandingRequest: {
@@ -4842,7 +6094,24 @@ export interface components {
             };
             status: components["schemas"]["FirmStatus"];
         };
-        /** @description What the trading platform recorded when a floor was breached. */
+        /** @description A position a breach closed: at ClosePrice, with Profit before the Commission for closing it. */
+        BreachClose: {
+            symbol: string;
+            side: components["schemas"]["TradeSide"];
+            /** Format: double */
+            volume: number;
+            /** Format: double */
+            closePrice: number;
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            commission: number;
+        };
+        /**
+         * @description What the trading platform recorded when a floor was breached. Closes are the positions the breach
+         *     closed, at the next price and with the commission for closing them, and BalanceAfter the balance
+         *     they left, which is why it can end below the floor.
+         */
         BreachEvidence: {
             /** Format: date-time */
             time: string;
@@ -4852,11 +6121,17 @@ export interface components {
             /** Format: double */
             equity: number;
             reason: components["schemas"]["FailureReason"];
+            closes?: null | components["schemas"]["BreachClose"][];
+            /** Format: double */
+            balanceAfter?: null | number;
         };
         /**
-         * @description The order as its buyer sees it. CheckoutUrl is set while it waits for payment.
+         * @description The order as its buyer sees it, with the price before its DiscountCode as ListAmount.
+         *     CheckoutUrl is set while it waits for payment.
          *     CanLogIn means the trader already has a password for the portal.
          *     InviteSentAt is when the platform last emailed an invitation to choose one.
+         *     CanChoosePassword means the buyer can choose the password right on the order's page: the order
+         *     started the trader's only account, and the trader has no password yet.
          */
         BuyerOrderResponse: {
             /** Format: uuid */
@@ -4879,6 +6154,10 @@ export interface components {
             canLogIn: boolean;
             /** Format: date-time */
             inviteSentAt: null | string;
+            canChoosePassword: boolean;
+            discountCode?: null | string;
+            /** Format: double */
+            listAmount?: null | number;
         };
         CancelAccountRequest: {
             reason: null | string;
@@ -4894,7 +6173,8 @@ export interface components {
         };
         /**
          * @description A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go
-         *     through the evaluation stages in order and then trade a funded account. Every challenge keeps the
+         *     through the evaluation stages in order and then trade a funded account. Without evaluation stages the trader is
+         *     funded from the start, which firms sell as instant funding. Every challenge keeps the
          *     definition it was bought with, so later changes by the firm never affect it. With
          *     InactivityDays, a challenge ends when no position was opened for that many days, in
          *     every stage including the funded one.
@@ -4953,8 +6233,10 @@ export interface components {
             amount: number;
         };
         /**
-         * @description A charge. CanPay is set for an unpaid monthly charge, which the firm can try again or pay
-         *     on a checkout page. Failure is why the card was declined last.
+         * @description A charge. Lines add up to NetAmount, without VAT, and Amount
+         *     is what is paid, with VatAmount. Invoice is the invoice number once it is paid,
+         *     and the invoice is a PDF at its own address. CanPay is set for an unpaid monthly charge, which the
+         *     firm can try again or pay on a checkout page. Failure is why the card was declined last.
          */
         ChargeResponse: {
             /** Format: uuid */
@@ -4969,8 +6251,16 @@ export interface components {
             slots: number;
             lines: components["schemas"]["ChargeLine"][];
             /** Format: double */
+            netAmount: number;
+            vatTreatment: components["schemas"]["VatTreatment"];
+            /** Format: double */
+            vatPercent: number;
+            /** Format: double */
+            vatAmount: number;
+            /** Format: double */
             amount: number;
             currency: string;
+            invoice: null | string;
             failure: null | string;
             /** Format: int32 */
             attempts: number;
@@ -5007,12 +6297,17 @@ export interface components {
         };
         /**
          * @description Buys the challenge. A logged-in trader buys with their own email, and Email is then not
-         *     used. AcceptTerms is needed when the firm has terms.
+         *     used. Name and Country, a two-letter code, are the buyer's; a logged-in trader
+         *     who gave them before need not again. AcceptTerms is needed when the firm has terms.
+         *     DiscountCode is one of the firm's codes, or empty for none.
          */
         CreateOrderRequest: {
             challengeId: null | string;
             email: null | string;
             acceptTerms: boolean;
+            name?: null | string;
+            country?: null | string;
+            discountCode?: null | string;
         };
         /**
          * @description Where the daily loss limit starts from when a trading day starts.
@@ -5051,6 +6346,75 @@ export interface components {
             currency: string;
             paid: boolean;
         };
+        /** @description Turns a discount code on or off. */
+        DiscountActiveRequest: {
+            active: boolean;
+        };
+        /**
+         * @description A new discount code. PercentOff or AmountOff in Currency,
+         *     for the challenges in ChallengeIds or every one when empty, at most MaxUses
+         *     times and until ExpiresAt when given. ForRetries keeps it for buyers whose
+         *     earlier challenge at the firm failed.
+         */
+        DiscountCodeRequest: {
+            code: null | string;
+            /** Format: double */
+            percentOff: null | number;
+            /** Format: double */
+            amountOff: null | number;
+            currency: null | string;
+            challengeIds: null | string[];
+            /** Format: int32 */
+            maxUses: null | number;
+            /** Format: date-time */
+            expiresAt: null | string;
+            forRetries: boolean;
+        };
+        /** @description A discount code and how often it was used. Uses counts paid orders and orders waiting for payment. */
+        DiscountCodeResponse: {
+            /** Format: uuid */
+            id: string;
+            code: string;
+            /** Format: double */
+            percentOff: null | number;
+            /** Format: double */
+            amountOff: null | number;
+            currency: null | string;
+            challengeIds: null | string[];
+            /** Format: int32 */
+            maxUses: null | number;
+            /** Format: int32 */
+            uses: number;
+            /** Format: date-time */
+            expiresAt: null | string;
+            forRetries: boolean;
+            active: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description A discount code the buyer typed, for the challenge, and the buyer's email when it is known yet. */
+        DiscountQuoteRequest: {
+            code: null | string;
+            challengeId: null | string;
+            email?: null | string;
+        };
+        /**
+         * @description What the challenge costs with the code: ListAmount before it, Discount off and
+         *     Amount to pay. ForRetries means only a buyer whose earlier challenge at the firm
+         *     failed can use it.
+         */
+        DiscountQuoteResponse: {
+            code: string;
+            challengeId: string;
+            /** Format: double */
+            listAmount: number;
+            /** Format: double */
+            discount: number;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            forRetries: boolean;
+        };
         /** @description A document added to the application. Its content is fetched on its own. */
         DocumentResponse: {
             /** Format: uuid */
@@ -5061,6 +6425,51 @@ export interface components {
             size: number;
             /** Format: date-time */
             uploadedAt: string;
+        };
+        /** @description The domain the firm wants its portal on, such as portal.yourfirm.com. */
+        DomainRequest: {
+            domain: null | string;
+        };
+        /**
+         * @description The firm's own domain and the DNS records it needs: a CNAME record to CnameTarget, and a TXT record
+         *     named TxtName with TxtValue. Problem says what the last lookup,
+         *     at CheckedAt, missed. Available is false while own domains are not on.
+         */
+        DomainResponse: {
+            available: boolean;
+            domain: null | string;
+            status: null | components["schemas"]["DomainStatus"];
+            cnameTarget: string;
+            txtName: null | string;
+            txtValue: null | string;
+            /** Format: date-time */
+            checkedAt: null | string;
+            /** Format: date-time */
+            activeAt: null | string;
+            problem: null | string;
+        };
+        /** @enum {unknown} */
+        DomainStatus: "Pending" | "Active" | null;
+        /** @description Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting. */
+        EmailSettingsRequest: {
+            settings: null | {
+                [key: string]: boolean;
+            };
+        };
+        /**
+         * @description One round of automatic expansion from the slots in the quote: Slots more, for
+         *     MonthlyPrice more a month, and RestOfMonth for the rest of
+         *     Month if it happens today. Without VAT.
+         */
+        ExpansionResponse: {
+            /** Format: int32 */
+            slots: number;
+            /** Format: double */
+            monthlyPrice: number;
+            /** Format: double */
+            restOfMonth: number;
+            /** Format: date */
+            month: string;
         };
         /** @description The challenge ran out of time when trading day Day started, after its time limit or the days allowed without a new position. */
         ExpiryEvidence: {
@@ -5074,6 +6483,11 @@ export interface components {
         ExpiryReason: "TimeLimit" | "Inactivity";
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
+        /** @description What is wrong with a field of the application. */
+        FieldProblem: {
+            field: string;
+            problem: string;
+        };
         /**
          * @description The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be
          *     empty in a draft. What is required is checked when the application is sent. A company in the EU gives its
@@ -5102,7 +6516,10 @@ export interface components {
         };
         /**
          * @description The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in
-         *     the sandbox. Payments is how its portal takes payment.
+         *     the sandbox. Payments is how its portal takes payment. EmailSettings has every
+         *     notification email by kind, and whether the firm sends it, and SupportEmail is where replies to the
+         *     emails to its traders go. FirmApiUrl is where the firm's own systems reach the firm API, and
+         *     OpenApiUrl its description for code generators.
          */
         FirmSettingsResponse: {
             id: string;
@@ -5122,6 +6539,14 @@ export interface components {
             /** Format: int32 */
             sandboxMaxOpenAccounts: null | number;
             payments: components["schemas"]["PaymentSettingsResponse"];
+            emailSettings: {
+                [key: string]: boolean;
+            };
+            /** Format: uri */
+            firmApiUrl: string;
+            /** Format: uri */
+            openApiUrl: string;
+            supportEmail: null | string;
         };
         /**
          * @description Where a firm is on its way from sign-up to live (ADR 0017).
@@ -5159,6 +6584,24 @@ export interface components {
             expiresAt: string;
         };
         JsonElement: unknown;
+        /** @description The token from a link in an email. */
+        LinkCheckRequest: {
+            token: null | string;
+        };
+        /**
+         * @description Whether a link from an email still works and whose it is. HasPassword tells whether the person can
+         *     already log in, for example after using the invitation once.
+         */
+        LinkCheckResponse: {
+            status: components["schemas"]["LinkStatus"];
+            email: string;
+            hasPassword: boolean;
+        };
+        /**
+         * @description What a one-time link from an email is worth when it is opened.
+         * @enum {unknown}
+         */
+        LinkStatus: "Valid" | "Used" | "Expired";
         /** @description The trading account valued at the latest prices. Missing when the trading platform cannot be reached. */
         LiveFigures: {
             /** Format: double */
@@ -5196,7 +6639,7 @@ export interface components {
             /** Format: double */
             amount: number;
         };
-        /** @description The month charged next: when, for how many slots and how much. */
+        /** @description The month charged next: when, for how many slots and how much, without VAT and with it. */
         NextChargeResponse: {
             /** Format: date */
             month: string;
@@ -5204,6 +6647,10 @@ export interface components {
             chargeAt: string;
             /** Format: int32 */
             slots: number;
+            /** Format: double */
+            netAmount: number;
+            /** Format: double */
+            vatAmount: number;
             /** Format: double */
             amount: number;
         };
@@ -5609,11 +7056,17 @@ export interface components {
             source: string;
             detail: null | components["schemas"]["JsonElement"];
         };
+        /** @description The password the buyer chooses on the order's page, with the token from the link to the order. */
+        OrderPasswordRequest: {
+            token: null | string;
+            password: null | string;
+        };
         /**
-         * @description A purchase of a challenge in the firm's portal. AccountId is the account the payment
-         *     started, and Problem says why a paid order has none. RefundedAt and
+         * @description A purchase of a challenge in the firm's portal, with the buyer's name and country as given in the shop.
+         *     AccountId is the account the payment started, and Problem says why a paid order has none. RefundedAt and
          *     DisputedAt are set when the provider reports a refund or a dispute. The account is not
-         *     touched then: the firm decides whether to cancel it.
+         *     touched then: the firm decides whether to cancel it. With a DiscountCode, ListAmount
+         *     is the price before it and Amount what the buyer pays.
          */
         OrderResponse: {
             /** Format: uuid */
@@ -5641,6 +7094,11 @@ export interface components {
             refundedAt: null | string;
             /** Format: date-time */
             disputedAt: null | string;
+            buyerName: null | string;
+            buyerCountry: null | string;
+            discountCode?: null | string;
+            /** Format: double */
+            listAmount?: null | number;
         };
         /**
          * @description Where a purchase in the portal is. A pending order past its time counts as expired, but a payment that arrives later still counts.
@@ -5671,6 +7129,10 @@ export interface components {
             /** Format: int32 */
             ended: number;
         };
+        /** @description The email of the person who forgot the password. */
+        PasswordResetRequest: {
+            email: null | string;
+        };
         /**
          * @description Who takes the trader's money when a challenge is bought in the firm's portal (ADR 0019).
          * @enum {unknown}
@@ -5678,7 +7140,9 @@ export interface components {
         PaymentProvider: "Test" | "Stripe" | "External";
         /**
          * @description The firm's choice of payment provider. The Stripe keys are kept when they are left empty, and are never shown
-         *     again. CheckoutUrl is the firm's own checkout page, for External. Empty URLs mean none.
+         *     again. With only StripeSecretKey, we set up the webhook in the firm's Stripe account; with
+         *     StripeWebhookSecret too, the firm added it itself. CheckoutUrl is the firm's
+         *     own checkout page, for External. Empty URLs mean none.
          */
         PaymentSettingsRequest: {
             provider: null | components["schemas"]["PaymentProvider"];
@@ -5689,8 +7153,9 @@ export interface components {
         };
         /**
          * @description How the firm's portal takes payment. Provider is what the firm chose, and
-         *     Active whether it works now: Stripe's live keys work only once the firm is live.
-         *     StripeWebhookUrl is where the firm points Stripe's webhook.
+         *     Active whether it works now: Stripe's live keys work only once the firm is live, and its test
+         *     keys only where test payments are allowed. StripeWebhookUrl and StripeWebhookEvents
+         *     are the webhook we set up in the firm's Stripe account, or that the firm adds itself.
          */
         PaymentSettingsResponse: {
             provider: null | components["schemas"]["PaymentProvider"];
@@ -5700,6 +7165,7 @@ export interface components {
             stripeTestMode: null | boolean;
             /** Format: uri */
             stripeWebhookUrl: string;
+            stripeWebhookEvents: string[];
             /** Format: uri */
             checkoutUrl: null | string;
             /** Format: uri */
@@ -5714,9 +7180,35 @@ export interface components {
             oldest: null | string;
         };
         /**
+         * @description How a trader wants to be paid (ADR 0026). For PayoutMethodKind.Bank: AccountHolder,
+         *     AccountNumber (an IBAN or a local account number) and optionally BankCode (BIC, SWIFT or
+         *     routing number) and BankName. For PayoutMethodKind.Crypto: Asset (for example
+         *     USDT), Network (for example TRC20) and Address. For PayoutMethodKind.Other:
+         *     Details. Fields of the other kinds are left out.
+         */
+        PayoutMethod: {
+            kind: components["schemas"]["PayoutMethodKind"];
+            accountHolder?: null | string;
+            accountNumber?: null | string;
+            bankCode?: null | string;
+            bankName?: null | string;
+            asset?: null | string;
+            network?: null | string;
+            address?: null | string;
+            details?: null | string;
+        };
+        /** @enum {unknown} */
+        PayoutMethodKind: "Bank" | "Crypto" | "Other";
+        /** @description The trader's payout method, or null before the trader has saved one. */
+        PayoutMethodResponse: {
+            method: null | components["schemas"]["PayoutMethod"];
+        };
+        /**
          * @description What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which
          *     is all withdrawn from the trading account. When CanRequest is false,
-         *     Refusal says why. Only for funded accounts.
+         *     Refusal says why. With a consistency rule, BestDayProfit is what the best
+         *     trading day since the last payout made, and ConsistencyPercent the most of the profit it may be.
+         *     Only for funded accounts.
          */
         PayoutQuoteResponse: {
             canRequest: boolean;
@@ -5731,10 +7223,15 @@ export interface components {
             tradingDays: number;
             /** Format: int32 */
             minTradingDays: number;
+            /** Format: double */
+            bestDayProfit?: null | number;
+            /** Format: double */
+            consistencyPercent?: null | number;
         };
         /**
          * @description A funded trader's payout. Profit was withdrawn from TradingAccountId,
          *     and the trader gets Amount. The firm approves it, sends the money itself and marks it as paid.
+         *     TimeZone is the challenge's, which the portal shows the account's times in.
          */
         PayoutResponse: {
             /** Format: uuid */
@@ -5767,6 +7264,9 @@ export interface components {
             failedAt: null | string;
             reason: null | string;
             reference: null | string;
+            payTo: null | components["schemas"]["PayoutMethod"];
+            profitReturned: boolean;
+            timeZone: string;
         };
         /** @enum {unknown} */
         PayoutStatus: "Withdrawing" | "Pending" | "Approved" | "Paid" | "Rejected" | "Failed";
@@ -5815,8 +7315,10 @@ export interface components {
             statistics: components["schemas"]["TradeStatisticsResponse"];
         };
         /**
-         * @description The platform, for the sign-up page: its name, the terms firms accept, the address new portals get
-         *     (FirmPortalUrl with {firm} for the short name), and whether the email is confirmed first.
+         * @description The platform, for its front page and the sign-up page: its name, the terms firms accept, the address new portals get
+         *     (FirmPortalUrl with {firm} for the short name), whether the email is confirmed first, what firms
+         *     pay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may
+         *     choose, the first by default. TermsVersion is recorded with the firm, not shown.
          */
         PlatformResponse: {
             name: string;
@@ -5829,18 +7331,29 @@ export interface components {
             /** Format: int32 */
             minimumPasswordLength: number;
             emailVerification: boolean;
+            prices: components["schemas"]["PricesResponse"];
+            /** Format: int32 */
+            sandboxMaxOpenAccounts: number;
+            currencies: string[];
         };
         PortalLoginRequest: {
             email: null | string;
             password: null | string;
         };
-        /** @description Who is logged in to the portal. Role is trader or admin. */
+        /**
+         * @description Who is logged in to the portal. Role is trader or admin. EmailConfirmed is false
+         *     for a trader who chose a password on an order's page and has not opened the link from the email since.
+         *     Name and Country are a trader's from buying, so the shop need not ask again.
+         */
         PortalMeResponse: {
             /** Format: uuid */
             userId: string;
             email: string;
             role: string;
             firmName: string;
+            emailConfirmed: boolean;
+            name: null | string;
+            country: null | string;
         };
         /** @description The price of a challenge in the portal, and whether it is sold there. */
         PriceRequest: {
@@ -5850,8 +7363,8 @@ export interface components {
             forSale: boolean;
         };
         /**
-         * @description What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the
-         *     slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
+         * @description What firms pay, without VAT: the startup fee, the deposit for our review that is taken off it, the monthly package with
+         *     the slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
          */
         PricesResponse: {
             currency: string;
@@ -5874,14 +7387,21 @@ export interface components {
         /** @enum {unknown} */
         QuoteKind: "Activation" | "MoreSlots" | "FewerSlots" | "Unchanged";
         /**
-         * @description What choosing a number of slots would cost: Lines paid now, and MonthlyPrice
-         *     for each month from From. Problem says why it cannot be chosen.
+         * @description What choosing a number of slots would cost: Lines paid now, which add up to
+         *     NetAmount without VAT, and Amount with it, and MonthlyPrice
+         *     without VAT for each month from From. Expansion is what one round of automatic
+         *     expansion would add, when asked for. Problem says why it cannot be chosen.
          */
         QuoteResponse: {
             kind: components["schemas"]["QuoteKind"];
             /** Format: int32 */
             slots: number;
             lines: components["schemas"]["ChargeLine"][];
+            /** Format: double */
+            netAmount: number;
+            vat: components["schemas"]["VatResponse"];
+            /** Format: double */
+            vatAmount: number;
             /** Format: double */
             amount: number;
             /** Format: double */
@@ -5890,9 +7410,16 @@ export interface components {
             from: null | string;
             currency: string;
             problem: null | string;
+            expansion: null | components["schemas"]["ExpansionResponse"];
         };
+        /**
+         * @description Why the payout is rejected, which the trader sees. With ReturnProfit, the withdrawn profit goes back on
+         *     the trader's account, for example while the firm waits for the trader's ID; otherwise it is forfeited.
+         */
         RejectPayoutRequest: {
             reason: null | string;
+            /** @default false */
+            returnProfit: boolean;
         };
         /**
          * @description The account's results, worked out by the service so that the portal only shows them. Balance
@@ -5931,6 +7458,19 @@ export interface components {
             targetPercent: null | number;
             /** Format: double */
             paidOut: number;
+        };
+        /**
+         * @description A new try at a failed challenge: the challenge is for sale at Price, and with the firm's
+         *     DiscountCode for retries, when it has one, at Amount.
+         */
+        RetryOffer: {
+            challengeId: string;
+            /** Format: double */
+            price: number;
+            currency: string;
+            discountCode: null | string;
+            /** Format: double */
+            amount: null | number;
         };
         /** @description Ticks or unticks one of our checks. */
         ReviewCheckRequest: {
@@ -5971,13 +7511,17 @@ export interface components {
             termsUrl: null | string;
             items: components["schemas"]["ShopItemResponse"][];
         };
-        /** @description FirmId is the short name: the portal's subdomain and the server on the trading platform. */
+        /**
+         * @description FirmId is the short name: the portal's subdomain and the server on the trading platform.
+         *     Currency is the currency of the firm's accounts, one of the platform's, or its first when left out.
+         */
         SignupRequest: {
             firmName: null | string;
             firmId: null | string;
             email: null | string;
             password: null | string;
             acceptTerms: boolean;
+            currency?: null | string;
         };
         /** @description Either the email with the confirmation link is sent, or the firm is created and AdminUrl logs its administrator in. */
         SignupResponse: {
@@ -6059,7 +7603,9 @@ export interface components {
          *     target with no open positions after at least MinTradingDays trading days, and within
          *     MaxDays days after the day it started when it has a time limit.
          *     The funded stage has no profit target and no time limit. Its trader gets ProfitSplitPercent
-         *     of the profit as a payout, after at least MinTradingDays trading days since the last one.
+         *     of the profit as a payout, after at least MinTradingDays trading days since the last one. With
+         *     ConsistencyPercent, the best trading day since the last payout may have made at most that share
+         *     of the profit, so a payout is not one lucky day.
          */
         StageRules: {
             name: string;
@@ -6073,6 +7619,8 @@ export interface components {
             profitSplitPercent?: null | number;
             /** Format: int32 */
             maxDays?: null | number;
+            /** Format: double */
+            consistencyPercent?: null | number;
         };
         /**
          * @description Starts a challenge for the trader with the email. Reference is the firm's own id, for
@@ -6097,6 +7645,10 @@ export interface components {
         SubmitResponse: {
             /** Format: uri */
             checkoutUrl: null | string;
+        };
+        /** @description Where replies to the emails to the firm's traders go. Empty for nowhere. */
+        SupportEmailRequest: {
+            email: null | string;
         };
         /** @description Why we suspend the firm. Its administrators see it. */
         SuspendRequest: {
@@ -6128,11 +7680,30 @@ export interface components {
             expiresAt: string;
             returnPath: string;
         };
+        /** @description Ticks a check of a trader, or takes the tick away. */
+        TraderCheckRequest: {
+            checked: boolean;
+        };
+        /** @description One of the firm's checks of a trader, such as "ID checked", and when and by whom it was ticked. Not ticked when CheckedAt is null. */
+        TraderCheckResponse: {
+            item: string;
+            label: string;
+            /** Format: date-time */
+            checkedAt: null | string;
+            checkedBy: null | string;
+        };
         /**
          * @description What the trader was emailed: an invitation to choose a password, or that the challenge has started.
          * @enum {unknown}
          */
         TraderEmailKind: "Invitation" | "Notice";
+        /** @description The email the firm is about to send the trader: to whom, what kind, its subject and its text. */
+        TraderEmailPreviewResponse: {
+            email: string;
+            kind: components["schemas"]["TraderEmailKind"];
+            subject: string;
+            body: string;
+        };
         TraderEmailResponse: {
             email: string;
             kind: components["schemas"]["TraderEmailKind"];
@@ -6170,12 +7741,15 @@ export interface components {
             totals: components["schemas"]["PayoutTotalResponse"][];
         };
         /**
-         * @description An account's trader as the firm sees them: since when, whether they have chosen a password for the portal, their
-         *     accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency, and
-         *     Order, the order that started the account asked about.
+         * @description An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have
+         *     chosen a password for the portal, their
+         *     accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,
+         *     Order, the order that started the account asked about, and the firm's Checks of them.
          */
         TraderSummaryResponse: {
             email: string;
+            name: null | string;
+            country: null | string;
             /** Format: date-time */
             since: string;
             hasPassword: boolean;
@@ -6185,6 +7759,7 @@ export interface components {
             bought: components["schemas"]["MoneyTotalResponse"][];
             paidOut: components["schemas"]["MoneyTotalResponse"][];
             order: null | components["schemas"]["OrderSummaryResponse"];
+            checks: components["schemas"]["TraderCheckResponse"][];
         };
         /**
          * @description Whether a position was a buy or a sell.
@@ -6227,15 +7802,68 @@ export interface components {
             /** Format: double */
             commission: number;
         };
+        /** @description The instruments the firm's traders should trade, each with its conditions. */
+        TradingConditionsRequest: {
+            symbols: null | components["schemas"]["TradingSymbolRequest"][];
+        };
+        /**
+         * @description The firm's trading conditions: the account currency, whether the firm can change them (not for a firm we set up in our
+         *     configuration), and every instrument on the platform.
+         */
+        TradingConditionsResponse: {
+            currency: string;
+            changeable: boolean;
+            symbols: components["schemas"]["TradingConditionsSymbol"][];
+        };
+        /**
+         * @description An instrument and whether the firm's traders trade it. Margin is the position's value divided by Leverage;
+         *     SpreadMarkupPoints are added to the price feed's spread; CommissionPerLotPerSide is charged
+         *     in the account currency on open and on close. The conditions are empty for an instrument that is not traded.
+         */
+        TradingConditionsSymbol: {
+            symbol: string;
+            baseCurrency: string;
+            quoteCurrency: string;
+            /** Format: double */
+            contractSize: number;
+            enabled: boolean;
+            /** Format: int32 */
+            leverage: null | number;
+            /** Format: int32 */
+            spreadMarkupPoints: null | number;
+            /** Format: double */
+            commissionPerLotPerSide: null | number;
+        };
         /** @description When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days. */
         TradingDayDefinition: {
             timeZone: string;
             /** Format: time */
             start: string;
         };
+        TradingSymbolRequest: {
+            symbol: string;
+            /** Format: int32 */
+            leverage: number;
+            /** Format: int32 */
+            spreadMarkupPoints: number;
+            /** Format: double */
+            commissionPerLotPerSide: number;
+        };
+        /** @description How VAT applies to the firm now, and the percent added to its charges. */
+        VatResponse: {
+            treatment: components["schemas"]["VatTreatment"];
+            /** Format: double */
+            percent: number;
+        };
+        /**
+         * @description How VAT applies to a charge (ADR 0032). Prices are without VAT, and we are a company in Billing:Seller:Country.
+         * @enum {unknown}
+         */
+        VatTreatment: "Charged" | "ReverseCharge" | "OutsideEu" | "NotRecorded";
         /**
          * @description The firm's review for its admin panel. Message is our latest word: the changes we need, or why
-         *     it was not approved. SubmitProblem says why the application cannot be sent now.
+         *     it was not approved. SubmitProblem says why the application cannot be sent now, and
+         *     Problems what is missing or wrong in each field of the saved application, while it can be changed.
          *     EuCountries are where the application gives a VAT number or says the company has none.
          */
         VerificationResponse: {
@@ -6255,6 +7883,7 @@ export interface components {
             /** Format: int32 */
             maxDocumentBytes: number;
             euCountries: string[];
+            problems: components["schemas"]["FieldProblem"][];
         };
         VerifySignupRequest: {
             token: null | string;
@@ -6264,6 +7893,38 @@ export interface components {
             firmId: string;
             /** Format: uri */
             adminUrl: string;
+        };
+        /**
+         * @description One webhook and how it went: `Delivered`, `Failed` after the last try, or `Pending` while it is tried
+         *     again, with the firm's last answer (LastStatus) or the error.
+         */
+        WebhookDeliveryResponse: {
+            /** Format: uuid */
+            id: string;
+            eventType: string;
+            /** Format: date-time */
+            createdAt: string;
+            status: string;
+            /** Format: int32 */
+            attempts: number;
+            /** Format: int32 */
+            lastStatus: null | number;
+            lastError: null | string;
+            /** Format: date-time */
+            deliveredAt: null | string;
+            /** Format: date-time */
+            nextAttemptAt: null | string;
+        };
+        WebhookEventResponse: {
+            type: string;
+            description: string;
+        };
+        /** @description Where webhooks go, every event they tell about, and the latest deliveries, the newest first. */
+        WebhookOverviewResponse: {
+            /** Format: uri */
+            url: null | string;
+            events: components["schemas"]["WebhookEventResponse"][];
+            deliveries: components["schemas"]["WebhookDeliveryResponse"][];
         };
         /** @description An https address for webhooks, or empty to turn them off. */
         WebhookRequest: {

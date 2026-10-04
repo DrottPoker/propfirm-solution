@@ -1,5 +1,5 @@
 import type { AccountDetails, ChallengeStatus, FloorFigure, StageSummary } from "./api/types";
-import { daysBetween, dayBefore, formatDate, formatDateTime, formatMoney } from "./format";
+import { daysBetween, dayBefore, formatDate, formatDateTime, formatMoney, formatPrice, formatShortDate } from "./format";
 
 // What the trader's dashboard shows, worked out from what Prop.Api sends. Money is only shown here, never
 // calculated: ratios decide colors, and dates decide how many days are left.
@@ -73,8 +73,20 @@ export function deadlineOf(details: AccountDetails, endsOn: string | null): Dead
   return { lastDay: dayBefore(endsOn), daysLeft: today ? daysBetween(today, endsOn) : null };
 }
 
-export function daysLeftText(daysLeft: number): string {
-  return daysLeft <= 0 ? "Ends today" : daysLeft === 1 ? "Last day" : `${daysLeft} days left`;
+/**
+ * A deadline as the trader acts on it, for example "Trade by 4 Nov (30 days)": the last day and the days from today until
+ * it, which is what the rule counts. The day the challenge would end is the day after.
+ */
+export function deadlineText(verb: string, due: Deadline): string {
+  if (due.daysLeft === null) {
+    return `${verb} by ${formatShortDate(due.lastDay)}`;
+  }
+
+  if (due.daysLeft <= 0) {
+    return "Ends today";
+  }
+
+  return due.daysLeft === 1 ? `${verb} today` : `${verb} by ${formatShortDate(due.lastDay)} (${due.daysLeft - 1} ${due.daysLeft === 2 ? "day" : "days"})`;
 }
 
 /** The two letters on the trader's menu button, from the email address. */
@@ -85,7 +97,7 @@ export function initials(email: string): string {
   return letters.toUpperCase() || "?";
 }
 
-/** The challenge's name with the account number, for example "Two-step 100000 USD · #1003". */
+/** The challenge's name with the account number, for example "Two-step 100K · #1003". */
 export function accountTitle(details: AccountDetails): string {
   return `${details.challenge.name} · #${details.account.number}`;
 }
@@ -144,6 +156,42 @@ export function endingText(details: AccountDetails): string {
   return details.account.status === "Cancelled" ? "cancelled by the firm" : "";
 }
 
+/**
+ * Why the balance of a breached account ended where it did, often below the limit: every open position was closed at
+ * the next price, and the commission for closing them was charged. Null when the breach closed nothing.
+ */
+export function breachClosesText(details: AccountDetails): string | null {
+  const closes = details.breach?.closes ?? [];
+  if (closes.length === 0) {
+    return null;
+  }
+
+  const prices = closes.map((c) => `${c.symbol} at ${formatPrice(c.closePrice)}`).join(", ");
+  const commission = closes.reduce((sum, c) => sum + c.commission, 0);
+  const charged = commission > 0 ? `, and ${formatMoney(commission)} in commission was charged for closing ${closes.length === 1 ? "it" : "them"}` : "";
+  const balance = details.breach?.balanceAfter;
+  return `Then every open position was closed at the next price (${prices})${charged}${balance == null ? "" : `, so the balance ended at ${formatMoney(balance)}`}.`;
+}
+
+/** Where a failed challenge is bought again, with the firm's code for retries when it has one, and what it costs. */
+export function retryOf(details: AccountDetails): { href: string; label: string } | null {
+  const retry = details.retry;
+  if (!retry) {
+    return null;
+  }
+
+  const params = new URLSearchParams({ challenge: retry.challengeId });
+  if (retry.discountCode) {
+    params.set("code", retry.discountCode);
+  }
+
+  const price = retry.amount ?? retry.price;
+  return {
+    href: `/buy?${params.toString()}`,
+    label: retry.discountCode && retry.amount != null ? `Try again for ${formatMoney(price)} ${retry.currency} instead of ${formatMoney(retry.price)}` : `Try again for ${formatMoney(price)} ${retry.currency}`,
+  };
+}
+
 /** Something on one of the trader's accounts that needs the trader's attention, most urgent first. */
 export type AttentionItem = {
   key: string;
@@ -179,7 +227,7 @@ export function attentionItems(accounts: AccountDetails[]): AttentionItem[] {
           title: `#${account.number} is ${formatMoney(floor.headroom)} ${account.currency} from its ${daily ? "daily" : "max"} loss limit.`,
           detail:
             daily && details.results.nextDayStartsAt
-              ? `Equity may not fall below ${formatMoney(floor.level)} today. The limit starts again ${formatDateTime(details.results.nextDayStartsAt)}.`
+              ? `Equity may not fall below ${formatMoney(floor.level)} today. The limit starts again ${formatDateTime(details.results.nextDayStartsAt, details.challenge.tradingDay.timeZone)}.`
               : `Equity may not fall below ${formatMoney(floor.level)}.`,
           action: "View",
         });
@@ -267,14 +315,24 @@ export function objectivesOf(details: AccountDetails): Objective[] {
 
   if (results.targetRequired != null && results.targetGained != null && results.targetPercent != null) {
     const reached = results.targetPercent >= 100;
-    objectives.push({
-      key: "target",
-      title: "Profit target",
-      state: reached ? "reached" : ended ? "info" : "progress",
-      stateText: reached ? "Reached" : ended ? "Not reached" : "In progress",
-      detail: `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}`,
-      progress: results.targetPercent,
-    });
+    objectives.push(
+      ended && !reached
+        ? {
+            key: "target",
+            title: "Profit target",
+            state: "info",
+            stateText: "Not reached",
+            detail: `The stage ended before the balance reached ${formatMoney(account.profitTarget)}.`,
+          }
+        : {
+            key: "target",
+            title: "Profit target",
+            state: reached ? "reached" : "progress",
+            stateText: reached ? "Reached" : "In progress",
+            detail: `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}`,
+            progress: results.targetPercent,
+          },
+    );
   }
 
   objectives.push(lossLimit(details, "daily", "Daily loss limit"));
@@ -282,6 +340,19 @@ export function objectivesOf(details: AccountDetails): Objective[] {
 
   if (account.funded) {
     const quote = account.nextPayout;
+    if (quote?.consistencyPercent != null && quote.bestDayProfit != null) {
+      // The best day may have made at most the share of the profit since the last payout.
+      const share = quote.profit > 0 ? Math.round((100 * quote.bestDayProfit) / quote.profit) : 0;
+      const kept = quote.profit <= 0 || share <= quote.consistencyPercent;
+      objectives.push({
+        key: "consistency",
+        title: "Consistency",
+        state: quote.profit <= 0 ? "info" : kept ? "kept" : "warning",
+        stateText: quote.profit <= 0 ? "" : `Best day ${share}%`,
+        detail: `For a payout, your best day may have made at most ${quote.consistencyPercent}% of the profit since the last one. Your best day made ${formatMoney(quote.bestDayProfit)}.`,
+      });
+    }
+
     if (quote && quote.minTradingDays > 0) {
       objectives.push({
         key: "days",
@@ -305,14 +376,16 @@ export function objectivesOf(details: AccountDetails): Objective[] {
 
   const timeLimit = deadlineOf(details, account.stageDeadline);
   if (timeLimit) {
-    objectives.push(deadline("time-limit", "Time limit", timeLimit, `Pass ${account.stageName} by ${formatDate(timeLimit.lastDay)}.`));
+    objectives.push(deadline("time-limit", "Time limit", "Pass", timeLimit, `Pass ${account.stageName} by ${formatDate(timeLimit.lastDay)}.`));
   } else if (details.expiry?.reason === "TimeLimit") {
     objectives.push({ key: "time-limit", title: "Time limit", state: "broken", stateText: "Ran out", detail: `The stage was not passed in time.` });
   }
 
   const inactivity = deadlineOf(details, account.inactivityDeadline);
   if (inactivity) {
-    objectives.push(deadline("activity", "Stay active", inactivity, `Open a new trade by ${formatDate(inactivity.lastDay)}.`));
+    objectives.push(
+      deadline("activity", "Stay active", "Trade", inactivity, `Open a new trade by ${formatDate(inactivity.lastDay)}. The challenge ends after ${details.challenge.inactivityDays} days without one.`),
+    );
   } else if (details.expiry?.reason === "Inactivity") {
     objectives.push({ key: "activity", title: "Stay active", state: "broken", stateText: "Ran out", detail: "No new trade was opened for too long." });
   }
@@ -324,7 +397,7 @@ export function objectivesOf(details: AccountDetails): Objective[] {
       title: "Loss limit",
       state: "broken",
       stateText: "Broken",
-      detail: `Equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)} on ${formatDateTime(breach.time)}.`,
+      detail: `Equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)} on ${formatDateTime(breach.time, details.challenge.tradingDay.timeZone)}.`,
     });
   }
 
@@ -339,14 +412,17 @@ function lossLimit(details: AccountDetails, floorId: string, title: string): Obj
       title,
       state: "broken",
       stateText: "Broken",
-      detail: `Equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)} on ${formatDateTime(breach.time)}.`,
+      detail: `Equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)} on ${formatDateTime(breach.time, details.challenge.tradingDay.timeZone)}.`,
     };
   }
 
   const floor = liveFloor(details, floorId);
   if (floor) {
     const state = floorState(floor);
-    const reset = floorId === "daily" && details.results.nextDayStartsAt ? ` It starts again ${formatDateTime(details.results.nextDayStartsAt)}.` : "";
+    const reset =
+      floorId === "daily" && details.results.nextDayStartsAt
+        ? ` It starts again ${formatDateTime(details.results.nextDayStartsAt, details.challenge.tradingDay.timeZone)}.`
+        : "";
     return {
       key: floorId,
       title,
@@ -366,13 +442,13 @@ function lossLimit(details: AccountDetails, floorId: string, title: string): Obj
   };
 }
 
-function deadline(key: string, title: string, due: Deadline, detail: string): Objective {
+function deadline(key: string, title: string, verb: string, due: Deadline, detail: string): Objective {
   const close = due.daysLeft != null && due.daysLeft <= deadlineWarningDays;
   return {
     key,
     title,
     state: close ? "warning" : "info",
-    stateText: due.daysLeft == null ? "" : daysLeftText(due.daysLeft),
+    stateText: deadlineText(verb, due),
     detail,
   };
 }

@@ -65,6 +65,7 @@ public sealed partial class TradingEngine
         {
             Quote quote => ApplyQuote(quote, events),
             CreateGroup command => ApplyCreateGroup(command, events),
+            ChangeGroupSymbols command => ApplyChangeGroupSymbols(command, events),
             CreateAccount command => ApplyCreateAccount(command, events),
             PlaceOrder command => ApplyPlaceOrder(command, events),
             CancelOrder command => ApplyCancelOrder(command, events),
@@ -106,6 +107,13 @@ public sealed partial class TradingEngine
     {
         ArgumentNullException.ThrowIfNull(groupId);
         return _groups.TryGetValue(groupId, out var group) ? group.ToDefinition() : null;
+    }
+
+    /// <summary>Whether the group was created with <see cref="CreateGroup"/>, so its symbols can be changed. False for configured and unknown groups.</summary>
+    public bool IsCreatedGroup(string groupId)
+    {
+        ArgumentNullException.ThrowIfNull(groupId);
+        return _groups.TryGetValue(groupId, out var group) && _createdGroups.Contains(group);
     }
 
     /// <summary>

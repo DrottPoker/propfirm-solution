@@ -1,15 +1,19 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ApiError, api, resultOf } from "./api/client";
+import { ApiError, api, ensureOk, resultOf } from "./api/client";
 import type {
   AccountGroup,
   ChallengeDefinition,
   FirmApplication,
   FirmSettings,
   FirmDocument,
+  FirmStatus,
   OrderStatus,
   PaymentProvider,
+  PayoutMethod,
   PayoutStatus,
+  TraderSummary,
+  TradingSymbolRequest,
   Verification,
   VerificationResponse,
 } from "./api/types";
@@ -81,6 +85,40 @@ export function useAcceptInvite() {
     onSuccess: (me) => {
       queryClient.clear();
       queryClient.setQueryData(meKey("trader"), me);
+    },
+  });
+}
+
+/**
+ * A trader who already chose a password, on an order's page, opens the link from the email: it confirms the email and
+ * logs the trader in.
+ */
+export function useConfirmInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const result = await api.POST("/api/portal/invites/confirm", { body: { token } });
+      if (result.response.status === 401) {
+        throw new ApiError("This link has expired or was already used. Log in, and ask for a new one in the portal.", 401);
+      }
+
+      return resultOf(result, "the confirmation");
+    },
+    onSuccess: (me) => {
+      queryClient.clear();
+      queryClient.setQueryData(meKey("trader"), me);
+    },
+  });
+}
+
+/** Emails the logged-in trader a new link that confirms the email. */
+export function useSendEmailConfirmation() {
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/api/portal/me/confirm-email");
+      if (!result.response.ok) {
+        resultOf(result, "the email");
+      }
     },
   });
 }
@@ -174,6 +212,23 @@ export function useMyPayouts() {
     queryKey: ["my-payouts"],
     queryFn: async () => resultOf(await api.GET("/api/portal/payouts"), "your payouts"),
     refetchInterval: liveRefreshMs,
+  });
+}
+
+/** How the trader wants to be paid, or null before the trader has said. */
+export function useMyPayoutMethod() {
+  return useQuery({
+    queryKey: ["my-payout-method"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/payout-method"), "how you get paid").method,
+  });
+}
+
+/** Saves how the trader wants to be paid. Payouts on their way keep the method they were asked for with. */
+export function useSavePayoutMethod() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (method: PayoutMethod) => resultOf(await api.PUT("/api/portal/payout-method", { body: method }), "how you get paid").method,
+    onSuccess: (method) => queryClient.setQueryData(["my-payout-method"], method),
   });
 }
 
@@ -278,6 +333,33 @@ export function useTraderSummary(accountId: string) {
   });
 }
 
+/** The email the firm would send the account's trader now, so it is seen before it goes. */
+export function useTraderEmailPreview(accountId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["trader-email", accountId],
+    enabled,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/accounts/{accountId}/email-trader", accountPath(accountId)), "the email"),
+  });
+}
+
+/** Ticks one of the firm's checks of the account's trader, such as that their ID was seen, or takes the tick away. */
+export function useSetTraderCheck(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (check: { item: string; checked: boolean }) =>
+      resultOf(
+        await api.PUT("/api/portal/admin/accounts/{accountId}/trader/checks/{item}", {
+          params: { path: { accountId, item: check.item } },
+          body: { checked: check.checked },
+        }),
+        "the check",
+      ),
+    // The answer has every check, so the card shows them at once.
+    onSuccess: (checks) => queryClient.setQueryData<TraderSummary>(["trader-summary", accountId], (old) => (old ? { ...old, checks } : old)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["firm-payouts"] }),
+  });
+}
+
 /** Emails the account's trader in the firm's name: an invitation to choose a password, or that the challenge has started. */
 export function useEmailTrader() {
   const queryClient = useQueryClient();
@@ -371,7 +453,7 @@ export function usePayoutSummary() {
 export type PayoutDecision =
   | { kind: "approve"; payoutId: string }
   | { kind: "mark-paid"; payoutId: string; reference: string }
-  | { kind: "reject"; payoutId: string; reason: string };
+  | { kind: "reject"; payoutId: string; reason: string; returnProfit: boolean };
 
 /** The firm approves a payout, marks it as paid or rejects it. Each answers with the payout as it is afterwards. */
 export function usePayoutDecision() {
@@ -389,7 +471,7 @@ export function usePayoutDecision() {
           );
         case "reject":
           return resultOf(
-            await api.POST("/api/portal/admin/payouts/{payoutId}/reject", { ...path, body: { reason: decision.reason || null } }),
+            await api.POST("/api/portal/admin/payouts/{payoutId}/reject", { ...path, body: { reason: decision.reason || null, returnProfit: decision.returnProfit } }),
             "the rejection",
           );
       }
@@ -410,6 +492,19 @@ export function usePayoutDecision() {
 export function useInvite(accountId: string) {
   return useMutation({
     mutationFn: async () => resultOf(await api.POST("/api/portal/admin/accounts/{accountId}/invite", accountPath(accountId)), "the invitation"),
+  });
+}
+
+/**
+ * Whether the firm is being set up, in the sandbox or live, asked again while it is not live: every two seconds while
+ * its trading server is being set up, otherwise every half minute.
+ */
+export function useFirmStatus(status: FirmStatus) {
+  return useQuery({
+    queryKey: ["firm-status"],
+    enabled: status !== "Live",
+    queryFn: async () => resultOf(await api.GET("/api/portal/branding"), "the firm").status,
+    refetchInterval: (query) => ((query.state.data ?? status) === "Provisioning" ? 2_000 : 30_000),
   });
 }
 
@@ -459,6 +554,44 @@ export function useRemoveLogo() {
   });
 }
 
+/** The instruments on the trading platform, with the firm's conditions for those its traders trade. */
+export function useTradingConditions(enabled = true) {
+  return useQuery({
+    queryKey: ["trading-conditions"],
+    enabled,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/trading-conditions"), "the trading conditions"),
+  });
+}
+
+/** The instruments the firm's traders trade, with their conditions. They apply at once to every account. */
+export function useSaveTradingConditions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (symbols: TradingSymbolRequest[]) =>
+      resultOf(await api.PUT("/api/portal/admin/trading-conditions", { body: { symbols } }), "the trading conditions"),
+    onSuccess: (conditions) => queryClient.setQueryData(["trading-conditions"], conditions),
+  });
+}
+
+/** Turns notification emails on or off, by kind. The kinds left out stay as they are. */
+export function useSaveEmailSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: Record<string, boolean>) =>
+      resultOf(await api.PUT("/api/portal/admin/firm/email-settings", { body: { settings } }), "the email settings"),
+    onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
+/** Where replies to the emails to the firm's traders go. Empty for nowhere. */
+export function useSaveSupportEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => resultOf(await api.PUT("/api/portal/admin/firm/support-email", { body: { email } }), "the support address"),
+    onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
 /** A new key for the firm API. It is shown once, and the old key stops working. */
 export function useNewApiKey() {
   const queryClient = useQueryClient();
@@ -473,7 +606,25 @@ export function useSaveWebhook() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (url: string) => resultOf(await api.PUT("/api/portal/admin/firm/webhook", { body: { url: url.trim() || null } }), "the webhook"),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["firm-settings"] }),
+    onSettled: () => Promise.all([queryClient.invalidateQueries({ queryKey: ["firm-settings"] }), queryClient.invalidateQueries({ queryKey: ["webhook"] })]),
+  });
+}
+
+/** Where webhooks go, their events and the latest deliveries. Asked again every few seconds while one is being tried. */
+export function useWebhookOverview() {
+  return useQuery({
+    queryKey: ["webhook"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/firm/webhook"), "the webhooks"),
+    refetchInterval: (query) => (query.state.data?.deliveries.some((d) => d.status === "Pending") ? 3_000 : 30_000),
+  });
+}
+
+/** Sends the event webhook.test to the firm's address. */
+export function useSendTestWebhook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => ensureOk(await api.POST("/api/portal/admin/firm/webhook/test"), "the test event"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["webhook"] }),
   });
 }
 
@@ -527,6 +678,15 @@ export function useInviteAdmin() {
   return useMutation({
     mutationFn: async (email: string) => resultOf(await api.POST("/api/portal/admin/admins/invites", { body: { email } }), "the invitation"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admins"] }),
+  });
+}
+
+/** Takes back the invitation to the email, so its link stops working. */
+export function useWithdrawAdminInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => ensureOk(await api.POST("/api/portal/admin/admins/invites/withdraw", { body: { email } }), "the invitation"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["admins"] }),
   });
 }
 
@@ -606,7 +766,7 @@ export class SignupError extends ApiError {
   }
 }
 
-export type SignupForm = { firmName: string; firmId: string; email: string; password: string; acceptTerms: boolean };
+export type SignupForm = { firmName: string; firmId: string; email: string; password: string; acceptTerms: boolean; currency: string };
 
 export function useSignUp() {
   return useMutation({
@@ -657,11 +817,114 @@ export function useShop(enabled = true) {
   });
 }
 
-/** Buys a challenge. The answer says where to pay; a logged-in trader buys with their own email. */
+/** Buys a challenge, with a discount code when one was given. The answer says where to pay; a logged-in trader buys with their own email. */
 export function useCreateOrder() {
   return useMutation({
-    mutationFn: async (body: { challengeId: string; email: string | null; acceptTerms: boolean }) =>
-      resultOf(await api.POST("/api/portal/orders", { body }), "the order"),
+    mutationFn: async (body: {
+      challengeId: string;
+      email: string | null;
+      acceptTerms: boolean;
+      name: string | null;
+      country: string | null;
+      discountCode: string | null;
+    }) => resultOf(await api.POST("/api/portal/orders", { body }), "the order"),
+  });
+}
+
+/** What the challenge costs with the discount code the buyer typed, or why the code does not apply. */
+export function useDiscountQuote() {
+  return useMutation({
+    mutationFn: async (body: { code: string; challengeId: string; email: string | null }) =>
+      resultOf(await api.POST("/api/portal/shop/discount", { body }), "the code"),
+  });
+}
+
+/** The firm's own domain for its portal and the DNS records it needs. */
+export function useDomain() {
+  return useQuery({
+    queryKey: ["domain"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/domain"), "your domain"),
+  });
+}
+
+export function useSaveDomain() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (domain: string) => resultOf(await api.PUT("/api/portal/admin/domain", { body: { domain } }), "your domain"),
+    onSuccess: (domain) => queryClient.setQueryData(["domain"], domain),
+  });
+}
+
+/** Looks the domain's records up now, instead of waiting for the next look. */
+export function useCheckDomain() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/admin/domain/check"), "your domain"),
+    onSuccess: (domain) =>
+      Promise.all([queryClient.setQueryData(["domain"], domain), queryClient.invalidateQueries({ queryKey: ["firm-settings"] })]),
+  });
+}
+
+export function useRemoveDomain() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => resultOf(await api.DELETE("/api/portal/admin/domain"), "your domain"),
+    onSuccess: (domain) =>
+      Promise.all([queryClient.setQueryData(["domain"], domain), queryClient.invalidateQueries({ queryKey: ["firm-settings"] })]),
+  });
+}
+
+/** The firm's discount codes, with how often each was used. */
+export function useDiscounts() {
+  return useQuery({
+    queryKey: ["discounts"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/discounts"), "the discount codes"),
+  });
+}
+
+export type DiscountForm = {
+  code: string;
+  percentOff: number | null;
+  amountOff: number | null;
+  currency: string | null;
+  challengeIds: string[] | null;
+  maxUses: number | null;
+  expiresAt: string | null;
+  forRetries: boolean;
+};
+
+export function useCreateDiscount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: DiscountForm) => resultOf(await api.POST("/api/portal/admin/discounts", { body }), "the code"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["discounts"] }),
+  });
+}
+
+/** Turns a code on or off, or removes one no order has used. */
+export function useDiscountCommand() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (command: { codeId: string; kind: "active"; active: boolean } | { codeId: string; kind: "delete" }) => {
+      const path = { params: { path: { codeId: command.codeId } } };
+      return command.kind === "delete"
+        ? ensureOk(await api.DELETE("/api/portal/admin/discounts/{codeId}", path), "the code")
+        : ensureOk(await api.PUT("/api/portal/admin/discounts/{codeId}/active", { ...path, body: { active: command.active } }), "the code");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["discounts"] }),
+  });
+}
+
+/** The buyer chooses the password right on the order's page, and is logged in. */
+export function useChooseOrderPassword(orderId: string, token: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (password: string) =>
+      resultOf(await api.POST("/api/portal/orders/{orderId}/password", { params: { path: { orderId } }, body: { token, password } }), "the password"),
+    onSuccess: (me) => {
+      queryClient.clear();
+      queryClient.setQueryData(meKey("trader"), me);
+    },
   });
 }
 
@@ -775,9 +1038,10 @@ export function useSavePayments() {
         }),
         "the payment settings",
       ),
+    // The terms are shared with the application.
     onSuccess: (settings) => {
       queryClient.setQueryData(["firm-settings"], settings);
-      return queryClient.invalidateQueries({ queryKey: ["shop"] });
+      return Promise.all([queryClient.invalidateQueries({ queryKey: ["shop"] }), queryClient.invalidateQueries({ queryKey: ["verification"] })]);
     },
   });
 }
@@ -791,12 +1055,16 @@ export function useBilling(waitingForPayment = false) {
   });
 }
 
-/** What choosing this many slots would cost now and each month. */
-export function useBillingQuote(slots: number | null) {
+/** What choosing this many slots would cost now and each month, and with expandBy what one round of automatic expansion adds. */
+export function useBillingQuote(slots: number | null, expandBy: number | null = null) {
   return useQuery({
-    queryKey: ["billing-quote", slots],
+    queryKey: ["billing-quote", slots, expandBy],
     enabled: slots !== null,
-    queryFn: async () => resultOf(await api.GET("/api/portal/admin/billing/quote", { params: { query: { slots: slots ?? 0 } } }), "the price"),
+    queryFn: async () =>
+      resultOf(
+        await api.GET("/api/portal/admin/billing/quote", { params: { query: { slots: slots ?? 0, ...(expandBy ? { expandBy } : {}) } } }),
+        "the price",
+      ),
   });
 }
 
@@ -879,12 +1147,16 @@ export function useCompleteTestBillingCheckout(checkoutId: string) {
   });
 }
 
-/** Our review of the firm: its application, documents and deposit. Asked every two seconds while the deposit is being confirmed. */
+/**
+ * Our review of the firm: its application, documents and deposit. Asked every two seconds while the deposit is being
+ * confirmed, and every half minute while the application waits for our answer.
+ */
 export function useVerification(waitingForPayment = false) {
   return useQuery({
     queryKey: ["verification"],
     queryFn: async () => verificationOf(resultOf(await api.GET("/api/portal/admin/verification"), "the review")),
-    refetchInterval: (query) => (waitingForPayment && query.state.data?.deposit.paid === false ? 2_000 : false),
+    refetchInterval: (query) =>
+      waitingForPayment && query.state.data?.deposit.paid === false ? 2_000 : query.state.data?.status === "Submitted" ? 30_000 : false,
   });
 }
 
@@ -905,7 +1177,11 @@ export function useSaveApplication() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (application: FirmApplication) => saveApplication(application),
-    onSuccess: (verification) => queryClient.setQueryData(["verification"], verification),
+    // The terms are the firm's, shared with the shop.
+    onSuccess: (verification) => {
+      queryClient.setQueryData(["verification"], verification);
+      return queryClient.invalidateQueries({ queryKey: ["firm-settings"] });
+    },
   });
 }
 

@@ -11,7 +11,10 @@ export const traderPassword = "e2e-trader-password";
 
 const ownerPassword = "e2e-owner-password";
 
-/** A firm signs up on the platform and lands in its own admin panel, on its own address. Development needs no email confirmation. */
+/**
+ * A firm signs up on the platform and lands in the guide of its own admin panel, on its own address, and skips it to the
+ * overview. Development needs no email confirmation.
+ */
 export async function signUp(page: Page, firmName: string, shortName: string) {
   await page.goto(`${platformUrl}/signup`);
   await page.getByLabel("Firm name").fill(firmName);
@@ -21,6 +24,9 @@ export async function signUp(page: Page, firmName: string, shortName: string) {
   await page.getByLabel("Password").fill(ownerPassword);
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create my firm" }).click();
+  await expect(page).toHaveURL(`http://${shortName}.localhost:${portalPort}/admin/get-started`);
+  await expect(page.getByRole("heading", { name: "Make it yours" })).toBeVisible();
+  await page.getByRole("link", { name: "Skip the guide" }).click();
   await expect(page).toHaveURL(`http://${shortName}.localhost:${portalPort}/admin`);
 }
 
@@ -67,9 +73,10 @@ export async function acceptInvitation(page: Page, invitation: string) {
   await expect(page).toHaveURL(/\/$/);
 }
 
-/** The firm fills in its application on the Verification page. */
+/** The firm fills in its company's details, the first step on the Go live page. */
 export async function fillApplication(page: Page, companyName: string) {
-  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Verification" }).click();
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Go live" }).click();
+  await expect(page.getByRole("button", { name: /^Company details/ })).toHaveAttribute("aria-current", "step");
   await page.getByLabel("Legal name").fill(companyName);
   await page.getByLabel("Registration number").fill("559000-1234");
   await page.getByLabel("Country of registration").selectOption("SE");
@@ -82,12 +89,19 @@ export async function fillApplication(page: Page, companyName: string) {
   await page.getByLabel("Your terms for traders").fill("https://example.com/terms");
 }
 
-/** The firm sends its application, paying the deposit on the test payment page. */
+/** The firm saves its details and goes on to the deposit, which it pays on the test payment page to send the application. */
 export async function sendApplication(page: Page) {
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await payDeposit(page);
+}
+
+/** On the deposit step, the firm pays the deposit on the test payment page, which sends the application. */
+export async function payDeposit(page: Page) {
+  await expect(page).toHaveURL(/\/admin\/go-live\?step=deposit$/);
   await page.getByRole("button", { name: /^Pay .* and send for review$/ }).click();
   await expect(page).toHaveURL(/\/admin\/billing\/checkout\/test_[0-9a-f]+$/);
   await page.getByRole("button", { name: /^Pay / }).click();
-  await expect(page).toHaveURL(/\/admin\/verification\?checkout=done$/);
+  await expect(page).toHaveURL(/\/admin\/go-live\?checkout=done$/);
   await expect(page.getByText("Thank you. The deposit is paid and your application is sent.")).toBeVisible();
 }
 

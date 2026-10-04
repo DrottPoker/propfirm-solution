@@ -28,6 +28,11 @@ const rows: Row[] = [
   },
   { label: "Time limit", value: (rules) => (rules.maxDays == null ? "None" : `${rules.maxDays} days`) },
   { label: "Profit split", value: (rules, _, __, trader) => (rules.profitSplitPercent == null ? "-" : `${rules.profitSplitPercent}% to ${trader}`) },
+  {
+    label: "Consistency",
+    value: (rules, _, funded) =>
+      !funded ? "-" : rules.consistencyPercent == null ? "None" : `The best day since the last payout made at most ${rules.consistencyPercent}% of the profit`,
+  },
 ];
 
 /** The rules of every stage of the challenge, as it was bought. Later changes by the firm do not touch it. The firm sees them about its trader. */

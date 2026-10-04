@@ -21,6 +21,7 @@ export function SignupForm() {
   const [chosenFirmId, setChosenFirmId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [currency, setCurrency] = useState(platform.currencies[0] ?? "USD");
   const [acceptTerms, setAcceptTerms] = useState(false);
 
   // The short name follows the firm's name until it is edited.
@@ -29,7 +30,7 @@ export function SignupForm() {
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     signUp.mutate(
-      { firmName: firmName.trim(), firmId, email: email.trim(), password, acceptTerms },
+      { firmName: firmName.trim(), firmId, email: email.trim(), password, acceptTerms, currency },
       {
         onSuccess: (result) => {
           if (result.adminUrl) {
@@ -74,8 +75,22 @@ export function SignupForm() {
               aria-invalid={fieldError === "firmId"}
             />
           </label>
-          <FirmIdHelp firmId={firmId} template={platform.firmPortalUrl} />
+          <FirmIdHelp firmId={firmId} template={platform.firmPortalUrl} onPick={setChosenFirmId} />
         </div>
+
+        {platform.currencies.length > 1 && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-muted">Currency of the accounts</span>
+            <select value={currency} onChange={(e) => setCurrency(e.target.value)} className={fieldClass} aria-invalid={fieldError === "currency"}>
+              {platform.currencies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted">Your traders&apos; accounts, balances and limits are in it. It cannot be changed later. Prices in your shop can be in any currency.</span>
+          </label>
+        )}
 
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">Your email</span>
@@ -109,8 +124,7 @@ export function SignupForm() {
           <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-1" />
           <span>
             I accept the <DocumentLink href={platform.termsUrl}>terms of service</DocumentLink> and the{" "}
-            <DocumentLink href={platform.dpaUrl}>data processing agreement</DocumentLink> on behalf of the firm
-            {platform.termsVersion && <span className="text-muted"> (version {platform.termsVersion})</span>}.
+            <DocumentLink href={platform.dpaUrl}>data processing agreement</DocumentLink> on behalf of the firm.
           </span>
         </label>
 
@@ -127,7 +141,7 @@ export function SignupForm() {
   );
 }
 
-function FirmIdHelp({ firmId, template }: { firmId: string; template: string }) {
+function FirmIdHelp({ firmId, template, onPick }: { firmId: string; template: string; onPick: (firmId: string) => void }) {
   const checked = useDebounced(firmId, 300);
   const valid = isValidFirmId(checked);
   const availability = useAvailability(valid ? checked : "");
@@ -136,17 +150,31 @@ function FirmIdHelp({ firmId, template }: { firmId: string; template: string }) 
   if (firmId.length > 0 && !isValidFirmId(firmId)) {
     status = <span className="text-loss">Use 2 to 40 lowercase letters, digits and dashes, not first or last.</span>;
   } else if (valid && checked === firmId && availability.data) {
-    status = availability.data.available ? (
+    const { available, reason, suggestions } = availability.data;
+    status = available ? (
       <span className="text-profit">Available</span>
     ) : (
-      <span className="text-loss">{availability.data.reason}</span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="text-loss">{reason}</span>
+        {suggestions.length > 0 && (
+          <>
+            <span>Free:</span>
+            {suggestions.map((s) => (
+              <button key={s} type="button" onClick={() => onPick(s)} className="rounded border border-border px-1.5 py-0.5 font-mono text-foreground hover:border-accent">
+                {s}
+              </button>
+            ))}
+          </>
+        )}
+      </span>
     );
   }
 
   return (
-    <span id="firm-id-help" className="flex flex-wrap gap-x-2 text-xs text-muted">
+    <span id="firm-id-help" className="flex flex-col gap-1 text-xs text-muted">
       <span>
-        Your portal: <span className="font-mono">{portalAddress(template, firmId)}</span>. It is also your trading server, and cannot be changed later.
+        Your portal&apos;s address: <span className="font-mono">{portalAddress(template, firmId)}</span>. It cannot be changed, but you can add your own
+        domain later.
       </span>
       {status}
     </span>

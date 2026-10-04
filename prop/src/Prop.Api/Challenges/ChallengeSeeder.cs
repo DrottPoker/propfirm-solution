@@ -59,7 +59,7 @@ internal sealed class ChallengeSeeder(FirmCatalog firms, ChallengeCatalog catalo
         var template = ChallengeTemplates.TwoStep(seed.Id, seed.InitialBalance, seed.Currency);
         return template with
         {
-            Name = FormattableString.Invariant($"Quick test {seed.InitialBalance:0.##} {seed.Currency}"),
+            Name = $"Quick test {ChallengeTemplates.SizeName(seed.InitialBalance)}",
             Evaluation = [.. template.Evaluation.Select(s => s with { ProfitTargetPercent = 0.1m, MinTradingDays = 0 })],
             Funded = template.Funded with { MinTradingDays = 0 },
         };

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { opsUrl, platformUrl } from "../playwright.config";
 
-import { adminLink, approveAsStaff, fillApplication, openAsStaff, sendApplication, signUp, waitForSandbox } from "./support";
+import { approveAsStaff, fillApplication, openAsStaff, payDeposit, signUp, waitForSandbox } from "./support";
 
 const pdf = Buffer.from("%PDF-1.7\nA certificate of registration\n%%EOF");
 
@@ -10,13 +10,21 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await signUp(page, "Review E2E Firm", "review-e2e-firm");
   await waitForSandbox(page);
 
-  // The firm fills in its application, adds a document and sends it with the deposit.
+  // Every field that is missing is marked, and listed by the buttons.
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Go live" }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("7 things are missing before you can send")).toBeVisible();
+  await expect(page.getByLabel("Legal name")).toHaveAttribute("aria-invalid", "true");
+
+  // The firm fills in its application, drops in a document and sends it with the deposit, VAT added for a Swedish company.
   await fillApplication(page, "Review Trading Ltd");
-  await expect(page.getByText("You pay a deposit of 200.00 USD when you send.")).toBeVisible();
   await page.getByLabel("Add a document").setInputFiles({ name: "certificate.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(page.getByRole("link", { name: "certificate.pdf" })).toBeVisible();
-  await sendApplication(page);
-  await expect(page.getByText("Waiting for review")).toBeVisible();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await expect(page.getByText(/The deposit of 200\.00 USD pays for that work\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pay 250.00 USD and send for review" })).toBeVisible();
+  await payDeposit(page);
+  await expect(page.getByText("We are reviewing your application, usually within a day.")).toBeVisible();
 
   // Our staff log in to our own admin view, find the firm waiting and ask for a change.
   const ops = await page.context().newPage();
@@ -47,23 +55,24 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await expect(review.getByText("Changes needed", { exact: true })).toBeVisible();
 
   // The firm sees what we need, changes it and sends again without a new deposit.
-  await page.reload();
+  await page.goto(new URL("/admin/go-live", page.url()).href);
   await expect(page.getByText("Write your registered address as in the register.")).toBeVisible();
   await page.getByLabel("Registered address").fill("Storgatan 1, 111 22 Stockholm, Sweden");
-  await page.getByRole("button", { name: "Send for review", exact: true }).click();
-  await expect(page.getByText("Waiting for review")).toBeVisible();
+  await page.getByRole("button", { name: "Save and continue" }).click();
+  await page.getByRole("button", { name: "Send the changes for review" }).click();
+  await expect(page.getByText("We are reviewing your application, usually within a day.")).toBeVisible();
 
   // Our staff approve it.
   await review.reload();
   await approveAsStaff(review);
 
-  // The firm goes live, with the deposit taken off the startup fee.
-  await adminLink(page, "Plan and billing").click();
+  // The firm comes back and goes live, with the deposit taken off the startup fee.
+  await page.goto(new URL("/admin/go-live", page.url()).href);
   await page.getByLabel("Slots", { exact: true }).fill("30");
   await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 200.00 USD" })).toBeVisible();
   await page.getByRole("button", { name: /and go live$/ }).click();
   await page.getByRole("button", { name: /^Pay / }).click();
-  await expect(page.getByText("Thank you. The payment went through.")).toBeVisible();
+  await expect(page.getByText("Thank you. The payment went through, and your firm is live.")).toBeVisible();
 
   // Our staff see it among the firms that pay, then suspend it. The firm sees why on every page until it is lifted.
   await review.goto(`${opsUrl}/ops/billing`);

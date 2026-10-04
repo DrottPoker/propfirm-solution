@@ -27,7 +27,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         var otherBranding = await other.GetFromJsonAsync<JsonElement>(Url("branding"), TestContext.Current.CancellationToken);
         using var nothing = await unknown.GetAsync(Url("branding"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(("Demo Firm", "#8b5cf6"), (demoBranding.GetProperty("name").GetString(), demoBranding.GetProperty("colors").GetProperty("accent").GetString()));
+        Assert.Equal(("Demo Firm", "#7c3aed"), (demoBranding.GetProperty("name").GetString(), demoBranding.GetProperty("colors").GetProperty("accent").GetString()));
         Assert.Equal("Other Firm", otherBranding.GetProperty("name").GetString());
         Assert.Empty(otherBranding.GetProperty("colors").EnumerateObject());
         Assert.Equal(HttpStatusCode.NotFound, nothing.StatusCode);

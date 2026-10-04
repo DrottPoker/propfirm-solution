@@ -58,8 +58,8 @@ export function AccountCard({ details }: { details: AccountDetails }) {
 
       {trading && (
         <dl className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-xs">
-          <Room label="Daily loss room" floor={daily} />
-          <Room label="Max loss room" floor={maxLoss} />
+          <Room label="Daily loss limit" floor={daily} />
+          <Room label="Max loss limit" floor={maxLoss} />
           {account.funded ? (
             <div className="flex flex-col gap-0.5">
               <dt className="text-muted">Paid out</dt>
@@ -139,11 +139,12 @@ function Progress({ details }: { details: AccountDetails }) {
   return null;
 }
 
+// What is left before the limit, as in the terminal.
 function Room({ label, floor }: { label: string; floor: ReturnType<typeof liveFloor> }) {
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-muted">{label}</dt>
-      <dd className={`font-mono text-sm ${floor ? toneText[floorStateTone[floorState(floor)]] : ""}`}>{floor ? formatMoney(floor.headroom) : "-"}</dd>
+      <dd className={`font-mono text-sm ${floor ? toneText[floorStateTone[floorState(floor)]] : ""}`}>{floor ? `${formatMoney(Math.max(floor.headroom, 0))} left` : "-"}</dd>
     </div>
   );
 }

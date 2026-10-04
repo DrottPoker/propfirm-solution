@@ -1,8 +1,8 @@
 # Spec: regelmotorn
 
-- Fas: 4a, utbetalningar i 5, inaktivitet, tidsgräns och paus i 7
+- Fas: 4a, utbetalningar i 5, inaktivitet, tidsgräns och paus i 7, fler mallar, direkt funded, konsistensregel och nej med återförd vinst efter genomgången som ny firma
 - Status: Implementerad i `prop/src/Prop.Rules`
-- Datum: 2026-10-03
+- Datum: 2026-10-04
 
 ## Syfte
 
@@ -24,7 +24,7 @@ En challenge är det firman säljer. Varje challenge sparar en kopia av sin defi
 |---|---|
 | `InitialBalance`, `Currency` | Kontostorlek, till exempel 100 000 USD. Samma storlek i varje fas. |
 | `TradingDay` | När en handelsdag börjar: tidszon och klockslag. |
-| `Evaluation` | Faserna som ska klaras, i ordning. Minst en. |
+| `Evaluation` | Faserna som ska klaras, i ordning. Utan faser är tradern funded från start, det firmor säljer som direkt funded (ADR 0031). |
 | `Funded` | Reglerna för funded-kontot. Inget vinstmål, men en vinstandel. |
 | `InactivityDays` | Hur många dagar utan en ny position challengen får ha, 1 till 365, i alla faser och som funded. Tomt för ingen regel. |
 
@@ -38,11 +38,26 @@ Varje fas har:
 
 Funded-fasen har i stället för vinstmål en **vinstandel** (`ProfitSplitPercent`): hur stor del av vinsten tradern får, över 0 och högst 100 %. Dess minsta antal handelsdagar gäller mellan utbetalningarna. Utvärderingsfaserna har ingen vinstandel.
 
+Funded-fasen kan också ha en **konsistensregel** (`ConsistencyPercent`), 10 till 100 % med högst två decimaler eller tom för ingen: den bästa handelsdagen sedan förra utbetalningen får ha gett högst så stor del av vinsten (ADR 0037). Utvärderingsfaserna har ingen konsistensregel.
+
 Procentsatser blir belopp avrundade till hela cent. Definitionen kontrolleras innan en challenge startas.
+
+### Mallar
+
+Firman börjar från en av fyra mallar, i firmans kontovaluta, och ändrar sedan reglerna om den vill. Alla har handelsdagar som börjar vid midnatt svensk tid, 30 dagar utan en ny position innan challengen tar slut och minst 5 handelsdagar mellan utbetalningarna.
+
+| Mall | Faser | Vinstmål | Daglig förlust | Total förlust | Vinstandel |
+|---|---|---|---|---|---|
+| `OneStep`, "One-step" | 1, minst 4 handelsdagar | 10 % | 4 % | 6 %, fast | 80 % |
+| `TwoStep`, "Two-step" | 2, minst 4 handelsdagar var | 10 % och 5 % | 5 % | 10 %, fast | 80 % |
+| `ThreeStep`, "Three-step" | 3, minst 3 handelsdagar var | 6 % i varje | 5 % | 10 %, fast | 80 % |
+| `InstantFunded`, "Instant funded" | ingen | inget | 3 % | 6 %, släpande | 70 % |
+
+Namnet är mallens och storleken, till exempel "One-step 50K" (`ChallengeTemplates.SizeName`).
 
 ### Standardmall
 
-`ChallengeTemplates.TwoStep` följer det vanligaste upplägget:
+`ChallengeTemplates.TwoStep` följer det vanligaste upplägget, och en ny firma får en sådan challenge på 100 000:
 
 | | Fas 1 | Fas 2 | Funded |
 |---|---|---|---|
@@ -71,7 +86,7 @@ En utbetalning på funded-kontot har en egen livscykel. Bara en utbetalning åt 
 ```
 tradern begär -> Withdrawing (vinsten tas ut från kontot) -> Pending -> (firman godkänner) -> Approved -> (firman har betalat) -> Paid
 Withdrawing -> Failed               (handelsplattformen nekade uttaget, inget hände)
-Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
+Pending eller Approved -> Rejected  (firman nekar, och väljer om vinsten är förlorad eller läggs tillbaka)
 ```
 
 ## Indata
@@ -85,7 +100,7 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 | `ApproveFunding` | Firman | Tradern får ett funded-konto efter firmans kontroller, till exempel KYC och avtal. |
 | `CancelChallenge` | Firman | Challengen avbryts. |
 | `RequestPayout` | Tradern | Tradern begär en utbetalning. Tjänsten väljer utbetalningens id. |
-| `ApprovePayout`, `MarkPayoutPaid`, `RejectPayout` | Firman | Firman godkänner, markerar som betald med en egen referens, eller nekar med en orsak. |
+| `ApprovePayout`, `MarkPayoutPaid`, `RejectPayout` | Firman | Firman godkänner, markerar som betald med en egen referens, eller nekar med en orsak. Vid nej säger `ReturnProfit` om vinsten ska läggas tillbaka på kontot. |
 | `WithdrawalRejected` | Tjänsten | Handelsplattformen nekade uttaget för en utbetalning. Tjänsten rapporterar det, eftersom den ser varje nej, även de som aldrig når handelsmotorn. |
 | `AccountUpdated` | Handelsplattformen | Saldo och antal öppna positioner efter att en position stängts. |
 | `PositionOpened` | Handelsplattformen | En position öppnades under en viss handelsdag. |
@@ -111,7 +126,8 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 | `PayoutRequested` | Tradern har begärt en utbetalning. Innehåller vinsten, vinstandelen och traderns belopp. |
 | `WithdrawalRequested` | Ta ut vinsten från kontot en gång, med utbetalningens id, men bara om startsaldot finns kvar efteråt. |
 | `PayoutWithdrawn` | Vinsten är uttagen. Firman ska godkänna utbetalningen. Blir webhooken `payout.requested`. |
-| `PayoutApproved`, `PayoutPaid`, `PayoutRejected` | Firmans beslut. Blir webhooks `payout.approved`, `payout.paid` och `payout.rejected`. |
+| `PayoutApproved`, `PayoutPaid`, `PayoutRejected` | Firmans beslut. Blir webhooks `payout.approved`, `payout.paid` och `payout.rejected`. `PayoutRejected` säger med `ProfitReturned` om vinsten läggs tillbaka. |
+| `DepositRequested` | Sätt in ett belopp på kontot en gång, med ett eget id, till exempel vinsten från en nekad utbetalning som läggs tillbaka (`{utbetalning}-return`). |
 | `PayoutFailed` | Uttaget nekades, så utbetalningen blev inte av. |
 | `InputIgnored` | Ett kommando från tjänsten eller firman passar inte tillståndet, till exempel ett godkännande innan faserna är klara. |
 
@@ -134,11 +150,12 @@ Pending eller Approved -> Rejected  (firman nekar, vinsten återförs inte)
 Se [ADR 0015](../adr/0015-utbetalningar-tar-ut-vinsten-direkt.md) för besluten.
 
 - **Vad tradern får:** vinsten är saldot minus kontostorleken, mätt på det saldo handelsplattformen senast rapporterade. Tradern får vinstandelen av den, avrundad nedåt till hela cent. Firman behåller resten.
-- **När en utbetalning kan begäras:** kontot är ett aktivt funded-konto, challengen har en vinstandel, ingen annan utbetalning är på gång, det finns en vinst att betala ut, inga positioner är öppna och funded-fasens minsta antal handelsdagar har gått sedan förra utbetalningen. Annars svarar regelmotorn med orsaken.
+- **När en utbetalning kan begäras:** kontot är ett aktivt funded-konto, challengen har en vinstandel, ingen annan utbetalning är på gång, det finns en vinst att betala ut, inga positioner är öppna, funded-fasens minsta antal handelsdagar har gått sedan förra utbetalningen och, med en konsistensregel, den bästa dagen har gett högst regelns andel av vinsten. Annars svarar regelmotorn med orsaken, till exempel "Your best day made 8,000.00, 100% of the profit. A payout needs the best day to be at most 50% of it, so keep trading."
+- **Dagarnas resultat:** regelmotorn lägger varje ändring av saldot från stängda positioner på den handelsdag den hände (`DayProfits`). Räkningen börjar om när en fas börjar och efter varje utbetalning. Den bästa dagen och regelns andel visas i `PayoutQuote` (`BestDayProfit`, `ConsistencyPercent`).
 - **Hela vinsten tas ut direkt.** Uttaget har utbetalningens id och kräver att startsaldot finns kvar efteråt. Kontot börjar alltså om från startsaldot, och tradern kan inte handla vidare på pengar som betalas ut.
 - **När uttaget har gått igenom** är utbetalningen `Pending`, och en ny period börjar: handelsdagarna räknas från noll. Uttaget räknas även om firman avbröt challengen under tiden.
 - **Nekar handelsplattformen uttaget**, till exempel för att en position stängdes med förlust just innan, blir utbetalningen `Failed`. Kontot är som innan, och tradern kan begära igen.
-- **Firman** godkänner en utbetalning som väntar, markerar en godkänd som betald, eller nekar en som väntar eller är godkänd. Vid nej återförs inte vinsten. Firman nekar när tradern brutit mot villkoren, och låter annars utbetalningen vänta, till exempel på KYC.
+- **Firman** godkänner en utbetalning som väntar, markerar en godkänd som betald, eller nekar en som väntar eller är godkänd. Vid nej väljer firman (ADR 0037): vinsten är förlorad, till exempel när tradern brutit mot villkoren, eller vinsten läggs tillbaka på kontot, till exempel medan tradern blir klar med firmans kontroller. Vinsten läggs bara tillbaka på kontot den togs från, medan det handlas. På ett konto som har avslutats ignoreras ett sådant nej med orsaken "The account has ended, so the profit cannot go back on it."
 - **Andra insättningar och uttag** ändrar bara saldot. De räknas inte som handelsresultat.
 - `ChallengeRules.QuotePayout` visar vad en utbetalning skulle ge just nu, eller varför den inte kan begäras. Samma funktion avgör begäran, så portalen och regelmotorn är alltid överens.
 
@@ -146,9 +163,9 @@ Se [ADR 0015](../adr/0015-utbetalningar-tar-ut-vinsten-direkt.md) för besluten.
 
 Testerna ligger i `prop/tests/Prop.Rules.Tests`:
 
-- Definitioner, standardmallen och avrundning.
+- Definitioner, mallarna med namn efter storleken, en challenge utan utvärdering som är funded från start och kan begära utbetalning, och avrundning.
 - Varje regel och övergång i livscykeln, och trassliga fakta.
-- Utbetalningar (`PayoutRulesTests`): beloppet och avrundningen, varje orsak att neka, en åt gången, uttaget som startar en ny period, godkännande, betalning, nej, nekat uttag och uttag efter avbruten challenge.
+- Utbetalningar (`PayoutRulesTests`): beloppet och avrundningen, varje orsak att neka, en åt gången, uttaget som startar en ny period, godkännande, betalning, nej, nej med vinsten tillbaka och inte på ett avslutat konto, konsistensregeln och att den räknar från förra utbetalningen, nekat uttag och uttag efter avbruten challenge.
 - Tid (`ExpiryRulesTests`): tidsgränsen, en ny tidsgräns per fas, inaktiviteten i varje fas också funded, en ny position som flyttar den, dagar som missats, tidsgränsen före inaktiviteten, challenges utan reglerna och challenges som väntar på firman.
 - Paus (`PauseRulesTests`): kontot som pausas och dagar som inte räknas, tidsgränserna som flyttas, upprepad paus, en fas som börjar under pausen, en fas som blir klar under pausen, challenges som tagit slut och utbetalningar under pausen.
 - En hel challenge från köp via en paus och en utbetalning till brott på funded-kontot spelas upp och jämförs med facitfilen `Golden/two-step-challenge.jsonl`. Varje ändring av ett beslut syns som en diff. Skapa om facit med `UPDATE_GOLDEN=1` och granska diffen.
@@ -157,7 +174,7 @@ Testerna ligger i `prop/tests/Prop.Rules.Tests`:
 ## Begränsningar
 
 - Regelmotorn används av propfirm-tjänsten (se [specen för propfirm-tjänsten](propfirm-tjanst.md)), som gör `StartOfDayFloor` till handelsplattformens `AnchoredFloor`.
-- Ingen regel för jämna resultat eller nyhetshandel än.
+- Ingen regel för nyhetshandel än. Konsistensregeln räknar stängda positioners resultat per dag, inte öppna positioners.
 - Inaktivitet och tidsgräns räknas i hela handelsdagar, så den dag fasen eller pausen började räknas inte.
 - Bara hela vinsten kan betalas ut, inte en del av den.
 - Skalning av funded-konton kommer senare.

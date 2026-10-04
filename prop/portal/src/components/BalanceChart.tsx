@@ -31,11 +31,14 @@ function pointText(point: Point): string {
  */
 export function BalanceChart({
   performance,
+  timeZone,
   equity,
   floating,
   endTime,
 }: {
   performance: Performance;
+  /** The challenge's time zone, which the times are shown in. */
+  timeZone: string;
   equity: number | null;
   floating: number | null;
   endTime: number;
@@ -77,7 +80,7 @@ export function BalanceChart({
     x(model.end),
   );
   const yTicks = niceTicks(model.domain[0], model.domain[1], 5).filter((t) => t >= model.domain[0] && t <= model.domain[1]);
-  const xTicks = timeAxis(model.start, model.end, width < 480 ? 3 : 5);
+  const xTicks = timeAxis(model.start, model.end, width < 480 ? 3 : 5, timeZone);
   const target = performance.profitTarget;
   const current = active === null ? null : (model.points[active] ?? null);
   const dailyAtCurrent = current ? levelAt(model.daily, current.time) : null;
@@ -185,7 +188,7 @@ export function BalanceChart({
             className="pointer-events-none absolute top-2 z-10 flex w-56 flex-col gap-1 rounded-md border border-border bg-background px-3 py-2 text-xs shadow-lg"
             style={{ left: Math.min(Math.max(x(current.time) + 12, 0), Math.max(width - 232, 0)) }}
           >
-            <span className="text-muted">{formatDateTime(new Date(current.time).toISOString())}</span>
+            <span className="text-muted">{formatDateTime(new Date(current.time).toISOString(), timeZone)}</span>
             <span className="font-mono text-sm font-medium">{formatMoney(current.value)}</span>
             <span className="text-muted">
               {pointText(current)}
@@ -238,7 +241,7 @@ export function BalanceChart({
             <tbody>
               {[...model.balance].reverse().map((point, i) => (
                 <tr key={`${point.time}-${i}`} className="border-t border-border">
-                  <td className="py-1.5 text-muted">{formatDateTime(new Date(point.time).toISOString())}</td>
+                  <td className="py-1.5 text-muted">{formatDateTime(new Date(point.time).toISOString(), timeZone)}</td>
                   <td className="py-1.5 pl-4">{pointText(point)}</td>
                   <td className="py-1.5 pl-4 text-right font-mono tabular-nums">{point.kind === "Created" ? "" : formatSignedMoney(point.change)}</td>
                   <td className="py-1.5 pl-4 text-right font-mono tabular-nums">{formatMoney(point.value)}</td>

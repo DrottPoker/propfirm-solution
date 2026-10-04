@@ -22,7 +22,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                f.webhook_url, f.webhook_secret, f.portal_url, f.logo_url, f.colors,
                coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
                f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url,
-               f.suspended_at, f.suspension_reason, (select l.sha256 from firm_logos l where l.firm_id = f.id)
+               f.suspended_at, f.suspension_reason, (select l.sha256 from firm_logos l where l.firm_id = f.id), f.email_settings,
+               f.account_currency, f.support_email
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -108,6 +109,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
         string name,
         Uri portalUrl,
         string termsVersion,
+        string accountCurrency,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
@@ -116,10 +118,10 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             await ExecuteAsync(
                 connection,
                 """
-                insert into firms (id, name, status, configured, portal_url, colors, terms_version, terms_accepted_at, created_at, updated_at)
-                values ($1, $2, $3, false, $4, '{}', $5, $6, $6, $6)
+                insert into firms (id, name, status, configured, portal_url, colors, terms_version, terms_accepted_at, account_currency, created_at, updated_at)
+                values ($1, $2, $3, false, $4, '{}', $5, $6, $7, $6, $6)
                 """,
-                [firmId, name, FirmStatus.Provisioning.ToString(), portalUrl.ToString(), termsVersion, now],
+                [firmId, name, FirmStatus.Provisioning.ToString(), portalUrl.ToString(), termsVersion, now, accountCurrency],
                 cancellationToken);
             await ExecuteAsync(connection, "insert into firm_hosts (host, firm_id) values ($1, $2)", [portalUrl.Host.ToLowerInvariant(), firmId], cancellationToken);
             return true;
@@ -162,6 +164,13 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             ],
             cancellationToken);
 
+    /// <summary>
+    /// The firm's terms for traders, which its shop asks buyers to accept and its application to us points to. Done in
+    /// the caller's transaction.
+    /// </summary>
+    public static Task SetTermsUrlAsync(NpgsqlConnection connection, string firmId, string? termsUrl, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ExecuteAsync(connection, "update firms set shop_terms_url = $2, updated_at = $3 where id = $1", [firmId, Text(termsUrl), now], cancellationToken);
+
     /// <summary>How the firm's portal takes payment. Stripe's keys are kept when <paramref name="payments"/> has none.</summary>
     public Task SetPaymentsAsync(string firmId, FirmPayments payments, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -175,6 +184,14 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 now,
                 cancellationToken);
     }
+
+    /// <summary>Which notification emails the firm sends, by kind.</summary>
+    public Task SetEmailSettingsAsync(string firmId, IReadOnlyDictionary<string, bool> settings, DateTimeOffset now, CancellationToken cancellationToken) =>
+        UpdateAsync("email_settings = $2", firmId, [new NpgsqlParameter { Value = JsonSerializer.Serialize(settings), NpgsqlDbType = NpgsqlDbType.Jsonb }], now, cancellationToken);
+
+    /// <summary>Where replies to the emails to the firm's traders go, or null for nowhere.</summary>
+    public Task SetSupportEmailAsync(string firmId, string? supportEmail, DateTimeOffset now, CancellationToken cancellationToken) =>
+        UpdateAsync("support_email = $2", firmId, [Text(supportEmail)], now, cancellationToken);
 
     public Task SetColorsAsync(string firmId, IReadOnlyDictionary<string, string> colors, DateTimeOffset now, CancellationToken cancellationToken) =>
         UpdateAsync("colors = $2", firmId, [Colors(colors)], now, cancellationToken);
@@ -313,7 +330,10 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 webhook,
                 new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, logoUrl, colors)),
                 payments,
-                reader.IsDBNull(19) ? null : new FirmSuspension(reader.GetFieldValue<DateTimeOffset>(19), reader.GetString(20))));
+                reader.IsDBNull(19) ? null : new FirmSuspension(reader.GetFieldValue<DateTimeOffset>(19), reader.GetString(20)),
+                JsonSerializer.Deserialize<Dictionary<string, bool>>(reader.GetString(22)) ?? [],
+                reader.GetString(23),
+                reader.IsDBNull(24) ? null : reader.GetString(24)));
         }
 
         return firms;

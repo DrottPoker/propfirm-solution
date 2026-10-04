@@ -45,6 +45,7 @@ export type BuyerStage =
   | { kind: "expired" }
   | { kind: "problem"; problem: string }
   | { kind: "log-in" }
+  | { kind: "choose-password" }
   | { kind: "invited"; email: string }
   | { kind: "get-invite"; email: string };
 
@@ -61,6 +62,10 @@ export function buyerStage(order: BuyerOrder): BuyerStage {
 
       if (order.canLogIn) {
         return { kind: "log-in" };
+      }
+
+      if (order.canChoosePassword) {
+        return { kind: "choose-password" };
       }
 
       return order.inviteSentAt === null ? { kind: "get-invite", email: order.email } : { kind: "invited", email: order.email };

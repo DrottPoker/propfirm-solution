@@ -168,6 +168,21 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
             limit,
             cancellationToken);
 
+    public async Task<IReadOnlyList<EventEnvelope>> ReadAllEventsAsync(long afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("select sequence, payload from engine_events where sequence > $1 order by sequence limit $2");
+        command.Parameters.AddWithValue(afterSequence);
+        command.Parameters.AddWithValue(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var events = new List<EventEnvelope>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
+        }
+
+        return events;
+    }
+
     public Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken) =>
         ReadEnvelopesAsync(
             "select sequence, payload from engine_events where group_id = any($1) and sequence > $2 order by sequence limit $3",

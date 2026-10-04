@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
+using Prop.Api.Trading;
 using Prop.Rules;
 
 namespace Prop.Api.Api;
@@ -85,7 +86,9 @@ public sealed record AccountResponse(
 /// <summary>
 /// What a payout asked for now would pay the trader: <paramref name="ProfitSplitPercent"/> of the profit, which
 /// is all withdrawn from the trading account. When <paramref name="CanRequest"/> is false,
-/// <paramref name="Refusal"/> says why. Only for funded accounts.
+/// <paramref name="Refusal"/> says why. With a consistency rule, <paramref name="BestDayProfit"/> is what the best
+/// trading day since the last payout made, and <paramref name="ConsistencyPercent"/> the most of the profit it may be.
+/// Only for funded accounts.
 /// </summary>
 public sealed record PayoutQuoteResponse(
     bool CanRequest,
@@ -94,15 +97,27 @@ public sealed record PayoutQuoteResponse(
     decimal ProfitSplitPercent,
     decimal Amount,
     int TradingDays,
-    int MinTradingDays)
+    int MinTradingDays,
+    decimal? BestDayProfit = null,
+    decimal? ConsistencyPercent = null)
 {
     internal static PayoutQuoteResponse From(PayoutQuote quote) =>
-        new(quote.CanRequest, quote.Refusal, quote.Profit, quote.ProfitSplitPercent, quote.Amount, quote.TradingDays, quote.MinTradingDays);
+        new(
+            quote.CanRequest,
+            quote.Refusal,
+            quote.Profit,
+            quote.ProfitSplitPercent,
+            quote.Amount,
+            quote.TradingDays,
+            quote.MinTradingDays,
+            quote.BestDayProfit,
+            quote.ConsistencyPercent);
 }
 
 /// <summary>
 /// A funded trader's payout. <paramref name="Profit"/> was withdrawn from <paramref name="TradingAccountId"/>,
 /// and the trader gets <paramref name="Amount"/>. The firm approves it, sends the money itself and marks it as paid.
+/// <paramref name="TimeZone"/> is the challenge's, which the portal shows the account's times in.
 /// </summary>
 public sealed record PayoutResponse(
     Guid Id,
@@ -122,7 +137,10 @@ public sealed record PayoutResponse(
     DateTimeOffset? RejectedAt,
     DateTimeOffset? FailedAt,
     string? Reason,
-    string? Reference)
+    string? Reference,
+    PayoutMethod? PayTo,
+    bool ProfitReturned,
+    string TimeZone)
 {
     internal static PayoutResponse From(PayoutView view) =>
         new(
@@ -143,10 +161,20 @@ public sealed record PayoutResponse(
             view.RejectedAt,
             view.FailedAt,
             view.Reason,
-            view.Reference);
+            view.Reference,
+            view.PayTo,
+            view.ProfitReturned,
+            view.TimeZone);
 }
 
-public sealed record RejectPayoutRequest(string? Reason);
+/// <summary>
+/// Why the payout is rejected, which the trader sees. With <paramref name="ReturnProfit"/>, the withdrawn profit goes back on
+/// the trader's account, for example while the firm waits for the trader's ID; otherwise it is forfeited.
+/// </summary>
+public sealed record RejectPayoutRequest(string? Reason, bool ReturnProfit = false);
+
+/// <summary>The trader's payout method, or null before the trader has saved one.</summary>
+public sealed record PayoutMethodResponse(PayoutMethod? Method);
 
 /// <summary><paramref name="Reference"/> is the firm's own, for example a bank transfer id.</summary>
 public sealed record MarkPayoutPaidRequest(string? Reference);
@@ -161,7 +189,8 @@ public sealed record LoginLinkResponse(Uri Url, DateTimeOffset ExpiresAt);
 /// An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought
 /// with, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it
 /// ended, and its payouts, newest first. <paramref name="HistoryVersion"/> changes whenever the account's trading
-/// history or the rule engine's steps do, so the portal asks for the history again only then.
+/// history or the rule engine's steps do, so the portal asks for the history again only then. <paramref name="Retry"/>
+/// is how a failed challenge can be tried again.
 /// </summary>
 public sealed record AccountDetailsResponse(
     AccountResponse Account,
@@ -173,7 +202,14 @@ public sealed record AccountDetailsResponse(
     ExpiryEvidence? Expiry,
     DateTimeOffset? EndedAt,
     IReadOnlyList<PayoutResponse> Payouts,
-    string HistoryVersion);
+    string HistoryVersion,
+    RetryOffer? Retry = null);
+
+/// <summary>
+/// A new try at a failed challenge: the challenge is for sale at <paramref name="Price"/>, and with the firm's
+/// <paramref name="DiscountCode"/> for retries, when it has one, at <paramref name="Amount"/>.
+/// </summary>
+public sealed record RetryOffer(string ChallengeId, decimal Price, string Currency, string? DiscountCode, decimal? Amount);
 
 /// <summary>The trading account valued at the latest prices. Missing when the trading platform cannot be reached.</summary>
 public sealed record LiveFigures(decimal Balance, decimal Equity, IReadOnlyList<FloorFigure> Floors);
@@ -240,8 +276,22 @@ public sealed record ResultsResponse(
     decimal? TargetPercent,
     decimal PaidOut);
 
-/// <summary>What the trading platform recorded when a floor was breached.</summary>
-public sealed record BreachEvidence(DateTimeOffset Time, string FloorId, decimal Level, decimal Equity, FailureReason Reason);
+/// <summary>
+/// What the trading platform recorded when a floor was breached. <paramref name="Closes"/> are the positions the breach
+/// closed, at the next price and with the commission for closing them, and <paramref name="BalanceAfter"/> the balance
+/// they left, which is why it can end below the floor.
+/// </summary>
+public sealed record BreachEvidence(
+    DateTimeOffset Time,
+    string FloorId,
+    decimal Level,
+    decimal Equity,
+    FailureReason Reason,
+    IReadOnlyList<BreachClose>? Closes = null,
+    decimal? BalanceAfter = null);
+
+/// <summary>A position a breach closed: at <paramref name="ClosePrice"/>, with <paramref name="Profit"/> before the <paramref name="Commission"/> for closing it.</summary>
+public sealed record BreachClose(string Symbol, TradeSide Side, decimal Volume, decimal ClosePrice, decimal Profit, decimal Commission);
 
 /// <summary>The challenge ran out of time when trading day <paramref name="Day"/> started, after its time limit or the days allowed without a new position.</summary>
 public sealed record ExpiryEvidence(DateTimeOffset Time, ExpiryReason Reason, DateOnly Day);
@@ -253,8 +303,16 @@ public sealed record PortalLoginRequest(string? Email, string? Password);
 
 public sealed record AcceptInviteRequest(string? Token, string? Password);
 
-/// <summary>Who is logged in to the portal. <paramref name="Role"/> is trader or admin.</summary>
-public sealed record PortalMeResponse(Guid UserId, string Email, string Role, string FirmName);
+/// <summary>
+/// Who is logged in to the portal. <paramref name="Role"/> is trader or admin. <paramref name="EmailConfirmed"/> is false
+/// for a trader who chose a password on an order's page and has not opened the link from the email since.
+/// <paramref name="Name"/> and <paramref name="Country"/> are a trader's from buying, so the shop need not ask again.
+/// </summary>
+public sealed record PortalMeResponse(Guid UserId, string Email, string Role, string FirmName, bool EmailConfirmed, string? Name, string? Country)
+{
+    internal static PortalMeResponse Of(Portal.PortalUser user, string firmName) =>
+        new(user.Id, user.Email, user.Role, firmName, user.Role != Portal.PortalRoles.Trader || user.EmailConfirmedAt is not null, user.Name, user.Country);
+}
 
 /// <summary>What the portal needs to look like the firm's own, and whether the firm is still in the sandbox or being set up.</summary>
 public sealed record BrandingResponse(string Name, string? LogoUrl, IReadOnlyDictionary<string, string> Colors, FirmStatus Status)

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 
 using Microsoft.Extensions.DependencyInjection;
 
@@ -40,6 +41,25 @@ public sealed class PartnerApiTests
         Assert.Equal(["PositionOpened"], order.GetProperty("events").EventKinds());
     }
 
+    // Gold has no pair with EUR, so the engine converts through USD.
+    [Fact]
+    public async Task ANewFirmChoosesTheCurrencyOfItsAccounts()
+    {
+        using var factory = new ServiceFactory();
+        using var partner = factory.CreatePartnerClient();
+
+        var created = await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme", currency = "EUR" }, HttpStatusCode.Created);
+        var refused = await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "beta", name = "Beta", currency = "SEK" }, HttpStatusCode.UnprocessableEntity);
+        using var trader = await CreateTraderAsync(factory, created.GetProperty("adminApiKey").GetString()!, "acme", "ACME1");
+        await factory.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
+        await factory.PushQuoteAsync("XAUUSD", 2650.00m, 2650.30m);
+        var order = await trader.PostJsonAsync("/api/accounts/ACME1/orders", new { orderId = "O1", symbol = "XAUUSD", side = "Buy", type = "Market", volume = 0.10m });
+
+        Assert.Equal("EUR", Assert.Single(created.GetProperty("groups").EnumerateArray()).GetProperty("currency").GetString());
+        Assert.Equal("InvalidCurrency", refused.GetProperty("reason").GetString());
+        Assert.Equal(["PositionOpened"], order.GetProperty("events").EventKinds());
+    }
+
     // What the terminal loads first. The new firm's group was created while the engine ran, not configured.
     [Fact]
     public async Task ANewFirmsTraderSeesTheInstrumentsPricesAndChartsOfItsGroup()
@@ -54,8 +74,10 @@ public sealed class PartnerApiTests
         var price = await trader.PriceAsync("ACME1", "EURUSD");
         var candles = await trader.GetJsonAsync("/api/accounts/ACME1/candles/EURUSD?timeframe=M1&count=10");
 
-        Assert.Equal(["EURUSD", "GBPUSD", "USDJPY", "XAUUSD"], instruments.EnumerateArray().Select(i => i.GetProperty("symbol").GetString()));
-        Assert.Equal(2, instruments[0].GetProperty("spreadMarkupPoints").GetInt32());
+        Assert.Equal(
+            ["AUDUSD", "EURGBP", "EURJPY", "EURUSD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "XAGUSD", "XAUUSD"],
+            instruments.EnumerateArray().Select(i => i.GetProperty("symbol").GetString()));
+        Assert.Equal(2, instruments.EnumerateArray().Single(i => i.GetProperty("symbol").GetString() == "EURUSD").GetProperty("spreadMarkupPoints").GetInt32());
         Assert.Equal((1.07999m, 1.08011m), (price.GetProperty("bid").GetDecimal(), price.GetProperty("ask").GetDecimal()));
         Assert.Equal(1.07999m, candles.EnumerateArray().Last().GetProperty("close").GetDecimal());
     }
@@ -160,6 +182,81 @@ public sealed class PartnerApiTests
 
         Assert.Equal([ServiceFactory.DemoServer], servers.EnumerateArray().Select(s => s.GetProperty("id").GetString()));
         Assert.Equal("acme", (await trader.GetJsonAsync("/api/auth/me")).GetProperty("server").GetProperty("id").GetString());
+    }
+
+    // When the firm goes live, its portal lists the server and tells the terminal where its traders log in.
+    [Fact]
+    public async Task APartnerListsItsFirmAndSetsWhereItsTradersLogIn()
+    {
+        using var factory = new ServiceFactory();
+        using var partner = factory.CreatePartnerClient();
+        await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme" }, HttpStatusCode.Created);
+        using var anonymous = factory.CreateClient();
+
+        var unlisted = await anonymous.GetJsonAsync("/api/servers/acme");
+        var changed = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = true, loginUrl = "https://acme.example.com/terminal" }, HttpStatusCode.OK);
+        var servers = await anonymous.GetJsonAsync("/api/servers");
+        var onlyListing = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = false }, HttpStatusCode.OK);
+        var cleared = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { loginUrl = "" }, HttpStatusCode.OK);
+
+        Assert.Equal(("Acme", JsonValueKind.Null), (unlisted.GetProperty("name").GetString(), unlisted.GetProperty("loginUrl").ValueKind));
+        Assert.Equal((true, "https://acme.example.com/terminal"), (changed.GetProperty("listed").GetBoolean(), changed.GetProperty("loginUrl").GetString()));
+        var acme = servers.EnumerateArray().Single(s => s.GetProperty("id").GetString() == "acme");
+        Assert.Equal("https://acme.example.com/terminal", acme.GetProperty("loginUrl").GetString());
+        Assert.Equal((false, "https://acme.example.com/terminal"), (onlyListing.GetProperty("listed").GetBoolean(), onlyListing.GetProperty("loginUrl").GetString()));
+        Assert.Equal(JsonValueKind.Null, cleared.GetProperty("loginUrl").ValueKind);
+        await anonymous.SendJsonAsync(HttpMethod.Get, "/api/servers/no-such-firm", null, HttpStatusCode.NotFound);
+    }
+
+    // The terminal shows the firm's logo in its account bar (ADR 0035).
+    [Fact]
+    public async Task APartnerSetsTheFirmsLogo()
+    {
+        using var factory = new ServiceFactory();
+        using var partner = factory.CreatePartnerClient();
+        await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme" }, HttpStatusCode.Created);
+        using var anonymous = factory.CreateClient();
+
+        var changed = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { logoUrl = "https://acme.example.com/api/portal/logo/abc" }, HttpStatusCode.OK);
+        var server = await anonymous.GetJsonAsync("/api/servers/acme");
+        await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { logoUrl = "javascript:alert(1)" }, HttpStatusCode.UnprocessableEntity);
+        var removed = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { logoUrl = "" }, HttpStatusCode.OK);
+
+        Assert.Equal("https://acme.example.com/api/portal/logo/abc", changed.GetProperty("logoUrl").GetString());
+        Assert.Equal("https://acme.example.com/api/portal/logo/abc", server.GetProperty("logoUrl").GetString());
+        Assert.Equal(JsonValueKind.Null, removed.GetProperty("logoUrl").ValueKind);
+    }
+
+    [Fact]
+    public async Task ALoginAddressMustBeAWebAddressAndOnlyTheFirmsPartnerSetsIt()
+    {
+        using var factory = new ServiceFactory(settings: OtherPartner);
+        using var partner = factory.CreatePartnerClient();
+        using var other = factory.CreatePartnerClient(OtherPartnerKey);
+        await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme" }, HttpStatusCode.Created);
+
+        await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { loginUrl = "javascript:alert(1)" }, HttpStatusCode.UnprocessableEntity);
+        await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { loginUrl = "/terminal" }, HttpStatusCode.UnprocessableEntity);
+        await other.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = true }, HttpStatusCode.NotFound);
+        await partner.SendJsonAsync(HttpMethod.Patch, $"/api/partner/v1/tenants/{ServiceFactory.DemoServer}", new { listed = false }, HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ListingSurvivesARestart()
+    {
+        var backend = new InMemoryBackend();
+        using (var first = new ServiceFactory(backend))
+        {
+            using var partner = first.CreatePartnerClient();
+            await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme" }, HttpStatusCode.Created);
+            await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = true, loginUrl = "https://acme.example.com/terminal" }, HttpStatusCode.OK);
+        }
+
+        using var second = new ServiceFactory(backend);
+        using var anonymous = second.CreateClient();
+        var acme = (await anonymous.GetJsonAsync("/api/servers")).EnumerateArray().Single(s => s.GetProperty("id").GetString() == "acme");
+
+        Assert.Equal("https://acme.example.com/terminal", acme.GetProperty("loginUrl").GetString());
     }
 
     [Fact]

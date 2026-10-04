@@ -1,4 +1,4 @@
-import type { Billing, Card, Charge, ChargeKind, ChargeStatus, Prices, Slots } from "./api/types";
+import type { Billing, Card, Charge, ChargeKind, ChargeStatus, Prices, Quote, Slots, Vat } from "./api/types";
 import { formatDate, formatMoney } from "./format";
 
 export const chargeKindLabels: Record<ChargeKind, string> = {
@@ -43,6 +43,35 @@ export function monthlyPrices(prices: Prices): string[] {
     return `${range}: ${formatMoney(tier.price)} ${prices.currency} each per month`;
   });
   return [`Package with ${prices.packageSlots} ${plural(prices.packageSlots, "slot")}: ${formatMoney(prices.packagePrice)} ${prices.currency} per month`, ...tiers];
+}
+
+/** What one round of automatic expansion adds, for example "Adds 10 slots for 50.00 USD a month, and 43.55 USD for the rest of October if it happens today." */
+export function expansionText(expansion: NonNullable<Quote["expansion"]>, currency: string): string {
+  return `Adds ${expansion.slots} ${plural(expansion.slots, "slot")} for ${formatMoney(expansion.monthlyPrice)} ${currency} a month, and ${formatMoney(expansion.restOfMonth)} ${currency} for the rest of ${monthName(expansion.month).split(" ")[0]} if it happens today. Without VAT.`;
+}
+
+/** How VAT applies to the firm's charges, in a sentence. Our prices are without VAT. */
+export function vatText(vat: Vat): string {
+  switch (vat.treatment) {
+    case "Charged":
+      return `Prices are without VAT. ${vat.percent}% VAT is added for your company.`;
+    case "ReverseCharge":
+      return "Prices are without VAT, and none is added: your company is in another EU country with a VAT number, so it accounts for the VAT itself (reverse charge).";
+    case "OutsideEu":
+      return "Prices are without VAT, and none is added, since your company is outside the EU.";
+    default:
+      return "Prices are without VAT.";
+  }
+}
+
+/** The VAT on an amount without VAT, in whole cents. The service's own figure is what is charged. */
+export function vatOn(net: number, vat: Vat): number {
+  return Math.round(net * vat.percent) / 100;
+}
+
+/** Where the invoice of a paid charge is, as a PDF. */
+export function invoiceUrl(charge: Charge): string {
+  return `/api/portal/admin/billing/charges/${charge.id}/invoice`;
 }
 
 /** The saved card, for example "visa ending 4242, expires 12/2030". */

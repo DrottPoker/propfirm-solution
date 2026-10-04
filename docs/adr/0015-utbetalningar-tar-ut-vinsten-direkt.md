@@ -17,7 +17,7 @@ Mellan begäran och betalningen kan det gå flera dagar. Om vinsten ligger kvar 
 - **Regelmotorn äger utbetalningen**, som resten av kontots livscykel. Den avgör om en utbetalning kan begäras, räknar ut beloppet och tar utbetalningen från begäran till betald, och varje steg sparas i kontots journal (ADR 0013). Samma beräkning visar traderns nästa utbetalning i portalen.
 - **Uttaget går genom utkorgen** med utbetalningens id som operationens id och startsaldot som minsta saldo. Utbetalningen väntar på firman först när uttaget syns i händelseströmmen. Har en position stängts med förlust just innan nekar handelsplattformen uttaget, och tjänsten rapporterar nejet till regelmotorn i samma transaktion som kommandot läggs åt sidan. Utbetalningen blir då `Failed` och kontot är som innan.
 - **En utbetalning åt gången.** Nästa kan begäras när den förra är betald eller nekad, och när funded-fasens minsta antal handelsdagar har gått sedan förra utbetalningen.
-- **Nekar firman en utbetalning återförs inte vinsten.** Firman nekar när tradern har brutit mot villkoren. Väntar firman på något, till exempel KYC, låter den utbetalningen vänta.
+- **Nekar firman en utbetalning väljer den om vinsten återförs** (ADR 0037). För en bruten regel är vinsten förlorad. Väntar firman på något, till exempel traderns ID, lägger den tillbaka vinsten på kontot, så att tradern kan begära igen.
 
 ## Konsekvenser
 

@@ -11,6 +11,15 @@ const productName = "Trading terminal";
 
 const password = "e2e-password";
 
+/** Sets a loss limit at a fixed level through the admin API, like the prop platform does. */
+async function setFloor(request: APIRequestContext, accountId: string, floorId: string, level: number) {
+  const response = await request.put(`${serviceUrl}/api/admin/v1/accounts/${accountId}/floors/${floorId}`, {
+    headers: adminHeaders,
+    data: { rule: { kind: "FixedFloor", level } },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
 /** Creates a trader with an account through the admin API, like the prop platform will. */
 async function createTrader(request: APIRequestContext, name: string) {
   const accountId = `${name}-${test.info().testId.slice(0, 8)}`;
@@ -27,8 +36,10 @@ async function createTrader(request: APIRequestContext, name: string) {
   return { accountId, email, userId: (await user.json()).userId as string };
 }
 
+// The development firm's traders log in through its portal, so the terminal's own password login is one click away.
 async function submitLogin(page: Page, email: string, withPassword: string) {
   await page.goto("/login");
+  await page.getByRole("button", { name: "I have a password for the terminal" }).click();
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(withPassword);
   await page.getByRole("button", { name: "Log in" }).click();
@@ -56,6 +67,14 @@ test("visitors who are not logged in are sent to the login page with the server 
   await expect(page.getByLabel("Server")).toHaveValue(server.id);
 });
 
+test("a firm with a portal has its traders log in there", async ({ page }) => {
+  await page.goto("/login");
+
+  const portal = page.getByRole("link", { name: `Log in through ${server.name}` });
+  await expect(portal).toHaveAttribute("href", "http://localhost:3002/terminal");
+  await expect(page.getByLabel("Password")).toHaveCount(0);
+});
+
 test("a wrong password is refused", async ({ page, request }) => {
   const trader = await createTrader(request, "refused");
 
@@ -71,8 +90,8 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
 
   await logIn(page, trader.email);
   await expect(page.getByText(trader.accountId, { exact: true })).toBeVisible();
-  await expect(page.getByText(server.name)).toBeVisible();
-  await expect(page.getByText("Live")).toBeVisible();
+  await expect(page.getByRole("banner").getByText(server.name, { exact: true })).toBeVisible();
+  await expect(page.getByText("Live prices")).toBeVisible();
 
   // The buttons are enabled once prices have arrived.
   const buy = page.getByRole("button", { name: /^buy/i });
@@ -144,7 +163,7 @@ test("stops are set as amounts, and the stop loss is dragged on the chart", asyn
   // A refused order keeps what was typed, so it can be corrected. A buy's stop loss must be below the price.
   await page.getByLabel("Stop loss", { exact: true }).fill("9.00000");
   await buy.click();
-  await expect(page.getByRole("status")).toHaveText("Rejected: InvalidStopLoss");
+  await expect(page.getByRole("status")).toHaveText("Refused: the stop loss is on the wrong side of the price");
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue("9.00000");
 
   // 100 USD of loss and 200 USD of profit become prices for each side before the order is sent.
@@ -225,6 +244,38 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   await expect(menu).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+});
+
+test("the account is shown as the firm's portal names it, with its target and limits", async ({ page, request }) => {
+  const trader = await createTrader(request, "described");
+  const detailsUrl = "http://localhost:3002/accounts/described";
+  const details = await request.put(`${serviceUrl}/api/admin/v1/accounts/${trader.accountId}/details`, {
+    headers: adminHeaders,
+    data: { label: "#1001 Two-step 100K \u00b7 Phase 1", profitTarget: 110_000, timeZone: "Europe/Stockholm", detailsUrl },
+  });
+  expect(details.ok()).toBeTruthy();
+  await setFloor(request, trader.accountId, "daily", 95_000);
+
+  await logIn(page, trader.email);
+  const banner = page.getByRole("banner");
+  await expect(banner.getByText("#1001 Two-step 100K \u00b7 Phase 1", { exact: true })).toBeVisible();
+  await expect(banner.getByText("10,000.00 to go")).toBeVisible();
+  await expect(banner.getByText("Daily loss limit")).toBeVisible();
+  await expect(banner.getByText("5,000.00 left")).toBeVisible();
+  await expect(banner.getByRole("link", { name: `Back to ${server.name}` })).toHaveAttribute("href", detailsUrl);
+  // Every time is in the zone of the account's trading day, and says so.
+  await expect(page.getByRole("contentinfo")).toContainText("Stockholm time");
+
+  // A broken limit ends trading, which the terminal says plainly, without a negative amount left.
+  await setFloor(request, trader.accountId, "max-loss", 100_001);
+  const notice = page.getByRole("alert").filter({ hasText: "Trading on this account has ended" });
+  await expect(notice).toContainText(/The max loss limit was broken at \d\d:\d\d:\d\d Stockholm time: equity 100,000\.00 fell below 100,001\.00\./);
+  await expect(notice.getByRole("link", { name: `See the account at ${server.name}` })).toHaveAttribute("href", detailsUrl);
+  await expect(banner.getByText("Broken")).toBeVisible();
+  await expect(banner.getByText(/-[\d,.]+ left/)).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Events" }).click();
+  await expect(page.getByText("Trading ended: a loss limit was broken")).toBeVisible();
 });
 
 test("the watchlist is searched and filtered", async ({ page, request }) => {

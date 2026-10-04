@@ -1,6 +1,6 @@
 # Spec: granskning av firmor och avstängning
 
-- Fas: 9a
+- Fas: 9a, sidan Go live, alla fält som saknas, släppytan för dokument och mejlen med kvitto efter genomgången som ny firma
 - Status: Implementerad i `prop/src/Prop.Api/Review`, `prop/src/Prop.Api/Billing` och `prop/portal`
 - Datum: 2026-10-03
 
@@ -11,11 +11,11 @@ En firma i sandlådan ska granskas av oss innan den får ta emot riktiga traders
 ## Flöde
 
 ```
-sandlådan -> /admin/verification: bolagets uppgifter, ägare, länkar och frivilliga dokument
--> Submit -> handpenning på en betalsida (Stripe Checkout eller testsidan), sparar kortet
--> handpenningen betald -> ansökan skickad, vår personal mejlas
--> vår adminvy /ops: granska
-   godkänn -> firman mejlas -> /admin/billing: betala startavgiften minus handpenningen och platserna -> live
+sandlådan -> /admin/go-live, steg 1: bolagets uppgifter, ägare, länkar och frivilliga dokument, med allt som saknas markerat
+-> steg 2: handpenning på en betalsida (Stripe Checkout eller testsidan), med moms, sparar kortet
+-> handpenningen betald -> ansökan skickad, firman mejlas kvittot och att vi har fått den, vår personal mejlas
+-> steg 3, vår adminvy /ops: granska
+   godkänn -> firman mejlas -> steg 4: betala startavgiften minus handpenningen och platserna -> live
    be om ändringar -> firman mejlas -> ändra och skicka igen, utan ny handpenning
    neka -> firman mejlas -> kan inte gå live, handpenningen betalas inte tillbaka
 live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stänger -> slå på igen
@@ -41,6 +41,7 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 
 - Ett bolag i EU, Sverige också, anger sitt momsnummer eller kryssar i att det inte har något. Vi är ett svenskt bolag, så ett bolag i ett annat EU-land slipper svensk moms bara med ett giltigt momsnummer. Inget land kräver att alla bolag är momsregistrerade, till exempel inte de under omsättningsgränsen, så numret kan inte krävas. Ett bolag i EU utan momsnummer betalar svensk moms. Tjänsten kontrollerar bara formen: landets prefix (`EL` för Grekland) och 2-12 siffror eller bokstäver efter det. Vi kontrollerar numret i EU:s momsregister (VIES) när vi granskar.
 - Ett utkast sparas med bara de fält som är ifyllda. Fälten kontrolleras när de sparas, och att allt som krävs finns när ansökan skickas.
+- `GET /verification` har `problems`, vad som saknas eller är fel i varje fält av den sparade ansökan, i formulärets ordning. Adminpanelen markerar alla de fälten och listar dem vid knapparna. Ett fält som ändrats sedan det sparades markeras inte, eftersom det som sades gäller det sparade.
 - Dokument är frivilliga, till exempel registreringsbevis. Högst 10 filer per firma, högst 10 MB var, i formaten PDF, PNG och JPEG. Formatet kontrolleras på filens innehåll, inte på namnet. Filerna sparas krypterade.
 - Ansökan och dokumenten kan ändras som utkast och när vi har bett om ändringar, annars inte.
 
@@ -63,7 +64,8 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 - `Billing:ReviewDeposit` (förslag 200 USD) betalas när ansökan skickas första gången, på en betalsida som också sparar kortet. Är den 0 skickas ansökan direkt utan betalning.
 - Den är en debitering av sorten `Deposit`, och syns bland firmans debiteringar. En betalsida som inte betalas i tid blir `Void`, och firman kan skicka igen.
 - Den dras av från startavgiften när firman går live, med det belopp som faktiskt betalades. Raden heter då `Startup fee, less the deposit of 100.00 USD`, och försvinner om den blir 0.
-- Den betalas aldrig tillbaka, inte heller när firman nekas. Det står vid knappen innan firman betalar.
+- Den betalas inte tillbaka, inte heller när firman nekas, eftersom granskningen görs för hand också då. Steget förklarar det innan firman betalar: vi slår upp bolaget i registret, kontrollerar ägarna och läser villkoren.
+- Momsen läggs till som för alla våra debiteringar (se [specen för platser och betalning](platser-och-betalning.md)), och firman får kvittot på mejlen och fakturan som PDF.
 - `ReviewDeposit` kan inte vara större än `StartupFee`.
 
 ## Avstängning
@@ -74,10 +76,15 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 - Månaderna debiteras som vanligt medan firman är avstängd. En avstängd firma kan inte gå live.
 - Administratörerna mejlas när firman stängs av och när den slås på igen.
 
+## Firmans villkor
+
+Villkoren för traders är en adress för hela firman: samma fält i ansökan och under Checkout, där köpare godkänner dem. Sparas de i ansökan ändras butikens, och ändras de under Checkout visar ansökan de nya. När ansökan skickas sparas den med villkoren som de är då, och det är dem vi granskar.
+
 ## Vår personal
 
 - Personalen loggar in på vår adminvy, som har en egen adress (`Platform:OpsUrl`, lokalt http://ops.localhost:3002). Sessionen har en egen cookie, `prop_ops`, och gäller bara där.
-- Personalen läggs in i konfigurationen med `Staff:SeedUsers`. Lokalt finns `ops@test.com` med lösenordet `ops`.
+- Personalen läggs in i konfigurationen med `Staff:SeedUsers`. Lokalt finns `ops@test.com` med lösenordet `ops`. Ett lösenord som redan är det konfigurerade behålls vid start, så att sessionerna finns kvar.
+- Den som glömt lösenordet får en länk på `/ops/forgot-password`, som gäller en gång i en timme. Ett nytt lösenord loggar ut personalens andra sessioner (ADR 0028).
 - Personalen mejlas när en ansökan skickas.
 
 ## Propfirm-tjänsten: firmans adminpanel
@@ -86,7 +93,7 @@ Vägarna börjar med `/api/portal/admin` och kräver en administratör.
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp, valuta och om den är betald), om ansökan kan ändras, varför den inte kan skickas och EU-länderna, där firman anger momsnummer eller att den saknar ett (`euCountries`). |
+| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp utan moms, valuta och om den är betald), om ansökan kan ändras, varför den inte kan skickas, vad som saknas i varje fält (`problems`, tomt när den inte kan ändras) och EU-länderna, där firman anger momsnummer eller att den saknar ett (`euCountries`). |
 | `PUT /verification/application` | Sparar ansökan som utkast. 422 med fältet för ett fel, 409 när den inte kan ändras. Svarar med `GET /verification`. |
 | `POST /verification/documents` | Laddar upp ett dokument som `multipart/form-data` med fältet `file`. 201 med dokumentet. 409 när ansökan inte kan ändras eller firman har 10 dokument, 413 för en för stor fil, 415 för ett annat format. |
 | `GET /verification/documents/{id}` | Hämtar dokumentet. |
@@ -103,6 +110,7 @@ Vägarna börjar med `/api/portal/ops` och fungerar bara på `Platform:OpsUrl`. 
 |---|---|
 | `GET /ops` | Plattformens namn och registreringssidans adress. 404 på andra adresser, så att portalen vet att adressen är vår adminvy. |
 | `POST /ops/login` | `{ "email", "password" }`. Samma gräns för försök som andra inloggningar. |
+| `POST /ops/password-reset`, `POST /ops/password-reset/check`, `POST /ops/password-reset/confirm` | Glömt lösenord för personalen, som för firmornas administratörer (se [specen för portalen](portal.md)). Länken går till `/ops/reset-password` på vår adminvys adress. |
 | `POST /ops/logout` | Loggar ut. |
 | `GET /ops/me` | Vem som är inloggad. |
 | `GET /ops/overview` | Översikten ([ADR 0024](../adr/0024-var-adminvy-over-alla-firmor.md)): det som väntar på oss (`needsUs`: ansökningar att granska, debiteringar med nekat kort, firmor vars traders väntat mer än `lateAfterDays` dagar på en utbetalning och handelsservrar som inte blivit klara på 10 minuter), firmorna i varje grupp, vad firmorna betalar per månad, vad de betalat de senaste 30 dagarna per sort, öppna challenges hos live-firmor, betalningar per vecka i 12 veckor, hur långt firmorna som registrerat sig de senaste 90 dagarna kommit och de senaste händelserna. |
@@ -125,9 +133,10 @@ Varje beslut sparar vem i personalen som tog det, och vilka kontroller som var b
 | Mejl | Till | När |
 |---|---|---|
 | `{firma} is waiting for review` | Personalen | En ansökan skickas. |
+| `We have received the application for {firma}` | Firmans administratörer | En ansökan skickas, med kvittot när handpenningen skickade den. |
 | `Changes needed for {firma}` | Firmans administratörer | Vi ber om ändringar, med meddelandet. |
-| `{firma} is approved` | Firmans administratörer | Vi godkänner, med länken till Billing. |
-| `{firma} was not approved` | Firmans administratörer | Vi nekar, med meddelandet. |
+| `{firma} is approved` | Firmans administratörer | Vi godkänner, med länken till Go live. |
+| `{firma} was not approved` | Firmans administratörer | Vi nekar, med meddelandet, och att handpenningen betalade granskningen. |
 | `{firma} is suspended` | Firmans administratörer | Vi stänger av firman, med orsaken. |
 | `{firma} is no longer suspended` | Firmans administratörer | Vi slår på firman igen. |
 
@@ -137,9 +146,11 @@ Ett mejl som inte går iväg loggas, och adminpanelen visar samma sak.
 
 | Sida | Adress | Innehåll |
 |---|---|---|
-| `/admin/verification` | Firmans | Granskningens status och vårt meddelande, ansökan, dokumenten och knappen som skickar med handpenningen. |
-| `/admin/billing` | Firmans | I sandlådan: stegen till live, med länk till granskningen tills firman är godkänd. Avdraget för handpenningen syns i priset. |
-| `/ops/login` | Vår adminvy | Inloggning för personalen. |
+| `/admin/go-live` | Firmans | I sandlådan, i menyn som Go live. Fyra steg som var och ett visar var det är: bolagets uppgifter (alla fält som saknas markerade och listade, dokumenten på en släppyta som loggans, vår begäran om ändringar överst), handpenningen (varför, beloppet med moms, fakturan och knappen som betalar och skickar, eller skickar ändringarna igen), vårt svar, och platser och betalning, med avdraget för handpenningen i priset. `?step=` väljer steg, annars öppnas det som väntar på firman eller oss. |
+| `/admin/billing?tab=company` | Firmans | Live: bolagets uppgifter som de godkändes, och dokumenten. |
+| `/admin/verification` | Firmans | Skickar vidare till `/admin/go-live` i sandlådan och till bolagets uppgifter när firman är live, för länkar från tidigare. |
+| `/ops/login` | Vår adminvy | Inloggning för personalen, med "Forgot password?". |
+| `/ops/forgot-password`, `/ops/reset-password?token=` | Vår adminvy | Glömt lösenord. |
 | `/ops` | Vår adminvy | Översikten: det som väntar på oss, nyckeltal, betalningar per vecka, från registrering till live och senaste händelser. |
 | `/ops/firms` | Vår adminvy | Alla firmor med sökning och grupper. `?group=` och `?search=` behålls i adressen. |
 | `/ops/firms/{id}` | Vår adminvy | Flikar för granskningen (ansökan, dokument, sandlådan, våra kontroller och besluten i rutor), översikten (siffror och hur firman betalar sina traders), betalningarna, teamet och historiken. Avstängning i en ruta. `?tab=` väljer flik. |
@@ -156,7 +167,7 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 | `firm_reviews` | Granskningen per firma: status, ansökan som JSON, vårt senaste meddelande, när den skickades och avgjordes och av vem. |
 | `firm_documents` | Dokumenten: namn, format, storlek, SHA-256, innehållet krypterat med AES-GCM, vem som laddade upp och när. |
 | `firm_events` | Allt som hänt i granskningen och med avstängningen, med vem som gjorde det. Ansökan sparas som den var när den skickades. Rader läggs bara till. |
-| `staff_users` | Vår personal: e-post och hash av lösenordet. |
+| `staff_users` | Vår personal: e-post, hash av lösenordet och när det valdes. |
 | `firm_review_checks` | Granskningens bockade kontroller per firma, med vem som bockade och när. En kontroll som bockas ur tas bort. |
 
 `firms` har kolumnerna `suspended_at` och `suspension_reason`.
@@ -181,11 +192,12 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 
 ## Tester
 
-- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften och att adminvyn bara finns på sin adress och kräver personal.
+- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras med alla fält som saknas, kvittot och mejlet om att vi har fått ansökan, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften, att villkoren är en adress för butiken och ansökan, och att adminvyn bara finns på sin adress och kräver personal.
 - `prop/tests/Prop.Api.Tests/SuspensionTests`: en avstängd firma kan inte starta challenges, dess challenges pausas och återupptas, butiken stänger, och en obetald månad håller challengerna pausade när firman slås på igen.
 - `prop/tests/Prop.Api.Tests/OpsPanelTests`: översikten med det som väntar på oss och hur långt firmorna kommit, sökningen och grupperna bland firmorna, kontrollerna som sparas med beslutet, en firmas utbetalningar utan traderns e-post, vad firmorna betalar och har nekats, och att bara personalen når vyerna.
 - `prop/portal/src/lib/ops.test.ts`: det som väntar på oss i ord, firmans senaste steg och challenges, händelserna, sena utbetalningar och mejl till administratörerna.
 - `prop/tests/Prop.Api.Tests/BillingRulesTests`: avdraget för handpenningen.
 - `prop/tests/Prop.Api.Tests/VatNumbersTests`: att ett bolag i EU anger momsnummer eller att det saknar ett, hur numret skrivs och vilka former som tas emot och nekas.
-- `prop/portal/src/lib/verification.test.ts`: ansökans fält, ägarna och granskningens texter.
-- `prop/portal/e2e/verification.spec.ts`: en ny firma fyller i ansökan, betalar handpenningen, hittas bland firmorna att granska, får en kontroll bockad och en begäran om ändringar, godkänns i vår adminvy, går live, syns bland firmorna som betalar och stängs av och slås på igen.
+- `prop/portal/src/lib/verification.test.ts`: ansökans fält, ägarna och fälten som markeras, men inte ett som ändrats sedan.
+- `prop/portal/src/lib/goLivePage.test.ts`: de fyra stegen till live och vilket sidan öppnar på.
+- `prop/portal/e2e/verification.spec.ts`: en ny firma ser alla fält som saknas, fyller i ansökan, släpper in ett dokument, ser handpenningen med moms och betalar den, hittas bland firmorna att granska, får en kontroll bockad och en begäran om ändringar, godkänns i vår adminvy, går live, syns bland firmorna som betalar och stängs av och slås på igen.

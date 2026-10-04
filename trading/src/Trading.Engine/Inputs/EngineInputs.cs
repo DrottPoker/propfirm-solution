@@ -16,8 +16,20 @@ public interface IAccountCommand
 public sealed record Quote(DateTimeOffset Timestamp, string Symbol, decimal Bid, decimal Ask)
     : EngineInput(Timestamp);
 
-/// <summary>Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards.</summary>
+/// <summary>
+/// Creates a trading group, for example for a firm that signed up. Its currency and stop out level never change
+/// afterwards, but its symbols can (see <see cref="ChangeGroupSymbols"/>).
+/// </summary>
 public sealed record CreateGroup(DateTimeOffset Timestamp, TradingGroup Group)
+    : EngineInput(Timestamp);
+
+/// <summary>
+/// Replaces the symbols and their conditions of a group created with <see cref="CreateGroup"/>, for example when
+/// the firm changes its leverage or commission. Configured groups are changed in the configuration. Open positions
+/// and pending orders take the new conditions at once. A symbol can only be removed while no account in the group
+/// has a position or an order in it.
+/// </summary>
+public sealed record ChangeGroupSymbols(DateTimeOffset Timestamp, string GroupId, IReadOnlyList<SymbolConditions> Symbols)
     : EngineInput(Timestamp);
 
 public sealed record CreateAccount(DateTimeOffset Timestamp, string AccountId, string GroupId, decimal InitialBalance)

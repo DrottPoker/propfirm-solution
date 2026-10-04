@@ -101,7 +101,10 @@ export function AdminOrders() {
                       <span className="font-mono">#{order.number}</span>
                       <span className="block text-xs text-muted">{formatDateTime(order.createdAt)}</span>
                     </td>
-                    <td className="px-4 py-3">{order.email}</td>
+                    <td className="px-4 py-3">
+                      {order.buyerName ?? order.email}
+                      {order.buyerName && <span className="block text-xs text-muted">{order.email}</span>}
+                    </td>
                     <td className="px-4 py-3">
                       {order.accountId ? (
                         <Link href={`/admin/accounts/${order.accountId}`} className="text-accent hover:underline">
@@ -114,6 +117,11 @@ export function AdminOrders() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums">
                       {formatMoney(order.amount)} {order.currency}
+                      {order.discountCode && order.listAmount != null && (
+                        <span className="block font-sans text-xs text-muted">
+                          Code {order.discountCode}, was {formatMoney(order.listAmount)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">{providerLabels[order.provider]}</td>
                     <td className="px-4 py-3">

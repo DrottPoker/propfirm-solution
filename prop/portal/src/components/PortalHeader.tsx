@@ -9,6 +9,7 @@ import { initials } from "@/lib/dashboard";
 import { useLogout, useShop } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
+import { CloseIcon, MenuIcon } from "./icons";
 import { buttonClass } from "./ui";
 
 const traderLinks = [
@@ -96,16 +97,22 @@ function TraderMenu({ me, path, canBuy }: { me: Me; path: string; canBuy: boolea
     <div ref={container} className="relative">
       <button
         type="button"
-        aria-label={`Menu for ${me.email}`}
+        aria-label={open ? "Close the menu" : `Menu for ${me.email}`}
         aria-expanded={open}
         aria-controls={menuId}
         onClick={() => {
           setOpenedOn(path);
           setOpen(!open);
         }}
-        className="grid size-10 place-items-center rounded-full border border-border bg-background text-xs font-semibold hover:border-muted"
+        className="flex h-10 items-center gap-2 rounded-lg border border-border bg-background px-2.5 hover:border-muted sm:rounded-full sm:px-0 sm:size-10 sm:justify-center"
       >
-        {initials(me.email)}
+        <span className="flex items-center gap-1.5 sm:hidden">
+          {open ? <CloseIcon className="size-5" /> : <MenuIcon className="size-5" />}
+          <span className="text-sm">Menu</span>
+        </span>
+        <span aria-hidden="true" className="hidden text-xs font-semibold sm:inline">
+          {initials(me.email)}
+        </span>
       </button>
       {open && (
         <div id={menuId} className="absolute right-0 z-20 mt-2 flex w-64 flex-col gap-1 rounded-lg border border-border bg-panel p-2 shadow-xl">

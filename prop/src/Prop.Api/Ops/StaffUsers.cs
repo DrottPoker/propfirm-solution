@@ -15,7 +15,9 @@ using Prop.Api.Portal;
 
 namespace Prop.Api.Ops;
 
-/// <summary>One of our own staff, who review firms in our admin view. Not a firm's administrator.</summary>
+/// <summary>
+/// One of our own staff, who review firms in our admin view. Not a firm's administrator.
+/// </summary>
 internal sealed record StaffUser(Guid Id, string Email, string PasswordHash);
 
 /// <summary>Our staff in the database.</summary>
@@ -37,7 +39,7 @@ internal sealed class StaffUsers(NpgsqlDataSource dataSource, DatabaseSchema sch
         var staff = new List<StaffUser>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            staff.Add(new StaffUser(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)));
+            staff.Add(Read(reader));
         }
 
         return staff;
@@ -60,14 +62,28 @@ internal sealed class StaffUsers(NpgsqlDataSource dataSource, DatabaseSchema sch
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>The staff member's new password. Sessions from before it stop working.</summary>
+    public async Task SetPasswordAsync(Guid id, string passwordHash, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update staff_users set password_hash = $2, password_changed_at = $3 where id = $1");
+        command.Parameters.AddWithValue(id);
+        command.Parameters.AddWithValue(passwordHash);
+        command.Parameters.AddWithValue(now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private async Task<StaffUser?> FindAsync(string sql, object parameter, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand(sql);
         command.Parameters.AddWithValue(parameter);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken) ? new StaffUser(reader.GetGuid(0), reader.GetString(1), reader.GetString(2)) : null;
+        return await reader.ReadAsync(cancellationToken) ? Read(reader) : null;
     }
+
+    private static StaffUser Read(NpgsqlDataReader reader) =>
+        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2));
 }
 
 /// <summary>
@@ -87,6 +103,7 @@ internal static class StaffAuth
             new(PortalAuth.UserIdClaim, staff.Id.ToString()),
             new(ClaimTypes.Role, Role),
             new(ClaimTypes.Email, staff.Email),
+            new(PortalAuth.PasswordStampClaim, PortalAuth.PasswordStamp(staff.PasswordHash)),
         ];
         return context.SignInAsync(Scheme, new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme)));
     }
@@ -103,12 +120,13 @@ internal static class StaffAuth
             {
                 PortalAuth.ConfigureCookie(options, "prop_ops");
 
-                // A staff member who is removed loses the session at once, not when the cookie expires.
+                // A staff member who is removed, or who chose a new password since, loses the session at once, not when the cookie expires.
                 options.Events.OnValidatePrincipal = async context =>
                 {
                     var staff = context.HttpContext.RequestServices.GetRequiredService<StaffUsers>();
                     if (context.Principal is not { } principal
-                        || await staff.FindByIdAsync(PortalAuth.UserIdOf(principal), context.HttpContext.RequestAborted) is null)
+                        || await staff.FindByIdAsync(PortalAuth.UserIdOf(principal), context.HttpContext.RequestAborted) is not { } user
+                        || !PortalAuth.HasPasswordStamp(principal, user.PasswordHash))
                     {
                         context.RejectPrincipal();
                         await context.HttpContext.SignOutAsync(Scheme);
@@ -151,9 +169,14 @@ internal sealed class StaffSeeder(StaffUsers staff, IPasswordHasher<StaffUser> h
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        // A password that is already the configured one is kept, since a new hash would log out its sessions.
         foreach (var user in options.Value.SeedUsers)
         {
-            await staff.SaveAsync(user.Email, hasher.HashPassword(null!, user.Password), time.GetUtcNow(), cancellationToken);
+            if (await staff.FindByEmailAsync(user.Email, cancellationToken) is not { } existing
+                || hasher.VerifyHashedPassword(existing, existing.PasswordHash, user.Password) != PasswordVerificationResult.Success)
+            {
+                await staff.SaveAsync(user.Email, hasher.HashPassword(null!, user.Password), time.GetUtcNow(), cancellationToken);
+            }
         }
     }
 

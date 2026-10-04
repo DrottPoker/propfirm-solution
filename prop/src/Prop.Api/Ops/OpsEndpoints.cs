@@ -35,6 +35,9 @@ internal static class OpsEndpoints
             "",
             (IOptions<PlatformOptions> platform) => TypedResults.Ok(new OpsSiteResponse(platform.Value.Name, platform.Value.Url is { } url ? new Uri(url, "signup") : null)));
         ops.MapPost("/login", LoginAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        ops.MapPost("/password-reset", RequestPasswordResetAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        ops.MapPost("/password-reset/check", CheckPasswordResetAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        ops.MapPost("/password-reset/confirm", ConfirmPasswordResetAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         ops.MapPost("/logout", async (HttpContext context) =>
         {
             await StaffAuth.SignOutAsync(context);
@@ -86,6 +89,71 @@ internal static class OpsEndpoints
 
         await StaffAuth.SignInAsync(context, user);
         return TypedResults.Ok(new OpsMeResponse(user.Id, user.Email));
+    }
+
+    /// <summary>Emails one of our staff a link to choose a new password. Always 202, so the answer never tells who works here.</summary>
+    private static async Task<Accepted> RequestPasswordResetAsync(
+        PasswordResetRequest request,
+        StaffUsers staff,
+        PasswordResets resets,
+        IOptions<PlatformOptions> platform,
+        Npgsql.NpgsqlDataSource dataSource,
+        Common.Postgres.DatabaseSchema schema,
+        WorkSignals signals,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Email) && await staff.FindByEmailAsync(request.Email, cancellationToken) is { } user && platform.Value.OpsUrl is { } opsUrl)
+        {
+            var now = time.GetUtcNow();
+            var token = await resets.CreateAsync(PasswordResetKinds.Staff, user.Id, now, cancellationToken);
+            var message = Email.PlatformEmails.ResetStaffPassword(platform.Value.Name, user.Email, new Uri(opsUrl, $"ops/reset-password?token={token}"), PasswordResets.Lifetime);
+            await Email.EmailOutbox.AddAsync(dataSource, schema, signals, message, "password_reset", null, now, cancellationToken);
+        }
+
+        return TypedResults.Accepted((string?)null);
+    }
+
+    private static async Task<Results<Ok<LinkCheckResponse>, ProblemHttpResult>> CheckPasswordResetAsync(
+        LinkCheckRequest request,
+        StaffUsers staff,
+        PasswordResets resets,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        !string.IsNullOrEmpty(request.Token)
+        && await resets.FindAsync(PasswordResetKinds.Staff, request.Token, time.GetUtcNow(), cancellationToken) is { } link
+        && await staff.FindByIdAsync(link.UserId, cancellationToken) is { } user
+            ? TypedResults.Ok(new LinkCheckResponse(link.Status, user.Email, HasPassword: true))
+            : PasswordResetEndpoints.UnknownLink();
+
+    /// <summary>Sets the new password with the link from the email, logs the staff member in and ends their older sessions.</summary>
+    private static async Task<Results<Ok<OpsMeResponse>, ProblemHttpResult>> ConfirmPasswordResetAsync(
+        AcceptInviteRequest request,
+        HttpContext context,
+        StaffUsers staff,
+        PasswordResets resets,
+        IPasswordHasher<StaffUser> hasher,
+        IOptions<LoginOptions> login,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (PasswordResetEndpoints.PasswordProblem(request.Password, login.Value) is { } problem)
+        {
+            return problem;
+        }
+
+        var now = time.GetUtcNow();
+        if (string.IsNullOrEmpty(request.Token)
+            || await resets.UseAsync(PasswordResetKinds.Staff, request.Token, now, cancellationToken) is not { } staffId
+            || await staff.FindByIdAsync(staffId, cancellationToken) is not { } user)
+        {
+            return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The link has expired or was already used. Ask for a new one.");
+        }
+
+        await staff.SetPasswordAsync(user.Id, hasher.HashPassword(user, request.Password!), now, cancellationToken);
+        var changed = (await staff.FindByIdAsync(user.Id, cancellationToken))!;
+        await StaffAuth.SignInAsync(context, changed);
+        return TypedResults.Ok(new OpsMeResponse(changed.Id, changed.Email));
     }
 
     private static async Task<Results<Ok<OpsFirmResponse>, ProblemHttpResult>> GetFirmAsync(string firmId, OpsFirms view, CancellationToken cancellationToken) =>

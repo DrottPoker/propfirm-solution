@@ -38,7 +38,7 @@ internal static class CommandResults
     {
         RejectReason.UnknownAccount or RejectReason.UnknownOrder or RejectReason.UnknownPosition or RejectReason.UnknownFloor
             => StatusCodes.Status404NotFound,
-        RejectReason.DuplicateId => StatusCodes.Status409Conflict,
+        RejectReason.DuplicateId or RejectReason.SymbolInUse => StatusCodes.Status409Conflict,
         _ => StatusCodes.Status422UnprocessableEntity,
     };
 }

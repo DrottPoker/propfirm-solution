@@ -63,10 +63,10 @@ public sealed class ArchitectureTests
         var types = typeof(TradingEngine).Assembly.GetTypes().Where(t => t is { IsClass: true, IsAbstract: false }).ToList();
 
         var unmarkedEvents = types
-            .Where(t => t.IsAssignableTo(typeof(Events.EngineEvent)) && t != typeof(Events.InputRejected) && t != typeof(Events.GroupCreated))
+            .Where(t => t.IsAssignableTo(typeof(Events.EngineEvent)) && t != typeof(Events.InputRejected) && t != typeof(Events.GroupCreated) && t != typeof(Events.GroupSymbolsChanged))
             .Where(t => !t.IsAssignableTo(typeof(Events.IAccountEvent)));
         var unmarkedCommands = types
-            .Where(t => t.IsAssignableTo(typeof(Inputs.EngineInput)) && t != typeof(Inputs.Quote) && t != typeof(Inputs.CreateGroup))
+            .Where(t => t.IsAssignableTo(typeof(Inputs.EngineInput)) && t != typeof(Inputs.Quote) && t != typeof(Inputs.CreateGroup) && t != typeof(Inputs.ChangeGroupSymbols))
             .Where(t => !t.IsAssignableTo(typeof(Inputs.IAccountCommand)));
 
         Assert.Empty(unmarkedEvents);

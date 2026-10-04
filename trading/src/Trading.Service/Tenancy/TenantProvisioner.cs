@@ -32,13 +32,22 @@ internal sealed class TenantProvisioner(
     public bool IsAvailable(string id) =>
         TenantCatalog.IsValidId(id) && tenants.ById(id) is null && GroupIdsFor(id).All(g => tenants.ByGroup(g) is null && !IsConfiguredGroup(g));
 
-    public async Task<ProvisioningResult> CreateAsync(Partner partner, string? id, string? name, CancellationToken cancellationToken)
+    /// <summary>
+    /// Creates the firm with its groups in <paramref name="currency"/>, one of <see cref="TenancyOptions.Currencies"/>, or
+    /// in the templates' own currency when it is null.
+    /// </summary>
+    public async Task<ProvisioningResult> CreateAsync(Partner partner, string? id, string? name, string? currency, CancellationToken cancellationToken)
     {
         var trimmedName = name?.Trim() ?? "";
         if (!TenantCatalog.IsValidId(id) || trimmedName.Length is 0 or > MaxNameLength)
         {
             return new ProvisioningResult.Invalid(
                 $"The id must be 2 to 63 lowercase letters, digits or dashes, and the name 1 to {MaxNameLength} characters.");
+        }
+
+        if (currency is not null && !tenancy.Value.Currencies.Contains(currency, StringComparer.Ordinal))
+        {
+            return new ProvisioningResult.InvalidCurrency($"The account currency must be one of {string.Join(", ", tenancy.Value.Currencies)}.");
         }
 
         await _lock.WaitAsync(cancellationToken);
@@ -52,7 +61,8 @@ internal sealed class TenantProvisioner(
             var groups = new List<TradingGroup>();
             foreach (var template in tenancy.Value.NewTenantGroups)
             {
-                var group = configuration.Groups.Single(g => g.Id == template) with { Id = GroupIdFor(id!, template) };
+                var copied = configuration.Groups.Single(g => g.Id == template);
+                var group = copied with { Id = GroupIdFor(id!, template), Currency = currency ?? copied.Currency };
                 var events = await engine.SendAsync(t => new CreateGroup(t, group), cancellationToken);
                 if (events.Select(e => e.Event).OfType<InputRejected>().FirstOrDefault() is { Reason: not RejectReason.DuplicateId } rejected)
                 {
@@ -96,6 +106,23 @@ internal sealed class TenantProvisioner(
         }
     }
 
+    /// <summary>Lists the firm's server or takes it off the list, and sets where its traders log in and the firm's logo.</summary>
+    public async Task<Tenant> SetListingAsync(Tenant tenant, bool listed, Uri? loginUrl, Uri? logoUrl, CancellationToken cancellationToken)
+    {
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            await store.SetListingAsync(tenant.Id, listed, loginUrl, logoUrl, cancellationToken);
+            var changed = (tenants.ById(tenant.Id) ?? tenant) with { Listed = listed, LoginUrl = loginUrl, LogoUrl = logoUrl };
+            tenants.Put(changed);
+            return changed;
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
     public void Dispose() => _lock.Dispose();
 
     private IEnumerable<string> GroupIdsFor(string id) => tenancy.Value.NewTenantGroups.Select(template => GroupIdFor(id, template));
@@ -118,4 +145,6 @@ internal abstract record ProvisioningResult
     public sealed record Taken : ProvisioningResult;
 
     public sealed record Invalid(string Problem) : ProvisioningResult;
+
+    public sealed record InvalidCurrency(string Problem) : ProvisioningResult;
 }

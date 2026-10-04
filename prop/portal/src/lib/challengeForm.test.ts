@@ -5,7 +5,7 @@ import { amountOf, definitionOf, formOf, nextStage } from "./challengeForm";
 
 const twoStep: ChallengeDefinition = {
   id: "two-step-100k",
-  name: "Two-step 100000 USD",
+  name: "Two-step 100K",
   currency: "USD",
   initialBalance: 100_000,
   tradingDay: { timeZone: "Europe/Stockholm", start: "00:00:00" },
@@ -18,6 +18,7 @@ const twoStep: ChallengeDefinition = {
       maxLoss: { percent: 10, kind: "Fixed" },
       profitSplitPercent: null,
       maxDays: null,
+      consistencyPercent: null,
     },
     {
       name: "Phase 2",
@@ -27,6 +28,7 @@ const twoStep: ChallengeDefinition = {
       maxLoss: { percent: 10, kind: "Fixed" },
       profitSplitPercent: null,
       maxDays: null,
+      consistencyPercent: null,
     },
   ],
   funded: {
@@ -37,6 +39,7 @@ const twoStep: ChallengeDefinition = {
     maxLoss: { percent: 10, kind: "Fixed" },
     profitSplitPercent: 80,
     maxDays: null,
+    consistencyPercent: 40,
   },
   inactivityDays: 30,
 };
@@ -92,6 +95,13 @@ describe("challenge form", () => {
 
   it("adds a stage like the last one", () => {
     expect(nextStage(formOf(twoStep))).toMatchObject({ name: "Phase 3", profitTargetPercent: "5", minTradingDays: "4" });
+  });
+
+  it("adds the first stage to a challenge without one, from the funded stage's limits", () => {
+    const instant = formOf({ ...twoStep, evaluation: [] });
+
+    expect(nextStage(instant)).toMatchObject({ name: "Phase 1", profitTargetPercent: "10", profitSplitPercent: "", maxDays: "", dailyLossPercent: instant.funded.dailyLossPercent });
+    expect(definitionOf(instant)).toMatchObject({ definition: { evaluation: [] } });
   });
 });
 

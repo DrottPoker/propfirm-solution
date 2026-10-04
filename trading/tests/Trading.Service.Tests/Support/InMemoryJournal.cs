@@ -158,6 +158,19 @@ internal sealed class InMemoryJournal : IEngineJournal
         }
     }
 
+    public Task<IReadOnlyList<EventEnvelope>> ReadAllEventsAsync(long afterSequence, int limit, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IReadOnlyList<EventEnvelope> events = _events
+                .Where(e => e.Sequence > afterSequence)
+                .Take(limit)
+                .Select(e => new EventEnvelope(e.Sequence, JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!))
+                .ToList();
+            return Task.FromResult(events);
+        }
+    }
+
     public Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken)
     {
         lock (_lock)

@@ -22,7 +22,21 @@ public interface IUserStore
     Task<bool> OwnsAsync(Guid userId, string accountId, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<string>> AccountsOfAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Replaces what the terminal shows about the account.</summary>
+    Task SetAccountDetailsAsync(AccountDetails details, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>What the terminal shows about each of the user's accounts, in the order of <see cref="AccountsOfAsync"/>.</summary>
+    Task<IReadOnlyList<AccountDetails>> AccountDetailsOfAsync(Guid userId, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// What the terminal shows about an account, set by the firm's systems. <paramref name="Label"/> names it for the trader,
+/// for example "#1001 Two-step 100K · Phase 1". <paramref name="ProfitTarget"/> is the balance that passes it.
+/// <paramref name="TimeZone"/> is its trading day's, which the terminal shows times in. <paramref name="DetailsUrl"/> is
+/// where the trader sees more about it, for example the account in the firm's portal. Each is null when not set.
+/// </summary>
+public sealed record AccountDetails(string AccountId, string? Label, decimal? ProfitTarget, string? TimeZone, Uri? DetailsUrl);
 
 public sealed record User(Guid Id, string TenantId, string Email, string PasswordHash);
 

@@ -50,8 +50,15 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
         return id;
     }
 
+    /// <summary>A link in an email that helps an administrator find the firm: long enough to find the email.</summary>
+    public static readonly TimeSpan EmailedLoginLinkLifetime = TimeSpan.FromMinutes(30);
+
     /// <summary>Creates a one-time link for the administrator in the caller's transaction, and returns its token.</summary>
-    public static async Task<string> CreateLoginLinkAsync(NpgsqlConnection connection, Guid adminId, DateTimeOffset now, CancellationToken cancellationToken)
+    public static Task<string> CreateLoginLinkAsync(NpgsqlConnection connection, Guid adminId, DateTimeOffset now, CancellationToken cancellationToken) =>
+        CreateLoginLinkAsync(connection, adminId, now, LoginLinkLifetime, cancellationToken);
+
+    /// <summary>Creates a one-time link for the administrator that works for <paramref name="lifetime"/>, and returns its token.</summary>
+    public static async Task<string> CreateLoginLinkAsync(NpgsqlConnection connection, Guid adminId, DateTimeOffset now, TimeSpan lifetime, CancellationToken cancellationToken)
     {
         var token = NewToken();
         await ExecuteAsync(
@@ -62,7 +69,7 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
         await ExecuteAsync(
             connection,
             "insert into admin_login_links (token_hash, admin_id, expires_at) values ($1, $2, $3)",
-            [Hash(token), adminId, now + LoginLinkLifetime],
+            [Hash(token), adminId, now + lifetime],
             cancellationToken);
         return token;
     }
@@ -86,6 +93,45 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
         return await command.ExecuteScalarAsync(cancellationToken) as Guid?;
     }
 
+    /// <summary>
+    /// Emails the person a one-time login link to each firm they administer, when there are any, so a firm's administrator who
+    /// does not remember the firm's address finds it from the platform's own. Nothing is sent for an unknown email.
+    /// </summary>
+    public async Task SendLoginHelpAsync(string email, string platform, WorkSignals signals, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var firms = new List<(Guid AdminId, string Email, string Name, Uri PortalUrl)>();
+        await using (var command = new NpgsqlCommand(
+            "select a.id, a.email, f.name, f.portal_url from firm_admins a join firms f on f.id = a.firm_id where a.normalized_email = $1 order by f.name",
+            connection))
+        {
+            command.Parameters.AddWithValue(Emails.Normalize(email));
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                firms.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), new Uri(reader.GetString(3))));
+            }
+        }
+
+        if (firms.Count == 0)
+        {
+            return;
+        }
+
+        var links = new List<(string Name, Uri Link, Uri Login)>();
+        foreach (var firm in firms)
+        {
+            var token = await CreateLoginLinkAsync(connection, firm.AdminId, now, EmailedLoginLinkLifetime, cancellationToken);
+            links.Add((firm.Name, new Uri(firm.PortalUrl, $"admin/welcome?token={token}"), new Uri(firm.PortalUrl, "admin/login")));
+        }
+
+        await Email.EmailOutbox.AddAsync(connection, Email.PlatformEmails.LoginHelp(platform, firms[0].Email, links, EmailedLoginLinkLifetime), "login_help", null, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        signals.Emails.Set();
+    }
+
     public async Task<IReadOnlyList<FirmAdmin>> ListAsync(string firmId, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
@@ -99,6 +145,21 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
         }
 
         return admins;
+    }
+
+    /// <summary>The emails of the firm's administrators, the first first, in the caller's transaction.</summary>
+    public static async Task<IReadOnlyList<string>> EmailsAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("select email from firm_admins where firm_id = $1 order by created_at, normalized_email", connection);
+        command.Parameters.AddWithValue(firmId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var emails = new List<string>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            emails.Add(reader.GetString(0));
+        }
+
+        return emails;
     }
 
     public async Task<bool> IsAdminAsync(string firmId, string email, CancellationToken cancellationToken)
@@ -160,6 +221,33 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return (token, expiresAt);
+    }
+
+    /// <summary>The email the firm's invitation is for, and whether it still works, without using it. Null if it is unknown or another firm's.</summary>
+    public async Task<(LinkStatus Status, string Email)?> FindInviteAsync(string firmId, string token, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            "select email, used_at is not null, expires_at <= $3 from admin_invites where token_hash = $1 and firm_id = $2");
+        command.Parameters.AddWithValue(Hash(token));
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(now);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? (reader.GetBoolean(1) ? LinkStatus.Used : reader.GetBoolean(2) ? LinkStatus.Expired : LinkStatus.Valid, reader.GetString(0))
+            : null;
+    }
+
+    /// <summary>Takes back the firm's unused invitations to the email, so their links stop working. False when there were none.</summary>
+    public async Task<bool> WithdrawInvitesAsync(string firmId, string email, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            "delete from admin_invites where firm_id = $1 and normalized_email = $2 and used_at is null and expires_at > $3");
+        command.Parameters.AddWithValue(firmId);
+        command.Parameters.AddWithValue(Emails.Normalize(email));
+        command.Parameters.AddWithValue(now);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
     /// <summary>Takes back an invitation whose email could not be sent.</summary>

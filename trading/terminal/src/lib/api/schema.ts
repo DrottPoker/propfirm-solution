@@ -39,6 +39,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/servers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ServerInfo"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -1049,6 +1093,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountDetailsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/events": {
         parameters: {
             query?: never;
@@ -1081,6 +1166,117 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/instruments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PlatformInstrument"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmGroupResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/groups/{groupId}/symbols": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    groupId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ChangeGroupSymbolsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -1198,7 +1394,32 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateTenantRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TenantResponse"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/partner/v1/tenants/{id}/admin-key": {
@@ -1242,6 +1463,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description What the terminal shows about an account, set by the firm's systems. Label names it for the trader,
+         *     for example "#1001 Two-step 100K · Phase 1". ProfitTarget is the balance that passes it.
+         *     TimeZone is its trading day's, which the terminal shows times in. DetailsUrl is
+         *     where the trader sees more about it, for example the account in the firm's portal. Each is null when not set.
+         */
+        AccountDetails: {
+            accountId: string;
+            label: null | string;
+            /** Format: double */
+            profitTarget: null | number;
+            timeZone: null | string;
+            /** Format: uri */
+            detailsUrl: null | string;
+        };
+        /**
+         * @description What the terminal shows about an account: Label names it for the trader, ProfitTarget
+         *     is the balance that passes it, TimeZone its trading day's (IANA) and DetailsUrl where
+         *     the trader sees more about it. Empty for none.
+         */
+        AccountDetailsRequest: {
+            label: null | string;
+            /** Format: double */
+            profitTarget: null | number;
+            timeZone: null | string;
+            detailsUrl: null | string;
+        };
         /** @description Account state valued at the latest prices. Amounts are in account currency. */
         AccountSnapshot: {
             accountId: string;
@@ -1296,6 +1544,10 @@ export interface components {
             /** Format: int32 */
             tickCount: number;
         };
+        /** @description Every symbol the group should trade, with its conditions. Symbols left out are removed. */
+        ChangeGroupSymbolsRequest: {
+            symbols: null | components["schemas"]["GroupSymbol"][];
+        };
         /** @enum {unknown} */
         CloseReason: "Manual" | "StopLoss" | "TakeProfit" | "StopOut" | "EquityFloor" | "AccountClosed";
         /** @description The events a command caused, in order. */
@@ -1316,6 +1568,8 @@ export interface components {
             id: string;
             name: string;
             listed: boolean;
+            /** Format: uri */
+            loginUrl: null | string;
             groups: components["schemas"]["TenantGroupResponse"][];
             adminApiKey: string;
         };
@@ -1323,10 +1577,14 @@ export interface components {
         CreateLoginLinkRequest: {
             accountId: null | string;
         };
-        /** @description A firm with its server Id, which traders log in to, and its name. */
+        /**
+         * @description A firm with its server Id, which traders log in to, and its name. Currency is its
+         *     accounts' currency, one of `Tenancy:Currencies`, or the template groups' own when left out.
+         */
         CreateTenantRequest: {
             id: null | string;
             name: null | string;
+            currency?: null | string;
         };
         CreateUserRequest: {
             email: null | string;
@@ -1335,7 +1593,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1421,6 +1679,14 @@ export interface components {
         EngineEventGroupCreated: {
             /** @enum {string} */
             kind?: "GroupCreated";
+            group: components["schemas"]["TradingGroup"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description A created group's symbols changed. Holds the whole group as it is now, with its symbols in symbol order. */
+        EngineEventGroupSymbolsChanged: {
+            /** @enum {string} */
+            kind?: "GroupSymbolsChanged";
             group: components["schemas"]["TradingGroup"];
             /** Format: date-time */
             timestamp: string;
@@ -1539,7 +1805,7 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -1563,6 +1829,20 @@ export interface components {
             kind?: "CancelOrder";
             accountId: string;
             orderId: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Replaces the symbols and their conditions of a group created with CreateGroup, for example when
+         *     the firm changes its leverage or commission. Configured groups are changed in the configuration. Open positions
+         *     and pending orders take the new conditions at once. A symbol can only be removed while no account in the group
+         *     has a position or an order in it.
+         */
+        EngineInputChangeGroupSymbols: {
+            /** @enum {string} */
+            kind?: "ChangeGroupSymbols";
+            groupId: string;
+            symbols: components["schemas"]["SymbolConditions"][];
             /** Format: date-time */
             timestamp: string;
         };
@@ -1592,7 +1872,10 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description Creates a trading group, for example for a firm that signed up. Its conditions never change afterwards. */
+        /**
+         * @description Creates a trading group, for example for a firm that signed up. Its currency and stop out level never change
+         *     afterwards, but its symbols can (see ChangeGroupSymbols).
+         */
         EngineInputCreateGroup: {
             /** @enum {string} */
             kind?: "CreateGroup";
@@ -1727,6 +2010,15 @@ export interface components {
             /** Format: int64 */
             cursor: number;
         };
+        /** @description One of the firm's trading groups. Only a Changeable group, created for the firm, can get other symbols. */
+        FirmGroupResponse: {
+            id: string;
+            currency: string;
+            /** Format: double */
+            stopOutLevelPercent: number;
+            changeable: boolean;
+            symbols: components["schemas"]["GroupSymbol"][];
+        };
         /**
          * @description What an AnchoredFloor is measured from when it is set.
          * @enum {unknown}
@@ -1742,6 +2034,20 @@ export interface components {
             highWaterMark: number;
             /** Format: double */
             headroom: number;
+        };
+        /**
+         * @description A symbol a group trades. Margin is the position's value divided by Leverage. SpreadMarkupPoints
+         *     are added to the price feed's spread, and CommissionPerLotPerSide is charged in the account currency both on open
+         *     and on close.
+         */
+        GroupSymbol: {
+            symbol: null | string;
+            /** Format: int32 */
+            leverage: number;
+            /** Format: int32 */
+            spreadMarkupPoints: number;
+            /** Format: double */
+            commissionPerLotPerSide: number;
         };
         /** @description An instrument as one group trades it. */
         InstrumentInfo: {
@@ -1782,13 +2088,17 @@ export interface components {
             email: null | string;
             password: null | string;
         };
-        /** @description The logged in trader, their firm's server and the accounts they own. */
+        /**
+         * @description The logged in trader, their firm's server and the accounts they own, with what the firm says about each in
+         *     AccountDetails, in the same order.
+         */
         MeResponse: {
             /** Format: uuid */
             userId: string;
             email: string;
             server: components["schemas"]["ServerInfo"];
             accounts: string[];
+            accountDetails: components["schemas"]["AccountDetails"][];
         };
         ModifyStopsRequest: {
             /** Format: double */
@@ -1829,6 +2139,22 @@ export interface components {
             /** Format: double */
             takeProfit?: null | number;
         };
+        /** @description An instrument on the platform. ContractSize is the units of the base currency in one lot. */
+        PlatformInstrument: {
+            symbol: string;
+            baseCurrency: string;
+            quoteCurrency: string;
+            /** Format: double */
+            contractSize: number;
+            /** Format: int32 */
+            digits: number;
+            /** Format: double */
+            volumeMin: number;
+            /** Format: double */
+            volumeStep: number;
+            /** Format: double */
+            volumeMax: number;
+        };
         /**
          * @description What a one point move on one lot of the symbol is worth in the account currency, at the latest conversion rate.
          *     Profit is points times volume times PerLot, before rounding and commission.
@@ -1862,11 +2188,19 @@ export interface components {
             margin: number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
-        /** @description A firm's server: the id traders log in with and the firm's name. */
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        /**
+         * @description A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's
+         *     traders log in there, for example on the firm's portal, which opens the terminal with a one-time link.
+         *     LogoUrl is the firm's logo, when it has one.
+         */
         ServerInfo: {
             id: string;
             name: string;
+            /** Format: uri */
+            loginUrl: null | string;
+            /** Format: uri */
+            logoUrl?: null | string;
         };
         ServerNameResponse: {
             id: string;
@@ -1924,12 +2258,20 @@ export interface components {
             id: string;
             currency: string;
         };
-        /** @description A firm. Only Listed servers are on the list traders choose from. */
+        /**
+         * @description A firm. Only Listed servers are on the list traders choose from. LoginUrl is
+         *     where the terminal sends the firm's traders to log in, or null when they log in with a password.
+         *     LogoUrl is the firm's logo, which the terminal shows with its name.
+         */
         TenantResponse: {
             id: string;
             name: string;
             listed: boolean;
+            /** Format: uri */
+            loginUrl: null | string;
             groups: components["schemas"]["TenantGroupResponse"][];
+            /** Format: uri */
+            logoUrl?: null | string;
         };
         /** @enum {unknown} */
         Timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1";
@@ -1945,6 +2287,12 @@ export interface components {
             stopOutLevelPercent: number;
             /** @description The symbols the group may trade, with their conditions. */
             symbols: components["schemas"]["SymbolConditions"][];
+        };
+        /** @description What to change about a firm. Null leaves it as it is. An empty LoginUrl or LogoUrl removes it. */
+        UpdateTenantRequest: {
+            listed: null | boolean;
+            loginUrl: null | string;
+            logoUrl?: null | string;
         };
         UserResponse: {
             /** Format: uuid */

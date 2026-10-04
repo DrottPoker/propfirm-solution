@@ -141,7 +141,8 @@ public sealed class OpsPanelTests(PostgresFixture postgres) : IClassFixture<Post
         Assert.Equal((1001L, "Approved", 6_400m), (waiting.GetProperty("accountNumber").GetInt64(), waiting.GetProperty("status").GetString(), waiting.GetProperty("amount").GetDecimal()));
         Assert.Equal(7, payouts.GetProperty("lateAfterDays").GetInt32());
         Assert.Equal(1, firm.GetProperty("figures").GetProperty("accounts").GetProperty("funded").GetInt32());
-        Assert.Equal((1, 1), (firm.GetProperty("sandboxUse").GetProperty("challenges").GetInt32(), firm.GetProperty("sandboxUse").GetProperty("payouts").GetInt32()));
+        // A firm we set up has no sandbox, so what it does live is not counted as tried there.
+        Assert.Equal((0, 0), (firm.GetProperty("sandboxUse").GetProperty("challenges").GetInt32(), firm.GetProperty("sandboxUse").GetProperty("payouts").GetInt32()));
         Assert.Equal([PropFactory.AdminEmail], firm.GetProperty("admins").EnumerateArray().Select(a => a.GetProperty("email").GetString()));
         Assert.Equal("Complimentary", firm.GetProperty("billing").GetProperty("plan").GetString());
 

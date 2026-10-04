@@ -1,42 +1,53 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { useBranding } from "@/app/providers";
-
-import type { Billing, Charge, ChargeLine, Quote } from "@/lib/api/types";
-import { cardLabel, chargeKindLabels, chargeLabel, chargeStatusLabels, monthName, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges } from "@/lib/billing";
-import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import type { Billing, Charge, ChargeLine, Quote, Vat } from "@/lib/api/types";
 import {
-  useActivate,
-  useBilling,
-  useBillingQuote,
-  useChangeCard,
-  usePayCharge,
-  useRetryCharge,
-  useSetAutoExpand,
-  useSetSlots,
-} from "@/lib/queries";
+  cardLabel,
+  chargeKindLabels,
+  chargeLabel,
+  chargeStatusLabels,
+  expansionText,
+  invoiceUrl,
+  monthName,
+  slotsSummary,
+  slotsTaken,
+  unpaidCharges,
+  vatText,
+} from "@/lib/billing";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { useBilling, useBillingQuote, useChangeCard, usePayCharge, useRetryCharge, useSetAutoExpand, useSetSlots, useVerification } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
-import { reviewStatusLabels } from "@/lib/verification";
 
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { CompanyDetails } from "./Application";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass, Tabs } from "./ui";
+
+type BillingTab = "billing" | "company";
 
 /**
- * What the firm pays us (ADR 0020). In the sandbox, the firm goes live by paying the startup fee and its first
- * month. Live, it sees its slots, buys more or fewer, changes its card and pays a month that was declined.
+ * What a live firm pays us (ADR 0020): its slots, more or fewer of them, automatic expansion, its card, a month that was
+ * declined, and the charges with their invoices. Its company details, as we approved them, are under a tab of their own.
+ * A firm in the sandbox has the way to live under Go live instead.
  */
-export function AdminBilling({ returnedFromCheckout }: { returnedFromCheckout: boolean }) {
+export function AdminBilling({ returnedFromCheckout, tab }: { returnedFromCheckout: boolean; tab: BillingTab }) {
+  const router = useRouter();
   const [waiting, setWaiting] = useState(returnedFromCheckout);
   const billing = useBilling(waiting);
+  const sandbox = billing.data !== undefined && billing.data.status !== "Live";
+
+  useEffect(() => {
+    if (sandbox) {
+      router.replace("/admin/go-live");
+    }
+  }, [sandbox, router]);
 
   if (billing.isError) {
     return <Message text="The billing cannot be loaded right now. Try again shortly." />;
   }
 
-  if (!billing.data) {
+  if (!billing.data || sandbox) {
     return <Message text="Loading..." />;
   }
 
@@ -44,43 +55,53 @@ export function AdminBilling({ returnedFromCheckout }: { returnedFromCheckout: b
   return (
     <AdminPage narrow>
       <PageHeader title="Plan and billing" description="What you pay us: your slots, your card and your charges. A slot is one open challenge, from when it starts until it ends." />
-      {waiting && <PaymentConfirmation billing={data} onDone={() => setWaiting(false)} />}
-      {data.status !== "Live" ? (
-        <GoLive billing={data} />
-      ) : data.plan === "Paid" ? (
-        <>
-          <UnpaidCharges billing={data} />
-          <SlotsPanel billing={data} />
-          <AutoExpand key={data.autoExpandStep ?? "off"} billing={data} />
-          <Payment billing={data} />
-          <Charges charges={data.charges} />
-        </>
+      <Tabs
+        label="Plan and billing"
+        tabs={[
+          { value: "billing", label: "Billing" },
+          { value: "company", label: "Company details" },
+        ]}
+        value={tab}
+        onChange={(next) => router.replace(next === "billing" ? "/admin/billing" : "/admin/billing?tab=company", { scroll: false })}
+      />
+      {tab === "company" ? (
+        <ApprovedCompany />
       ) : (
-        <Panel title="Slots">
-          <SlotsUsage billing={data} />
-          <p className="text-sm text-muted">Your slots are complimentary, so there is nothing to pay.</p>
-        </Panel>
+        <>
+          {waiting && <PaymentConfirmation billing={data} onDone={() => setWaiting(false)} />}
+          {data.plan === "Paid" ? (
+            <>
+              <UnpaidCharges billing={data} />
+              <SlotsPanel billing={data} />
+              <AutoExpand key={data.autoExpandStep ?? "off"} billing={data} />
+              <Payment billing={data} />
+              <Charges charges={data.charges} />
+            </>
+          ) : (
+            <Panel title="Slots">
+              <SlotsUsage billing={data} />
+              <p className="text-sm text-muted">Your slots are complimentary, so there is nothing to pay.</p>
+            </Panel>
+          )}
+        </>
       )}
     </AdminPage>
   );
 }
 
-/**
- * After the payment page, the provider tells the platform the payment went through. Until then, the page waits.
- * A firm that just went live gets its pages again, so they no longer say it is a test environment.
- */
+function ApprovedCompany() {
+  const verification = useVerification();
+  if (verification.isError) {
+    return <Message text="Your company details cannot be loaded right now. Try again shortly." />;
+  }
+
+  return verification.data ? <CompanyDetails verification={verification.data} /> : <Message text="Loading..." />;
+}
+
+/** After a payment page, the provider tells the platform the payment went through. Until then, the page waits. */
 function PaymentConfirmation({ billing, onDone }: { billing: Billing; onDone: () => void }) {
-  const router = useRouter();
-  const branding = useBranding();
   const latest = billing.charges[0];
-  const confirmed = billing.status === "Live" && (!latest || latest.status !== "Pending");
-
-  useEffect(() => {
-    if (billing.status === "Live" && branding.status !== "Live") {
-      router.refresh();
-    }
-  }, [billing.status, branding.status, router]);
-
+  const confirmed = !latest || latest.status !== "Pending";
   return (
     <p role="status" className={`rounded border px-4 py-2 text-sm ${confirmed ? "border-profit/40 text-profit" : "border-warning/40 text-warning"}`}>
       {confirmed ? "Thank you. The payment went through." : "Waiting for the payment to be confirmed..."}{" "}
@@ -93,114 +114,20 @@ function PaymentConfirmation({ billing, onDone }: { billing: Billing; onDone: ()
   );
 }
 
-function GoLive({ billing }: { billing: Billing }) {
-  const activate = useActivate();
-  const prices = billing.prices;
-  const [slots, setSlots] = useState(String(prices.packageSlots));
-  const [autoExpand, setAutoExpand] = useState(false);
-  const [step, setStep] = useState("10");
-  const [problem, setProblem] = useState<string | null>(null);
-  const count = wholeNumber(slots);
-  const quote = useBillingQuote(useDebounced(count, 300));
-
-  if (billing.status === "Provisioning") {
-    return (
-      <Panel title="Go live">
-        <p role="status" className="text-sm text-muted">
-          Your trading server is being set up. This takes a few seconds.
-        </p>
-      </Panel>
-    );
-  }
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const autoExpandStep = autoExpand ? wholeNumber(step) : null;
-    setProblem(autoExpand && autoExpandStep === null ? "Write the slots to buy at a time as a whole number." : null);
-    if (count !== null && (!autoExpand || autoExpandStep !== null)) {
-      activate.mutate({ slots: count, autoExpandStep }, { onSuccess: (checkout) => window.location.assign(checkout.checkoutUrl) });
-    }
-  };
-
-  return (
-    <Panel title="Go live">
-      {billing.review !== "Approved" && <ReviewSteps billing={billing} />}
-      <p className="text-sm text-muted">
-        Choose how many challenges you want open at once. Each one takes a slot from when it starts until it ends. The package includes{" "}
-        {prices.packageSlots} slots, and you can add more. You pay the startup fee and the rest of this month now, and each month in advance from
-        then on. Your card is saved for that. Your test accounts from the sandbox end when you go live.
-      </p>
-      <ul className="text-sm">
-        {prices.startupFee > 0 && (
-          <li>
-            Startup fee: {formatMoney(prices.startupFee)} {prices.currency}, once
-            {billing.depositPaid > 0
-              ? `, less the ${formatMoney(billing.depositPaid)} ${prices.currency} deposit you paid`
-              : prices.reviewDeposit > 0 && `, of which ${formatMoney(prices.reviewDeposit)} ${prices.currency} is a deposit paid when you send your application`}
-          </li>
-        )}
-        {monthlyPrices(prices).map((price) => (
-          <li key={price}>{price}</li>
-        ))}
-      </ul>
-      <form onSubmit={submit} className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted">Slots</span>
-            <input aria-label="Slots" inputMode="numeric" required value={slots} onChange={(e) => setSlots(e.target.value)} className={`${fieldClass} w-28 text-right`} />
-          </label>
-          <AutoExpandFields enabled={autoExpand} step={step} onEnabled={setAutoExpand} onStep={setStep} />
-        </div>
-        <QuoteView quote={quote.data} />
-        {/* The price says the same as the billing when the firm cannot go live, so it is said once. */}
-        <ErrorText
-          error={
-            billing.goLiveProblem && quote.data?.problem !== billing.goLiveProblem
-              ? new Error(billing.goLiveProblem)
-              : problem
-                ? new Error(problem)
-                : (activate.error ?? quote.error)
-          }
-        />
-        <button
-          type="submit"
-          disabled={billing.goLiveProblem !== null || !quote.data || quote.data.problem !== null || activate.isPending || activate.isSuccess}
-          className={`${buttonClass} self-start`}
-        >
-          {activate.isPending || activate.isSuccess ? "Going to payment..." : quote.data ? `Pay ${formatMoney(quote.data.amount)} ${quote.data.currency} and go live` : "Pay and go live"}
-        </button>
-        {billing.provider === "Test" && <p className="text-xs text-warning">Test payments: you pay on a test page, and no money is taken.</p>}
-      </form>
-    </Panel>
-  );
-}
-
-/** The way to live before we have approved the firm, and where it is on that way. */
-function ReviewSteps({ billing }: { billing: Billing }) {
-  return (
-    <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
-      <li>
-        Send your company&apos;s details for review under{" "}
-        <Link href="/admin/verification" className="text-accent hover:underline">
-          Verification
-        </Link>
-        {billing.review && <span className="text-muted"> ({reviewStatusLabels[billing.review]})</span>}.
-      </li>
-      <li>We review your firm, usually within a day, and email you.</li>
-      <li>Choose your slots below and pay to go live.</li>
-    </ol>
-  );
-}
-
-/** What a choice of slots costs: the lines paid now, and the price of each month from then on. */
-function QuoteView({ quote }: { quote: Quote | undefined }) {
+/**
+ * What a choice of slots costs: the lines paid now with the VAT and the total, and the price of each month from then on.
+ * A problem with the choice is said instead of the price; one the same as the firm's, such as waiting for our review,
+ * keeps the price.
+ */
+export function QuoteView({ quote, sameAs = null }: { quote: Quote | undefined; sameAs?: string | null }) {
   if (!quote) {
     return null;
   }
 
+  const priced = !quote.problem || quote.problem === sameAs;
   return (
     <div className="flex flex-col gap-2 text-sm">
-      {quote.lines.length > 0 && <ChargeLines lines={quote.lines} total={quote.amount} currency={quote.currency} />}
+      {priced && quote.lines.length > 0 && <ChargeLines lines={quote.lines} vat={quote.vat} vatAmount={quote.vatAmount} total={quote.amount} currency={quote.currency} />}
       {quote.problem ? (
         <p role="alert" className="text-loss">
           {quote.problem}
@@ -208,7 +135,7 @@ function QuoteView({ quote }: { quote: Quote | undefined }) {
       ) : (
         quote.from && (
           <p className="text-muted">
-            Then {formatMoney(quote.monthlyPrice)} {quote.currency} a month for {quote.slots} slots, from {monthName(quote.from)}.
+            Then {formatMoney(quote.monthlyPrice)} {quote.currency} a month without VAT for {quote.slots} slots, from {monthName(quote.from)}.
           </p>
         )
       )}
@@ -216,7 +143,8 @@ function QuoteView({ quote }: { quote: Quote | undefined }) {
   );
 }
 
-function ChargeLines({ lines, total, currency }: { lines: ChargeLine[]; total: number; currency: string }) {
+/** The lines of a charge, without VAT, then the VAT and the total paid. */
+export function ChargeLines({ lines, vat, vatAmount, total, currency }: { lines: ChargeLine[]; vat: Vat; vatAmount: number; total: number; currency: string }) {
   return (
     <table className="w-full max-w-lg text-sm">
       <tbody>
@@ -226,6 +154,10 @@ function ChargeLines({ lines, total, currency }: { lines: ChargeLine[]; total: n
             <td className="py-1 text-right font-mono tabular-nums">{formatMoney(line.amount)}</td>
           </tr>
         ))}
+        <tr className="border-t border-border text-muted">
+          <td className="py-1">{vat.treatment === "ReverseCharge" ? "VAT (reverse charge)" : `VAT ${vat.percent}%`}</td>
+          <td className="py-1 text-right font-mono tabular-nums">{formatMoney(vatAmount)}</td>
+        </tr>
         <tr className="border-t border-border font-medium">
           <td className="py-1">Total</td>
           <td className="py-1 text-right font-mono tabular-nums">
@@ -237,7 +169,7 @@ function ChargeLines({ lines, total, currency }: { lines: ChargeLine[]; total: n
   );
 }
 
-function SlotsUsage({ billing }: { billing: Billing }) {
+export function SlotsUsage({ billing }: { billing: Billing }) {
   const taken = slotsTaken(billing.slots);
   return (
     <div className="flex flex-col gap-2 text-sm">
@@ -295,7 +227,7 @@ function SlotsPanel({ billing }: { billing: Billing }) {
         >
           {setSlots.isPending
             ? "Saving..."
-            : kind === "MoreSlots" && quote.data
+            : kind === "MoreSlots" && quote.data && !quote.data.problem
               ? `Buy now for ${formatMoney(quote.data.amount)} ${quote.data.currency}`
               : "Save"}
         </button>
@@ -309,6 +241,7 @@ function AutoExpand({ billing }: { billing: Billing }) {
   const [enabled, setEnabled] = useState(billing.autoExpandStep !== null);
   const [step, setStep] = useState(String(billing.autoExpandStep ?? 10));
   const [problem, setProblem] = useState<string | null>(null);
+  const expansion = useBillingQuote(billing.slots.slots, useDebounced(enabled ? wholeNumber(step) : null, 300)).data?.expansion;
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -331,13 +264,14 @@ function AutoExpand({ billing }: { billing: Billing }) {
           Save
         </button>
       </form>
+      {enabled && expansion && <p className="text-sm text-muted">{expansionText(expansion, billing.prices.currency)}</p>}
       {save.isSuccess && <p className="text-sm text-profit">Saved.</p>}
       <ErrorText error={problem ? new Error(problem) : save.error} />
     </Panel>
   );
 }
 
-function AutoExpandFields({
+export function AutoExpandFields({
   enabled,
   step,
   onEnabled,
@@ -379,11 +313,13 @@ function Payment({ billing }: { billing: Billing }) {
           <div className="flex flex-col gap-0.5">
             <dt className="text-muted">Next payment</dt>
             <dd>
-              {monthName(next.month)}: {next.slots} slots, {formatMoney(next.amount)} {billing.prices.currency}, charged on {formatDate(next.chargeAt)}
+              {monthName(next.month)}: {next.slots} slots, {formatMoney(next.amount)} {billing.prices.currency}
+              {next.vatAmount > 0 && ` with ${formatMoney(next.vatAmount)} VAT`}, charged on {formatDate(next.chargeAt)}
             </dd>
           </div>
         )}
       </dl>
+      <p className="text-xs text-muted">{vatText(billing.vat)}</p>
       <button
         type="button"
         disabled={changeCard.isPending || changeCard.isSuccess}
@@ -448,9 +384,10 @@ function UnpaidCharge({ charge }: { charge: Charge }) {
   );
 }
 
-function Charges({ charges }: { charges: Charge[] }) {
+/** The firm's charges, with the invoice of each paid one. */
+export function Charges({ charges, title = "Charges" }: { charges: Charge[]; title?: string }) {
   return (
-    <Panel title="Charges">
+    <Panel title={title}>
       {charges.length === 0 ? (
         <p className="text-sm text-muted">No charges yet.</p>
       ) : (
@@ -460,25 +397,34 @@ function Charges({ charges }: { charges: Charge[] }) {
               <tr>
                 <th className="py-2 font-normal">Charge</th>
                 <th className="py-2 font-normal">For</th>
-                <th className="py-2 text-right font-normal">Slots</th>
                 <th className="py-2 text-right font-normal">Amount</th>
                 <th className="py-2 pl-6 font-normal">Status</th>
                 <th className="py-2 text-right font-normal">Date</th>
+                <th className="py-2 pl-6 font-normal">Invoice</th>
               </tr>
             </thead>
             <tbody>
               {charges.map((charge) => (
                 <tr key={charge.id} className="border-t border-border">
-                  <td className="py-2">
+                  <td className="py-2 whitespace-nowrap">
                     #{charge.number} <span className="text-muted">{chargeKindLabels[charge.kind]}</span>
                   </td>
                   <td className="py-2">{chargeLabel(charge)}</td>
-                  <td className="py-2 text-right font-mono tabular-nums">{charge.slots}</td>
-                  <td className="py-2 text-right font-mono tabular-nums">
+                  <td className="py-2 text-right font-mono whitespace-nowrap tabular-nums">
                     {formatMoney(charge.amount)} {charge.currency}
+                    {charge.vatAmount > 0 && <span className="block font-sans text-xs text-muted">incl. {formatMoney(charge.vatAmount)} VAT</span>}
                   </td>
                   <td className="py-2 pl-6">{chargeStatusLabels[charge.status]}</td>
-                  <td className="py-2 text-right text-muted">{formatDateTime(charge.paidAt ?? charge.createdAt)}</td>
+                  <td className="py-2 text-right whitespace-nowrap text-muted">{formatDateTime(charge.paidAt ?? charge.createdAt)}</td>
+                  <td className="py-2 pl-6 whitespace-nowrap">
+                    {charge.invoice ? (
+                      <a href={invoiceUrl(charge)} className="text-accent hover:underline">
+                        {charge.invoice} (PDF)
+                      </a>
+                    ) : (
+                      <span className="text-muted">-</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -490,7 +436,7 @@ function Charges({ charges }: { charges: Charge[] }) {
 }
 
 /** A whole number typed in a field, or null. */
-function wholeNumber(text: string): number | null {
+export function wholeNumber(text: string): number | null {
   const value = Number(text.trim());
   return text.trim() !== "" && Number.isInteger(value) && value >= 0 ? value : null;
 }

@@ -30,6 +30,21 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0022](0022-handelshistorik-for-traderns-oversikt.md) | Handelshistorik för traderns översikt | Föreslagen |
 | [0023](0023-adminpanelens-oversikt-och-firmans-logga.md) | Adminpanelens översikt, sökning och firmans egen logga | Föreslagen |
 | [0024](0024-var-adminvy-over-alla-firmor.md) | Vår adminvy över alla firmor: översikt, kontroller och betalningar | Föreslagen |
+| [0025](0025-e-post-genom-en-utkorg-och-notiser.md) | E-post genom en utkorg, och notiser som firman kan stänga av | Föreslagen |
+| [0026](0026-traderns-utbetalningsmetod.md) | Traderns utbetalningsmetod sparas krypterad och följer med utbetalningen | Föreslagen |
+| [0027](0027-handelsvillkor-och-inloggning-genom-portalen.md) | Firmans handelsvillkor, listning i terminalen och inloggning genom portalen | Föreslagen |
+| [0028](0028-glomt-losenord-med-engangslank.md) | Glömt lösenord med en engångslänk som loggar ut andra sessioner | Föreslagen |
+| [0029](0029-butiken-tar-riktiga-pengar-fran-forsta-dagen-live.md) | Butiken tar riktiga pengar från första dagen live | Föreslagen |
+| [0030](0030-firman-valjer-kontovaluta.md) | Firman väljer kontonas valuta, och motorn räknar om genom USD | Föreslagen |
+| [0031](0031-mallar-och-direkt-funded.md) | Fyra mallar för challenges, och direkt funded utan utvärdering | Föreslagen |
+| [0032](0032-moms-och-fakturor.md) | Moms efter firmans land, och en faktura för varje betald debitering | Föreslagen |
+| [0033](0033-mejl-till-traders-i-firmans-namn.md) | Mejl till traders i firmans utseende, med svar till firmans support | Föreslagen |
+| [0034](0034-losenord-direkt-efter-kopet.md) | Lösenordet väljs direkt efter köpet, och e-posten bekräftas efteråt | Föreslagen |
+| [0035](0035-terminalen-visar-kontot-som-portalen.md) | Terminalen visar kontot som firmans portal | Föreslagen |
+| [0036](0036-rabattkoder-i-butiken.md) | Rabattkoder i butiken, och koder för nya försök | Föreslagen |
+| [0037](0037-firmans-kontroller-och-utbetalningsbeslut.md) | Firmans kontroller av traders, nej med återförd vinst och en konsistensregel | Föreslagen |
+| [0038](0038-en-tidszon-for-kontots-tider.md) | Ett kontos tider visas i challengens tidszon | Föreslagen |
+| [0039](0039-egen-doman-for-firmans-portal.md) | Egen domän för firmans portal | Föreslagen |
 
 ## Så skriver du en ny ADR
 

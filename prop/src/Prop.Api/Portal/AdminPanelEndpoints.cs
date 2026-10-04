@@ -1,8 +1,11 @@
+using System.Security.Claims;
+
 using Microsoft.AspNetCore.Http.HttpResults;
 
 using Prop.Api.Api;
 using Prop.Api.Challenges;
 using Prop.Api.Email;
+using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Payments;
 using Prop.Rules;
@@ -32,6 +35,8 @@ internal static class AdminPanelEndpoints
         admin.MapGet("/overview", GetOverviewAsync);
         admin.MapGet("/accounts", SearchAccountsAsync);
         admin.MapGet("/accounts/{accountId:guid}/trader", GetTraderAsync);
+        admin.MapPut("/accounts/{accountId:guid}/trader/checks/{item}", SetTraderCheckAsync);
+        admin.MapGet("/accounts/{accountId:guid}/email-trader", PreviewTraderEmailAsync);
         admin.MapPost("/accounts/{accountId:guid}/email-trader", EmailTraderAsync);
         admin.MapGet("/accounts/{accountId:guid}/performance", GetPerformanceAsync);
         admin.MapGet("/accounts/{accountId:guid}/trades", ListTradesAsync);
@@ -104,6 +109,7 @@ internal static class AdminPanelEndpoints
         ChallengeQueries accounts,
         PayoutQueries payouts,
         AdminFigures figures,
+        TraderChecks checks,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
@@ -112,6 +118,8 @@ internal static class AdminPanelEndpoints
         {
             return AccountActions.UnknownAccount();
         }
+
+        var ticked = (await checks.ListAsync([trader.Id], cancellationToken))[trader.Id];
 
         var traderAccounts = await accounts.ListByTraderAsync(firm.Id, trader.Id, cancellationToken);
         var paidOut = (await payouts.ListByTraderAsync(firm.Id, trader.Id, cancellationToken))
@@ -122,13 +130,66 @@ internal static class AdminPanelEndpoints
         var order = await figures.OrderOfAsync(firm.Id, accountId, cancellationToken);
         return TypedResults.Ok(new TraderSummaryResponse(
             trader.Email,
+            trader.Name,
+            trader.Country,
             trader.CreatedAt,
             trader.HasPassword,
             [.. traderAccounts.OrderByDescending(a => a.Account.Number).Select(AccountResponse.From)],
             trader.Orders,
             MoneyTotalResponse.From(trader.Bought),
             [.. paidOut],
-            order is null ? null : new OrderSummaryResponse(order.Id, order.Number, order.Amount, order.Currency, order.Provider, order.PaidAt)));
+            order is null ? null : new OrderSummaryResponse(order.Id, order.Number, order.Amount, order.Currency, order.Provider, order.PaidAt),
+            TraderCheckResponse.All(ticked)));
+    }
+
+    /// <summary>Ticks one of the firm's checks of the account's trader, or takes the tick away. Answers with every check.</summary>
+    private static async Task<Results<Ok<List<TraderCheckResponse>>, ProblemHttpResult>> SetTraderCheckAsync(
+        Guid accountId,
+        string item,
+        TraderCheckRequest request,
+        HttpContext context,
+        ClaimsPrincipal principal,
+        ChallengeQueries accounts,
+        TraderChecks checks,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (!TraderCheckItems.IsKnown(item))
+        {
+            return AccountActions.Problem(StatusCodes.Status404NotFound, "No such check.");
+        }
+
+        if (await accounts.GetAsync(firm.Id, accountId, cancellationToken) is not { } view)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        var traderId = view.Account.TraderId;
+        await checks.SetAsync(traderId, item, request.Checked, principal.FindFirstValue(ClaimTypes.Email) ?? "", time.GetUtcNow(), cancellationToken);
+        return TypedResults.Ok(TraderCheckResponse.All((await checks.ListAsync([traderId], cancellationToken))[traderId]));
+    }
+
+    /// <summary>
+    /// The email <see cref="EmailTraderAsync"/> would send now, so the firm sees it before it goes. An invitation's link
+    /// is made only when it is sent, so the preview shows where it leads without its token.
+    /// </summary>
+    private static async Task<Results<Ok<TraderEmailPreviewResponse>, ProblemHttpResult>> PreviewTraderEmailAsync(
+        Guid accountId,
+        HttpContext context,
+        ChallengeQueries accounts,
+        PortalUsers users,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await accounts.GetAsync(firm.Id, accountId, cancellationToken) is not { } view
+            || await users.FindByIdAsync(view.Account.TraderId, PortalRoles.Trader, cancellationToken) is not { } trader)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        var (message, kind) = TraderEmail(firm, view, trader, accountId, new Uri(firm.Portal.Url, "invite?token=..."));
+        return TypedResults.Ok(new TraderEmailPreviewResponse(trader.Email, kind, message.Subject, message.Body));
     }
 
     /// <summary>
@@ -151,15 +212,10 @@ internal static class AdminPanelEndpoints
             return AccountActions.UnknownAccount();
         }
 
-        var challengeName = view.Account.State.Definition.Name;
-        var (message, kind) = trader.PasswordHash is null
-            ? (PlatformEmails.InviteTrader(
-                firm.Name,
-                challengeName,
-                trader.Email,
-                new Uri(firm.Portal.Url, $"invite?token={(await users.CreateInviteAsync(trader.Id, time.GetUtcNow(), cancellationToken)).Token}"),
-                PortalUsers.InviteLifetime), TraderEmailKind.Invitation)
-            : (PlatformEmails.ChallengeStarted(firm.Name, challengeName, trader.Email, new Uri(firm.Portal.Url, $"accounts/{accountId}")), TraderEmailKind.Notice);
+        var inviteLink = NeedsInvitation(trader)
+            ? new Uri(firm.Portal.Url, $"invite?token={(await users.CreateInviteAsync(trader.Id, time.GetUtcNow(), cancellationToken)).Token}")
+            : null;
+        var (message, kind) = TraderEmail(firm, view, trader, accountId, inviteLink);
         try
         {
             await email.SendAsync(message, cancellationToken);
@@ -170,6 +226,17 @@ internal static class AdminPanelEndpoints
         }
 
         return TypedResults.Ok(new TraderEmailResponse(trader.Email, kind));
+    }
+
+    // A trader who cannot log in yet, or has not confirmed the email, is invited; one who can is told the challenge started.
+    private static bool NeedsInvitation(PortalUser trader) => trader.PasswordHash is null || trader.EmailConfirmedAt is null;
+
+    private static (EmailMessage Message, TraderEmailKind Kind) TraderEmail(Firm firm, AccountView view, PortalUser trader, Guid accountId, Uri? inviteLink)
+    {
+        var challengeName = view.Account.State.Definition.Name;
+        return NeedsInvitation(trader) && inviteLink is not null
+            ? (TraderEmails.InviteTrader(firm, challengeName, trader.Email, inviteLink, PortalUsers.InviteLifetime), TraderEmailKind.Invitation)
+            : (TraderEmails.ChallengeStarted(firm, challengeName, trader.Email, new Uri(firm.Portal.Url, $"accounts/{accountId}")), TraderEmailKind.Notice);
     }
 
     /// <summary>How a stage of any of the firm's accounts has gone, as its trader sees it. Without a stage, the latest that has started.</summary>
@@ -211,6 +278,7 @@ internal static class AdminPanelEndpoints
     private static async Task<Results<Ok<List<AdminPayoutResponse>>, ProblemHttpResult>> ListPayoutsAsync(
         HttpContext context,
         PayoutQueries payouts,
+        TraderChecks checks,
         CancellationToken cancellationToken,
         PayoutStatus[]? status = null,
         bool oldestFirst = false,
@@ -222,7 +290,15 @@ internal static class AdminPanelEndpoints
         }
 
         var views = await payouts.ListForAdminAsync(PortalFirmFilter.FirmOf(context).Id, status ?? [], oldestFirst, limit, cancellationToken);
-        return TypedResults.Ok(views.Select(v => new AdminPayoutResponse(PayoutResponse.From(v.Payout), v.ChallengeName, v.PaidBefore, v.PaidBeforeAmount)).ToList());
+        var ticked = await checks.ListAsync([.. views.Select(v => v.Payout.TraderId).Distinct()], cancellationToken);
+        return TypedResults.Ok(views
+            .Select(v => new AdminPayoutResponse(
+                PayoutResponse.From(v.Payout),
+                v.ChallengeName,
+                v.PaidBefore,
+                v.PaidBeforeAmount,
+                TraderCheckItems.All.All(c => ticked[v.Payout.TraderId].Any(t => t.Item == c.Item))))
+            .ToList());
     }
 
     private static async Task<Ok<PayoutSummaryResponse>> GetPayoutSummaryAsync(
@@ -282,10 +358,10 @@ public sealed record PayoutSummaryResponse(PayoutGroupResponse ToApprove, Payout
 }
 
 /// <summary>
-/// A payout as the admin panel lists it: the payout, its challenge's name, and how many payouts the account had paid
-/// before it was asked for, and how much.
+/// A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid
+/// before it was asked for, and how much, and whether the firm has done every check of the trader.
 /// </summary>
-public sealed record AdminPayoutResponse(PayoutResponse Payout, string ChallengeName, int PaidBefore, decimal PaidBeforeAmount);
+public sealed record AdminPayoutResponse(PayoutResponse Payout, string ChallengeName, int PaidBefore, decimal PaidBeforeAmount, bool TraderChecked = false);
 
 /// <summary>Challenges bought in the portal and paid in the last 30 days, without those refunded.</summary>
 public sealed record SalesResponse(int Orders, IReadOnlyList<MoneyTotalResponse> Totals);
@@ -383,19 +459,44 @@ public sealed record ChallengeFiguresResponse(string ChallengeId, int Trading, i
 public sealed record OrderSummaryResponse(Guid Id, long Number, decimal Amount, string Currency, PaymentProvider Provider, DateTimeOffset PaidAt);
 
 /// <summary>
-/// An account's trader as the firm sees them: since when, whether they have chosen a password for the portal, their
-/// accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency, and
-/// <paramref name="Order"/>, the order that started the account asked about.
+/// An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have
+/// chosen a password for the portal, their
+/// accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,
+/// <paramref name="Order"/>, the order that started the account asked about, and the firm's <paramref name="Checks"/> of them.
 /// </summary>
 public sealed record TraderSummaryResponse(
     string Email,
+    string? Name,
+    string? Country,
     DateTimeOffset Since,
     bool HasPassword,
     IReadOnlyList<AccountResponse> Accounts,
     int Orders,
     IReadOnlyList<MoneyTotalResponse> Bought,
     IReadOnlyList<MoneyTotalResponse> PaidOut,
-    OrderSummaryResponse? Order);
+    OrderSummaryResponse? Order,
+    IReadOnlyList<TraderCheckResponse> Checks);
+
+/// <summary>One of the firm's checks of a trader, such as "ID checked", and when and by whom it was ticked. Not ticked when <paramref name="CheckedAt"/> is null.</summary>
+public sealed record TraderCheckResponse(string Item, string Label, DateTimeOffset? CheckedAt, string? CheckedBy)
+{
+    internal static List<TraderCheckResponse> All(IEnumerable<TraderCheck> ticked)
+    {
+        var byItem = ticked.ToDictionary(t => t.Item, StringComparer.Ordinal);
+        return
+        [
+            .. TraderCheckItems.All.Select(c => byItem.TryGetValue(c.Item, out var t)
+                ? new TraderCheckResponse(c.Item, c.Label, t.CheckedAt, t.CheckedBy)
+                : new TraderCheckResponse(c.Item, c.Label, null, null)),
+        ];
+    }
+}
+
+/// <summary>Ticks a check of a trader, or takes the tick away.</summary>
+public sealed record TraderCheckRequest(bool Checked);
+
+/// <summary>The email the firm is about to send the trader: to whom, what kind, its subject and its text.</summary>
+public sealed record TraderEmailPreviewResponse(string Email, TraderEmailKind Kind, string Subject, string Body);
 
 /// <summary>What the trader was emailed: an invitation to choose a password, or that the challenge has started.</summary>
 public enum TraderEmailKind

@@ -44,12 +44,28 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
             session.Form["line_items[1][price_data][product_data][name]"],
             session.Form["line_items[1][price_data][unit_amount]"],
             session.Form["line_items[2][price_data][unit_amount]"]));
-        Assert.Equal("http://acme.localhost:3002/admin/billing?checkout={CHECKOUT_SESSION_ID}", session.Form["success_url"]);
+        Assert.Equal("http://acme.localhost:3002/admin/go-live?checkout={CHECKOUT_SESSION_ID}", session.Form["success_url"]);
         Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (completed.StatusCode, again.StatusCode));
         Assert.Equal(("Live", "visa", "4242"), (billing.GetProperty("status").GetString(), billing.GetProperty("card").GetProperty("brand").GetString(), billing.GetProperty("card").GetProperty("last4").GetString()));
         var charge = Assert.Single(billing.GetProperty("charges").EnumerateArray());
         Assert.Equal(("Paid", 1157.25m), (charge.GetProperty("status").GetString(), charge.GetProperty("amount").GetDecimal()));
+    }
+
+    // Stripe takes the VAT as a line of its own, so the lines add up to what the charge says is paid.
+    [Fact]
+    public async Task VatIsALineOfItsOwnOnTheStripeCheckout()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
+        using var admin = await factory.SignUpAsync("acme");
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+        await factory.ApproveAsync(admin, "acme", PropFactory.Application(country: "SE", vatNumber: "SE559000123401"));
+
+        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
+        var session = Assert.Single(factory.Stripe.Requests);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(("VAT 25%", "28931"), (session.Form["line_items[3][price_data][product_data][name]"], session.Form["line_items[3][price_data][unit_amount]"]));
     }
 
     [Fact]
@@ -71,7 +87,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
 
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (saved.StatusCode, submitted.StatusCode));
         Assert.Equal(("payment", "always", "10000"), (deposit.Form["mode"], deposit.Form["customer_creation"], deposit.Form["line_items[0][price_data][unit_amount]"]));
-        Assert.Equal("http://acme.localhost:3002/admin/verification?checkout={CHECKOUT_SESSION_ID}", deposit.Form["success_url"]);
+        Assert.Equal("http://acme.localhost:3002/admin/go-live?checkout={CHECKOUT_SESSION_ID}", deposit.Form["success_url"]);
         Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
         Assert.Equal(("Submitted", true), (verification.GetProperty("status").GetString(), verification.GetProperty("deposit").GetProperty("paid").GetBoolean()));
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (approved.StatusCode, activated.StatusCode));

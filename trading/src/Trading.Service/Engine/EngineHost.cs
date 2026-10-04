@@ -173,22 +173,26 @@ internal sealed partial class EngineHost : BackgroundService
             _lastTimestamp = snapshot.State.Clock;
         }
 
+        // Inputs after a snapshot with another configuration were applied with the old one. The new configuration is
+        // only accepted if it gives exactly the events they gave then, for example when it only adds instruments.
+        var stored = snapshot is not null && snapshot.ConfigurationFingerprint != _fingerprint ? new StoredEvents(_journal, _eventSequence) : null;
         var replayed = 0L;
         await foreach (var (sequence, input) in _journal.ReadInputsAsync(_inputSequence, cancellationToken))
         {
-            if (replayed == 0 && snapshot is not null && snapshot.ConfigurationFingerprint != _fingerprint)
-            {
-                throw new InvalidOperationException(
-                    "The configuration has changed since the latest snapshot, and inputs after it were applied with the old configuration. " +
-                    "Start once with the previous configuration so a new snapshot is taken, then change the configuration.");
-            }
-
             if (sequence != _inputSequence + 1)
             {
                 throw new InvalidOperationException($"The journal has a gap: input {_inputSequence + 1} is missing before {sequence}.");
             }
 
-            _eventSequence += _engine.Apply(input).Count;
+            var events = _engine.Apply(input);
+            if (stored is not null && !await stored.MatchAsync(events, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    $"The configuration has changed since the latest snapshot, and input {sequence} after it gives other events with the new configuration. " +
+                    "Start once with the previous configuration so a new snapshot is taken, then change the configuration.");
+            }
+
+            _eventSequence += events.Count;
             _inputSequence = sequence;
             if (input.Timestamp > _lastTimestamp)
             {
@@ -204,6 +208,11 @@ internal sealed partial class EngineHost : BackgroundService
             throw new InvalidOperationException(
                 $"Replaying the journal gave events up to {_eventSequence}, but the journal has events up to {storedEvents}. " +
                 "Either the engine is not deterministic or the journal is damaged.");
+        }
+
+        if (stored is not null)
+        {
+            LogConfigurationChanged(_logger, replayed);
         }
 
         // Every start begins with a snapshot that records the current configuration.
@@ -384,6 +393,9 @@ internal sealed partial class EngineHost : BackgroundService
     [LoggerMessage(Level = LogLevel.Information, Message = "Engine recovered at input {InputSequence} after replaying {Replayed} inputs")]
     private static partial void LogRecovered(ILogger logger, long inputSequence, long replayed);
 
+    [LoggerMessage(Level = LogLevel.Information, Message = "The configuration changed since the latest snapshot. The {Replayed} inputs after it gave the same events with the new configuration.")]
+    private static partial void LogConfigurationChanged(ILogger logger, long replayed);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "No snapshot found, replaying the whole journal")]
     private static partial void LogNoSnapshot(ILogger logger);
 
@@ -401,6 +413,44 @@ internal sealed partial class EngineHost : BackgroundService
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "The engine failed. Stopping the service to protect account state.")]
     private static partial void LogEngineFailure(ILogger logger, Exception exception);
+
+    /// <summary>The stored events after a snapshot, read a page at a time, to compare a replay with.</summary>
+    private sealed class StoredEvents(IEngineJournal journal, long afterSequence)
+    {
+        private const int PageSize = 1_000;
+        private static readonly System.Text.Json.JsonSerializerOptions Options = Trading.Service.Json.EngineJson.CreateOptions();
+
+        private readonly Queue<EventEnvelope> _page = new();
+        private long _after = afterSequence;
+
+        /// <summary>True if the replayed events are the next stored ones, in order and alike in every field.</summary>
+        public async Task<bool> MatchAsync(IReadOnlyList<EngineEvent> replayed, CancellationToken cancellationToken)
+        {
+            foreach (var engineEvent in replayed)
+            {
+                if (_page.Count == 0)
+                {
+                    foreach (var envelope in await journal.ReadAllEventsAsync(_after, PageSize, cancellationToken))
+                    {
+                        _page.Enqueue(envelope);
+                    }
+                }
+
+                if (!_page.TryDequeue(out var next))
+                {
+                    return false;
+                }
+
+                _after = next.Sequence;
+                if (System.Text.Json.JsonSerializer.Serialize(next.Event, Options) != System.Text.Json.JsonSerializer.Serialize(engineEvent, Options))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
 
     /// <summary>Inputs, events and an optional snapshot that are written together, and what waits for them.</summary>
     private sealed class Batch

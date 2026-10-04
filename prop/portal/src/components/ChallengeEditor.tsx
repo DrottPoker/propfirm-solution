@@ -17,6 +17,7 @@ import {
   type StageForm,
 } from "@/lib/challengeForm";
 import { formatMoney } from "@/lib/format";
+import { challengesFromTemplate } from "@/lib/newChallenges";
 import { priceCurrencies } from "@/lib/orders";
 import { useChallengeFigures, useChallengeTemplates, useChallenges, usePrices, useSaveChallenge, useSavePrice } from "@/lib/queries";
 
@@ -29,7 +30,17 @@ type PriceForm = { amount: string; currency: string; forSale: boolean };
  * A challenge to change, a copy of one, or a new one from the template. The rules are written as percentages of the
  * account size, with the amounts beside them, and the price in the portal's shop is set in the same place.
  */
-export function ChallengeEditor({ challengeId, copyOf }: { challengeId: string | null; copyOf: string | null }) {
+export function ChallengeEditor({
+  challengeId,
+  copyOf,
+  templateId = null,
+  size = null,
+}: {
+  challengeId: string | null;
+  copyOf: string | null;
+  templateId?: string | null;
+  size?: number | null;
+}) {
   const challenges = useChallenges();
   const templates = useChallengeTemplates();
   const prices = usePrices();
@@ -48,14 +59,18 @@ export function ChallengeEditor({ challengeId, copyOf }: { challengeId: string |
   }
 
   const original = copyOf ? challenges.data.find((c) => c.id === copyOf) : undefined;
-  const source = existing ?? original ?? templates.data[0]?.definition;
+  const template = templates.data.find((t) => t.id === templateId) ?? templates.data[0];
+  const fromTemplate = template && size ? challengesFromTemplate(template, [size], template.definition.currency)[0] : template?.definition;
+  const source = existing ?? original ?? fromTemplate;
   if (!source) {
     return <Message text="There is no template to start a challenge from." />;
   }
 
   const form: ChallengeForm = existing
     ? formOf(existing)
-    : { ...formOf(source), id: original ? `${original.id}-copy` : "", name: original ? `${original.name} copy` : "" };
+    : original
+      ? { ...formOf(original), id: `${original.id}-copy`, name: `${original.name} copy` }
+      : { ...formOf(source), id: size ? source.id : "", name: size ? source.name : "" };
   const price = prices.data.find((p) => p.challengeId === (existing ?? original)?.id);
   return <EditorForm key={challengeId ?? copyOf ?? "new"} initial={form} initialPrice={priceFormOf(price, form.currency)} isNew={!existing} />;
 }
@@ -64,7 +79,7 @@ function priceFormOf(price: ChallengePrice | undefined, currency: string): Price
   return {
     amount: price ? String(price.amount) : "",
     currency: price?.currency ?? (priceCurrencies.some((c) => c === currency) ? currency : "USD"),
-    forSale: price?.forSale ?? true,
+    forSale: price?.forSale ?? false,
   };
 }
 
@@ -166,7 +181,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
 
           <Panel
             title="Stages"
-            actions={<span className="text-xs text-muted">One to three phases before funded. Losses are in percent of the account size.</span>}
+            actions={<span className="text-xs text-muted">Up to three phases before funded, or none to fund traders from the start. Losses are in percent of the account size.</span>}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
               {form.evaluation.map((stage, index) => (
@@ -176,7 +191,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
                   size={form.initialBalance}
                   currency={form.currency}
                   onChange={(change) => setStage(index, change)}
-                  onRemove={form.evaluation.length > 1 ? () => set({ evaluation: form.evaluation.filter((_, i) => i !== index) }) : undefined}
+                  onRemove={() => set({ evaluation: form.evaluation.filter((_, i) => i !== index) })}
                 />
               ))}
               <StageCard stage={form.funded} size={form.initialBalance} currency={form.currency} funded onChange={(change) => set({ funded: { ...form.funded, ...change } })} />
@@ -201,7 +216,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
                     aria-label="Price"
                     inputMode="decimal"
                     value={price.amount}
-                    onChange={(e) => setPrice({ ...price, amount: e.target.value })}
+                    onChange={(e) => setPrice({ ...price, amount: e.target.value, forSale: e.target.value.trim() === "" ? false : price.forSale })}
                     placeholder="No price"
                     className={`${fieldClass} w-32 text-right font-mono`}
                   />
@@ -214,12 +229,21 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
                   </select>
                 </span>
               </label>
-              <label className="flex items-center gap-2.5 py-2 text-sm">
-                <input type="checkbox" checked={price.forSale} onChange={(e) => setPrice({ ...price, forSale: e.target.checked })} className="size-4 accent-accent" />
+              <label className={`flex items-center gap-2.5 py-2 text-sm ${price.amount.trim() ? "" : "text-muted"}`} title={price.amount.trim() ? undefined : "Set a price first."}>
+                <input
+                  type="checkbox"
+                  checked={price.forSale}
+                  disabled={!price.amount.trim()}
+                  onChange={(e) => setPrice({ ...price, forSale: e.target.checked })}
+                  className="size-4 accent-accent"
+                />
                 For sale in your shop
               </label>
             </div>
-            <p className="text-xs text-muted">Buyers pay in this currency, which can differ from the account&apos;s. Without a price the challenge is not sold, but you can still start it for a trader.</p>
+            <p className="text-xs text-muted">
+              Buyers pay in this currency, which can differ from the account&apos;s. A new challenge is not for sale until you say so. Without a price it is not sold,
+              but you can still start it for a trader.
+            </p>
           </Panel>
 
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-panel px-4 py-3.5">
@@ -320,8 +344,27 @@ function StageCard({
         }
       />
       <div className="grid grid-cols-2 gap-2.5">
-        <TextField label={funded ? "Trading days a payout" : "Min. trading days"} value={stage.minTradingDays} onChange={(minTradingDays) => onChange({ minTradingDays })} numeric />
-        {!funded && <TextField label="Days to pass" value={stage.maxDays} onChange={(maxDays) => onChange({ maxDays })} numeric optional placeholder="No limit" />}
+        <TextField
+          label={funded ? "Minimum trading days between payouts" : "Minimum trading days"}
+          value={stage.minTradingDays}
+          onChange={(minTradingDays) => onChange({ minTradingDays })}
+          numeric
+        />
+        {!funded && (
+          <TextField label="Time limit (days)" value={stage.maxDays} onChange={(maxDays) => onChange({ maxDays })} numeric optional placeholder="No limit" />
+        )}
+        {funded && (
+          <TextField
+            label="Best day at most"
+            value={stage.consistencyPercent}
+            onChange={(consistencyPercent) => onChange({ consistencyPercent })}
+            numeric
+            optional
+            suffix="%"
+            placeholder="No rule"
+            hint="of a payout's profit, so one lucky day is not paid out"
+          />
+        )}
       </div>
     </fieldset>
   );
@@ -345,10 +388,11 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
         <span className="text-xs text-muted">In your shop</span>
         <span className="flex items-baseline justify-between gap-2">
           <strong className="font-semibold">{form.name || "Unnamed challenge"}</strong>
-          <span className="font-mono text-sm">{price.amount.trim() ? `${price.amount.trim()} ${price.currency}` : "No price"}</span>
+          <span className="font-mono text-sm">{priceText(price)}</span>
         </span>
         <span className="text-xs text-muted">
-          {size === null ? "-" : formatMoney(size)} {form.currency} account · {form.evaluation.length === 1 ? "1 phase" : `${form.evaluation.length} phases`}, then{" "}
+          {size === null ? "-" : formatMoney(size)} {form.currency} account ·{" "}
+          {form.evaluation.length === 0 ? "funded from the start" : form.evaluation.length === 1 ? "1 phase, then funded" : `${form.evaluation.length} phases, then funded`}, with{" "}
           {form.funded.profitSplitPercent || "-"}% of the profit
         </span>
       </div>
@@ -364,11 +408,18 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
           </tr>
         </thead>
         <tbody className="font-mono">
-          <Row label="Target" cells={stages.map(({ stage, funded }) => (funded ? "-" : value(stage.profitTargetPercent)))} />
+          <Row label="Target" cells={stages.map(({ stage, funded }) => (funded ? "None" : value(stage.profitTargetPercent)))} />
           <Row label="Daily loss" cells={stages.map(({ stage }) => value(stage.dailyLossPercent))} />
           <Row label="Max loss" cells={stages.map(({ stage }) => value(stage.maxLossPercent))} />
-          <Row label="Min. days" cells={stages.map(({ stage, funded }) => (funded ? `${stage.minTradingDays || 0} a payout` : stage.minTradingDays || "0"))} />
-          <Row label="To pass" cells={stages.map(({ stage, funded }) => (funded || !stage.maxDays.trim() ? "-" : `${stage.maxDays} days`))} />
+          <Row
+            label="Trading days"
+            cells={stages.map(({ stage, funded }) => (funded ? `${stage.minTradingDays || 0} between payouts` : `${stage.minTradingDays || 0} at least`))}
+          />
+          <Row label="Time limit" cells={stages.map(({ stage, funded }) => (funded || !stage.maxDays.trim() ? "None" : `${stage.maxDays} days`))} />
+          <Row
+            label="Best day"
+            cells={stages.map(({ stage, funded }) => (funded && stage.consistencyPercent.trim() ? `${stage.consistencyPercent}% of the profit at most` : "-"))}
+          />
         </tbody>
       </table>
       <p className="text-xs text-muted">
@@ -377,6 +428,17 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
       </p>
     </aside>
   );
+}
+
+/** The price as everywhere else, for example "499.00 USD", or what is typed while it is not a number. */
+function priceText(price: PriceForm): string {
+  const typed = price.amount.trim();
+  if (typed === "") {
+    return "No price";
+  }
+
+  const amount = Number(typed.replace(",", "."));
+  return `${Number.isFinite(amount) ? formatMoney(amount) : typed} ${price.currency}`;
 }
 
 function Row({ label, cells }: { label: string; cells: string[] }) {

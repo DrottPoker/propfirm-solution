@@ -2,14 +2,20 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { contrastRatio, defaultColors, presetOf, themeColors, themePresets, themeStyle, withPreset } from "./theme";
+import { contrastRatio, defaultColors, presetOf, readableContrast, readableTextOn, themeColors, themePresets, themeStyle, withPreset } from "./theme";
 
 describe("themeStyle", () => {
   it("turns the firm's colors into the theme's CSS variables", () => {
-    expect(themeStyle({ colors: { accent: "#8b5cf6", loss: "#ff0000" } })).toEqual({
-      "--accent": "#8b5cf6",
+    expect(themeStyle({ colors: { accent: "#7c3aed", "accent-foreground": "#0b0e14", loss: "#ff0000" } })).toEqual({
+      "--accent": "#7c3aed",
+      "--accent-foreground": "#0b0e14",
       "--loss": "#ff0000",
     });
+  });
+
+  it("puts the easier text to read on a brand color without its own", () => {
+    expect(themeStyle({ colors: { accent: "#7c3aed" } })).toEqual({ "--accent": "#7c3aed", "--accent-foreground": "#ffffff" });
+    expect(themeStyle({ colors: { accent: "#ff8800" } })).toEqual({ "--accent": "#ff8800", "--accent-foreground": "#0b0e14" });
   });
 
   it("ignores unknown names and anything that is not a plain hex color", () => {
@@ -33,10 +39,18 @@ describe("contrastRatio", () => {
     expect(contrastRatio("#ffffff", "#3b82f6")).toBe(contrastRatio("#3b82f6", "#ffffff"));
   });
 
-  // White on the default blue is below the 4.5 text needs, which is why the firm can choose dark text on buttons.
-  it("finds white on the default blue hard to read and on a darker blue easy", () => {
+  // White on a lighter blue is below the 4.5 text needs, which is why the default is a darker one.
+  it("finds white on a light blue hard to read and on the default blue easy", () => {
     expect(contrastRatio("#3b82f6", "#ffffff")).toBeCloseTo(3.68, 2);
-    expect(contrastRatio("#2563eb", "#ffffff")).toBeGreaterThan(4.5);
+    expect(contrastRatio(defaultColors.accent, defaultColors["accent-foreground"])).toBeGreaterThan(readableContrast);
+  });
+});
+
+describe("readableTextOn", () => {
+  it("is white on dark colors and dark on light ones", () => {
+    expect(readableTextOn("#2563eb")).toBe("#ffffff");
+    expect(readableTextOn("#2dd4bf")).toBe("#0b0e14");
+    expect(readableTextOn("#ffffff")).toBe("#0b0e14");
   });
 });
 

@@ -22,6 +22,9 @@ const payout: Payout = {
   failedAt: null,
   reason: null,
   reference: null,
+  payTo: null,
+  profitReturned: false,
+  timeZone: "UTC",
 };
 
 const inStatus = (status: PayoutStatus): Payout => ({ ...payout, status });
@@ -50,6 +53,9 @@ describe("payoutNote", () => {
   it("names the firm's payment reference and the reason for a rejection", () => {
     expect(payoutNote({ ...payout, status: "Paid", reference: "wire-17" })).toBe("Paid. Reference wire-17.");
     expect(payoutNote({ ...payout, status: "Rejected", reason: "Copy trading is not allowed." })).toBe("Rejected: Copy trading is not allowed.");
+    expect(payoutNote({ ...payout, status: "Rejected", reason: "Send your ID first.", profitReturned: true })).toBe(
+      "Rejected: Send your ID first. The profit went back on the account.",
+    );
   });
 
   it("explains that a failed payout paid nothing", () => {
