@@ -1,77 +1,200 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { useBranding } from "@/app/providers";
 
 import type { Me } from "@/lib/api/types";
+import { initials } from "@/lib/dashboard";
 import { useLogout, useShop, type Role } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
+import { buttonClass } from "./ui";
 
-/** The firm's name, and who is logged in. */
+/** The firm's name, the way around the portal, and who is logged in. */
 export function PortalHeader({ me, role }: { me: Me; role: Role }) {
-  const logout = useLogout(role);
-  const shop = useShop(role === "trader");
+  return role === "admin" ? <AdminHeader me={me} /> : <TraderHeader me={me} />;
+}
+
+function AdminHeader({ me }: { me: Me }) {
+  const logout = useLogout("admin");
   const branding = useBranding();
   const router = useRouter();
-  const loginPage = role === "admin" ? "/admin/login" : "/login";
 
   return (
     <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border bg-panel px-6 py-3 text-sm">
-      <Link href={role === "admin" ? "/admin" : "/"}>
+      <Link href="/admin">
         <FirmName />
       </Link>
-      {role === "admin" && (
-        <>
-          <span className="rounded bg-accent/20 px-2 py-0.5 text-accent">Admin</span>
-          <nav aria-label="Admin" className="flex gap-4">
-            <Link href="/admin" className="hover:text-accent">
-              Accounts
-            </Link>
-            <Link href="/admin/payouts" className="hover:text-accent">
-              Payouts
-            </Link>
-            <Link href="/admin/orders" className="hover:text-accent">
-              Orders
-            </Link>
-            <Link href="/admin/challenges" className="hover:text-accent">
-              Challenges
-            </Link>
-            <Link href="/admin/team" className="hover:text-accent">
-              Team
-            </Link>
-            <Link href="/admin/billing" className="hover:text-accent">
-              Billing
-            </Link>
-            {branding.status !== "Live" && (
-              <Link href="/admin/verification" className="hover:text-accent">
-                Verification
-              </Link>
-            )}
-            <Link href="/admin/settings" className="hover:text-accent">
-              Settings
-            </Link>
-          </nav>
-        </>
-      )}
-      {role === "trader" && shop.data?.open && (
-        <Link href="/buy" className="text-accent hover:underline">
-          Buy a challenge
+      <span className="rounded bg-accent/20 px-2 py-0.5 text-accent">Admin</span>
+      <nav aria-label="Admin" className="flex gap-4">
+        <Link href="/admin" className="hover:text-accent">
+          Accounts
         </Link>
-      )}
+        <Link href="/admin/payouts" className="hover:text-accent">
+          Payouts
+        </Link>
+        <Link href="/admin/orders" className="hover:text-accent">
+          Orders
+        </Link>
+        <Link href="/admin/challenges" className="hover:text-accent">
+          Challenges
+        </Link>
+        <Link href="/admin/team" className="hover:text-accent">
+          Team
+        </Link>
+        <Link href="/admin/billing" className="hover:text-accent">
+          Billing
+        </Link>
+        {branding.status !== "Live" && (
+          <Link href="/admin/verification" className="hover:text-accent">
+            Verification
+          </Link>
+        )}
+        <Link href="/admin/settings" className="hover:text-accent">
+          Settings
+        </Link>
+      </nav>
       <span className="ml-auto flex items-center gap-4 text-muted">
         {me.email}
         <button
           type="button"
           className="hover:text-foreground"
           disabled={logout.isPending}
-          onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace(loginPage) })}
+          onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/admin/login") })}
         >
           Log out
         </button>
       </span>
     </header>
+  );
+}
+
+const traderLinks = [
+  { href: "/", label: "Accounts", matches: (path: string) => path === "/" || path.startsWith("/accounts") },
+  { href: "/payouts", label: "Payouts", matches: (path: string) => path.startsWith("/payouts") },
+];
+
+/** The trader's way around: accounts and payouts, the firm's shop, and a menu with the email and log out. On a phone the links move into the menu. */
+function TraderHeader({ me }: { me: Me }) {
+  const shop = useShop(true);
+  const path = usePathname();
+  const canBuy = shop.data?.open === true;
+
+  return (
+    <header className="border-b border-border bg-panel text-sm">
+      <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-2.5 sm:px-6">
+        <Link href="/" className="shrink-0">
+          <FirmName />
+        </Link>
+        <nav aria-label="Main" className="hidden gap-1 sm:flex">
+          {traderLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={link.matches(path) ? "page" : undefined}
+              className={`rounded-md px-3 py-2 ${link.matches(path) ? "bg-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="ml-auto flex items-center gap-3">
+          {canBuy && (
+            <Link href="/buy" className={`${buttonClass} hidden sm:inline-block`}>
+              Buy a challenge
+            </Link>
+          )}
+          <TraderMenu me={me} path={path} canBuy={canBuy} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function TraderMenu({ me, path, canBuy }: { me: Me; path: string; canBuy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const logout = useLogout("trader");
+  const router = useRouter();
+  const menuId = useId();
+  const container = useRef<HTMLDivElement>(null);
+
+  // A new page closes the menu.
+  const [openedOn, setOpenedOn] = useState(path);
+  if (open && openedOn !== path) {
+    setOpen(false);
+  }
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeOutside = (event: PointerEvent) => {
+      if (!container.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={container} className="relative">
+      <button
+        type="button"
+        aria-label={`Menu for ${me.email}`}
+        aria-expanded={open}
+        aria-controls={menuId}
+        onClick={() => {
+          setOpenedOn(path);
+          setOpen(!open);
+        }}
+        className="grid size-10 place-items-center rounded-full border border-border bg-background text-xs font-semibold hover:border-muted"
+      >
+        {initials(me.email)}
+      </button>
+      {open && (
+        <div id={menuId} className="absolute right-0 z-20 mt-2 flex w-64 flex-col gap-1 rounded-lg border border-border bg-panel p-2 shadow-xl">
+          <p className="truncate px-3 py-2 text-muted">{me.email}</p>
+          <nav aria-label="Main" className="flex flex-col border-t border-border pt-1 sm:hidden">
+            {traderLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={link.matches(path) ? "page" : undefined}
+                className="rounded-md px-3 py-2.5 hover:bg-background"
+              >
+                {link.label}
+              </Link>
+            ))}
+            {canBuy && (
+              <Link href="/buy" className="rounded-md px-3 py-2.5 text-accent hover:bg-background">
+                Buy a challenge
+              </Link>
+            )}
+          </nav>
+          <button
+            type="button"
+            disabled={logout.isPending}
+            onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/login") })}
+            className="rounded-md border-t border-border px-3 py-2.5 text-left hover:bg-background"
+          >
+            Log out
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

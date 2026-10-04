@@ -67,14 +67,27 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   await deposit(request, funded, 8_000);
   await tradeOnce(request, funded);
 
-  // The trader asks for the payout. The profit comes off the trading account at once.
+  // The trader opens the account from the start page, sees the funded stage's trade and asks for the payout. The
+  // profit comes off the trading account at once.
+  await trader.getByRole("link", { name: /^Details of account/ }).click();
+  await expect(trader.getByRole("heading", { name: "History · Funded" })).toBeVisible({ timeout: 20_000 });
+  await expect(trader.getByRole("cell", { name: "EURUSD" }).first()).toBeVisible({ timeout: 20_000 });
   const requestPayout = trader.getByRole("button", { name: "Request payout" });
   await expect(requestPayout).toBeEnabled({ timeout: 20_000 });
   trader.once("dialog", (dialog) => dialog.accept());
   await requestPayout.click();
-  await expect(trader.getByText("Waiting for approval")).toBeVisible({ timeout: 20_000 });
+  await expect(trader.getByRole("heading", { name: "Payout on its way" })).toBeVisible({ timeout: 20_000 });
+  await expect(trader.getByText("Waiting for approval").first()).toBeVisible({ timeout: 20_000 });
   const account = await request.get(`${tradingUrl}/api/admin/v1/accounts/${funded}`, { headers: tradingAdminHeaders });
   expect((await account.json()).balance).toBe(100_000);
+
+  // The funded stage's trades can be downloaded as a file.
+  const accountId = trader.url().split("/").at(-1);
+  const file = await trader.request.get(`/api/portal/accounts/${accountId}/trades.csv?stage=2`);
+  expect(file.ok()).toBeTruthy();
+  const lines = (await file.text()).trim().split("\r\n");
+  expect(lines[0]).toBe("Position,Symbol,Side,Volume,Opened (UTC),Open price,Closed (UTC),Close price,Profit,Commission,Result,Close reason");
+  expect(lines.slice(1).every((line) => line.includes(",EURUSD,Buy,0.01,"))).toBeTruthy();
 
   // The firm approves, sends the money and marks the payout as paid.
   await page.getByRole("link", { name: "Payouts" }).click();
@@ -87,4 +100,9 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   await expect(row.getByText("Paid. Reference wire-e2e.")).toBeVisible();
 
   await expect(trader.getByText("Paid. Reference wire-e2e.")).toBeVisible({ timeout: 20_000 });
+
+  // The trader's payouts page has it too, with what has been paid.
+  await trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Payouts" }).click();
+  await expect(trader.getByRole("heading", { name: "Payouts", level: 1 })).toBeVisible();
+  await expect(trader.getByText("Paid. Reference wire-e2e.")).toBeVisible();
 });

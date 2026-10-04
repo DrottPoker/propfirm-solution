@@ -1269,6 +1269,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderPayoutsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/login": {
         parameters: {
             query?: never;
@@ -1441,7 +1476,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AccountResponse"][];
+                        "application/json": components["schemas"]["AccountDetailsResponse"][];
                     };
                 };
             };
@@ -1480,6 +1515,123 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["AccountDetailsResponse"];
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/accounts/{accountId}/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PerformanceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/accounts/{accountId}/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                    before?: number;
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/accounts/{accountId}/trades.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -3891,15 +4043,23 @@ export interface components {
             password: null | string;
         };
         /**
-         * @description An account with its trading account right now, the evidence if a floor was breached, why it expired if it ran
-         *     out of time, and its payouts, newest first.
+         * @description An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought
+         *     with, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it
+         *     ended, and its payouts, newest first. HistoryVersion changes whenever the account's trading
+         *     history or the rule engine's steps do, so the portal asks for the history again only then.
          */
         AccountDetailsResponse: {
             account: components["schemas"]["AccountResponse"];
+            challenge: components["schemas"]["ChallengeDefinition"];
             live: null | components["schemas"]["LiveFigures"];
+            stages: components["schemas"]["StageResponse"][];
+            results: components["schemas"]["ResultsResponse"];
             breach: null | components["schemas"]["BreachEvidence"];
+            expiry: null | components["schemas"]["ExpiryEvidence"];
+            /** Format: date-time */
+            endedAt: null | string;
             payouts: components["schemas"]["PayoutResponse"][];
-            expiry?: null | components["schemas"]["ExpiryEvidence"];
+            historyVersion: string;
         };
         /**
          * @description A trader's challenge account. TradingAccountId is the account on the trading platform
@@ -3991,6 +4151,21 @@ export interface components {
             firmId: string;
             available: boolean;
             reason: null | string;
+        };
+        /**
+         * @description What changed a trading account's balance.
+         * @enum {unknown}
+         */
+        BalanceChangeKind: "Created" | "Opened" | "Closed" | "Adjusted";
+        /** @description The balance after a change, and what changed it by how much. */
+        BalancePoint: {
+            /** Format: date-time */
+            time: string;
+            kind: components["schemas"]["BalanceChangeKind"];
+            /** Format: double */
+            change: number;
+            /** Format: double */
+            balance: number;
         };
         /** @enum {unknown} */
         BillingPlan: "Paid" | "Complimentary" | null;
@@ -4217,6 +4392,21 @@ export interface components {
             percent: number;
             reference: components["schemas"]["DailyLossReference"];
         };
+        /**
+         * @description One trading day of the stage: the positions closed on it, their volume in lots and their result, and whether the
+         *     rule engine counted it as a trading day, which it does when a position was opened on it.
+         */
+        DayResultResponse: {
+            /** Format: date */
+            day: string;
+            /** Format: int32 */
+            trades: number;
+            /** Format: double */
+            lots: number;
+            /** Format: double */
+            result: number;
+            counted: boolean;
+        };
         /** @description Our word to the firm with a decision. Required when we ask for changes or reject. */
         DecisionRequest: {
             message: null | string;
@@ -4307,13 +4497,26 @@ export interface components {
          * @enum {unknown}
          */
         FirmStatus: "Provisioning" | "Sandbox" | "Live";
-        /** @description A loss limit and how far equity can fall before it is breached. */
+        /**
+         * @description A loss limit and how far equity can fall before it is breached. Distance is the whole loss the
+         *     limit allows, from the challenge's rules, so the room left can be judged against it. Null for floors the rule
+         *     engine did not set.
+         */
         FloorFigure: {
             floorId: string;
             /** Format: double */
             level: number;
             /** Format: double */
             headroom: number;
+            /** Format: double */
+            distance: null | number;
+        };
+        /** @description A loss limit's level from Time, until the next point. */
+        FloorPoint: {
+            /** Format: date-time */
+            time: string;
+            /** Format: double */
+            level: number;
         };
         /** Format: binary */
         IFormFile: string;
@@ -4590,6 +4793,39 @@ export interface components {
         /** @enum {unknown} */
         PayoutStatus: "Withdrawing" | "Pending" | "Approved" | "Paid" | "Rejected" | "Failed";
         /**
+         * @description What the firm has paid the trader, what is on its way (asked for and not yet paid or rejected), and what the
+         *     trader can ask for right now from funded accounts.
+         */
+        PayoutTotalResponse: {
+            currency: string;
+            /** Format: double */
+            paid: number;
+            /** Format: double */
+            onTheWay: number;
+            /** Format: double */
+            readyToRequest: number;
+        };
+        /**
+         * @description How a stage of the challenge has gone, from its trading history: the balance after every change, the levels of
+         *     the loss limits, the result of each day and statistics over the closed positions. All amounts are in the
+         *     challenge's currency, and results are after commissions.
+         */
+        PerformanceResponse: {
+            /** Format: int32 */
+            stage: number;
+            stageName: string;
+            tradingAccountId: null | string;
+            /** Format: double */
+            initialBalance: number;
+            /** Format: double */
+            profitTarget: null | number;
+            balance: components["schemas"]["BalancePoint"][];
+            dailyFloor: components["schemas"]["FloorPoint"][];
+            maxLossFloor: components["schemas"]["FloorPoint"][];
+            days: components["schemas"]["DayResultResponse"][];
+            statistics: components["schemas"]["TradeStatisticsResponse"];
+        };
+        /**
          * @description The platform, for the sign-up page: its name, the terms firms accept, the address new portals get
          *     (FirmPortalUrl with {firm} for the short name), and whether the email is confirmed first.
          */
@@ -4669,6 +4905,44 @@ export interface components {
         RejectPayoutRequest: {
             reason: null | string;
         };
+        /**
+         * @description The account's results, worked out by the service so that the portal only shows them. Balance
+         *     and Equity are the trading account's right now, or the balance the platform last reported.
+         *     Floating is the open positions' result. StageResult is how far the stage has
+         *     come from the initial balance, valued at equity when there is one. Today is equity now against
+         *     the balance when the trading day started at DayStartedAt, without deposits or withdrawals.
+         *     The profit target needs TargetRequired above the initial balance, of which the balance has
+         *     TargetGained, which is TargetPercent of the way from 0 to 100.
+         *     PaidOut is what the firm has paid the trader for the account.
+         */
+        ResultsResponse: {
+            /** Format: double */
+            balance: null | number;
+            /** Format: double */
+            equity: null | number;
+            /** Format: double */
+            floating: null | number;
+            /** Format: double */
+            stageResult: null | number;
+            /** Format: double */
+            stageResultPercent: null | number;
+            /** Format: double */
+            today: null | number;
+            /** Format: double */
+            dayStartBalance: null | number;
+            /** Format: date-time */
+            dayStartedAt: null | string;
+            /** Format: date-time */
+            nextDayStartsAt: null | string;
+            /** Format: double */
+            targetGained: null | number;
+            /** Format: double */
+            targetRequired: null | number;
+            /** Format: double */
+            targetPercent: null | number;
+            /** Format: double */
+            paidOut: number;
+        };
         /** @enum {unknown} */
         ReviewStatus: "Draft" | "Submitted" | "ChangesRequested" | "Approved" | "Rejected" | null;
         ShopItemResponse: {
@@ -4740,6 +5014,38 @@ export interface components {
             paid: boolean;
             suspended: boolean;
             warning: boolean;
+        };
+        /**
+         * @description Where a stage of the challenge is.
+         * @enum {unknown}
+         */
+        StageProgress: "Passed" | "Current" | "Upcoming";
+        /**
+         * @description One stage of the challenge. A passed stage has when it started and was passed, its Result above
+         *     the initial balance and its trading days. The current stage has its trading days so far, on the funded stage
+         *     those since the last payout. ProfitTarget, DailyLoss and
+         *     MaxLoss are the stage's rules as amounts of the initial balance, rounded as the rule engine does.
+         */
+        StageResponse: {
+            /** Format: int32 */
+            stage: number;
+            name: string;
+            progress: components["schemas"]["StageProgress"];
+            tradingAccountId: null | string;
+            /** Format: date-time */
+            startedAt: null | string;
+            /** Format: date-time */
+            passedAt: null | string;
+            /** Format: double */
+            result: null | number;
+            /** Format: int32 */
+            tradingDays: null | number;
+            /** Format: double */
+            profitTarget: null | number;
+            /** Format: double */
+            dailyLoss: number;
+            /** Format: double */
+            maxLoss: number;
         };
         /**
          * @description Rules for one stage of a challenge. An evaluation stage is passed when the balance reaches the profit
@@ -4814,6 +5120,79 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             returnPath: string;
+        };
+        /**
+         * @description A closed position. Profit is before Commission, which was charged for opening
+         *     and closing it, and Result after. CloseReason is the trading platform's, such
+         *     as Manual, StopLoss, TakeProfit, StopOut, EquityFloor or AccountClosed.
+         */
+        TradeResponse: {
+            positionId: string;
+            symbol: string;
+            side: components["schemas"]["TradeSide"];
+            /** Format: double */
+            volume: number;
+            /** Format: date-time */
+            openedAt: null | string;
+            /** Format: double */
+            openPrice: number;
+            /** Format: date-time */
+            closedAt: string;
+            /** Format: double */
+            closePrice: number;
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            commission: number;
+            /** Format: double */
+            result: number;
+            closeReason: string;
+        };
+        /** @description The trader's payouts from every account, newest first, with totals per currency. */
+        TraderPayoutsResponse: {
+            payouts: components["schemas"]["PayoutResponse"][];
+            totals: components["schemas"]["PayoutTotalResponse"][];
+        };
+        /**
+         * @description Whether a position was a buy or a sell.
+         * @enum {unknown}
+         */
+        TradeSide: "Buy" | "Sell";
+        /** @description Closed positions, newest first. Ask with Next as `before` for the ones before them. */
+        TradesResponse: {
+            trades: components["schemas"]["TradeResponse"][];
+            /** Format: int64 */
+            next: null | number;
+        };
+        /**
+         * @description The closed positions of the stage. A win or loss is a result above or below zero. ProfitFactor
+         *     is what the wins made divided by what the losses lost, and null without losses.
+         */
+        TradeStatisticsResponse: {
+            /** Format: int32 */
+            trades: number;
+            /** Format: int32 */
+            wins: number;
+            /** Format: int32 */
+            losses: number;
+            /** Format: double */
+            winRatePercent: null | number;
+            /** Format: double */
+            averageWin: null | number;
+            /** Format: double */
+            averageLoss: null | number;
+            /** Format: double */
+            bestTrade: null | number;
+            /** Format: double */
+            worstTrade: null | number;
+            /** Format: double */
+            profitFactor: null | number;
+            /** Format: double */
+            lots: number;
+            /** Format: double */
+            result: number;
+            /** Format: double */
+            commission: number;
         };
         /** @description When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days. */
         TradingDayDefinition: {

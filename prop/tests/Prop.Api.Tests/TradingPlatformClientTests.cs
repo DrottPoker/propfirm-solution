@@ -143,6 +143,8 @@ public sealed class TradingPlatformClientTests
             {"events":[
               {"sequence":7,"event":{"kind":"AccountCreated","accountId":"A1","groupId":"standard","currency":"USD","balance":100000,"timestamp":"2026-10-05T08:00:00+00:00"}},
               {"sequence":9,"event":{"kind":"OrderPlaced","accountId":"A1","timestamp":"2026-10-05T08:01:00+00:00"}},
+              {"sequence":10,"event":{"kind":"PositionOpened","accountId":"A1","positionId":"p-1","symbol":"XAUUSD","side":"Sell","volume":0.2,"openPrice":2412.5,"stopLoss":null,"takeProfit":null,"commission":3.5,"balanceAfter":99996.5,"timestamp":"2026-10-05T08:02:00+00:00"}},
+              {"sequence":11,"event":{"kind":"PositionClosed","accountId":"A1","positionId":"p-1","symbol":"XAUUSD","side":"Sell","volume":0.2,"openPrice":2412.5,"closePrice":2398.2,"profit":286,"commission":3.5,"reason":"TakeProfit","balanceAfter":100279,"timestamp":"2026-10-05T08:30:00+00:00"}},
               {"sequence":12,"event":{"kind":"EquityFloorBreached","accountId":"A1","floorId":"daily","level":95000,"equity":94980.5,"prices":[],"positions":[],"timestamp":"2026-10-05T09:00:00+00:00"}},
               {"sequence":13,"event":{"kind":"BalanceAdjusted","accountId":"A1","operationId":"payout-1","amount":-8000,"balanceAfter":100000,"timestamp":"2026-10-05T10:00:00+00:00"}}
             ],"cursor":13}
@@ -157,9 +159,16 @@ public sealed class TradingPlatformClientTests
             read.Events,
             e => Assert.Equal(100_000m, Assert.IsType<TradingAccountCreated>(e).Balance),
             e => Assert.IsType<TradingOtherEvent>(e),
+            e => Assert.Equal(
+                new TradingPositionOpened(10, new DateTimeOffset(2026, 10, 5, 8, 2, 0, TimeSpan.Zero), "A1", e.Raw, "p-1", "XAUUSD", TradeSide.Sell, 0.2m, 2_412.5m, 3.5m, 99_996.5m),
+                e),
+            e => Assert.Equal(
+                new TradingPositionClosed(
+                    11, new DateTimeOffset(2026, 10, 5, 8, 30, 0, TimeSpan.Zero), "A1", e.Raw, "p-1", "XAUUSD", TradeSide.Sell, 0.2m, 2_412.5m, 2_398.2m, 286m, 3.5m, "TakeProfit", 100_279m),
+                e),
             e => Assert.Equal(("daily", 95_000m, 94_980.5m), (Assert.IsType<TradingFloorBreached>(e).FloorId, ((TradingFloorBreached)e).Level, ((TradingFloorBreached)e).Equity)),
             e => Assert.Equal(("payout-1", -8_000m, 100_000m), (Assert.IsType<TradingBalanceAdjusted>(e).OperationId, ((TradingBalanceAdjusted)e).Amount, ((TradingBalanceAdjusted)e).BalanceAfter)));
-        Assert.Contains("\"positions\"", read.Events[2].Raw, StringComparison.Ordinal);
+        Assert.Contains("\"positions\"", read.Events[4].Raw, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -247,7 +256,22 @@ public sealed class TradingContractTests
     [InlineData("FloorSnapshot", "level")]
     [InlineData("FloorSnapshot", "headroom")]
     [InlineData("AccountCreated", "balance")]
+    [InlineData("PositionOpened", "positionId")]
+    [InlineData("PositionOpened", "symbol")]
+    [InlineData("PositionOpened", "side")]
+    [InlineData("PositionOpened", "volume")]
+    [InlineData("PositionOpened", "openPrice")]
+    [InlineData("PositionOpened", "commission")]
     [InlineData("PositionOpened", "balanceAfter")]
+    [InlineData("PositionClosed", "positionId")]
+    [InlineData("PositionClosed", "symbol")]
+    [InlineData("PositionClosed", "side")]
+    [InlineData("PositionClosed", "volume")]
+    [InlineData("PositionClosed", "openPrice")]
+    [InlineData("PositionClosed", "closePrice")]
+    [InlineData("PositionClosed", "profit")]
+    [InlineData("PositionClosed", "commission")]
+    [InlineData("PositionClosed", "reason")]
     [InlineData("PositionClosed", "balanceAfter")]
     [InlineData("EquityFloorSet", "level")]
     [InlineData("EquityFloorBreached", "floorId")]

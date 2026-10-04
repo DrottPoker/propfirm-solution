@@ -158,21 +158,87 @@ public sealed record StepResponse(int Step, DateTimeOffset RecordedAt, JsonEleme
 public sealed record LoginLinkResponse(Uri Url, DateTimeOffset ExpiresAt);
 
 /// <summary>
-/// An account with its trading account right now, the evidence if a floor was breached, why it expired if it ran
-/// out of time, and its payouts, newest first.
+/// An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought
+/// with, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it
+/// ended, and its payouts, newest first. <paramref name="HistoryVersion"/> changes whenever the account's trading
+/// history or the rule engine's steps do, so the portal asks for the history again only then.
 /// </summary>
 public sealed record AccountDetailsResponse(
     AccountResponse Account,
+    ChallengeDefinition Challenge,
     LiveFigures? Live,
+    IReadOnlyList<StageResponse> Stages,
+    ResultsResponse Results,
     BreachEvidence? Breach,
+    ExpiryEvidence? Expiry,
+    DateTimeOffset? EndedAt,
     IReadOnlyList<PayoutResponse> Payouts,
-    ExpiryEvidence? Expiry = null);
+    string HistoryVersion);
 
 /// <summary>The trading account valued at the latest prices. Missing when the trading platform cannot be reached.</summary>
 public sealed record LiveFigures(decimal Balance, decimal Equity, IReadOnlyList<FloorFigure> Floors);
 
-/// <summary>A loss limit and how far equity can fall before it is breached.</summary>
-public sealed record FloorFigure(string FloorId, decimal Level, decimal Headroom);
+/// <summary>
+/// A loss limit and how far equity can fall before it is breached. <paramref name="Distance"/> is the whole loss the
+/// limit allows, from the challenge's rules, so the room left can be judged against it. Null for floors the rule
+/// engine did not set.
+/// </summary>
+public sealed record FloorFigure(string FloorId, decimal Level, decimal Headroom, decimal? Distance);
+
+/// <summary>Where a stage of the challenge is.</summary>
+public enum StageProgress
+{
+    Passed,
+
+    /// <summary>The stage the challenge is on, also while its account opens, while the firm reviews the funded account, and after the challenge ended.</summary>
+    Current,
+
+    Upcoming,
+}
+
+/// <summary>
+/// One stage of the challenge. A passed stage has when it started and was passed, its <paramref name="Result"/> above
+/// the initial balance and its trading days. The current stage has its trading days so far, on the funded stage
+/// those since the last payout. <paramref name="ProfitTarget"/>, <paramref name="DailyLoss"/> and
+/// <paramref name="MaxLoss"/> are the stage's rules as amounts of the initial balance, rounded as the rule engine does.
+/// </summary>
+public sealed record StageResponse(
+    int Stage,
+    string Name,
+    StageProgress Progress,
+    string? TradingAccountId,
+    DateTimeOffset? StartedAt,
+    DateTimeOffset? PassedAt,
+    decimal? Result,
+    int? TradingDays,
+    decimal? ProfitTarget,
+    decimal DailyLoss,
+    decimal MaxLoss);
+
+/// <summary>
+/// The account's results, worked out by the service so that the portal only shows them. <paramref name="Balance"/>
+/// and <paramref name="Equity"/> are the trading account's right now, or the balance the platform last reported.
+/// <paramref name="Floating"/> is the open positions' result. <paramref name="StageResult"/> is how far the stage has
+/// come from the initial balance, valued at equity when there is one. <paramref name="Today"/> is equity now against
+/// the balance when the trading day started at <paramref name="DayStartedAt"/>, without deposits or withdrawals.
+/// The profit target needs <paramref name="TargetRequired"/> above the initial balance, of which the balance has
+/// <paramref name="TargetGained"/>, which is <paramref name="TargetPercent"/> of the way from 0 to 100.
+/// <paramref name="PaidOut"/> is what the firm has paid the trader for the account.
+/// </summary>
+public sealed record ResultsResponse(
+    decimal? Balance,
+    decimal? Equity,
+    decimal? Floating,
+    decimal? StageResult,
+    decimal? StageResultPercent,
+    decimal? Today,
+    decimal? DayStartBalance,
+    DateTimeOffset? DayStartedAt,
+    DateTimeOffset? NextDayStartsAt,
+    decimal? TargetGained,
+    decimal? TargetRequired,
+    decimal? TargetPercent,
+    decimal PaidOut);
 
 /// <summary>What the trading platform recorded when a floor was breached.</summary>
 public sealed record BreachEvidence(DateTimeOffset Time, string FloorId, decimal Level, decimal Equity, FailureReason Reason);

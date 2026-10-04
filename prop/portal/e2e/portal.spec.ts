@@ -46,9 +46,14 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
   const trader = await context.newPage();
   await acceptInvitation(trader, invitation);
 
+  // The start page has a card for the account, and its page has the objectives and the rules.
   await expect(trader.getByText("100,000.00 USD")).toBeVisible();
-  await expect(trader.getByRole("cell", { name: "Daily loss limit" })).toBeVisible();
-  await expect(trader.getByText("Valued at the latest prices.")).toBeVisible();
+  await expect(trader.getByText("Daily loss room")).toBeVisible();
+  await trader.getByRole("link", { name: /^Details of account/ }).click();
+  await expect(trader).toHaveURL(/\/accounts\/[0-9a-f-]+$/);
+  await expect(trader.getByRole("heading", { name: "Objectives for Phase 1" })).toBeVisible();
+  await expect(trader.getByRole("rowheader", { name: "Daily loss limit" })).toBeVisible();
+  await expect(trader.getByText("No open positions")).toBeVisible();
 
   // The terminal is not running in these tests, so the link is caught and checked against the trading platform.
   await trader.route(`${terminalUrl}/**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>Terminal</p>" }));

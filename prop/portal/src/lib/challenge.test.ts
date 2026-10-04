@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { Account, AccountDetails } from "./api/types";
+import type { Account } from "./api/types";
 import { canCancel, canOpenTerminal, deadlinesOf, floorLabel, floorsOf, kindOf, kindsOf, targetProgress } from "./challenge";
+import { testDetails } from "./testAccounts";
 
 const account: Account = {
   id: "0199a000-0000-7000-8000-000000000001",
@@ -51,18 +52,13 @@ describe("targetProgress", () => {
 
 describe("floorsOf", () => {
   it("shows the live valuation when there is one", () => {
-    const details: AccountDetails = {
-      account,
-      live: { balance: 102_500, equity: 101_000, floors: [{ floorId: "daily", level: 97_000, headroom: 4_000 }] },
-      breach: null,
-      payouts: [],
-    };
+    const details = testDetails({ account, live: { balance: 102_500, equity: 101_000, floors: [{ floorId: "daily", level: 97_000, headroom: 4_000, distance: 5_000 }] } });
 
     expect(floorsOf(details)).toEqual([{ floorId: "daily", level: 97_000, headroom: 4_000 }]);
   });
 
   it("falls back to the last reported levels, without headroom", () => {
-    expect(floorsOf({ account, live: null, breach: null, payouts: [] })).toEqual([
+    expect(floorsOf(testDetails({ account, live: null }))).toEqual([
       { floorId: "daily", level: 97_000, headroom: null },
       { floorId: "max-loss", level: 90_000, headroom: null },
     ]);

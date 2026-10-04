@@ -11,6 +11,8 @@
   --profit: #22c55e;
   --loss: #ef4444;
   --warning: #f59e0b;
+  /* Text on the accent color, such as on buttons. Not a firm color yet. */
+  --accent-foreground: #ffffff;
 }
 
 @theme inline {
@@ -20,6 +22,7 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-profit: var(--profit);
   --color-loss: var(--loss);
   --color-warning: var(--warning);

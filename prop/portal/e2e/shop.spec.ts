@@ -47,6 +47,7 @@ test("a logged-in trader buys with their own email and goes straight to the new 
   await page.getByRole("button", { name: "Pay 9.00 USD" }).click();
 
   await page.getByRole("link", { name: "Go to your account" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByText(/quick-test-100k · Phase 1/)).toBeVisible();
+  await expect(page).toHaveURL(/\/accounts\/[0-9a-f-]+$/);
+  await expect(page.getByRole("heading", { name: "Quick test 100000 USD" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Objectives for Phase 1" })).toBeVisible();
 });

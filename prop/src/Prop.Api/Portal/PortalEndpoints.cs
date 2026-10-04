@@ -9,6 +9,7 @@ using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.History;
 using Prop.Api.Payments;
 using Prop.Api.Review;
 using Prop.Api.Trading;
@@ -45,8 +46,12 @@ internal static class PortalEndpoints
         var trader = portal.MapGroup("/accounts").RequireAuthorization(PortalAuth.TraderPolicy);
         trader.MapGet("", ListMyAccountsAsync);
         trader.MapGet("/{accountId:guid}", GetMyAccountAsync);
+        trader.MapGet("/{accountId:guid}/performance", GetMyPerformanceAsync);
+        trader.MapGet("/{accountId:guid}/trades", ListMyTradesAsync);
+        trader.MapGet("/{accountId:guid}/trades.csv", DownloadMyTradesAsync);
         trader.MapPost("/{accountId:guid}/terminal-link", CreateTerminalLinkAsync);
         trader.MapPost("/{accountId:guid}/payouts", RequestPayoutAsync);
+        portal.MapGet("/payouts", ListMyPayoutsAsync).RequireAuthorization(PortalAuth.TraderPolicy);
 
         portal.MapPost(
                 "/admin/login",
@@ -150,14 +155,17 @@ internal static class PortalEndpoints
             : TypedResults.Unauthorized();
     }
 
-    private static async Task<Ok<List<AccountResponse>>> ListMyAccountsAsync(
+    /// <summary>The trader's accounts as the dashboard shows them, oldest first, with their trading accounts valued right now.</summary>
+    private static async Task<Ok<List<AccountDetailsResponse>>> ListMyAccountsAsync(
         ClaimsPrincipal principal,
         HttpContext context,
         ChallengeQueries queries,
+        AccountDetailsBuilder details,
         CancellationToken cancellationToken)
     {
-        var views = await queries.ListByTraderAsync(PortalFirmFilter.FirmOf(context).Id, PortalAuth.UserIdOf(principal), cancellationToken);
-        return TypedResults.Ok(views.Select(AccountResponse.From).ToList());
+        var firm = PortalFirmFilter.FirmOf(context);
+        var views = await queries.ListByTraderAsync(firm.Id, PortalAuth.UserIdOf(principal), cancellationToken);
+        return TypedResults.Ok(await details.BuildAsync(firm, views, cancellationToken));
     }
 
     private static Task<Results<Ok<AccountDetailsResponse>, ProblemHttpResult>> GetMyAccountAsync(
@@ -165,10 +173,52 @@ internal static class PortalEndpoints
         ClaimsPrincipal principal,
         HttpContext context,
         ChallengeQueries queries,
-        PayoutQueries payouts,
-        ITradingPlatform trading,
+        AccountDetailsBuilder details,
         CancellationToken cancellationToken) =>
-        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, payouts, trading, cancellationToken);
+        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, details, cancellationToken);
+
+    /// <summary>How a stage has gone: the balance, the loss limits, each day and statistics. Without a stage, the latest that has started.</summary>
+    private static Task<Results<Ok<PerformanceResponse>, ProblemHttpResult>> GetMyPerformanceAsync(
+        Guid accountId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        CancellationToken cancellationToken,
+        int? stage = null) =>
+        HistoryActions.PerformanceAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), stage, queries, history, cancellationToken);
+
+    /// <summary>A stage's closed positions, newest first, a page at a time.</summary>
+    private static Task<Results<Ok<TradesResponse>, ProblemHttpResult>> ListMyTradesAsync(
+        Guid accountId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        CancellationToken cancellationToken,
+        int? stage = null,
+        long? before = null,
+        int limit = 50) =>
+        HistoryActions.TradesAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), stage, before, limit, queries, history, cancellationToken);
+
+    /// <summary>A stage's closed positions as a CSV file.</summary>
+    private static Task<Results<FileContentHttpResult, ProblemHttpResult>> DownloadMyTradesAsync(
+        Guid accountId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        CancellationToken cancellationToken,
+        int? stage = null) =>
+        HistoryActions.TradesCsvAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), stage, queries, history, cancellationToken);
+
+    private static Task<Ok<TraderPayoutsResponse>> ListMyPayoutsAsync(
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries accounts,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken) =>
+        PayoutActions.ListForTraderAsync(PortalFirmFilter.FirmOf(context), PortalAuth.UserIdOf(principal), accounts, payouts, cancellationToken);
 
     /// <summary>The trader asks for a payout of the funded account's profit. 409 with the reason when one cannot be had now.</summary>
     private static Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
@@ -236,10 +286,9 @@ internal static class PortalEndpoints
         Guid accountId,
         HttpContext context,
         ChallengeQueries queries,
-        PayoutQueries payouts,
-        ITradingPlatform trading,
+        AccountDetailsBuilder details,
         CancellationToken cancellationToken) =>
-        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, null, queries, payouts, trading, cancellationToken);
+        AccountActions.DetailsAsync(PortalFirmFilter.FirmOf(context), accountId, null, queries, details, cancellationToken);
 
     private static Task<Results<Ok<List<StepResponse>>, ProblemHttpResult>> GetHistoryAsync(
         Guid accountId,

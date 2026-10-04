@@ -54,6 +54,14 @@ internal sealed class PayoutQueries(NpgsqlDataSource dataSource, DatabaseSchema 
     public Task<List<PayoutView>> ListByAccountAsync(string firmId, Guid challengeAccountId, CancellationToken cancellationToken) =>
         ReadAsync($"{SelectView} where p.firm_id = $1 and p.challenge_account_id = $2 order by p.requested_at desc", [firmId, challengeAccountId], cancellationToken);
 
+    /// <summary>The accounts' payouts, newest first.</summary>
+    public Task<List<PayoutView>> ListByAccountsAsync(string firmId, Guid[] challengeAccountIds, CancellationToken cancellationToken) =>
+        ReadAsync($"{SelectView} where p.firm_id = $1 and p.challenge_account_id = any($2) order by p.requested_at desc", [firmId, challengeAccountIds], cancellationToken);
+
+    /// <summary>The trader's payouts from every account, newest first.</summary>
+    public Task<List<PayoutView>> ListByTraderAsync(string firmId, Guid traderId, CancellationToken cancellationToken) =>
+        ReadAsync($"{SelectView} where p.firm_id = $1 and a.trader_id = $2 order by p.requested_at desc", [firmId, traderId], cancellationToken);
+
     private async Task<List<PayoutView>> ReadAsync(string sql, object[] parameters, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

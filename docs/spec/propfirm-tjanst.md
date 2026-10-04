@@ -1,12 +1,12 @@
 # Spec: propfirm-tjänsten
 
-- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a
+- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a, handelshistorik för traderns översikt efter 9a
 - Status: Implementerad i `prop/src/Prop.Api`
-- Datum: 2026-10-03
+- Datum: 2026-10-04
 
 ## Syfte
 
-Tjänsten driver firmornas challenges. Den har firmans API och portalens API, kör regelmotorn (se [specen för regelmotorn](regelmotor.md)) för varje challenge-konto och kopplar den till handelsplattformen genom dess publika admin-API (ADR 0012). Besluten om hur det hålls korrekt finns i [ADR 0013](../adr/0013-journal-och-utkorg-i-propfirm-tjansten.md). Portalen och dess API beskrivs i [specen för portalen](portal.md), hur firmor registrerar sig själva i [specen för registrering och sandlåda](registrering.md), köp av challenges i portalen i [specen för köp i portalen](kop.md), vad firman betalar oss i [specen för platser och betalning](platser-och-betalning.md) och vår granskning av firmor och avstängning i [specen för granskning och avstängning](granskning.md).
+Tjänsten driver firmornas challenges. Den har firmans API och portalens API, kör regelmotorn (se [specen för regelmotorn](regelmotor.md)) för varje challenge-konto och kopplar den till handelsplattformen genom dess publika admin-API (ADR 0012). Besluten om hur det hålls korrekt finns i [ADR 0013](../adr/0013-journal-och-utkorg-i-propfirm-tjansten.md), och om handelshistoriken bakom traderns översikt i [ADR 0022](../adr/0022-handelshistorik-for-traderns-oversikt.md). Portalen och dess API beskrivs i [specen för portalen](portal.md), hur firmor registrerar sig själva i [specen för registrering och sandlåda](registrering.md), köp av challenges i portalen i [specen för köp i portalen](kop.md), vad firman betalar oss i [specen för platser och betalning](platser-och-betalning.md) och vår granskning av firmor och avstängning i [specen för granskning och avstängning](granskning.md).
 
 ## Delar
 
@@ -29,6 +29,9 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `ITradingPlatform`, `TradingPlatformClient` | Handelsplattformens admin-API v1, även kontot värderat just nu för portalen. Fler plattformar kan få egna adaptrar. |
 | `ITradingPartner`, `TradingPartnerClient` | Handelsplattformens partner-API v1, som skapar servrar åt firmor som registrerar sig (ADR 0016). |
 | `TradingEventConsumer` | Läser firmans händelseström och gör om händelser till fakta. Löpnumret sparas i samma transaktion som besluten. |
+| `TradingHistoryRecorder` | Läser firmans händelseström med en egen läsposition och sparar positioner, saldoändringar och golvens nivåer för kontona tjänsten har öppnat (ADR 0022). Varje händelse sparas en gång per löpnummer, så historiken byggs om genom att läsa strömmen igen. |
+| `TradingHistoryQueries`, `AccountPerformance` | Läser historiken och fasernas start och resultat, och räknar resultatet i dag, statistiken och resultatet per dag med decimaltal. |
+| `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil. |
 | `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. En firmas kommandon väntar tills den har en server. Ett nekat uttag rapporteras till regelmotorn i samma transaktion, så att utbetalningen blir `Failed`. |
 | `TradingDayScheduler`, `TradingStreamProgress` | Startar handelsdagen för varje öppet konto när dagen börjar, och kommer ikapp efter en omstart. En dag som avslutar en challenge på tid väntar tills firmans händelseström är läst förbi dagens början. |
 | `WebhookWorker`, `WebhookOutbox` | Webhooks till firman köas i samma transaktion som ändringen bakom dem, och skickas signerade tills de tas emot. |
@@ -76,6 +79,29 @@ firman godkänner -> webhook payout.approved -> firman betalar själv och marker
 
 Händelser om konton som tjänsten inte har öppnat åt firman, och andra händelser, flyttar bara läspositionen framåt.
 
+## Handelshistoriken
+
+`TradingHistoryRecorder` läser samma ström som regelmotorn men med en egen läsposition i `trading_history_cursors`. En firma som saknar läsposition läser strömmen från början, så historiken fylls i för konton som handlade innan den fanns. Att ta bort historiken och läspositionen bygger om den. Den kan ligga någon sekund efter regelmotorn.
+
+| Händelse | Sparas som |
+|---|---|
+| `AccountCreated` | Saldoändringen `Created` med startsaldot. |
+| `PositionOpened` | En position med symbol, sida, volym, öppningspris, tid och provision, och saldoändringen `Opened` med provisionen. |
+| `PositionClosed` | Positionens stängningspris, tid, vinst före provision, provision och orsak, och saldoändringen `Closed` med vinsten efter provision. Stängningen har positionens egna fält, så positionen blir hel även om öppningen aldrig lästes. |
+| `BalanceAdjusted` | Saldoändringen `Adjusted`, till exempel en utbetalnings uttag. Den räknas inte som resultat. |
+| `EquityFloorSet` | Golvets nivå och när den sattes, till exempel det dagliga golvet vid varje handelsdag. |
+
+När regelmotorn startar eller klarar en fas sparas tiden, saldot och handelsdagarna på fasens rad i `trading_accounts`, och beslutet som avslutade challengen (brott, tiden slut eller annullering) på kontot. Det sker i samma transaktion som steget. Konton som fanns innan fick samma uppgifter från sina steg när databasen uppdaterades.
+
+Tjänsten räknar, och portalen bara visar:
+
+- **Resultatet i fasen** är equity, eller saldot när kontot inte värderas, minus startsaldot.
+- **Resultatet i dag** är equity nu minus saldot när handelsdagen började, utan insättningar och uttag sedan dess. Ett konto som öppnades under dagen började den på startsaldot.
+- **Vinstmålet** är hur långt saldot har kommit från startsaldot mot målet, från 0 till 100.
+- **Statistiken** räknas på stängda positioner efter provision för öppning och stängning: antal, vinnare och förlorare (resultat över och under noll), andel vinnare, snitt för vinst och förlust, bästa och sämsta affär, profit factor (vinsternas summa delat med förlusternas, utan värde när det inte finns förluster), lots, resultat och provision.
+- **Dag för dag** visar varje handelsdag med en stängd position eller som regelmotorn räknat som handelsdag. En position hör till handelsdagen den stängdes, enligt challengens handelsdag.
+- **Versionen** av kontots historik är det senaste löpnumret i historiken och antalet steg. Den ändras när något nytt har hänt, så portalen hämtar historiken igen bara då.
+
 ## Handelsdagar
 
 En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efter det lokala datum den börjar på. En dag som avslutar en challenge för att tiden tagit slut startas först när firmans händelseström är läst till slutet med en läsning som började minst 30 sekunder efter dagens början. Då räknas en affär som gjordes i sista stund, även när händelsen kommer sent, till exempel efter en omstart. En dag som börjar 17:00 på en söndag är alltså söndagens. Övergången mellan sommartid och vintertid följs. Ett klockslag i timmen som hoppas över flyttas till första tiden som finns, och ett klockslag i timmen som upprepas räknas första gången.
@@ -94,10 +120,12 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `firm_admins` | Firmans administratörer i portalen. E-postadressen är unik inom firman. |
 | `portal_invites` | Inbjudningar till portalen: hash av token, trader, när den går ut och när den användes. |
 | `data_protection_keys` | Nycklarna som skyddar portalens sessioner. |
-| `challenge_accounts` | Challenge-konton med regelmotorns tillstånd, status, fas, handelsdag, om challengen är pausad och firmans referens. |
+| `challenge_accounts` | Challenge-konton med regelmotorns tillstånd, status, fas, handelsdag, om challengen är pausad, firmans referens och beslutet som avslutade challengen. |
 | `challenge_steps` | Varje indata och beslut i ordning, med handelsplattformens händelse som bevis. |
-| `trading_accounts` | Konton på handelsplattformen per fas, med saldo, öppna positioner och golvens nivåer som plattformen senast rapporterade. |
+| `trading_accounts` | Konton på handelsplattformen per fas, med saldo, öppna positioner och golvens nivåer som plattformen senast rapporterade, och när fasen startade och klarades, med saldot och handelsdagarna. |
 | `trading_cursors` | Hur långt varje firmas händelseström är läst. |
+| `trading_history_cursors` | Hur långt handelshistoriken har läst varje firmas händelseström. |
+| `trading_positions`, `trading_balance_changes`, `trading_floor_levels` | Handelshistoriken för kontona tjänsten har öppnat: positioner från öppning till stängning, varje saldoändring med saldot efter, och golvens nivåer över tid. |
 | `trading_commands` | Kommandon till handelsplattformen, i ordning per firma. |
 | `webhook_deliveries` | Webhooks till firman, med försök och svar. |
 | `payouts` | Utbetalningar med status, vinst, vinstandel, belopp, tider, orsak och firmans referens. Regelmotorns steg är revisionsloggen, tabellen är för att hitta utbetalningar. |
@@ -201,6 +229,8 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `ReviewTests` och `SuspensionTests`: vår granskning, vår adminvy och avstängning. Se [specen för granskning och avstängning](granskning.md).
 - `ExpiryTests`: en challenge utan ny position i 30 dagar som tar slut och stänger kontot med webhooken och orsaken, en affär på sista dagen som räknas fast händelsen kommer efter att dagen tagit slut, en ny position som flyttar sista dagen, en fas med tidsgräns som tar slut, och en tidsgräns som är kortare än fasens handelsdagar.
 - `ChallengeFlowTests`: dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa, brott med bevis, godkänd finansiering, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
-- `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv, att ett uttag bara dras en gång och bär plattformens orsak vid nej, och att konton pausas och återupptas.
+- `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, positionernas fält i händelserna, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv, att ett uttag bara dras en gång och bär plattformens orsak vid nej, och att konton pausas och återupptas.
+- `TraderDashboardTests`: varje affär med provisioner och saldot efter, att historiken byggs om från strömmens början, kontona på traderns översikt med faser, resultat i dag och i fasen, vinstmål och golvens avstånd, att versionen ändras med historiken, en klarad fas med start, resultat och handelsdagar, när och varför ett konto slutade, affärer sida för sida och som CSV-fil, att en trader bara ser sina egna konton, och traderns utbetalningar med summor.
+- `AccountPerformanceTests`: statistiken, avrundningen, dag för dag med handelsdagar i Stockholm, resultatet i dag och förloppet mot vinstmålet.
 - `TradingContractTests`: varje väg och fält som klienten använder finns i `contracts/trading/trading-service.json`.
 - `TradingDaysTests`: handelsdagar i olika tidszoner, vid klockslag på kvällen och vid sommartid och vintertid.

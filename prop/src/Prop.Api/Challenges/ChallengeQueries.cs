@@ -10,8 +10,11 @@ using Prop.Rules;
 
 namespace Prop.Api.Challenges;
 
-/// <summary>A challenge account with what the trading platform last reported for its current trading account.</summary>
-internal sealed record AccountView(ChallengeAccount Account, TradingFigures? Trading);
+/// <summary>
+/// A challenge account with what the trading platform last reported for its current trading account, and the rule
+/// engine's decision that ended it, if it has ended.
+/// </summary>
+internal sealed record AccountView(ChallengeAccount Account, TradingFigures? Trading, ChallengeOutput? Ending);
 
 internal sealed record TradingFigures(decimal? Balance, int OpenPositions, decimal? DailyFloor, decimal? MaxLossFloor);
 
@@ -24,7 +27,7 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
     private const string SelectView =
         """
         select a.id, a.firm_id, a.number, a.trader_id, t.email, a.definition_id, a.reference, a.state, a.steps, a.created_at,
-               ta.balance, ta.open_positions, ta.daily_floor, ta.max_loss_floor, ta.account_id is not null
+               ta.balance, ta.open_positions, ta.daily_floor, ta.max_loss_floor, ta.account_id is not null, a.ending
         from challenge_accounts a
         join traders t on t.id = a.trader_id
         left join trading_accounts ta on ta.account_id = a.state ->> 'accountId'
@@ -39,49 +42,6 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
             $"{SelectView} where a.firm_id = $1 and ($2::text is null or t.normalized_email = $2) and ($3::text is null or a.status = $3) order by a.number desc limit $4",
             [firmId, email is null ? DBNull.Value : Emails.Normalize(email), status is { } s ? s.ToString() : DBNull.Value, limit],
             cancellationToken);
-
-    /// <summary>The breach that failed the account, from its steps. Null if it did not fail on a floor.</summary>
-    public async Task<BreachEvidence?> LastBreachAsync(string firmId, Guid id, CancellationToken cancellationToken)
-    {
-        await schema.EnsureAsync(cancellationToken);
-        await using var command = dataSource.CreateCommand(
-            """
-            select s.input, s.outputs
-            from challenge_steps s join challenge_accounts a on a.id = s.challenge_account_id
-            where a.firm_id = $1 and a.id = $2 and s.input ->> 'kind' = 'FloorBreached'
-            order by s.step desc limit 1
-            """);
-        command.Parameters.AddWithValue(firmId);
-        command.Parameters.AddWithValue(id);
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
-
-        var breach = (FloorBreached)JsonSerializer.Deserialize<ChallengeInput>(reader.GetString(0), PropJson.Options)!;
-        var failed = JsonSerializer.Deserialize<List<ChallengeOutput>>(reader.GetString(1), PropJson.Options)!.OfType<ChallengeFailed>().FirstOrDefault();
-        return failed is null ? null : new BreachEvidence(breach.Time, breach.FloorId, breach.Level, breach.Equity, failed.Reason);
-    }
-
-    /// <summary>Why the account expired, from its steps. Null if it did not run out of time.</summary>
-    public async Task<ExpiryEvidence?> ExpiryAsync(string firmId, Guid id, CancellationToken cancellationToken)
-    {
-        await schema.EnsureAsync(cancellationToken);
-        await using var command = dataSource.CreateCommand(
-            """
-            select s.outputs
-            from challenge_steps s join challenge_accounts a on a.id = s.challenge_account_id
-            where a.firm_id = $1 and a.id = $2 and s.outputs @> '[{"kind": "ChallengeExpired"}]'
-            order by s.step desc limit 1
-            """);
-        command.Parameters.AddWithValue(firmId);
-        command.Parameters.AddWithValue(id);
-        return await command.ExecuteScalarAsync(cancellationToken) is string outputs
-            && JsonSerializer.Deserialize<List<ChallengeOutput>>(outputs, PropJson.Options)!.OfType<ChallengeExpired>().FirstOrDefault() is { } expired
-                ? new ExpiryEvidence(expired.Time, expired.Reason, expired.Day)
-                : null;
-    }
 
     public Task<List<AccountView>> ListByTraderAsync(string firmId, Guid traderId, CancellationToken cancellationToken) =>
         ReadAsync($"{SelectView} where a.firm_id = $1 and a.trader_id = $2 order by a.number", [firmId, traderId], cancellationToken);
@@ -145,7 +105,8 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
                     reader.IsDBNull(12) ? null : reader.GetDecimal(12),
                     reader.IsDBNull(13) ? null : reader.GetDecimal(13))
                 : null;
-            views.Add(new AccountView(ChallengeService.ReadAccount(reader), trading));
+            var ending = reader.IsDBNull(15) ? null : JsonSerializer.Deserialize<ChallengeOutput>(reader.GetString(15), PropJson.Options);
+            views.Add(new AccountView(ChallengeService.ReadAccount(reader), trading, ending));
         }
 
         return views;

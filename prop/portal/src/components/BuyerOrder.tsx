@@ -79,7 +79,7 @@ function Stage({ order, token }: { order: BuyerOrder; token: string }) {
       return (
         <div role="status" className="flex flex-col gap-3 text-sm">
           <p className="text-profit">Payment received. Your challenge is starting.</p>
-          <Link href="/" className={`${buttonClass} self-start`}>
+          <Link href={order.accountId ? `/accounts/${order.accountId}` : "/"} className={`${buttonClass} self-start`}>
             Go to your account
           </Link>
         </div>

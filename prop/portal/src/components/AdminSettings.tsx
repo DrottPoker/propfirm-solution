@@ -148,7 +148,7 @@ function Preview({ colors }: { colors: Partial<Record<ThemeColor, string>> }) {
           <span className="text-loss">Failed</span>
           <span className="text-warning">Waiting</span>
         </span>
-        <span className="self-start rounded bg-accent px-3 py-1 font-medium text-white">Open terminal</span>
+        <span className="self-start rounded bg-accent px-3 py-1 font-medium text-accent-foreground">Open terminal</span>
       </div>
     </div>
   );

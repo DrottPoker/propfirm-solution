@@ -72,14 +72,13 @@ internal static class AccountActions
         return TypedResults.Ok(AccountResponse.From((await queries.GetAsync(firm.Id, accountId, cancellationToken))!));
     }
 
-    /// <summary>The account with its trading account valued right now, the evidence if a floor was breached and its payouts.</summary>
+    /// <summary>The account as the portal shows it, with its trading account valued right now.</summary>
     public static async Task<Results<Ok<AccountDetailsResponse>, ProblemHttpResult>> DetailsAsync(
         Firm firm,
         Guid accountId,
         Guid? traderId,
         ChallengeQueries queries,
-        PayoutQueries payouts,
-        ITradingPlatform trading,
+        AccountDetailsBuilder details,
         CancellationToken cancellationToken)
     {
         if (await FindAsync(firm, accountId, traderId, queries, cancellationToken) is not { } view)
@@ -87,27 +86,7 @@ internal static class AccountActions
             return UnknownAccount();
         }
 
-        LiveFigures? live = null;
-        if (view.Account.State is { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId } && firm.Trading is { } firmTrading)
-        {
-            try
-            {
-                if (await trading.GetAccountAsync(firmTrading, tradingAccountId, cancellationToken) is { } snapshot)
-                {
-                    live = new LiveFigures(snapshot.Balance, snapshot.Equity, [.. snapshot.Floors.Select(f => new FloorFigure(f.FloorId, f.Level, f.Headroom))]);
-                }
-            }
-            catch (TradingPlatformUnavailableException)
-            {
-                // The figures the trading platform last reported are shown instead.
-            }
-        }
-
-        var failed = view.Account.State.Status == ChallengeStatus.Failed;
-        var breach = failed ? await queries.LastBreachAsync(firm.Id, accountId, cancellationToken) : null;
-        var expiry = failed && breach is null ? await queries.ExpiryAsync(firm.Id, accountId, cancellationToken) : null;
-        var accountPayouts = await payouts.ListByAccountAsync(firm.Id, accountId, cancellationToken);
-        return TypedResults.Ok(new AccountDetailsResponse(AccountResponse.From(view), live, breach, [.. accountPayouts.Select(PayoutResponse.From)], expiry));
+        return TypedResults.Ok((await details.BuildAsync(firm, [view], cancellationToken)).Single());
     }
 
     /// <summary>A one-time link that logs the trader in to the trading terminal on the current stage's account.</summary>
@@ -172,7 +151,7 @@ internal static class AccountActions
             extensions: errors is null ? null : new Dictionary<string, object?> { ["errors"] = errors });
 
     // A trader's own accounts only; other accounts look like they do not exist.
-    private static async Task<AccountView?> FindAsync(Firm firm, Guid accountId, Guid? traderId, ChallengeQueries queries, CancellationToken cancellationToken) =>
+    internal static async Task<AccountView?> FindAsync(Firm firm, Guid accountId, Guid? traderId, ChallengeQueries queries, CancellationToken cancellationToken) =>
         await queries.GetAsync(firm.Id, accountId, cancellationToken) is { } view && (traderId is null || view.Account.TraderId == traderId)
             ? view
             : null;

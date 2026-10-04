@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 
-import type { Account, Payout, PayoutStatus } from "@/lib/api/types";
+import type { Payout, PayoutStatus } from "@/lib/api/types";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { canApprove, canMarkPaid, canReject, payoutNote, payoutStatusLabels } from "@/lib/payouts";
-import { usePayoutDecision, useRequestPayout } from "@/lib/queries";
+import { usePayoutDecision } from "@/lib/queries";
 
-import { buttonClass, ErrorText, Figure, Panel, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, secondaryButtonClass } from "./ui";
 
 const statusStyles: Record<PayoutStatus, string> = {
   Withdrawing: "bg-warning/20 text-warning",
@@ -20,47 +20,6 @@ const statusStyles: Record<PayoutStatus, string> = {
 
 export function PayoutBadge({ status }: { status: PayoutStatus }) {
   return <span className={`whitespace-nowrap rounded px-2 py-0.5 text-sm ${statusStyles[status]}`}>{payoutStatusLabels[status]}</span>;
-}
-
-/**
- * The funded trader's next payout: the profit, the trader's share and whether it can be asked for now. The
- * whole profit is taken off the trading account, which goes back to its initial balance.
- */
-export function RequestPayout({ account }: { account: Account }) {
-  const request = useRequestPayout(account.id);
-  const quote = account.nextPayout;
-  if (!quote || account.status !== "Active") {
-    return null;
-  }
-
-  const ask = () => {
-    const question =
-      `Ask for a payout of ${formatMoney(quote.amount)} ${account.currency}? The profit of ${formatMoney(quote.profit)} is taken off ` +
-      `the trading account, which starts again from ${formatMoney(account.initialBalance)}.`;
-    if (window.confirm(question)) {
-      request.mutate();
-    }
-  };
-
-  return (
-    <Panel title="Payout">
-      <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Figure label="Profit" value={formatMoney(quote.profit)} />
-        <Figure label={`Your share (${quote.profitSplitPercent}%)`} value={`${formatMoney(quote.amount)} ${account.currency}`} />
-        <Figure
-          label="Trading days since last payout"
-          value={quote.minTradingDays > 0 ? `${quote.tradingDays} of ${quote.minTradingDays}` : `${quote.tradingDays}`}
-        />
-      </dl>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" disabled={!quote.canRequest || request.isPending} onClick={ask} className={buttonClass}>
-          {request.isPending ? "Asking..." : "Request payout"}
-        </button>
-        {quote.refusal && <span className="text-sm text-muted">{quote.refusal}</span>}
-      </div>
-      <ErrorText error={request.error} />
-    </Panel>
-  );
 }
 
 /** Payouts, newest first, optionally with their traders and the firm's decisions: approve, mark as paid or reject. */

@@ -255,22 +255,31 @@ internal sealed class ChallengeService(
                 case ResumeAccountRequested resume:
                     await QueueCommandAsync(connection, firm, account, new ResumeTradingAccount(resume.AccountId), now, cancellationToken);
                     break;
-                case StageStarted:
+                case StageStarted started:
+                    await ExecuteAsync(connection, "update trading_accounts set started_at = $2 where account_id = $1", [started.AccountId, started.Time], cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.stage_started", output, now, cancellationToken);
                     break;
-                case StagePassed:
+                case StagePassed passed:
+                    await ExecuteAsync(
+                        connection,
+                        "update trading_accounts set passed_at = $2, passed_balance = $3, passed_trading_days = $4 where account_id = $1",
+                        [passed.AccountId, passed.Time, passed.Balance, passed.TradingDays],
+                        cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.passed", output, now, cancellationToken);
                     break;
                 case FundingAwaited:
                     await QueueWebhookAsync(connection, firm, account, "account.funding_awaited", output, now, cancellationToken);
                     break;
                 case ChallengeFailed:
+                    await SaveEndingAsync(connection, account, output, cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.breached", output, now, cancellationToken);
                     break;
                 case ChallengeCancelled:
+                    await SaveEndingAsync(connection, account, output, cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.cancelled", output, now, cancellationToken);
                     break;
                 case ChallengeExpired:
+                    await SaveEndingAsync(connection, account, output, cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.expired", output, now, cancellationToken);
                     break;
                 case ChallengePaused:
@@ -317,6 +326,14 @@ internal sealed class ChallengeService(
             }
         }
     }
+
+    /// <summary>The decision that ended the challenge, kept on the account so it is found without reading the steps.</summary>
+    private static Task SaveEndingAsync(NpgsqlConnection connection, ChallengeAccount account, ChallengeOutput ending, CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            connection,
+            "update challenge_accounts set ending = $2 where id = $1",
+            [account.Id, Jsonb(JsonSerializer.Serialize(ending, PropJson.Options))],
+            cancellationToken);
 
     private static Task InsertPayoutAsync(NpgsqlConnection connection, Firm firm, ChallengeAccount account, Payout payout, CancellationToken cancellationToken) =>
         ExecuteAsync(

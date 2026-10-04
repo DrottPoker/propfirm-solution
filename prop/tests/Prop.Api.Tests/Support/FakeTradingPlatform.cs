@@ -24,6 +24,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     private TaskCompletionSource _newEvents = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _sequence;
     private int _failures;
+    private int _positions;
 
     /// <summary>Every command that reached the platform, in order, such as "open demo-firm-1001-1".</summary>
     public List<string> Commands { get; } = [];
@@ -128,17 +129,83 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         }
     }
 
-    public void OpenPosition(string accountId) =>
-        Publish(accountId, "PositionOpened", a => new JsonObject { ["balanceAfter"] = a.Balance }, (s, t, id, raw, a) => new TradingPositionOpened(s, t, id, raw, a.Balance));
-
-    public void ClosePosition(string accountId, decimal profit)
+    /// <summary>A trader opens a position, paying <paramref name="commission"/> for it like on ours. Returns the position's id.</summary>
+    public string OpenPosition(
+        string accountId,
+        string symbol = "EURUSD",
+        TradeSide side = TradeSide.Buy,
+        decimal volume = 1m,
+        decimal openPrice = 1.1m,
+        decimal commission = 0m)
     {
+        Position position;
         lock (_lock)
         {
-            _accounts[accountId].Balance += profit;
+            position = new Position($"position-{++_positions}", symbol, side, volume, openPrice);
+            var account = _accounts[accountId];
+            account.Balance -= commission;
+            account.Positions.Add(position);
         }
 
-        Publish(accountId, "PositionClosed", a => new JsonObject { ["balanceAfter"] = a.Balance }, (s, t, id, raw, a) => new TradingPositionClosed(s, t, id, raw, a.Balance));
+        Publish(
+            accountId,
+            "PositionOpened",
+            a => new JsonObject
+            {
+                ["positionId"] = position.Id,
+                ["symbol"] = symbol,
+                ["side"] = side.ToString(),
+                ["volume"] = volume,
+                ["openPrice"] = openPrice,
+                ["stopLoss"] = null,
+                ["takeProfit"] = null,
+                ["commission"] = commission,
+                ["balanceAfter"] = a.Balance,
+            },
+            (s, t, id, raw, a) => new TradingPositionOpened(s, t, id, raw, position.Id, symbol, side, volume, openPrice, commission, a.Balance));
+        return position.Id;
+    }
+
+    /// <summary>
+    /// The oldest open position, or the one with the id, closes with <paramref name="profit"/> before
+    /// <paramref name="commission"/>, like on ours. A close without an open position closes one that opened unseen.
+    /// </summary>
+    public void ClosePosition(
+        string accountId,
+        decimal profit,
+        string? positionId = null,
+        decimal closePrice = 1.1m,
+        decimal commission = 0m,
+        string reason = "Manual")
+    {
+        Position position;
+        lock (_lock)
+        {
+            var account = _accounts[accountId];
+            position = (positionId is null ? account.Positions.FirstOrDefault() : account.Positions.Single(p => p.Id == positionId))
+                ?? new Position($"position-{++_positions}", "EURUSD", TradeSide.Buy, 1m, 1.1m);
+            account.Positions.Remove(position);
+            account.Balance += profit - commission;
+        }
+
+        Publish(
+            accountId,
+            "PositionClosed",
+            a => new JsonObject
+            {
+                ["positionId"] = position.Id,
+                ["symbol"] = position.Symbol,
+                ["side"] = position.Side.ToString(),
+                ["volume"] = position.Volume,
+                ["openPrice"] = position.OpenPrice,
+                ["closePrice"] = closePrice,
+                ["profit"] = profit,
+                ["commission"] = commission,
+                ["reason"] = reason,
+                ["balanceAfter"] = a.Balance,
+            },
+            (s, t, id, raw, a) => new TradingPositionClosed(
+                s, t, id, raw, position.Id, position.Symbol, position.Side, position.Volume, position.OpenPrice, closePrice, profit, commission, reason, a.Balance));
     }
 
     /// <summary>The floor is breached, so the platform disables the account, like ours does.</summary>
@@ -403,5 +470,10 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         public Dictionary<string, decimal> Floors { get; } = new(StringComparer.Ordinal);
 
         public HashSet<string> Operations { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>The open positions, oldest first.</summary>
+        public List<Position> Positions { get; } = [];
     }
+
+    internal sealed record Position(string Id, string Symbol, TradeSide Side, decimal Volume, decimal OpenPrice);
 }

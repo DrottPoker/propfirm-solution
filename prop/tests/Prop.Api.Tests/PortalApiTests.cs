@@ -51,7 +51,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         Assert.Equal(("anna@test.example", "trader", "Demo Firm"), (me.GetProperty("email").GetString(), me.GetProperty("role").GetString(), me.GetProperty("firmName").GetString()));
         Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.Unauthorized, HttpStatusCode.OK), (loggedOut.StatusCode, afterLogout.StatusCode, login.StatusCode));
-        Assert.Equal(id, Assert.Single(accounts.EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Equal(id, Assert.Single(accounts.EnumerateArray()).GetProperty("account").GetProperty("id").GetGuid());
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         using var bertsLink = await portal.PostAsync(Url($"accounts/{bert}/terminal-link"), null, TestContext.Current.CancellationToken);
         using var ownLink = await portal.PostAsync(Url($"accounts/{anna}/terminal-link"), null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(anna, Assert.Single(accounts.EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Equal(anna, Assert.Single(accounts.EnumerateArray()).GetProperty("account").GetProperty("id").GetGuid());
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (bertsAccount.StatusCode, bertsLink.StatusCode));
         var link = await ownLink.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.EndsWith($"account={Phase1}", link.GetProperty("url").GetString(), StringComparison.Ordinal);
@@ -260,7 +260,7 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         using var again = await afterRestart.PostAsJsonAsync(Url("login"), new { email = "anna@test.com", password = "anna" }, TestContext.Current.CancellationToken);
 
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK), (configured.StatusCode, changed.StatusCode, again.StatusCode));
-        Assert.Equal(id, Assert.Single(accounts.EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Equal(id, Assert.Single(accounts.EnumerateArray()).GetProperty("account").GetProperty("id").GetGuid());
     }
 
     [Fact]

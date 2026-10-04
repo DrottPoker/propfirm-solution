@@ -61,10 +61,40 @@ internal abstract record TradingEvent(long Sequence, DateTimeOffset Time, string
 internal sealed record TradingAccountCreated(long Sequence, DateTimeOffset Time, string AccountId, string Raw, decimal Balance)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
-internal sealed record TradingPositionOpened(long Sequence, DateTimeOffset Time, string AccountId, string Raw, decimal BalanceAfter)
+/// <summary>A position was opened. <paramref name="Commission"/> was charged for the opening, and is in the balance after.</summary>
+internal sealed record TradingPositionOpened(
+    long Sequence,
+    DateTimeOffset Time,
+    string AccountId,
+    string Raw,
+    string PositionId,
+    string Symbol,
+    TradeSide Side,
+    decimal Volume,
+    decimal OpenPrice,
+    decimal Commission,
+    decimal BalanceAfter)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
-internal sealed record TradingPositionClosed(long Sequence, DateTimeOffset Time, string AccountId, string Raw, decimal BalanceAfter)
+/// <summary>
+/// A position was closed. <paramref name="Profit"/> is before commission, and <paramref name="Commission"/> was charged
+/// for the closing. Both are in the balance after. <paramref name="Reason"/> is the platform's, such as Manual or StopLoss.
+/// </summary>
+internal sealed record TradingPositionClosed(
+    long Sequence,
+    DateTimeOffset Time,
+    string AccountId,
+    string Raw,
+    string PositionId,
+    string Symbol,
+    TradeSide Side,
+    decimal Volume,
+    decimal OpenPrice,
+    decimal ClosePrice,
+    decimal Profit,
+    decimal Commission,
+    string Reason,
+    decimal BalanceAfter)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
 internal sealed record TradingFloorSet(long Sequence, DateTimeOffset Time, string AccountId, string Raw, string FloorId, decimal Level)
@@ -83,6 +113,13 @@ internal sealed record TradingBalanceAdjusted(long Sequence, DateTimeOffset Time
 /// <summary>An event the prop platform does not act on. It only moves the cursor.</summary>
 internal sealed record TradingOtherEvent(long Sequence, DateTimeOffset Time, string AccountId, string Raw)
     : TradingEvent(Sequence, Time, AccountId, Raw);
+
+/// <summary>Whether a position was a buy or a sell.</summary>
+public enum TradeSide
+{
+    Buy,
+    Sell,
+}
 
 /// <summary>The trading platform could not be reached or failed. Worth trying again later.</summary>
 internal sealed class TradingPlatformUnavailableException : Exception

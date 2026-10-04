@@ -61,7 +61,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Contains("http://acme.localhost:3002/invite?token=", invitation.Body, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
         var account = Assert.Single(accounts.EnumerateArray());
-        Assert.Equal(paid.GetProperty("accountId").GetGuid(), account.GetProperty("id").GetGuid());
+        Assert.Equal(paid.GetProperty("accountId").GetGuid(), account.GetProperty("account").GetProperty("id").GetGuid());
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal("anna@test.example", order.GetProperty("email").GetString());
         Assert.True(order.GetProperty("canLogIn").GetBoolean());
         Assert.Empty(factory.Emails.Sent);
-        Assert.Equal(["quick-test-100k", Challenge], accounts.EnumerateArray().Select(a => a.GetProperty("challengeId").GetString()).Order());
+        Assert.Equal(["quick-test-100k", Challenge], accounts.EnumerateArray().Select(a => a.GetProperty("account").GetProperty("challengeId").GetString()).Order());
     }
 
     [Fact]

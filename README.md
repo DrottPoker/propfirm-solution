@@ -163,9 +163,10 @@ pnpm dev:portal
 | Vår personal | http://ops.localhost:3002/ops/login | `ops@test.com` och `ops` |
 
 1. Logga in som administratör och starta en challenge åt en trader, till exempel `anna@test.com`.
-2. Logga in som trader i en ny flik och se kontot. Administratören är fortfarande inloggad, eftersom rollerna har var sin session.
+2. Logga in som trader i en ny flik och se kontot på startsidan. Administratören är fortfarande inloggad, eftersom rollerna har var sin session.
 3. Klicka på Open terminal för att handla på kontot. Starta terminalen först (`pnpm dev:terminal`).
-4. Andra traders får en inbjudningslänk från kontots sida i adminpanelen.
+4. Klicka på Details för kontots sida, med målen, grafen över saldot, dag för dag, statistik, de stängda affärerna och reglerna. Affärerna dyker upp där några sekunder efter att de stängts i terminalen.
+5. Andra traders får en inbjudningslänk från kontots sida i adminpanelen.
 
 Lokalt finns inga krav på lösenordens längd, ingen gräns för antalet inloggningar och sessionerna gäller i 30 dagar (`Login` i `appsettings.Development.json` för båda tjänsterna). Vill du vara inloggad som två traders samtidigt, använd http://localhost:3002 för den ena och http://127.0.0.1:3002 för den andra. Webbläsaren håller isär inloggningarna per värdnamn.
 
@@ -222,8 +223,8 @@ Challengen `quick-test-100k` finns bara lokalt. Den har vinstmål på 0,1 % (100
 1. Logga in som administratör och starta challengen Quick test åt `anna@test.com`.
 2. Logga in som `anna@test.com` i en ny flik och klicka på Open terminal. Handla tills en stängd affär ger minst 100 USD i vinst, till exempel 10 lot EURUSD som stängs efter ett par pips uppgång. Gör om det i fas 2.
 3. Godkänn funded-kontot på kontots sida i adminpanelen.
-4. Gör en vinst på funded-kontot och stäng alla positioner. Klicka sedan på Request payout i portalen. Hela vinsten tas från handelskontot direkt, och tradern får 80 % av den.
-5. Godkänn utbetalningen under Payouts i adminpanelen, och markera den som betald.
+4. Gör en vinst på funded-kontot och stäng alla positioner. Klicka sedan på Request payout på kontots sida i portalen. Hela vinsten tas från handelskontot direkt, och tradern får 80 % av den.
+5. Godkänn utbetalningen under Payouts i adminpanelen, och markera den som betald. Tradern ser den på kontots sida och under Payouts i portalen.
 
 Challenges i `SeedChallenges` skapas eller ersätts vid varje start. Konton som startades innan har kvar sina regler, och ett funded-konto utan vinstandel kan inte få utbetalningar. Börja om från noll med `docker compose -f deploy/docker-compose.yml down -v` om du vill. Se [specen för regelmotorn](docs/spec/regelmotor.md) och [ADR 0015](docs/adr/0015-utbetalningar-tar-ut-vinsten-direkt.md).
 

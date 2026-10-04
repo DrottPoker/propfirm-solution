@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, resultOf } from "./api/client";
 import type {
@@ -98,7 +98,7 @@ export function useLogout(role: Role) {
   });
 }
 
-/** The logged in trader's challenge accounts. */
+/** The logged in trader's challenge accounts, valued at the latest prices. */
 export function useMyAccounts() {
   return useQuery({
     queryKey: ["my-accounts"],
@@ -117,6 +117,53 @@ export function useMyAccount(accountId: string | null) {
   });
 }
 
+/**
+ * How a stage of the account has gone, or the latest stage without one. Asked again only when the account's
+ * history version changes, and the last answer stays on screen while the next one loads.
+ */
+export function usePerformance(accountId: string, stage: number | null, historyVersion: string) {
+  return useQuery({
+    queryKey: ["performance", accountId, stage, historyVersion],
+    queryFn: async () =>
+      resultOf(
+        await api.GET("/api/portal/accounts/{accountId}/performance", { params: { path: { accountId }, query: { stage: stage ?? undefined } } }),
+        "the account's history",
+      ),
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** The stage's closed positions, newest first, a page at a time. Asked again when the history version changes. */
+export function useTrades(accountId: string, stage: number | null, historyVersion: string) {
+  return useInfiniteQuery({
+    queryKey: ["trades", accountId, stage, historyVersion],
+    queryFn: async ({ pageParam }) =>
+      resultOf(
+        await api.GET("/api/portal/accounts/{accountId}/trades", {
+          params: { path: { accountId }, query: { stage: stage ?? undefined, before: pageParam ?? undefined, limit: tradesPerPage } },
+        }),
+        "the closed trades",
+      ),
+    initialPageParam: null as number | null,
+    getNextPageParam: (page) => page.next,
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** How many closed trades are shown at first, and added by each "Show more". */
+export const tradesPerPage = 25;
+
+/** The trader's payouts from every account, with totals per currency. */
+export function useMyPayouts() {
+  return useQuery({
+    queryKey: ["my-payouts"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/payouts"), "your payouts"),
+    refetchInterval: liveRefreshMs,
+  });
+}
+
 /** The trader asks for a payout of the funded account's profit. The service answers with the reason when it cannot. */
 export function useRequestPayout(accountId: string) {
   const queryClient = useQueryClient();
@@ -126,6 +173,7 @@ export function useRequestPayout(accountId: string) {
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ["my-account", accountId] }),
         queryClient.invalidateQueries({ queryKey: ["my-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["my-payouts"] }),
       ]),
   });
 }

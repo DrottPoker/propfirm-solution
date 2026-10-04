@@ -52,6 +52,34 @@ internal static class PayoutActions
         return TypedResults.Created(location(payoutId), PayoutResponse.From(payout!));
     }
 
+    /// <summary>
+    /// The trader's payouts from every account, newest first, with what the firm has paid, what is on its way and
+    /// what the trader can ask for now, per currency.
+    /// </summary>
+    public static async Task<Ok<TraderPayoutsResponse>> ListForTraderAsync(
+        Firm firm,
+        Guid traderId,
+        ChallengeQueries accounts,
+        PayoutQueries payouts,
+        CancellationToken cancellationToken)
+    {
+        var traderPayouts = await payouts.ListByTraderAsync(firm.Id, traderId, cancellationToken);
+        var ready = (await accounts.ListByTraderAsync(firm.Id, traderId, cancellationToken))
+            .Select(v => (v.Account.State.Definition.Currency, Quote: ChallengeRules.QuotePayout(v.Account.State)))
+            .Where(r => r.Quote.CanRequest)
+            .ToList();
+        var totals = traderPayouts.Select(p => p.Currency)
+            .Concat(ready.Select(r => r.Currency))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .Select(currency => new PayoutTotalResponse(
+                currency,
+                traderPayouts.Where(p => p.Currency == currency && p.Status == PayoutStatus.Paid).Sum(p => p.Amount),
+                traderPayouts.Where(p => p.Currency == currency && p.Status is PayoutStatus.Withdrawing or PayoutStatus.Pending or PayoutStatus.Approved).Sum(p => p.Amount),
+                ready.Where(r => r.Currency == currency).Sum(r => r.Quote.Amount)));
+        return TypedResults.Ok(new TraderPayoutsResponse([.. traderPayouts.Select(PayoutResponse.From)], [.. totals]));
+    }
+
     public static async Task<Results<Ok<List<PayoutResponse>>, ProblemHttpResult>> ListAsync(
         Firm firm,
         PayoutStatus[]? status,
