@@ -253,6 +253,40 @@ internal sealed partial class ReviewService(
             cancellationToken);
 
     /// <summary>
+    /// Ticks or unticks one of our checks in the firm's review (ADR 0024), while its application waits for us or for its
+    /// changes. Answers with the checks that are ticked.
+    /// </summary>
+    public async Task<(ReviewResult Result, IReadOnlyList<ReviewCheck> Checks)> SetCheckAsync(
+        string firmId,
+        string item,
+        bool done,
+        string staffEmail,
+        CancellationToken cancellationToken)
+    {
+        if (firms.ById(firmId) is null)
+        {
+            return (UnknownFirm(), []);
+        }
+
+        if (!ReviewChecks.All.Contains(item, StringComparer.Ordinal))
+        {
+            return (new ReviewResult.Refused(StatusCodes.Status404NotFound, "There is no such check."), []);
+        }
+
+        await using var connection = await store.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (await ReviewStore.GetAsync(connection, firmId, forUpdate: true, cancellationToken) is not { Status: ReviewStatus.Submitted or ReviewStatus.ChangesRequested })
+        {
+            return (new ReviewResult.Refused(StatusCodes.Status409Conflict, "Checks are made while an application waits for review or for its changes."), []);
+        }
+
+        await ReviewStore.SetCheckAsync(connection, firmId, item, done ? staffEmail : null, time.GetUtcNow(), cancellationToken);
+        var checks = await ReviewStore.ListChecksAsync(connection, firmId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (new ReviewResult.Done(), checks);
+    }
+
+    /// <summary>
     /// Suspends the firm: no challenge can start, its shop closes and its challenges are paused until we lift it.
     /// The firm's slots are locked while it is saved, so a challenge starting at the same time is paused too.
     /// </summary>
@@ -343,8 +377,10 @@ internal sealed partial class ReviewService(
                 return new ReviewResult.Refused(StatusCodes.Status409Conflict, refused);
             }
 
+            // The checks that were ticked are kept with the decision.
+            var checks = (await ReviewStore.ListChecksAsync(connection, firmId, cancellationToken)).Select(c => c.Item).Order(StringComparer.Ordinal).ToArray();
             await ReviewStore.DecideAsync(connection, firmId, decision, message, staffEmail, now, cancellationToken);
-            await ReviewStore.AddEventAsync(connection, firmId, eventType, staffEmail, Detail(("message", message)), now, cancellationToken);
+            await ReviewStore.AddEventAsync(connection, firmId, eventType, staffEmail, Detail(("message", message), ("checks", checks)), now, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
 

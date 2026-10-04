@@ -6,7 +6,6 @@ using Npgsql;
 
 using NpgsqlTypes;
 
-using Prop.Api.Firms;
 using Prop.Api.Json;
 
 namespace Prop.Api.Review;
@@ -53,26 +52,17 @@ internal sealed record FirmDocument(Guid Id, string FirmId, string FileName, str
 /// <summary>Something that happened in a firm's review or with its suspension, and who did it.</summary>
 internal sealed record FirmEvent(long Id, string Type, DateTimeOffset RecordedAt, string Actor, string? Detail);
 
-/// <summary>A firm as our staff see it in the list: its standing with us and its review.</summary>
-internal sealed record ReviewedFirm(
-    string Id,
-    string Name,
-    FirmStatus Status,
-    bool Configured,
-    DateTimeOffset CreatedAt,
-    ReviewStatus? Review,
-    DateTimeOffset? SubmittedAt,
-    DateTimeOffset? SuspendedAt);
+/// <summary>One of our checks during a review, ticked by a staff member.</summary>
+internal sealed record ReviewCheck(string Item, string DoneBy, DateTimeOffset DoneAt);
 
-/// <summary>Which firms our staff list.</summary>
-public enum FirmFilter
+/// <summary>The checks our staff make while they review a firm (ADR 0024), in the order they are shown.</summary>
+internal static class ReviewChecks
 {
-    /// <summary>The firms whose application waits for us, oldest first.</summary>
-    ToReview,
-
-    Suspended,
-
-    All,
+    /// <summary>
+    /// The VAT number in VIES, the company in its business register, the owners against the register, the terms on how
+    /// traders are paid, and the website and links.
+    /// </summary>
+    public static readonly IReadOnlyList<string> All = ["vat", "register", "owners", "terms", "website"];
 }
 
 /// <summary>Who did something, when it was not a person.</summary>
@@ -247,42 +237,35 @@ internal sealed class ReviewStore(NpgsqlDataSource dataSource, DatabaseSchema sc
         return await reader.ReadAsync(cancellationToken) ? ReadDocument(reader) : null;
     }
 
-    /// <summary>The firms for our staff, with their review and suspension.</summary>
-    public async Task<List<ReviewedFirm>> ListFirmsAsync(FirmFilter filter, CancellationToken cancellationToken)
+    /// <summary>The checks our staff have ticked in the firm's review.</summary>
+    public static async Task<List<ReviewCheck>> ListChecksAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
     {
-        var (where, order) = filter switch
-        {
-            FirmFilter.ToReview => ("r.status = 'Submitted'", "r.submitted_at, f.id"),
-            FirmFilter.Suspended => ("f.suspended_at is not null", "f.suspended_at desc, f.id"),
-            _ => ("true", "f.created_at desc, f.id"),
-        };
-        await using var connection = await OpenAsync(cancellationToken);
-        await using var command = Command(
-            connection,
-            $"""
-            select f.id, f.name, f.status, f.configured, f.created_at, r.status, r.submitted_at, f.suspended_at
-            from firms f left join firm_reviews r on r.firm_id = f.id
-            where {where}
-            order by {order}
-            """,
-            []);
+        await using var command = Command(connection, "select item, done_by, done_at from firm_review_checks where firm_id = $1", [firmId]);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var firms = new List<ReviewedFirm>();
+        var checks = new List<ReviewCheck>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            firms.Add(new ReviewedFirm(
-                reader.GetString(0),
-                reader.GetString(1),
-                Enum.Parse<FirmStatus>(reader.GetString(2)),
-                reader.GetBoolean(3),
-                reader.GetFieldValue<DateTimeOffset>(4),
-                reader.IsDBNull(5) ? null : Enum.Parse<ReviewStatus>(reader.GetString(5)),
-                NullableTime(reader, 6),
-                NullableTime(reader, 7)));
+            checks.Add(new ReviewCheck(reader.GetString(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)));
         }
 
-        return firms;
+        return checks;
     }
+
+    public async Task<List<ReviewCheck>> ListChecksAsync(string firmId, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenAsync(cancellationToken);
+        return await ListChecksAsync(connection, firmId, cancellationToken);
+    }
+
+    /// <summary>Ticks the check for the staff member, keeping who ticked it first, or unticks it when <paramref name="staffEmail"/> is null.</summary>
+    public static Task<int> SetCheckAsync(NpgsqlConnection connection, string firmId, string item, string? staffEmail, DateTimeOffset now, CancellationToken cancellationToken) =>
+        staffEmail is null
+            ? ExecuteAsync(connection, "delete from firm_review_checks where firm_id = $1 and item = $2", [firmId, item], cancellationToken)
+            : ExecuteAsync(
+                connection,
+                "insert into firm_review_checks (firm_id, item, done_by, done_at) values ($1, $2, $3, $4) on conflict (firm_id, item) do nothing",
+                [firmId, item, staffEmail, now],
+                cancellationToken);
 
     /// <summary>When the firm signed up and whether it was configured.</summary>
     public async Task<(DateTimeOffset CreatedAt, bool Configured)> FirmInfoAsync(string firmId, CancellationToken cancellationToken)

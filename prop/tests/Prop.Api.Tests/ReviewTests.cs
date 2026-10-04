@@ -301,25 +301,25 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var notLoggedIn = await anonymous.GetAsync(Url("ops/firms"), TestContext.Current.CancellationToken);
         using var wrongPassword = await PostAsync(anonymous, "ops/login", new { email = PropFactory.StaffEmail, password = "wrong" });
         using var firmAdminAsStaff = await PostAsync(anonymous, "ops/login", new { email = PropFactory.AdminEmail, password = PropFactory.AdminPassword });
-        var toReview = await GetAsync(ops, "ops/firms");
-        var all = await GetAsync(ops, "ops/firms?filter=All");
+        var toReview = await GetAsync(ops, "ops/firms?group=ToReview");
+        var all = await GetAsync(ops, "ops/firms");
         var firm = await GetAsync(ops, "ops/firms/acme");
         var me = await GetAsync(ops, "ops/me");
 
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (onPlatform.StatusCode, onPortal.StatusCode));
-        Assert.Equal("Prop platform", site.GetProperty("name").GetString());
+        Assert.Equal(("Prop platform", "http://app.localhost:3002/signup"), (site.GetProperty("name").GetString(), site.GetProperty("signupUrl").GetString()));
         Assert.Equal(HttpStatusCode.Unauthorized, notLoggedIn.StatusCode);
         Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized), (wrongPassword.StatusCode, firmAdminAsStaff.StatusCode));
-        Assert.Equal(["acme"], toReview.EnumerateArray().Select(f => f.GetProperty("id").GetString()));
-        Assert.Equal(["acme", "demo-firm"], all.EnumerateArray().Select(f => f.GetProperty("id").GetString()).Order());
-        var demo = all.EnumerateArray().Single(f => f.GetProperty("id").GetString() == "demo-firm");
-        Assert.Equal((true, JsonValueKind.Null), (demo.GetProperty("configured").GetBoolean(), demo.GetProperty("review").ValueKind));
+        Assert.Equal(["acme"], toReview.GetProperty("firms").EnumerateArray().Select(f => f.GetProperty("id").GetString()));
+        Assert.Equal(["acme", "demo-firm"], all.GetProperty("firms").EnumerateArray().Select(f => f.GetProperty("id").GetString()).Order());
+        var demo = all.GetProperty("firms").EnumerateArray().Single(f => f.GetProperty("id").GetString() == "demo-firm");
+        Assert.Equal((true, "Live"), (demo.GetProperty("configured").GetBoolean(), demo.GetProperty("stage").GetString()));
         Assert.Equal(("Firm acme", "Sandbox", "Submitted", "Acme Trading Ltd"), (
             firm.GetProperty("name").GetString(),
             firm.GetProperty("status").GetString(),
             firm.GetProperty("review").GetString(),
             firm.GetProperty("application").GetProperty("companyName").GetString()));
-        Assert.Equal([Owner], firm.GetProperty("admins").EnumerateArray().Select(a => a.GetString()));
+        Assert.Equal([Owner], firm.GetProperty("admins").EnumerateArray().Select(a => a.GetProperty("email").GetString()));
         Assert.Equal(PropFactory.StaffEmail, me.GetProperty("email").GetString());
     }
 

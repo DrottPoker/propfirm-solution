@@ -2,6 +2,8 @@ using System.Text.Json;
 
 using Prop.Api.Billing;
 using Prop.Api.Firms;
+using Prop.Api.Portal;
+using Prop.Rules;
 
 namespace Prop.Api.Review;
 
@@ -37,36 +39,72 @@ public sealed record VerificationResponse(
 /// <summary>Where the firm pays the deposit, or null when the application was sent at once.</summary>
 public sealed record SubmitResponse(Uri? CheckoutUrl);
 
-/// <summary>Our admin view's address: the platform's name.</summary>
-public sealed record OpsSiteResponse(string Name);
+/// <summary>Our admin view's address: the platform's name, and where firms sign up when the platform has an address.</summary>
+public sealed record OpsSiteResponse(string Name, Uri? SignupUrl);
 
 /// <summary>The staff member who is logged in.</summary>
 public sealed record OpsMeResponse(Guid UserId, string Email);
 
-/// <summary>A firm in our staff's list, with its review and whether we suspended it.</summary>
-public sealed record OpsFirmSummaryResponse(
-    string Id,
-    string Name,
-    FirmStatus Status,
-    bool Configured,
-    DateTimeOffset CreatedAt,
-    ReviewStatus? Review,
-    DateTimeOffset? SubmittedAt,
-    DateTimeOffset? SuspendedAt)
-{
-    internal static OpsFirmSummaryResponse From(ReviewedFirm firm) =>
-        new(firm.Id, firm.Name, firm.Status, firm.Configured, firm.CreatedAt, firm.Review, firm.SubmittedAt, firm.SuspendedAt);
-}
-
-/// <summary>How the firm pays us, in short.</summary>
+/// <summary>
+/// How the firm pays us: its plan once it pays, its slots and those taken, the challenges paused, the deposit it paid,
+/// when it went live, since when this month is unpaid, its next charge, its card, how many slots are added when the last
+/// is taken, and its newest charges.
+/// </summary>
 public sealed record OpsBillingResponse(
     BillingPlan? Plan,
-    int? Slots,
-    int OpenChallenges,
+    SlotsResponse Slots,
+    int PausedChallenges,
     decimal DepositPaid,
     string Currency,
     DateTimeOffset? ActivatedAt,
-    DateTimeOffset? UnpaidSince);
+    DateTimeOffset? UnpaidSince,
+    NextChargeResponse? NextCharge,
+    CardResponse? Card,
+    int? AutoExpandStep,
+    IReadOnlyList<ChargeResponse> Charges);
+
+/// <summary>One of the firm's administrators, and since when.</summary>
+public sealed record OpsAdminResponse(string Email, DateTimeOffset Since);
+
+/// <summary>One of our checks in the firm's review: whether it is ticked, by whom and when.</summary>
+public sealed record ReviewCheckResponse(string Item, bool Done, string? DoneBy, DateTimeOffset? DoneAt)
+{
+    /// <summary>Every check of the review in its order, with those ticked.</summary>
+    internal static IReadOnlyList<ReviewCheckResponse> From(IReadOnlyList<ReviewCheck> ticked) =>
+    [
+        .. ReviewChecks.All.Select(item => ticked.FirstOrDefault(c => c.Item == item) is { } check
+            ? new ReviewCheckResponse(item, true, check.DoneBy, check.DoneAt)
+            : new ReviewCheckResponse(item, false, null, null)),
+    ];
+}
+
+/// <summary>Ticks or unticks one of our checks.</summary>
+public sealed record ReviewCheckRequest(bool Done);
+
+/// <summary>What the firm has tried: challenges started, purchases in its portal, payouts and challenges it has.</summary>
+public sealed record OpsSandboxUseResponse(int Challenges, int Purchases, int Payouts, int OwnChallenges);
+
+/// <summary>A payout the trader waits for, without who the trader is.</summary>
+public sealed record OpsWaitingPayoutResponse(long AccountNumber, PayoutStatus Status, DateTimeOffset RequestedAt, DateTimeOffset? ApprovedAt, decimal Amount, string Currency);
+
+/// <summary>
+/// How the firm pays its traders: what waits for it to approve and to pay, what it paid in the last 30 days and how long
+/// that took, and how many of the payouts decided in the last 90 days it rejected, beside the same for every firm.
+/// <paramref name="Waiting"/> are the payouts traders wait for, the oldest first. One asked for more than
+/// <paramref name="LateAfterDays"/> days ago is late.
+/// </summary>
+public sealed record OpsPayoutsResponse(
+    PayoutSummaryResponse Summary,
+    double? PlatformAverageDaysToPay,
+    int RejectedLast90Days,
+    int DecidedLast90Days,
+    int PlatformRejectedLast90Days,
+    int PlatformDecidedLast90Days,
+    int LateAfterDays,
+    IReadOnlyList<OpsWaitingPayoutResponse> Waiting);
+
+/// <summary>How the firm is doing: its accounts in each group, its sales in the last 30 days, its pass rate in the last 90, and its payouts.</summary>
+public sealed record OpsFirmFiguresResponse(AccountCountsResponse Accounts, SalesResponse Sales, PassRateResponse PassRate, OpsPayoutsResponse Payouts);
 
 /// <summary>
 /// Something that happened in the firm's review or with its suspension. <paramref name="Detail"/> has the message
@@ -83,7 +121,10 @@ public sealed record OpsEventResponse(long Id, string Type, DateTimeOffset Recor
             firmEvent.Detail is null ? null : JsonSerializer.Deserialize<JsonElement>(firmEvent.Detail));
 }
 
-/// <summary>A firm for our staff: who it is, its application and documents, our review, its billing, its suspension and its events.</summary>
+/// <summary>
+/// A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it
+/// tried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events.
+/// </summary>
 public sealed record OpsFirmResponse(
     string Id,
     string Name,
@@ -91,7 +132,7 @@ public sealed record OpsFirmResponse(
     bool Configured,
     DateTimeOffset CreatedAt,
     Uri PortalUrl,
-    IReadOnlyList<string> Admins,
+    IReadOnlyList<OpsAdminResponse> Admins,
     ReviewStatus? Review,
     FirmApplication Application,
     IReadOnlyList<DocumentResponse> Documents,
@@ -99,7 +140,10 @@ public sealed record OpsFirmResponse(
     DateTimeOffset? SubmittedAt,
     DateTimeOffset? DecidedAt,
     string? DecidedBy,
+    IReadOnlyList<ReviewCheckResponse> Checks,
+    OpsSandboxUseResponse SandboxUse,
     OpsBillingResponse Billing,
+    OpsFirmFiguresResponse Figures,
     SuspensionResponse? Suspension,
     IReadOnlyList<OpsEventResponse> Events);
 

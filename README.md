@@ -189,7 +189,7 @@ Innan en firma går live granskar vi den i vår egen adminvy. Firman skickar upp
 
 1. Registrera en firma enligt ovan och öppna Verification i dess adminpanel, till exempel http://acme.localhost:3002/admin/verification.
 2. Fyll i bolagets uppgifter, lägg gärna till ett dokument och klicka på knappen som betalar handpenningen och skickar. Klicka på Pay på testsidan.
-3. Öppna vår adminvy på http://ops.localhost:3002 och logga in med `ops@test.com` och `ops`. Firman väntar under To review. Öppna den och godkänn, be om ändringar eller neka. Firmans administratörer får ett mejl, som syns i Mailpit på http://localhost:8025.
+3. Öppna vår adminvy på http://ops.localhost:3002 och logga in med `ops@test.com` och `ops`. Översikten visar att firman väntar på granskning. Öppna den, bocka i kontrollerna och godkänn, be om ändringar eller neka. Firmans administratörer får ett mejl, som syns i Mailpit på http://localhost:8025. Under Firms finns alla firmor och under Billing vad de betalar.
 4. På samma sida stänger du av en firma med en orsak. Dess challenges pausas och butiken stänger tills du slår på den igen.
 
 Se [specen för granskningen](docs/spec/granskning.md).

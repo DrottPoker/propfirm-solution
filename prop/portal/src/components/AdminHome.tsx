@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { formatTotals, namedWaitingAccounts, needsYouItems, passRateText, type NeedsYouIcon, type NeedsYouItem } from "@/lib/admin";
+import { formatTotals, namedWaitingAccounts, needsYouItems, passRateText, salesAndPayouts, type NeedsYouIcon, type NeedsYouItem } from "@/lib/admin";
 import type { AdminOverview, Billing, FirmSettings } from "@/lib/api/types";
 import { monthName, monthlyPrices } from "@/lib/billing";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -79,7 +79,12 @@ function LiveOverview({ settings }: { settings: FirmSettings }) {
       <Figures overview={data} currency={currency} sells={settings.payments.active} />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
         <Panel title="Sales and payouts per week">
-          <WeeklyChart weeks={data.weeks} currency={currency} />
+          <WeeklyChart
+            weeks={salesAndPayouts(data.weeks)}
+            currency={currency}
+            series={["Sales", "Payouts"]}
+            caption="Sales are challenges bought in your portal, without refunds. Payouts are those you marked as paid."
+          />
         </Panel>
         {billing.data && <SlotsCard billing={billing.data} />}
       </div>

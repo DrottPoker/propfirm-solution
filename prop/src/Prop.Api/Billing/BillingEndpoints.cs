@@ -371,21 +371,25 @@ internal static partial class BillingEndpoints
             paying ? plan!.UnpaidSince : null,
             next,
             [.. charges.Select(ChargeResponse.From)],
-            new PricesResponse(
-                terms.Currency,
-                terms.StartupFee,
-                terms.ReviewDeposit,
-                terms.PackagePrice,
-                terms.PackageSlots,
-                [.. terms.SlotPrices.Select(p => new SlotPriceResponse(p.From, p.Price))],
-                terms.MaxSlots,
-                terms.ChargeDaysBeforeMonth,
-                options.WarningPercent),
+            PricesOf(terms, options),
             state.Status == FirmStatus.Live ? null : BillingService.GoLiveProblem(state),
             state.Review ?? (state.Status == FirmStatus.Live ? null : ReviewStatus.Draft),
             depositPaid,
             firm.Suspension is { } suspension ? new SuspensionResponse(suspension.At, suspension.Reason) : null);
     }
+
+    /// <summary>What firms pay, from the billing terms, with the share of slots taken that warns the firm.</summary>
+    internal static PricesResponse PricesOf(BillingTerms terms, BillingOptions options) =>
+        new(
+            terms.Currency,
+            terms.StartupFee,
+            terms.ReviewDeposit,
+            terms.PackagePrice,
+            terms.PackageSlots,
+            [.. terms.SlotPrices.Select(p => new SlotPriceResponse(p.From, p.Price))],
+            terms.MaxSlots,
+            terms.ChargeDaysBeforeMonth,
+            options.WarningPercent);
 
     private static Ok<QuoteResponse> Quote(QuoteKind kind, int slots, IReadOnlyList<ChargeLine> lines, decimal monthly, DateOnly? from, BillingTerms terms, string? problem) =>
         TypedResults.Ok(new QuoteResponse(kind, slots, lines, lines.Sum(l => l.Amount), monthly, from, terms.Currency, problem));

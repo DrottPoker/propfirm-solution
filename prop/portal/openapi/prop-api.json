@@ -3302,6 +3302,44 @@
         }
       }
     },
+    "/api/portal/ops/overview": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsOverviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/waiting": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsWaitingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/ops/firms": {
       "get": {
         "tags": [
@@ -3309,10 +3347,27 @@
         ],
         "parameters": [
           {
-            "name": "filter",
+            "name": "group",
             "in": "query",
             "schema": {
-              "$ref": "#/components/schemas/FirmFilter"
+              "default": "All",
+              "$ref": "#/components/schemas/OpsFirmGroup"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 200
             }
           }
         ],
@@ -3322,10 +3377,26 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/OpsFirmSummaryResponse"
-                  }
+                  "$ref": "#/components/schemas/OpsFirmsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/billing": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsBillingOverviewResponse"
                 }
               }
             }
@@ -3355,6 +3426,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OpsFirmResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/firms/{firmId}/checks/{item}": {
+      "put": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "firmId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "item",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewCheckResponse"
+                  }
                 }
               }
             }
@@ -5191,14 +5312,6 @@
         },
         "description": "The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be\nempty in a draft. What is required is checked when the application is sent. A company in the EU gives its\nVatNumber, or says with NoVatNumber that it has none."
       },
-      "FirmFilter": {
-        "enum": [
-          "ToReview",
-          "Suspended",
-          "All",
-          null
-        ]
-      },
       "FirmOwner": {
         "required": [
           "name",
@@ -5519,15 +5632,174 @@
         },
         "description": "The month charged next: when, for how many slots and how much."
       },
+      "OpsActivityKind": {
+        "enum": [
+          "SignedUp",
+          "ApplicationSent",
+          "Approved",
+          "ChangesRequested",
+          "Rejected",
+          "Suspended",
+          "SuspensionLifted",
+          "WentLive",
+          "ChargePaid",
+          "ChargeDeclined"
+        ],
+        "description": "What happened to a firm."
+      },
+      "OpsActivityResponse": {
+        "required": [
+          "kind",
+          "time",
+          "firmId",
+          "firmName",
+          "actor",
+          "amount",
+          "currency",
+          "text",
+          "chargeKind",
+          "month",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/OpsActivityKind"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "firmId": {
+            "type": "string"
+          },
+          "firmName": {
+            "type": "string"
+          },
+          "actor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "chargeKind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChargeKind"
+              }
+            ]
+          },
+          "month": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "slots": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "Something that happened to a firm. Actor is who did it: an administrator, a staff member or the\nplatform. Text is our message, the reason for a suspension or why a card was declined."
+      },
+      "OpsAdminResponse": {
+        "required": [
+          "email",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "One of the firm's administrators, and since when."
+      },
+      "OpsBillingOverviewResponse": {
+        "required": [
+          "currency",
+          "monthly",
+          "nextMonth",
+          "paidLast30Days",
+          "unpaid",
+          "paid",
+          "prices"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/OpsMonthlyResponse"
+          },
+          "nextMonth": {
+            "$ref": "#/components/schemas/OpsNextMonthResponse"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/OpsPaidResponse"
+          },
+          "unpaid": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsChargeResponse"
+            }
+          },
+          "paid": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsChargeResponse"
+            }
+          },
+          "prices": {
+            "$ref": "#/components/schemas/PricesResponse"
+          }
+        },
+        "description": "What firms pay us, in the currency of our prices: each month together, the next month firm by firm, what they paid in\nthe last 30 days, the charges whose card was declined, the longest declined first, the newest paid charges, and the\nprices."
+      },
       "OpsBillingResponse": {
         "required": [
           "plan",
           "slots",
-          "openChallenges",
+          "pausedChallenges",
           "depositPaid",
           "currency",
           "activatedAt",
-          "unpaidSince"
+          "unpaidSince",
+          "nextCharge",
+          "card",
+          "autoExpandStep",
+          "charges"
         ],
         "type": "object",
         "properties": {
@@ -5542,13 +5814,9 @@
             ]
           },
           "slots": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
+            "$ref": "#/components/schemas/SlotsResponse"
           },
-          "openChallenges": {
+          "pausedChallenges": {
             "type": "integer",
             "format": "int32"
           },
@@ -5572,9 +5840,101 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "nextCharge": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NextChargeResponse"
+              }
+            ]
+          },
+          "card": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardResponse"
+              }
+            ]
+          },
+          "autoExpandStep": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "charges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChargeResponse"
+            }
           }
         },
-        "description": "How the firm pays us, in short."
+        "description": "How the firm pays us: its plan once it pays, its slots and those taken, the challenges paused, the deposit it paid,\nwhen it went live, since when this month is unpaid, its next charge, its card, how many slots are added when the last\nis taken, and its newest charges."
+      },
+      "OpsChallengesResponse": {
+        "required": [
+          "open",
+          "paused"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paused": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The challenges at live firms that have not ended, and how many of them are paused."
+      },
+      "OpsChargeResponse": {
+        "required": [
+          "firmId",
+          "firmName",
+          "charge",
+          "failedAt",
+          "unpaidSince",
+          "pausedChallenges"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string"
+          },
+          "firmName": {
+            "type": "string"
+          },
+          "charge": {
+            "$ref": "#/components/schemas/ChargeResponse"
+          },
+          "failedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "unpaidSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "pausedChallenges": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A charge with its firm. For one that is not paid: when the card was last declined, since when the firm's month is\nunpaid and how many of its challenges are paused."
       },
       "OpsEventResponse": {
         "required": [
@@ -5613,6 +5973,184 @@
         },
         "description": "Something that happened in the firm's review or with its suspension. Detail has the message\nor reason, and the application as it was sent."
       },
+      "OpsFirmCountsResponse": {
+        "required": [
+          "all",
+          "toReview",
+          "sandbox",
+          "live",
+          "unpaid",
+          "suspended",
+          "rejected"
+        ],
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toReview": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sandbox": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "live": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unpaid": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "suspended": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rejected": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "How many firms are in each group. The live ones that have not paid are among the live ones too."
+      },
+      "OpsFirmFiguresResponse": {
+        "required": [
+          "accounts",
+          "sales",
+          "passRate",
+          "payouts"
+        ],
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "$ref": "#/components/schemas/AccountCountsResponse"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/SalesResponse"
+          },
+          "passRate": {
+            "$ref": "#/components/schemas/PassRateResponse"
+          },
+          "payouts": {
+            "$ref": "#/components/schemas/OpsPayoutsResponse"
+          }
+        },
+        "description": "How the firm is doing: its accounts in each group, its sales in the last 30 days, its pass rate in the last 90, and its payouts."
+      },
+      "OpsFirmGroup": {
+        "enum": [
+          "All",
+          "ToReview",
+          "Sandbox",
+          "Live",
+          "Unpaid",
+          "Suspended",
+          "Rejected"
+        ],
+        "description": "Which firms our staff list. Live firms that have not paid are among the live ones too."
+      },
+      "OpsFirmListItemResponse": {
+        "required": [
+          "id",
+          "name",
+          "stage",
+          "status",
+          "configured",
+          "createdAt",
+          "submittedAt",
+          "decidedAt",
+          "activatedAt",
+          "suspendedAt",
+          "unpaidSince",
+          "openChallenges",
+          "pausedChallenges",
+          "slots",
+          "monthlyPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/OpsFirmStage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FirmStatus"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "submittedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activatedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "suspendedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "unpaidSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "openChallenges": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pausedChallenges": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slots": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "monthlyPrice": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "A firm in our list: where it is with us, when it signed up, sent its application, was decided on, went live, was\nsuspended or began unpaid, its challenges that have not ended and those paused, how many it may have open, or null\nfor no limit, and what it pays each month when it pays by card."
+      },
       "OpsFirmResponse": {
         "required": [
           "id",
@@ -5629,7 +6167,10 @@
           "submittedAt",
           "decidedAt",
           "decidedBy",
+          "checks",
+          "sandboxUse",
           "billing",
+          "figures",
           "suspension",
           "events"
         ],
@@ -5658,7 +6199,7 @@
           "admins": {
             "type": "array",
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/OpsAdminResponse"
             }
           },
           "review": {
@@ -5706,8 +6247,20 @@
               "string"
             ]
           },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewCheckResponse"
+            }
+          },
+          "sandboxUse": {
+            "$ref": "#/components/schemas/OpsSandboxUseResponse"
+          },
           "billing": {
             "$ref": "#/components/schemas/OpsBillingResponse"
+          },
+          "figures": {
+            "$ref": "#/components/schemas/OpsFirmFiguresResponse"
           },
           "suspension": {
             "oneOf": [
@@ -5726,63 +6279,123 @@
             }
           }
         },
-        "description": "A firm for our staff: who it is, its application and documents, our review, its billing, its suspension and its events."
+        "description": "A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it\ntried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events."
       },
-      "OpsFirmSummaryResponse": {
+      "OpsFirmsResponse": {
         "required": [
-          "id",
-          "name",
-          "status",
-          "configured",
-          "createdAt",
-          "review",
-          "submittedAt",
-          "suspendedAt"
+          "firms",
+          "counts",
+          "currency"
         ],
         "type": "object",
         "properties": {
-          "id": {
+          "firms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsFirmListItemResponse"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/OpsFirmCountsResponse"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "description": "The firms the search finds, the counts in every group, and the currency firms pay us in."
+      },
+      "OpsFirmStage": {
+        "enum": [
+          "SettingUp",
+          "Sandbox",
+          "ToReview",
+          "ChangesRequested",
+          "Approved",
+          "Rejected",
+          "Live",
+          "Unpaid",
+          "Suspended"
+        ],
+        "description": "Where a firm is with us, in one word for the list."
+      },
+      "OpsFunnelResponse": {
+        "required": [
+          "signedUp",
+          "sent",
+          "approved",
+          "live",
+          "approvedNotLive",
+          "averageHoursToDecision"
+        ],
+        "type": "object",
+        "properties": {
+          "signedUp": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "approved": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "live": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "approvedNotLive": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "averageHoursToDecision": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "The firms that signed up in the last 90 days and how far they got, the approved firms of any age that are not live\nyet, and how many hours our decisions in the last 90 days took on average from the application they answered."
+      },
+      "OpsLatePayoutsResponse": {
+        "required": [
+          "firmId",
+          "firmName",
+          "count",
+          "approved",
+          "totals",
+          "oldestRequestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
             "type": "string"
           },
-          "name": {
+          "firmName": {
             "type": "string"
           },
-          "status": {
-            "$ref": "#/components/schemas/FirmStatus"
+          "count": {
+            "type": "integer",
+            "format": "int32"
           },
-          "configured": {
-            "type": "boolean"
+          "approved": {
+            "type": "integer",
+            "format": "int32"
           },
-          "createdAt": {
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "oldestRequestedAt": {
             "type": "string",
-            "format": "date-time"
-          },
-          "review": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/ReviewStatus"
-              }
-            ]
-          },
-          "submittedAt": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "date-time"
-          },
-          "suspendedAt": {
-            "type": [
-              "null",
-              "string"
-            ],
             "format": "date-time"
           }
         },
-        "description": "A firm in our staff's list, with its review and whether we suspended it."
+        "description": "A firm's payouts that traders asked for more than the late age ago and are neither paid nor rejected: how many, how\nmany of them the firm approved, how much per currency, and when the oldest was asked for."
       },
       "OpsMeResponse": {
         "required": [
@@ -5801,17 +6414,434 @@
         },
         "description": "The staff member who is logged in."
       },
+      "OpsMonthlyResponse": {
+        "required": [
+          "amount",
+          "firms",
+          "slots"
+        ],
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "firms": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What the firms that pay by card pay each month together, before VAT, how many they are and for how many slots."
+      },
+      "OpsNeedsUsResponse": {
+        "required": [
+          "toReview",
+          "unpaid",
+          "latePayouts",
+          "settingUp",
+          "lateAfterDays"
+        ],
+        "type": "object",
+        "properties": {
+          "toReview": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsWaitingFirmResponse"
+            }
+          },
+          "unpaid": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsChargeResponse"
+            }
+          },
+          "latePayouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsLatePayoutsResponse"
+            }
+          },
+          "settingUp": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsWaitingFirmResponse"
+            }
+          },
+          "lateAfterDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What waits for us: applications to review, the oldest first, charges whose card was declined, firms whose traders\nhave waited more than LateAfterDays days for payouts, and trading servers that take too long."
+      },
+      "OpsNextMonthFirmResponse": {
+        "required": [
+          "firmId",
+          "firmName",
+          "slots",
+          "amount",
+          "card",
+          "suspended",
+          "unpaid"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string"
+          },
+          "firmName": {
+            "type": "string"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "card": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CardResponse"
+              }
+            ]
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "unpaid": {
+            "type": "boolean"
+          }
+        },
+        "description": "A paying firm's next month: the slots and the amount, its card, and whether it is suspended or has not paid."
+      },
+      "OpsNextMonthResponse": {
+        "required": [
+          "month",
+          "chargeAt",
+          "amount",
+          "firms"
+        ],
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "format": "date"
+          },
+          "chargeAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "firms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsNextMonthFirmResponse"
+            }
+          }
+        },
+        "description": "The next month that is charged, when, how much in all, and each paying firm's part, the largest first."
+      },
+      "OpsOverviewResponse": {
+        "required": [
+          "currency",
+          "needsUs",
+          "firms",
+          "monthly",
+          "paidLast30Days",
+          "challenges",
+          "weeks",
+          "funnel",
+          "activity"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "needsUs": {
+            "$ref": "#/components/schemas/OpsNeedsUsResponse"
+          },
+          "firms": {
+            "$ref": "#/components/schemas/OpsFirmCountsResponse"
+          },
+          "monthly": {
+            "$ref": "#/components/schemas/OpsMonthlyResponse"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/OpsPaidResponse"
+          },
+          "challenges": {
+            "$ref": "#/components/schemas/OpsChallengesResponse"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsWeekResponse"
+            }
+          },
+          "funnel": {
+            "$ref": "#/components/schemas/OpsFunnelResponse"
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsActivityResponse"
+            }
+          }
+        },
+        "description": "What waits for us across the firms and how the platform is doing, in the currency firms pay us in: the firms in each\ngroup, what firms pay each month and paid in the last 30 days, the challenges at live firms, what firms paid in each\nof the last 12 weeks, oldest first, how far the firms that signed up got, and what happened lately, newest first."
+      },
+      "OpsPaidResponse": {
+        "required": [
+          "months",
+          "slots",
+          "goingLive",
+          "deposits",
+          "totals"
+        ],
+        "type": "object",
+        "properties": {
+          "months": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "slots": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "goingLive": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deposits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          }
+        },
+        "description": "Charges paid in the last 30 days: months, more slots, going live and deposits, and how much per currency."
+      },
+      "OpsPayoutsResponse": {
+        "required": [
+          "summary",
+          "platformAverageDaysToPay",
+          "rejectedLast90Days",
+          "decidedLast90Days",
+          "platformRejectedLast90Days",
+          "platformDecidedLast90Days",
+          "lateAfterDays",
+          "waiting"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/PayoutSummaryResponse"
+          },
+          "platformAverageDaysToPay": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "rejectedLast90Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "decidedLast90Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "platformRejectedLast90Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "platformDecidedLast90Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lateAfterDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waiting": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsWaitingPayoutResponse"
+            }
+          }
+        },
+        "description": "How the firm pays its traders: what waits for it to approve and to pay, what it paid in the last 30 days and how long\nthat took, and how many of the payouts decided in the last 90 days it rejected, beside the same for every firm.\nWaiting are the payouts traders wait for, the oldest first. One asked for more than\nLateAfterDays days ago is late."
+      },
+      "OpsSandboxUseResponse": {
+        "required": [
+          "challenges",
+          "purchases",
+          "payouts",
+          "ownChallenges"
+        ],
+        "type": "object",
+        "properties": {
+          "challenges": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "purchases": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "payouts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ownChallenges": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What the firm has tried: challenges started, purchases in its portal, payouts and challenges it has."
+      },
       "OpsSiteResponse": {
         "required": [
-          "name"
+          "name",
+          "signupUrl"
         ],
         "type": "object",
         "properties": {
           "name": {
             "type": "string"
+          },
+          "signupUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
           }
         },
-        "description": "Our admin view's address: the platform's name."
+        "description": "Our admin view's address: the platform's name, and where firms sign up when the platform has an address."
+      },
+      "OpsWaitingFirmResponse": {
+        "required": [
+          "id",
+          "name",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A firm and since when something has waited: its application, or its trading server."
+      },
+      "OpsWaitingPayoutResponse": {
+        "required": [
+          "accountNumber",
+          "status",
+          "requestedAt",
+          "approvedAt",
+          "amount",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "accountNumber": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutStatus"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "description": "A payout the trader waits for, without who the trader is."
+      },
+      "OpsWaitingResponse": {
+        "required": [
+          "toReview",
+          "unpaid"
+        ],
+        "type": "object",
+        "properties": {
+          "toReview": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unpaid": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "How many applications wait for us, and how many charges were declined and are not paid."
+      },
+      "OpsWeekResponse": {
+        "required": [
+          "start",
+          "months",
+          "goingLive"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "months": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "goingLive": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          }
+        },
+        "description": "The week from Monday Start in UTC: what firms paid for months and slots, and for going live and deposits."
       },
       "OrderDetailsResponse": {
         "required": [
@@ -6825,6 +7855,49 @@
           }
         },
         "description": "The account's results, worked out by the service so that the portal only shows them. Balance\nand Equity are the trading account's right now, or the balance the platform last reported.\nFloating is the open positions' result. StageResult is how far the stage has\ncome from the initial balance, valued at equity when there is one. Today is equity now against\nthe balance when the trading day started at DayStartedAt, without deposits or withdrawals.\nThe profit target needs TargetRequired above the initial balance, of which the balance has\nTargetGained, which is TargetPercent of the way from 0 to 100.\nPaidOut is what the firm has paid the trader for the account."
+      },
+      "ReviewCheckRequest": {
+        "required": [
+          "done"
+        ],
+        "type": "object",
+        "properties": {
+          "done": {
+            "type": "boolean"
+          }
+        },
+        "description": "Ticks or unticks one of our checks."
+      },
+      "ReviewCheckResponse": {
+        "required": [
+          "item",
+          "done",
+          "doneBy",
+          "doneAt"
+        ],
+        "type": "object",
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "doneBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "doneAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "One of our checks in the firm's review: whether it is ticked, by whom and when."
       },
       "ReviewStatus": {
         "enum": [

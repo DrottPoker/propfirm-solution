@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { getSite } from "@/lib/site";
-import { themeStyle } from "@/lib/theme";
+import { opsColors, themeStyle } from "@/lib/theme";
 
 import "./globals.css";
 
@@ -31,15 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-// The site is known from the address. A firm's colors are set before anything renders; the platform uses the defaults.
+// The site is known from the address. A firm's colors are set before anything renders; the platform uses the defaults,
+// and our own admin view a brand color of its own.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const site = await getSite();
+  const colors = site.kind === "firm" ? site.branding : site.kind === "ops" ? { colors: opsColors } : null;
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-      style={themeStyle(site.kind === "firm" ? site.branding : null) as React.CSSProperties}
-    >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} style={themeStyle(colors) as React.CSSProperties}>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

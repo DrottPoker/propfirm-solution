@@ -137,6 +137,7 @@ builder.Services.AddSingleton<StaffNotifier>();
 builder.Services.AddSingleton<ReviewStore>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<OpsFirms>();
+builder.Services.AddSingleton<OpsFigures>();
 
 // Portal sessions survive restarts and work across instances, since the keys that protect them are in the database.
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();

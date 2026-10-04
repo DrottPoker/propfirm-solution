@@ -49,6 +49,7 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `ReviewService`, `ReviewStore`, `ReviewEndpoints` | Vår granskning av firman: ansökan, dokumenten, att skicka den med handpenningen, våra beslut och avstängning (ADR 0021). |
 | `StaffUsers`, `StaffAuth`, `StaffSeeder`, `OpsHost` | Vår personal, dess session på vår adminvys adress och att vår adminvy bara finns där. |
 | `OpsEndpoints`, `OpsFirms`, `StaffNotifier` | Vår adminvys API, firman som personalen ser den och mejlet till personalen när en ansökan kommer. |
+| `OpsPanelEndpoints`, `OpsFigures` | Vår adminvy över alla firmor (ADR 0024): översikten med det som väntar på oss, firmorna med sökning och grupper, och vad firmorna betalar. Siffrorna räknas med SQL när de läses. |
 
 ## Flöde
 
@@ -134,6 +135,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `firms`, `firm_hosts`, `firm_logos` | Firmorna, värdnamnen deras portaler nås på och loggorna de har laddat upp. Se [specen för registrering och sandlåda](registrering.md). |
 | `firm_signups`, `admin_invites`, `admin_login_links` | Registreringar som väntar på bekräftelse, inbjudningar till administratörer och engångslänkar som loggar in en administratör. |
 | `firm_billing`, `billing_periods`, `billing_charges`, `billing_checkouts`, `billing_events` | Hur firman betalar oss och dess kort, betalda månader med platser, debiteringar, betalsidor och allt som hänt. Se [specen för platser och betalning](platser-och-betalning.md). |
+| `firm_reviews`, `firm_documents`, `firm_events`, `firm_review_checks`, `staff_users` | Vår granskning av firmorna, deras dokument, allt som hänt i granskningen och med avstängningen, våra bockade kontroller och vår personal. Se [specen för granskning och avstängning](granskning.md). |
 | `challenge_prices` | Vad challengerna kostar i portalen och om de säljs där. |
 | `orders`, `order_events`, `order_counters` | Köp i portalen med status, pris, leverantör, betalning och kontot de startade, allt som hänt varje order och nästa ordernummer per firma. Firmans val av leverantör, krypterade Stripe-nycklar, betalsida och villkor ligger i `firms`. Se [specen för köp i portalen](kop.md). |
 
@@ -229,6 +231,7 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).
 - `ReviewTests` och `SuspensionTests`: vår granskning, vår adminvy och avstängning. Se [specen för granskning och avstängning](granskning.md).
+- `OpsPanelTests`: vår adminvy över alla firmor, med översikten, sökningen bland firmorna, kontrollerna, en firmas utbetalningar och vad firmorna betalar. Se [specen för granskning och avstängning](granskning.md).
 - `ExpiryTests`: en challenge utan ny position i 30 dagar som tar slut och stänger kontot med webhooken och orsaken, en affär på sista dagen som räknas fast händelsen kommer efter att dagen tagit slut, en ny position som flyttar sista dagen, en fas med tidsgräns som tar slut, och en tidsgräns som är kortare än fasens handelsdagar.
 - `ChallengeFlowTests`: dagliga golvet vid midnatt i Stockholm, en klarad fas som stänger kontot och öppnar nästa, brott med bevis, godkänd finansiering, annullering, avbrott i handelsplattformen där kommandona behåller sin ordning, omstart där varje händelse ändå hanteras exakt en gång, och signerade webhooks som skickas igen.
 - `TradingPlatformClientTests`: klienten mot svar som handelsplattformens, positionernas fält i händelserna, att regelmotorns golv blir plattformens regler, att ett konto värderas med sina golv, att ett uttag bara dras en gång och bär plattformens orsak vid nej, och att konton pausas och återupptas.

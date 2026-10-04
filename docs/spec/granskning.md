@@ -101,12 +101,16 @@ Vägarna börjar med `/api/portal/ops` och fungerar bara på `Platform:OpsUrl`. 
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /ops` | Plattformens namn. 404 på andra adresser, så att portalen vet att adressen är vår adminvy. |
+| `GET /ops` | Plattformens namn och registreringssidans adress. 404 på andra adresser, så att portalen vet att adressen är vår adminvy. |
 | `POST /ops/login` | `{ "email", "password" }`. Samma gräns för försök som andra inloggningar. |
 | `POST /ops/logout` | Loggar ut. |
 | `GET /ops/me` | Vem som är inloggad. |
-| `GET /ops/firms?filter=` | Firmorna: `ToReview` (standard, de som väntar på oss, äldst först), `Suspended` eller `All`. Med status, granskningens status, när ansökan skickades och om firman är avstängd. |
-| `GET /ops/firms/{firmId}` | Firman: namn, status, adress, när den registrerades, administratörerna, ansökan med dokument, granskningens status och vårt meddelande, handpenningen, faktureringen i korthet, avstängningen och historiken. |
+| `GET /ops/overview` | Översikten ([ADR 0024](../adr/0024-var-adminvy-over-alla-firmor.md)): det som väntar på oss (`needsUs`: ansökningar att granska, debiteringar med nekat kort, firmor vars traders väntat mer än `lateAfterDays` dagar på en utbetalning och handelsservrar som inte blivit klara på 10 minuter), firmorna i varje grupp, vad firmorna betalar per månad, vad de betalat de senaste 30 dagarna per sort, öppna challenges hos live-firmor, betalningar per vecka i 12 veckor, hur långt firmorna som registrerat sig de senaste 90 dagarna kommit och de senaste händelserna. |
+| `GET /ops/waiting` | Antalet ansökningar att granska och debiteringar med nekat kort, för menyn. |
+| `GET /ops/firms?group=&search=&limit=` | Firmorna i en grupp som sökningen hittar på namn, kortnamn eller en administratörs e-post: `All` (standard), `ToReview` (äldst först), `Sandbox`, `Live`, `Unpaid`, `Suspended` eller `Rejected`. Med steg, öppna och pausade challenges, gränsen, vad firman betalar per månad och antalet i varje grupp. `limit` 1 till 500, standard 200. |
+| `GET /ops/firms/{firmId}` | Firman: namn, status, adress, när den registrerades, administratörerna, ansökan med dokument, granskningens status, våra kontroller och vårt meddelande, vad den provat i sandlådan, hur den betalar oss (plan, platser, nästa debitering, kort, debiteringar), hur den går (konton, försäljning, andel som klarar) och betalar sina traders (utan vilka traderna är), avstängningen och historiken. |
+| `PUT /ops/firms/{firmId}/checks/{item}` | `{ "done" }`. Bockar i eller ur en av granskningens kontroller: `vat`, `register`, `owners`, `terms` eller `website`. Svarar med alla kontroller. 404 för en okänd kontroll, 409 när ansökan inte väntar på oss eller på ändringar. |
+| `GET /ops/billing` | Vad firmorna betalar oss: per månad tillsammans, nästa månad firma för firma, betalat de senaste 30 dagarna, debiteringar med nekat kort, de senaste betalda debiteringarna och priserna. |
 | `GET /ops/firms/{firmId}/documents/{id}` | Hämtar ett dokument. |
 | `POST /ops/firms/{firmId}/approve` | `{ "message" }`, frivilligt. 409 när ansökan inte väntar på oss. |
 | `POST /ops/firms/{firmId}/request-changes` | `{ "message" }`, krävs. 409 när ansökan inte väntar på oss. |
@@ -114,7 +118,7 @@ Vägarna börjar med `/api/portal/ops` och fungerar bara på `Platform:OpsUrl`. 
 | `POST /ops/firms/{firmId}/suspend` | `{ "reason" }`, krävs. 409 när firman redan är avstängd. |
 | `POST /ops/firms/{firmId}/unsuspend` | Slår på firman igen. 409 när den inte är avstängd. |
 
-Varje beslut sparar vem i personalen som tog det.
+Varje beslut sparar vem i personalen som tog det, och vilka kontroller som var bockade.
 
 ## E-post
 
@@ -136,8 +140,12 @@ Ett mejl som inte går iväg loggas, och adminpanelen visar samma sak.
 | `/admin/verification` | Firmans | Granskningens status och vårt meddelande, ansökan, dokumenten och knappen som skickar med handpenningen. |
 | `/admin/billing` | Firmans | I sandlådan: stegen till live, med länk till granskningen tills firman är godkänd. Avdraget för handpenningen syns i priset. |
 | `/ops/login` | Vår adminvy | Inloggning för personalen. |
-| `/ops` | Vår adminvy | Firmorna som väntar på oss, och flikar för avstängda och alla. |
-| `/ops/firms/{id}` | Vår adminvy | Ansökan, dokumenten, besluten, avstängningen, faktureringen och historiken. |
+| `/ops` | Vår adminvy | Översikten: det som väntar på oss, nyckeltal, betalningar per vecka, från registrering till live och senaste händelser. |
+| `/ops/firms` | Vår adminvy | Alla firmor med sökning och grupper. `?group=` och `?search=` behålls i adressen. |
+| `/ops/firms/{id}` | Vår adminvy | Flikar för granskningen (ansökan, dokument, sandlådan, våra kontroller och besluten i rutor), översikten (siffror och hur firman betalar sina traders), betalningarna, teamet och historiken. Avstängning i en ruta. `?tab=` väljer flik. |
+| `/ops/billing` | Vår adminvy | Vad firmorna betalar: inte betalt, nästa månad och betalt, och priserna. |
+
+Vår adminvy har en meny till vänster med antal som väntar, som fälls ihop till en knapp på mobil, och en egen färg så att den inte tas för en firmas portal.
 
 Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsaken.
 
@@ -149,6 +157,7 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 | `firm_documents` | Dokumenten: namn, format, storlek, SHA-256, innehållet krypterat med AES-GCM, vem som laddade upp och när. |
 | `firm_events` | Allt som hänt i granskningen och med avstängningen, med vem som gjorde det. Ansökan sparas som den var när den skickades. Rader läggs bara till. |
 | `staff_users` | Vår personal: e-post och hash av lösenordet. |
+| `firm_review_checks` | Granskningens bockade kontroller per firma, med vem som bockade och när. En kontroll som bockas ur tas bort. |
 
 `firms` har kolumnerna `suspended_at` och `suspension_reason`.
 
@@ -174,7 +183,9 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 
 - `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften och att adminvyn bara finns på sin adress och kräver personal.
 - `prop/tests/Prop.Api.Tests/SuspensionTests`: en avstängd firma kan inte starta challenges, dess challenges pausas och återupptas, butiken stänger, och en obetald månad håller challengerna pausade när firman slås på igen.
+- `prop/tests/Prop.Api.Tests/OpsPanelTests`: översikten med det som väntar på oss och hur långt firmorna kommit, sökningen och grupperna bland firmorna, kontrollerna som sparas med beslutet, en firmas utbetalningar utan traderns e-post, vad firmorna betalar och har nekats, och att bara personalen når vyerna.
+- `prop/portal/src/lib/ops.test.ts`: det som väntar på oss i ord, firmans senaste steg och challenges, händelserna, sena utbetalningar och mejl till administratörerna.
 - `prop/tests/Prop.Api.Tests/BillingRulesTests`: avdraget för handpenningen.
 - `prop/tests/Prop.Api.Tests/VatNumbersTests`: att ett bolag i EU anger momsnummer eller att det saknar ett, hur numret skrivs och vilka former som tas emot och nekas.
 - `prop/portal/src/lib/verification.test.ts`: ansökans fält, ägarna och granskningens texter.
-- `prop/portal/e2e/verification.spec.ts`: en ny firma fyller i ansökan, betalar handpenningen, granskas och godkänns i vår adminvy och går live.
+- `prop/portal/e2e/verification.spec.ts`: en ny firma fyller i ansökan, betalar handpenningen, hittas bland firmorna att granska, får en kontroll bockad och en begäran om ändringar, godkänns i vår adminvy, går live, syns bland firmorna som betalar och stängs av och slås på igen.

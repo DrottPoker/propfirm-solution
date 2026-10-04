@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, resultOf } from "./api/client";
-import type { FirmFilter } from "./api/types";
+import type { OpsFirm, OpsFirmGroup } from "./api/types";
 import { fieldErrorOf, LoginFailedError } from "./queries";
 
-// Our own admin view, where our staff review firms (ADR 0021). It has its own session, on its own address.
+// Our own admin view, where our staff see what waits for them, review firms and follow what they pay (ADRs 0021 and
+// 0024). It has its own session, on its own address.
 
 const meKey = ["ops-me"];
 
@@ -51,11 +52,30 @@ export function useOpsLogout() {
   });
 }
 
-/** The firms that wait for us, the suspended ones, or all. */
-export function useOpsFirms(filter: FirmFilter) {
+/** What waits for us across the firms, and how the platform is doing (ADR 0024). */
+export function useOpsOverview() {
   return useQuery({
-    queryKey: ["ops-firms", filter],
-    queryFn: async () => resultOf(await api.GET("/api/portal/ops/firms", { params: { query: { filter } } }), "the firms"),
+    queryKey: ["ops-overview"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/ops/overview"), "the overview"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** How many applications wait for us and how many charges were declined, for the menu. */
+export function useOpsWaiting() {
+  return useQuery({
+    queryKey: ["ops-waiting"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/ops/waiting"), "what waits for us"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** The firms in a group that the search finds, with the counts in every group. */
+export function useOpsFirms(group: OpsFirmGroup, search: string) {
+  return useQuery({
+    queryKey: ["ops-firms", group, search],
+    queryFn: async () => resultOf(await api.GET("/api/portal/ops/firms", { params: { query: { group, search: search || undefined } } }), "the firms"),
+    placeholderData: keepPreviousData,
     refetchInterval: 30_000,
   });
 }
@@ -64,6 +84,31 @@ export function useOpsFirm(firmId: string) {
   return useQuery({
     queryKey: ["ops-firm", firmId],
     queryFn: async () => resultOf(await api.GET("/api/portal/ops/firms/{firmId}", { params: { path: { firmId } } }), "the firm"),
+  });
+}
+
+/** What firms pay us, and what they have not paid. */
+export function useOpsBilling() {
+  return useQuery({
+    queryKey: ["ops-billing"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/ops/billing"), "what firms pay"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** Ticks or unticks one of our checks in the firm's review. The firm's page then shows the checks as they were saved, with who ticked them. */
+export function useOpsCheck(firmId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ item, done }: { item: string; done: boolean }) => {
+      const result = await api.PUT("/api/portal/ops/firms/{firmId}/checks/{item}", { params: { path: { firmId, item } }, body: { done } });
+      if (result.data) {
+        return result.data;
+      }
+
+      throw fieldErrorOf(result.error, result.response.status, "the check");
+    },
+    onSuccess: (checks) => queryClient.setQueryData<OpsFirm>(["ops-firm", firmId], (firm) => (firm ? { ...firm, checks } : firm)),
   });
 }
 
@@ -94,7 +139,9 @@ export function useOpsAction(firmId: string) {
     },
     onSuccess: (firm) => {
       queryClient.setQueryData(["ops-firm", firmId], firm);
-      return queryClient.invalidateQueries({ queryKey: ["ops-firms"] });
+      return Promise.all(
+        [["ops-firms"], ["ops-overview"], ["ops-waiting"], ["ops-billing"]].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      );
     },
   });
 }

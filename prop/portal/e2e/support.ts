@@ -91,23 +91,31 @@ export async function sendApplication(page: Page) {
   await expect(page.getByText("Thank you. The deposit is paid and your application is sent.")).toBeVisible();
 }
 
-/** Our staff member opens the firm in our admin view, in a page of its own, logging in first when needed. */
+/** Our staff member opens the firm's review in our admin view, in a page of its own, logging in first when needed. */
 export async function openAsStaff(page: Page, shortName: string): Promise<Page> {
   const ops = await page.context().newPage();
-  await ops.goto(`${opsUrl}/ops/firms/${shortName}`);
+  await ops.goto(`${opsUrl}/ops/firms/${shortName}?tab=review`);
   const login = ops.getByRole("heading", { name: "Staff login" });
-  const review = ops.getByRole("heading", { name: "Review", exact: true });
+  const review = ops.getByRole("heading", { name: "Our checks" });
   await expect(login.or(review)).toBeVisible();
   if (await login.isVisible()) {
     await ops.getByLabel("Email").fill(staff.email);
     await ops.getByLabel("Password", { exact: true }).fill(staff.password);
     await ops.getByRole("button", { name: "Log in" }).click();
     await expect(ops).toHaveURL(`${opsUrl}/ops`);
-    await ops.goto(`${opsUrl}/ops/firms/${shortName}`);
+    await ops.goto(`${opsUrl}/ops/firms/${shortName}?tab=review`);
   }
 
   await expect(review).toBeVisible();
   return ops;
+}
+
+/** Our staff approve the firm's application in its review, confirming in the dialog that asks first. */
+export async function approveAsStaff(ops: Page) {
+  await ops.getByRole("button", { name: "Approve", exact: true }).click();
+  await ops.getByRole("dialog").getByRole("button", { name: /^Approve / }).click();
+  await expect(ops.getByText("Approved", { exact: true })).toBeVisible();
+  await expect(ops.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
 }
 
 /** The firm sends a complete application with the deposit, and our staff approve it, so it can go live. */
@@ -115,7 +123,6 @@ export async function getApproved(page: Page, shortName: string) {
   await fillApplication(page, `${shortName} Ltd`);
   await sendApplication(page);
   const ops = await openAsStaff(page, shortName);
-  await ops.getByRole("button", { name: "Approve" }).click();
-  await expect(ops.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await approveAsStaff(ops);
   await ops.close();
 }

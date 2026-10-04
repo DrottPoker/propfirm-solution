@@ -340,6 +340,18 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
         return await ReadChargesAsync(connection, $"{SelectCharge} where firm_id = $1 order by created_at desc limit $2", [firmId, limit], cancellationToken);
     }
 
+    /// <summary>The charges of every firm whose card was declined and that are not paid yet, the longest declined first.</summary>
+    public static Task<List<Charge>> DeclinedChargesAsync(NpgsqlConnection connection, CancellationToken cancellationToken) =>
+        ReadChargesAsync(
+            connection,
+            $"{SelectCharge} where status in ('Pending', 'Failed') and failure is not null order by failed_at nulls last, created_at",
+            [],
+            cancellationToken);
+
+    /// <summary>The newest paid charges of every firm.</summary>
+    public static Task<List<Charge>> PaidChargesAsync(NpgsqlConnection connection, int limit, CancellationToken cancellationToken) =>
+        ReadChargesAsync(connection, $"{SelectCharge} where status = 'Paid' order by paid_at desc limit $1", [limit], cancellationToken);
+
     /// <summary>Charges whose saved card is due to be tried.</summary>
     public async Task<List<(Guid Id, string FirmId)>> DueChargesAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {

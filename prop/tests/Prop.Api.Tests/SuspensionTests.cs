@@ -34,7 +34,7 @@ public sealed class SuspensionTests(PostgresFixture postgres) : IClassFixture<Po
         var shop = await GetAsync(buyer, "shop");
         var billing = await GetAsync(admin, "admin/billing");
         var slots = await firmApi.GetFromJsonAsync<JsonElement>(new Uri("/api/firm/v1/slots", UriKind.Relative), TestContext.Current.CancellationToken);
-        var suspendedList = await GetAsync(ops, "ops/firms?filter=Suspended");
+        var suspendedList = await GetAsync(ops, "ops/firms?group=Suspended");
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, withoutReason.StatusCode);
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.Conflict), (suspended.StatusCode, again.StatusCode));
@@ -43,7 +43,7 @@ public sealed class SuspensionTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.False(shop.GetProperty("open").GetBoolean());
         Assert.Equal(Reason, billing.GetProperty("suspension").GetProperty("reason").GetString());
         Assert.True(slots.GetProperty("suspended").GetBoolean());
-        Assert.Equal(["demo-firm"], suspendedList.EnumerateArray().Select(f => f.GetProperty("id").GetString()));
+        Assert.Equal([("demo-firm", "Suspended")], suspendedList.GetProperty("firms").EnumerateArray().Select(f => (f.GetProperty("id").GetString(), f.GetProperty("stage").GetString())));
         Assert.Contains(factory.Emails.Sent, e => e.To == PropFactory.AdminEmail && e.Subject == "Demo Firm is suspended" && e.Body.Contains(Reason, StringComparison.Ordinal));
         await Eventually.ThatAsync(() => factory.Webhooks.Delivered("account.paused").Count == 1, "the paused webhook");
 

@@ -4117,6 +4117,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/ops/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsOverviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/waiting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsWaitingResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/ops/firms": {
         parameters: {
             query?: never;
@@ -4127,7 +4197,9 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    filter?: components["schemas"]["FirmFilter"];
+                    group?: components["schemas"]["OpsFirmGroup"];
+                    search?: string;
+                    limit?: number;
                 };
                 header?: never;
                 path?: never;
@@ -4141,7 +4213,42 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["OpsFirmSummaryResponse"][];
+                        "application/json": components["schemas"]["OpsFirmsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsBillingOverviewResponse"];
                     };
                 };
             };
@@ -4184,6 +4291,48 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/firms/{firmId}/checks/{item}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    firmId: string;
+                    item: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReviewCheckRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReviewCheckResponse"][];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -4945,8 +5094,6 @@ export interface components {
             links: null | string[];
             description: null | string;
         };
-        /** @enum {unknown} */
-        FirmFilter: "ToReview" | "Suspended" | "All" | null;
         /** @description One of the firm's owners, with the share of the company in percent. */
         FirmOwner: {
             name: null | string;
@@ -5060,13 +5207,62 @@ export interface components {
             /** Format: double */
             amount: number;
         };
-        /** @description How the firm pays us, in short. */
-        OpsBillingResponse: {
-            plan: null | components["schemas"]["BillingPlan"];
+        /**
+         * @description What happened to a firm.
+         * @enum {unknown}
+         */
+        OpsActivityKind: "SignedUp" | "ApplicationSent" | "Approved" | "ChangesRequested" | "Rejected" | "Suspended" | "SuspensionLifted" | "WentLive" | "ChargePaid" | "ChargeDeclined";
+        /**
+         * @description Something that happened to a firm. Actor is who did it: an administrator, a staff member or the
+         *     platform. Text is our message, the reason for a suspension or why a card was declined.
+         */
+        OpsActivityResponse: {
+            kind: components["schemas"]["OpsActivityKind"];
+            /** Format: date-time */
+            time: string;
+            firmId: string;
+            firmName: string;
+            actor: null | string;
+            /** Format: double */
+            amount: null | number;
+            currency: null | string;
+            text: null | string;
+            chargeKind: null | components["schemas"]["ChargeKind"];
+            /** Format: date */
+            month: null | string;
             /** Format: int32 */
             slots: null | number;
+        };
+        /** @description One of the firm's administrators, and since when. */
+        OpsAdminResponse: {
+            email: string;
+            /** Format: date-time */
+            since: string;
+        };
+        /**
+         * @description What firms pay us, in the currency of our prices: each month together, the next month firm by firm, what they paid in
+         *     the last 30 days, the charges whose card was declined, the longest declined first, the newest paid charges, and the
+         *     prices.
+         */
+        OpsBillingOverviewResponse: {
+            currency: string;
+            monthly: components["schemas"]["OpsMonthlyResponse"];
+            nextMonth: components["schemas"]["OpsNextMonthResponse"];
+            paidLast30Days: components["schemas"]["OpsPaidResponse"];
+            unpaid: components["schemas"]["OpsChargeResponse"][];
+            paid: components["schemas"]["OpsChargeResponse"][];
+            prices: components["schemas"]["PricesResponse"];
+        };
+        /**
+         * @description How the firm pays us: its plan once it pays, its slots and those taken, the challenges paused, the deposit it paid,
+         *     when it went live, since when this month is unpaid, its next charge, its card, how many slots are added when the last
+         *     is taken, and its newest charges.
+         */
+        OpsBillingResponse: {
+            plan: null | components["schemas"]["BillingPlan"];
+            slots: components["schemas"]["SlotsResponse"];
             /** Format: int32 */
-            openChallenges: number;
+            pausedChallenges: number;
             /** Format: double */
             depositPaid: number;
             currency: string;
@@ -5074,6 +5270,33 @@ export interface components {
             activatedAt: null | string;
             /** Format: date-time */
             unpaidSince: null | string;
+            nextCharge: null | components["schemas"]["NextChargeResponse"];
+            card: null | components["schemas"]["CardResponse"];
+            /** Format: int32 */
+            autoExpandStep: null | number;
+            charges: components["schemas"]["ChargeResponse"][];
+        };
+        /** @description The challenges at live firms that have not ended, and how many of them are paused. */
+        OpsChallengesResponse: {
+            /** Format: int32 */
+            open: number;
+            /** Format: int32 */
+            paused: number;
+        };
+        /**
+         * @description A charge with its firm. For one that is not paid: when the card was last declined, since when the firm's month is
+         *     unpaid and how many of its challenges are paused.
+         */
+        OpsChargeResponse: {
+            firmId: string;
+            firmName: string;
+            charge: components["schemas"]["ChargeResponse"];
+            /** Format: date-time */
+            failedAt: null | string;
+            /** Format: date-time */
+            unpaidSince: null | string;
+            /** Format: int32 */
+            pausedChallenges: number;
         };
         /**
          * @description Something that happened in the firm's review or with its suspension. Detail has the message
@@ -5088,7 +5311,71 @@ export interface components {
             actor: string;
             detail: null | components["schemas"]["JsonElement"];
         };
-        /** @description A firm for our staff: who it is, its application and documents, our review, its billing, its suspension and its events. */
+        /** @description How many firms are in each group. The live ones that have not paid are among the live ones too. */
+        OpsFirmCountsResponse: {
+            /** Format: int32 */
+            all: number;
+            /** Format: int32 */
+            toReview: number;
+            /** Format: int32 */
+            sandbox: number;
+            /** Format: int32 */
+            live: number;
+            /** Format: int32 */
+            unpaid: number;
+            /** Format: int32 */
+            suspended: number;
+            /** Format: int32 */
+            rejected: number;
+        };
+        /** @description How the firm is doing: its accounts in each group, its sales in the last 30 days, its pass rate in the last 90, and its payouts. */
+        OpsFirmFiguresResponse: {
+            accounts: components["schemas"]["AccountCountsResponse"];
+            sales: components["schemas"]["SalesResponse"];
+            passRate: components["schemas"]["PassRateResponse"];
+            payouts: components["schemas"]["OpsPayoutsResponse"];
+        };
+        /**
+         * @description Which firms our staff list. Live firms that have not paid are among the live ones too.
+         * @enum {unknown}
+         */
+        OpsFirmGroup: "All" | "ToReview" | "Sandbox" | "Live" | "Unpaid" | "Suspended" | "Rejected";
+        /**
+         * @description A firm in our list: where it is with us, when it signed up, sent its application, was decided on, went live, was
+         *     suspended or began unpaid, its challenges that have not ended and those paused, how many it may have open, or null
+         *     for no limit, and what it pays each month when it pays by card.
+         */
+        OpsFirmListItemResponse: {
+            id: string;
+            name: string;
+            stage: components["schemas"]["OpsFirmStage"];
+            status: components["schemas"]["FirmStatus"];
+            configured: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            submittedAt: null | string;
+            /** Format: date-time */
+            decidedAt: null | string;
+            /** Format: date-time */
+            activatedAt: null | string;
+            /** Format: date-time */
+            suspendedAt: null | string;
+            /** Format: date-time */
+            unpaidSince: null | string;
+            /** Format: int32 */
+            openChallenges: number;
+            /** Format: int32 */
+            pausedChallenges: number;
+            /** Format: int32 */
+            slots: null | number;
+            /** Format: double */
+            monthlyPrice: null | number;
+        };
+        /**
+         * @description A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it
+         *     tried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events.
+         */
         OpsFirmResponse: {
             id: string;
             name: string;
@@ -5098,7 +5385,7 @@ export interface components {
             createdAt: string;
             /** Format: uri */
             portalUrl: string;
-            admins: string[];
+            admins: components["schemas"]["OpsAdminResponse"][];
             review: null | components["schemas"]["ReviewStatus"];
             application: components["schemas"]["FirmApplication"];
             documents: components["schemas"]["DocumentResponse"][];
@@ -5108,23 +5395,56 @@ export interface components {
             /** Format: date-time */
             decidedAt: null | string;
             decidedBy: null | string;
+            checks: components["schemas"]["ReviewCheckResponse"][];
+            sandboxUse: components["schemas"]["OpsSandboxUseResponse"];
             billing: components["schemas"]["OpsBillingResponse"];
+            figures: components["schemas"]["OpsFirmFiguresResponse"];
             suspension: null | components["schemas"]["SuspensionResponse"];
             events: components["schemas"]["OpsEventResponse"][];
         };
-        /** @description A firm in our staff's list, with its review and whether we suspended it. */
-        OpsFirmSummaryResponse: {
-            id: string;
-            name: string;
-            status: components["schemas"]["FirmStatus"];
-            configured: boolean;
+        /** @description The firms the search finds, the counts in every group, and the currency firms pay us in. */
+        OpsFirmsResponse: {
+            firms: components["schemas"]["OpsFirmListItemResponse"][];
+            counts: components["schemas"]["OpsFirmCountsResponse"];
+            currency: string;
+        };
+        /**
+         * @description Where a firm is with us, in one word for the list.
+         * @enum {unknown}
+         */
+        OpsFirmStage: "SettingUp" | "Sandbox" | "ToReview" | "ChangesRequested" | "Approved" | "Rejected" | "Live" | "Unpaid" | "Suspended";
+        /**
+         * @description The firms that signed up in the last 90 days and how far they got, the approved firms of any age that are not live
+         *     yet, and how many hours our decisions in the last 90 days took on average from the application they answered.
+         */
+        OpsFunnelResponse: {
+            /** Format: int32 */
+            signedUp: number;
+            /** Format: int32 */
+            sent: number;
+            /** Format: int32 */
+            approved: number;
+            /** Format: int32 */
+            live: number;
+            /** Format: int32 */
+            approvedNotLive: number;
+            /** Format: double */
+            averageHoursToDecision: null | number;
+        };
+        /**
+         * @description A firm's payouts that traders asked for more than the late age ago and are neither paid nor rejected: how many, how
+         *     many of them the firm approved, how much per currency, and when the oldest was asked for.
+         */
+        OpsLatePayoutsResponse: {
+            firmId: string;
+            firmName: string;
+            /** Format: int32 */
+            count: number;
+            /** Format: int32 */
+            approved: number;
+            totals: components["schemas"]["MoneyTotalResponse"][];
             /** Format: date-time */
-            createdAt: string;
-            review: null | components["schemas"]["ReviewStatus"];
-            /** Format: date-time */
-            submittedAt: null | string;
-            /** Format: date-time */
-            suspendedAt: null | string;
+            oldestRequestedAt: string;
         };
         /** @description The staff member who is logged in. */
         OpsMeResponse: {
@@ -5132,9 +5452,149 @@ export interface components {
             userId: string;
             email: string;
         };
-        /** @description Our admin view's address: the platform's name. */
+        /** @description What the firms that pay by card pay each month together, before VAT, how many they are and for how many slots. */
+        OpsMonthlyResponse: {
+            /** Format: double */
+            amount: number;
+            /** Format: int32 */
+            firms: number;
+            /** Format: int32 */
+            slots: number;
+        };
+        /**
+         * @description What waits for us: applications to review, the oldest first, charges whose card was declined, firms whose traders
+         *     have waited more than LateAfterDays days for payouts, and trading servers that take too long.
+         */
+        OpsNeedsUsResponse: {
+            toReview: components["schemas"]["OpsWaitingFirmResponse"][];
+            unpaid: components["schemas"]["OpsChargeResponse"][];
+            latePayouts: components["schemas"]["OpsLatePayoutsResponse"][];
+            settingUp: components["schemas"]["OpsWaitingFirmResponse"][];
+            /** Format: int32 */
+            lateAfterDays: number;
+        };
+        /** @description A paying firm's next month: the slots and the amount, its card, and whether it is suspended or has not paid. */
+        OpsNextMonthFirmResponse: {
+            firmId: string;
+            firmName: string;
+            /** Format: int32 */
+            slots: number;
+            /** Format: double */
+            amount: number;
+            card: null | components["schemas"]["CardResponse"];
+            suspended: boolean;
+            unpaid: boolean;
+        };
+        /** @description The next month that is charged, when, how much in all, and each paying firm's part, the largest first. */
+        OpsNextMonthResponse: {
+            /** Format: date */
+            month: string;
+            /** Format: date-time */
+            chargeAt: string;
+            /** Format: double */
+            amount: number;
+            firms: components["schemas"]["OpsNextMonthFirmResponse"][];
+        };
+        /**
+         * @description What waits for us across the firms and how the platform is doing, in the currency firms pay us in: the firms in each
+         *     group, what firms pay each month and paid in the last 30 days, the challenges at live firms, what firms paid in each
+         *     of the last 12 weeks, oldest first, how far the firms that signed up got, and what happened lately, newest first.
+         */
+        OpsOverviewResponse: {
+            currency: string;
+            needsUs: components["schemas"]["OpsNeedsUsResponse"];
+            firms: components["schemas"]["OpsFirmCountsResponse"];
+            monthly: components["schemas"]["OpsMonthlyResponse"];
+            paidLast30Days: components["schemas"]["OpsPaidResponse"];
+            challenges: components["schemas"]["OpsChallengesResponse"];
+            weeks: components["schemas"]["OpsWeekResponse"][];
+            funnel: components["schemas"]["OpsFunnelResponse"];
+            activity: components["schemas"]["OpsActivityResponse"][];
+        };
+        /** @description Charges paid in the last 30 days: months, more slots, going live and deposits, and how much per currency. */
+        OpsPaidResponse: {
+            /** Format: int32 */
+            months: number;
+            /** Format: int32 */
+            slots: number;
+            /** Format: int32 */
+            goingLive: number;
+            /** Format: int32 */
+            deposits: number;
+            totals: components["schemas"]["MoneyTotalResponse"][];
+        };
+        /**
+         * @description How the firm pays its traders: what waits for it to approve and to pay, what it paid in the last 30 days and how long
+         *     that took, and how many of the payouts decided in the last 90 days it rejected, beside the same for every firm.
+         *     Waiting are the payouts traders wait for, the oldest first. One asked for more than
+         *     LateAfterDays days ago is late.
+         */
+        OpsPayoutsResponse: {
+            summary: components["schemas"]["PayoutSummaryResponse"];
+            /** Format: double */
+            platformAverageDaysToPay: null | number;
+            /** Format: int32 */
+            rejectedLast90Days: number;
+            /** Format: int32 */
+            decidedLast90Days: number;
+            /** Format: int32 */
+            platformRejectedLast90Days: number;
+            /** Format: int32 */
+            platformDecidedLast90Days: number;
+            /** Format: int32 */
+            lateAfterDays: number;
+            waiting: components["schemas"]["OpsWaitingPayoutResponse"][];
+        };
+        /** @description What the firm has tried: challenges started, purchases in its portal, payouts and challenges it has. */
+        OpsSandboxUseResponse: {
+            /** Format: int32 */
+            challenges: number;
+            /** Format: int32 */
+            purchases: number;
+            /** Format: int32 */
+            payouts: number;
+            /** Format: int32 */
+            ownChallenges: number;
+        };
+        /** @description Our admin view's address: the platform's name, and where firms sign up when the platform has an address. */
         OpsSiteResponse: {
             name: string;
+            /** Format: uri */
+            signupUrl: null | string;
+        };
+        /** @description A firm and since when something has waited: its application, or its trading server. */
+        OpsWaitingFirmResponse: {
+            id: string;
+            name: string;
+            /** Format: date-time */
+            since: string;
+        };
+        /** @description A payout the trader waits for, without who the trader is. */
+        OpsWaitingPayoutResponse: {
+            /** Format: int64 */
+            accountNumber: number;
+            status: components["schemas"]["PayoutStatus"];
+            /** Format: date-time */
+            requestedAt: string;
+            /** Format: date-time */
+            approvedAt: null | string;
+            /** Format: double */
+            amount: number;
+            currency: string;
+        };
+        /** @description How many applications wait for us, and how many charges were declined and are not paid. */
+        OpsWaitingResponse: {
+            /** Format: int32 */
+            toReview: number;
+            /** Format: int32 */
+            unpaid: number;
+        };
+        /** @description The week from Monday Start in UTC: what firms paid for months and slots, and for going live and deposits. */
+        OpsWeekResponse: {
+            /** Format: date */
+            start: string;
+            months: components["schemas"]["MoneyTotalResponse"][];
+            goingLive: components["schemas"]["MoneyTotalResponse"][];
         };
         /** @description An order with everything that happened to it, oldest first. */
         OrderDetailsResponse: {
@@ -5471,6 +5931,18 @@ export interface components {
             targetPercent: null | number;
             /** Format: double */
             paidOut: number;
+        };
+        /** @description Ticks or unticks one of our checks. */
+        ReviewCheckRequest: {
+            done: boolean;
+        };
+        /** @description One of our checks in the firm's review: whether it is ticked, by whom and when. */
+        ReviewCheckResponse: {
+            item: string;
+            done: boolean;
+            doneBy: null | string;
+            /** Format: date-time */
+            doneAt: null | string;
         };
         /** @enum {unknown} */
         ReviewStatus: "Draft" | "Submitted" | "ChangesRequested" | "Approved" | "Rejected" | null;

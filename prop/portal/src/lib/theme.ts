@@ -32,6 +32,9 @@ export const defaultColors: Record<ThemeColor, string> = {
   warning: "#f59e0b",
 };
 
+/** Our own admin view's look: the portal's, with a brand color of its own so it is never taken for a firm's. */
+export const opsColors: ThemeColors = { accent: "#2dd4bf", "accent-foreground": "#0b0e14" };
+
 /** The colors a theme sets: everything but the brand color and the text on it, which the firm chooses on their own. */
 export const surfaceColors = ["background", "panel", "border", "foreground", "muted", "profit", "loss", "warning"] as const;
 

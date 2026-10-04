@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { accountStatus, activityView, ageText, axisTicks, formatTotals, needsYouItems, passRateText, shortAmount, weekBars, whenText } from "./admin";
+import { accountStatus, activityView, ageText, axisTicks, formatTotals, needsYouItems, passRateText, salesAndPayouts, shortAmount, weekBars, whenText } from "./admin";
 import type { Activity, PayoutSummary, Slots } from "./api/types";
 import { testAccount } from "./testAccounts";
 
@@ -151,25 +151,25 @@ describe("activityView", () => {
 });
 
 describe("weekBars", () => {
-  const weeks = [
+  const weeks = salesAndPayouts([
     { start: "2026-09-21", sales: [{ currency: "USD", amount: 5_600 }], payouts: [{ currency: "USD", amount: 4_800 }] },
     { start: "2026-09-28", sales: [{ currency: "USD", amount: 3_698 }, { currency: "EUR", amount: 99 }], payouts: [] },
-  ];
+  ]);
 
   it("takes the amounts in the firm's currency and says when others were left out", () => {
     const chart = weekBars(weeks, "USD");
 
     expect(chart.bars).toEqual([
-      { start: "2026-09-21", sales: 5_600, payouts: 4_800 },
-      { start: "2026-09-28", sales: 3_698, payouts: 0 },
+      { start: "2026-09-21", first: 5_600, second: 4_800 },
+      { start: "2026-09-28", first: 3_698, second: 0 },
     ]);
     expect(chart.otherCurrencies).toBe(true);
     expect(chart.ticks).toEqual([0, 2_000, 4_000, 6_000]);
   });
 
   it("draws an empty chart on a unit axis", () => {
-    expect(weekBars([{ start: "2026-09-28", sales: [], payouts: [] }], "USD")).toEqual({
-      bars: [{ start: "2026-09-28", sales: 0, payouts: 0 }],
+    expect(weekBars([{ start: "2026-09-28", first: [], second: [] }], "USD")).toEqual({
+      bars: [{ start: "2026-09-28", first: 0, second: 0 }],
       ticks: [0, 1],
       otherCurrencies: false,
     });

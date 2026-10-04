@@ -1,85 +1,151 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import type { FirmFilter } from "@/lib/api/types";
-import { formatDateTime } from "@/lib/format";
+import type { OpsFirmGroup } from "@/lib/api/types";
+import { formatMoney } from "@/lib/format";
+import { challengesText, latestText, opsGroupLabels, opsGroups, slotsUsed, stageViews } from "@/lib/ops";
 import { useOpsFirms } from "@/lib/opsQueries";
-import { reviewStatusLabels } from "@/lib/verification";
+import { useDebounced } from "@/lib/useDebounced";
 
-import { Panel } from "./ui";
+import { SearchIcon } from "./icons";
+import { AdminPage, Badge, ErrorText, FilterTabs, PageHeader, ProgressBar } from "./ui";
 
-const tabs: { filter: FirmFilter; label: string }[] = [
-  { filter: "ToReview", label: "To review" },
-  { filter: "Suspended", label: "Suspended" },
-  { filter: "All", label: "All firms" },
-];
+/** Every firm on the platform (ADR 0024): found by name, short name or an administrator's email, in a group. */
+export function OpsFirms({ initialGroup, initialSearch }: { initialGroup: OpsFirmGroup; initialSearch: string }) {
+  const [group, setGroup] = useState(initialGroup);
+  const [search, setSearch] = useState(initialSearch);
+  const query = useDebounced(search, 300);
+  const firms = useOpsFirms(group, query.trim());
 
-/** The firms for our staff: those waiting for review first, oldest first. */
-export function OpsFirms() {
-  const [filter, setFilter] = useState<FirmFilter>("ToReview");
-  const firms = useOpsFirms(filter);
+  // The address keeps the group and the search, so going back or sharing it shows the same firms.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (group !== "All") {
+      params.set("group", group);
+    }
+
+    if (query.trim()) {
+      params.set("search", query.trim());
+    }
+
+    window.history.replaceState(null, "", `/ops/firms${params.size > 0 ? `?${params}` : ""}`);
+  }, [group, query]);
+
+  const rows = firms.data?.firms ?? [];
+  const counts = firms.data?.counts;
+  const now = firms.dataUpdatedAt;
+  const total = counts?.[countKey[group]];
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <Panel
-        title="Firms"
-        actions={
-          <div role="tablist" className="flex gap-2 text-sm">
-            {tabs.map((tab) => (
-              <button
-                key={tab.filter}
-                type="button"
-                role="tab"
-                aria-selected={filter === tab.filter}
-                onClick={() => setFilter(tab.filter)}
-                className={`rounded px-3 py-1 ${filter === tab.filter ? "bg-accent/20 text-accent" : "text-muted hover:text-foreground"}`}
-              >
-                {tab.label}
-              </button>
-            ))}
+    <AdminPage>
+      <PageHeader title="Firms" description="Every firm on the platform. Those to review come oldest first, the others newest first." />
+
+      <FilterTabs
+        label="Firms to show"
+        options={opsGroups.map((g) => ({ value: g, label: opsGroupLabels[g], count: counts?.[countKey[g]], highlight: g === "ToReview" || g === "Unpaid" }))}
+        value={group}
+        onChange={setGroup}
+      />
+
+      <section aria-label="Firms" className="flex flex-col rounded-lg border border-border bg-panel">
+        <div className="border-b border-border px-4 py-3.5">
+          <label className="flex max-w-xl items-center gap-2 rounded border border-border bg-background px-3 text-muted focus-within:border-accent">
+            <SearchIcon className="size-4 shrink-0" />
+            <span className="sr-only">Search firms</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Name, short name or an administrator's email"
+              className="min-w-0 flex-1 bg-transparent py-2 text-foreground outline-none"
+            />
+          </label>
+        </div>
+
+        {firms.error && (
+          <div className="px-4 py-3">
+            <ErrorText error={firms.error} />
           </div>
-        }
-      >
-        {firms.isError ? (
-          <p className="text-sm text-loss">The firms cannot be loaded right now. Try again shortly.</p>
-        ) : !firms.data ? (
-          <p className="text-sm text-muted">Loading...</p>
-        ) : firms.data.length === 0 ? (
-          <p className="text-sm text-muted">{filter === "ToReview" ? "No firm is waiting for review." : "No firms."}</p>
+        )}
+        {firms.isPending ? (
+          <p className="px-4 py-6 text-sm text-muted">Loading...</p>
+        ) : rows.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted">{query.trim() ? "No firm matches. Try a part of the name or the short name." : group === "ToReview" ? "No application waits for us." : "No firms here."}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className={`overflow-x-auto transition-opacity ${firms.isPlaceholderData ? "opacity-60" : ""}`}>
+            <table className="w-full min-w-[56rem] text-sm">
               <thead className="text-left text-muted">
                 <tr>
-                  <th className="py-2 font-normal">Firm</th>
-                  <th className="py-2 font-normal">Status</th>
-                  <th className="py-2 font-normal">Review</th>
-                  <th className="py-2 font-normal">Sent</th>
-                  <th className="py-2 font-normal">Suspended</th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Firm
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Stage
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Open challenges
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-normal">
+                    Pays per month
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Latest
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {firms.data.map((firm) => (
-                  <tr key={firm.id} className="border-t border-border">
-                    <td className="py-2">
-                      <Link href={`/ops/firms/${firm.id}`} className="text-accent hover:underline">
-                        {firm.name}
-                      </Link>{" "}
-                      <span className="text-muted">{firm.id}</span>
-                    </td>
-                    <td className="py-2">{firm.status}</td>
-                    <td className="py-2">{firm.configured ? "Configured" : firm.review ? reviewStatusLabels[firm.review] : "-"}</td>
-                    <td className="py-2 text-muted">{firm.submittedAt ? formatDateTime(firm.submittedAt) : "-"}</td>
-                    <td className="py-2 text-loss">{firm.suspendedAt ? formatDateTime(firm.suspendedAt) : ""}</td>
-                  </tr>
-                ))}
+                {rows.map((firm) => {
+                  const stage = stageViews[firm.stage];
+                  const used = slotsUsed(firm);
+                  return (
+                    <tr key={firm.id} className={`border-t border-border ${firm.stage === "ToReview" ? "bg-accent/5" : firm.stage === "Unpaid" || firm.stage === "Suspended" ? "bg-loss/5" : ""}`}>
+                      <td className="px-4 py-3">
+                        <Link href={`/ops/firms/${encodeURIComponent(firm.id)}`} className="flex flex-col">
+                          <span className="font-medium text-accent">{firm.name}</span>
+                          <span className="text-xs text-muted">{firm.id}</span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={stage.tone}>{stage.label}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex max-w-48 flex-col gap-1.5">
+                          <span>{challengesText(firm)}</span>
+                          {used !== null && (
+                            <ProgressBar value={used} label={`${firm.openChallenges} of ${firm.slots} slots taken`} tone={firm.pausedChallenges > 0 ? "loss" : used >= 80 ? "warning" : "accent"} />
+                          )}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        {firm.monthlyPrice === null ? <span className="text-muted">{firm.configured ? "Free" : "-"}</span> : `${formatMoney(firm.monthlyPrice)} ${firms.data?.currency}`}
+                      </td>
+                      <td className="px-4 py-3 text-muted">{latestText(firm, now)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
-      </Panel>
-    </main>
+        {rows.length > 0 && (
+          <p className="border-t border-border px-4 py-3 text-sm text-muted">
+            Showing {rows.length}
+            {total !== undefined && total > rows.length && ` of ${total}`}. Pays per month is the firm&apos;s plan before VAT; firms in the sandbox pay nothing.
+          </p>
+        )}
+      </section>
+    </AdminPage>
   );
 }
+
+const countKey = {
+  All: "all",
+  ToReview: "toReview",
+  Sandbox: "sandbox",
+  Live: "live",
+  Unpaid: "unpaid",
+  Suspended: "suspended",
+  Rejected: "rejected",
+} as const satisfies Record<OpsFirmGroup, string>;

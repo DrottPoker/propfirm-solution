@@ -227,18 +227,26 @@ export function activityView(activity: Activity): ActivityView {
   }
 }
 
-/** A week's bar pair in the firm's currency. */
-export type WeekBar = { start: string; sales: number; payouts: number };
+/** A week's two amounts per currency, such as sales and payouts, from Monday <code>start</code>. */
+export type WeekAmounts = { start: string; first: MoneyTotal[]; second: MoneyTotal[] };
+
+/** A week's bar pair in one currency. */
+export type WeekBar = { start: string; first: number; second: number };
+
+/** A firm's sales and payouts per week, for the chart. */
+export function salesAndPayouts(weeks: Week[]): WeekAmounts[] {
+  return weeks.map((week) => ({ start: week.start, first: week.sales, second: week.payouts }));
+}
 
 /**
- * Sales and payouts per week in one currency, with the axis they are drawn on. Amounts in other currencies are left
- * out, and <code>otherCurrencies</code> says if there were any.
+ * Two amounts per week in one currency, with the axis they are drawn on. Amounts in other currencies are left out, and
+ * <code>otherCurrencies</code> says if there were any.
  */
-export function weekBars(weeks: Week[], currency: string): { bars: WeekBar[]; ticks: number[]; otherCurrencies: boolean } {
+export function weekBars(weeks: WeekAmounts[], currency: string): { bars: WeekBar[]; ticks: number[]; otherCurrencies: boolean } {
   const amountIn = (totals: MoneyTotal[]) => totals.find((t) => t.currency === currency)?.amount ?? 0;
-  const bars = weeks.map((week) => ({ start: week.start, sales: amountIn(week.sales), payouts: amountIn(week.payouts) }));
-  const otherCurrencies = weeks.some((week) => [...week.sales, ...week.payouts].some((t) => t.currency !== currency));
-  const max = Math.max(0, ...bars.flatMap((b) => [b.sales, b.payouts]));
+  const bars = weeks.map((week) => ({ start: week.start, first: amountIn(week.first), second: amountIn(week.second) }));
+  const otherCurrencies = weeks.some((week) => [...week.first, ...week.second].some((t) => t.currency !== currency));
+  const max = Math.max(0, ...bars.flatMap((b) => [b.first, b.second]));
   return { bars, ticks: axisTicks(max), otherCurrencies };
 }
 

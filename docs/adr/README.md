@@ -29,6 +29,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0021](0021-vi-granskar-firmor-innan-de-gar-live.md) | Vi granskar firmor själva innan de går live | Föreslagen |
 | [0022](0022-handelshistorik-for-traderns-oversikt.md) | Handelshistorik för traderns översikt | Föreslagen |
 | [0023](0023-adminpanelens-oversikt-och-firmans-logga.md) | Adminpanelens översikt, sökning och firmans egen logga | Föreslagen |
+| [0024](0024-var-adminvy-over-alla-firmor.md) | Vår adminvy över alla firmor: översikt, kontroller och betalningar | Föreslagen |
 
 ## Så skriver du en ny ADR
 
