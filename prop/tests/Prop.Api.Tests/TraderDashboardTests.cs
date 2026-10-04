@@ -27,6 +27,9 @@ public sealed class TraderDashboardTests(PostgresFixture postgres) : IClassFixtu
 
         factory.Trading.OpenPosition(Phase1, "XAUUSD", TradeSide.Sell, volume: 0.2m, openPrice: 2_412.5m, commission: 3.5m);
         factory.Trading.ClosePosition(Phase1, 286m, closePrice: 2_398.2m, commission: 3.5m, reason: "TakeProfit");
+
+        // The rule engine counts the trading day while the history records the trade, each reading the stream on its own.
+        await factory.WaitForAccountAsync(id, a => a.GetProperty("tradingDays").GetInt32() == 1 && a.GetProperty("balance").GetDecimal() == 100_279m);
         var performance = await PerformanceAsync(portal, id, p => p.GetProperty("statistics").GetProperty("trades").GetInt32() == 1);
         var trades = await portal.GetFromJsonAsync<JsonElement>(Url($"accounts/{id}/trades"), TestContext.Current.CancellationToken);
 
