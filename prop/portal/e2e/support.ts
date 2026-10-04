@@ -24,6 +24,33 @@ export async function signUp(page: Page, firmName: string, shortName: string) {
   await expect(page).toHaveURL(`http://${shortName}.localhost:${portalPort}/admin`);
 }
 
+/** A new firm's trading server is created in the background, and its overview shows the steps to live once it is ready. */
+export async function waitForSandbox(page: Page) {
+  await expect(page.getByRole("heading", { name: /^Get .* live$/ })).toBeVisible({ timeout: 20_000 });
+}
+
+/** A link in the admin panel's menu. Links with something waiting have its count after the name. */
+export function adminLink(page: Page, name: string) {
+  return page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: new RegExp(`^${name}`) });
+}
+
+/**
+ * The firm's administrator starts a challenge from the admin panel, the first one by name unless another is chosen,
+ * and lands on the new account. The trader is not emailed, since the tests have no mail server.
+ */
+export async function startChallenge(page: Page, email: string, challenge?: RegExp) {
+  await page.getByRole("button", { name: "Start a challenge" }).click();
+  const panel = page.getByRole("dialog", { name: "Start a challenge" });
+  await panel.getByLabel("Trader's email").fill(email);
+  if (challenge) {
+    await panel.getByRole("radio", { name: challenge }).check();
+  }
+
+  await panel.getByRole("checkbox", { name: /^Email the trader/ }).uncheck();
+  await panel.getByRole("button", { name: "Start challenge" }).click();
+  await expect(page).toHaveURL(/\/admin\/accounts\/[0-9a-f-]+$/);
+}
+
 export async function logIn(page: Page, path: "/login" | "/admin/login", email: string, password: string) {
   await page.goto(path);
   await page.getByLabel("Email").fill(email);

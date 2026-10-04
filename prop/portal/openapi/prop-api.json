@@ -820,6 +820,28 @@
         }
       }
     },
+    "/api/portal/logo/{sha256}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "sha256",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/portal/login": {
       "post": {
         "tags": [
@@ -1463,51 +1485,6 @@
       }
     },
     "/api/portal/admin/accounts": {
-      "get": {
-        "tags": [
-          "Portal"
-        ],
-        "parameters": [
-          {
-            "name": "email",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "$ref": "#/components/schemas/ChallengeStatus"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/AccountResponse"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
       "post": {
         "tags": [
           "Portal"
@@ -1539,6 +1516,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "default": "All",
+              "$ref": "#/components/schemas/AccountGroup"
+            }
+          },
+          {
+            "name": "challengeId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAccountsResponse"
                 }
               }
             }
@@ -1709,49 +1744,6 @@
         }
       }
     },
-    "/api/portal/admin/payouts": {
-      "get": {
-        "tags": [
-          "Portal"
-        ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "array",
-              "items": {
-                "$ref": "#/components/schemas/PayoutStatus"
-              }
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int32",
-              "default": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PayoutResponse"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/portal/admin/payouts/{payoutId}/approve": {
       "post": {
         "tags": [
@@ -1862,6 +1854,301 @@
         }
       }
     },
+    "/api/portal/admin/overview": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOverviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/trader": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/email-trader": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderEmailResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/performance": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/trades": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/trades.csv": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/payouts": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/PayoutStatus"
+              }
+            }
+          },
+          {
+            "name": "oldestFirst",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminPayoutResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/payouts/summary": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/challenges/figures": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChallengeFiguresResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/firm": {
       "get": {
         "tags": [
@@ -1896,6 +2183,57 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/logo": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -3264,6 +3602,39 @@
           }
         }
       },
+      "AccountCountsResponse": {
+        "required": [
+          "all",
+          "evaluation",
+          "awaitingFunding",
+          "funded",
+          "ended"
+        ],
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "evaluation": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "awaitingFunding": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "funded": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ended": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "How many accounts are in each group."
+      },
       "AccountDetailsResponse": {
         "required": [
           "account",
@@ -3342,6 +3713,16 @@
           }
         },
         "description": "An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought\nwith, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it\nended, and its payouts, newest first. HistoryVersion changes whenever the account's trading\nhistory or the rule engine's steps do, so the portal asks for the history again only then."
+      },
+      "AccountGroup": {
+        "enum": [
+          "All",
+          "Evaluation",
+          "AwaitingFunding",
+          "Funded",
+          "Ended"
+        ],
+        "description": "Which accounts the admin panel lists. Evaluation and funded accounts are those trading or opening their trading account."
       },
       "AccountResponse": {
         "required": [
@@ -3513,6 +3894,136 @@
         },
         "description": "Going live with this many slots, buying AutoExpandStep more when the last is taken, or none for no automatic expansion."
       },
+      "ActivityKind": {
+        "enum": [
+          "ChallengeStarted",
+          "ChallengeBought",
+          "StagePassed",
+          "EvaluationPassed",
+          "FundedStarted",
+          "ChallengeFailed",
+          "ChallengeExpired",
+          "ChallengeCancelled",
+          "PayoutRequested",
+          "PayoutPaid",
+          "PayoutRejected"
+        ],
+        "description": "What happened to an account."
+      },
+      "ActivityResponse": {
+        "required": [
+          "kind",
+          "time",
+          "accountId",
+          "accountNumber",
+          "email",
+          "challengeName",
+          "stageName",
+          "amount",
+          "currency",
+          "orderNumber",
+          "tradingDays",
+          "reason",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountNumber": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "email": {
+            "type": "string"
+          },
+          "challengeName": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "orderNumber": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "tradingDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Something that happened to one of the firm's accounts. StageName is the stage passed, started or\nended on. Amount is the price of a challenge bought, the result of a stage passed, or the payout.\nReason is why a challenge failed (a FailureReason), expired (an\nExpiryReason), was cancelled or why a payout was rejected. Reference is the firm's\nreference for a payment."
+      },
+      "AdminAccountsResponse": {
+        "required": [
+          "accounts",
+          "counts",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountResponse"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AccountCountsResponse"
+          },
+          "next": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          }
+        },
+        "description": "A page of accounts, the counts in each group, and Next to ask for the next page with, if there is one."
+      },
       "AdminInviteRequest": {
         "required": [
           "email"
@@ -3542,6 +4053,70 @@
             "format": "date-time"
           }
         }
+      },
+      "AdminOverviewResponse": {
+        "required": [
+          "accounts",
+          "payouts",
+          "sales",
+          "passRate",
+          "weeks",
+          "activity"
+        ],
+        "type": "object",
+        "properties": {
+          "accounts": {
+            "$ref": "#/components/schemas/AccountCountsResponse"
+          },
+          "payouts": {
+            "$ref": "#/components/schemas/PayoutSummaryResponse"
+          },
+          "sales": {
+            "$ref": "#/components/schemas/SalesResponse"
+          },
+          "passRate": {
+            "$ref": "#/components/schemas/PassRateResponse"
+          },
+          "weeks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WeekResponse"
+            }
+          },
+          "activity": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityResponse"
+            }
+          }
+        },
+        "description": "How the firm is doing: its accounts in each group, its payouts, its sales in the last 30 days, its pass rate in the\nlast 90, sales and payouts in each of the last 12 weeks, oldest first, and what happened lately, newest first."
+      },
+      "AdminPayoutResponse": {
+        "required": [
+          "payout",
+          "challengeName",
+          "paidBefore",
+          "paidBeforeAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "payout": {
+            "$ref": "#/components/schemas/PayoutResponse"
+          },
+          "challengeName": {
+            "type": "string"
+          },
+          "paidBefore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidBeforeAmount": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A payout as the admin panel lists it: the payout, its challenge's name, and how many payouts the account had paid\nbefore it was asked for, and how much."
       },
       "AdminResponse": {
         "required": [
@@ -3815,17 +4390,10 @@
       },
       "BrandingRequest": {
         "required": [
-          "logoUrl",
           "colors"
         ],
         "type": "object",
         "properties": {
-          "logoUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "colors": {
             "type": [
               "null",
@@ -3836,7 +4404,7 @@
             }
           }
         },
-        "description": "The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb."
+        "description": "The portal's colors to override, as #rrggbb. The logo is uploaded on its own."
       },
       "BrandingResponse": {
         "required": [
@@ -4072,6 +4640,32 @@
           }
         },
         "description": "A challenge a firm sells: the account size, the trading day and the rules of each stage. Traders go\nthrough the evaluation stages in order and then trade a funded account. Every challenge keeps the\ndefinition it was bought with, so later changes by the firm never affect it. With\nInactivityDays, a challenge ends when no position was opened for that many days, in\nevery stage including the funded one."
+      },
+      "ChallengeFiguresResponse": {
+        "required": [
+          "challengeId",
+          "trading",
+          "startedLast30Days",
+          "passRate"
+        ],
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string"
+          },
+          "trading": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "startedLast30Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "passRate": {
+            "$ref": "#/components/schemas/PassRateResponse"
+          }
+        },
+        "description": "A challenge's open accounts, those started in the last 30 days, and its pass rate in the last 90."
       },
       "ChallengePrice": {
         "required": [
@@ -4880,6 +5474,23 @@
         },
         "description": "Equity may not fall more than Percent of the initial balance below the initial balance, or below the highest equity when trailing."
       },
+      "MoneyTotalResponse": {
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An amount in one currency."
+      },
       "NextChargeResponse": {
         "required": [
           "month",
@@ -5360,6 +5971,42 @@
         ],
         "description": "Where a purchase in the portal is. A pending order past its time counts as expired, but a payment that arrives later still counts."
       },
+      "OrderSummaryResponse": {
+        "required": [
+          "id",
+          "number",
+          "amount",
+          "currency",
+          "provider",
+          "paidAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/PaymentProvider"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The paid order that started an account."
+      },
       "OrderTokenRequest": {
         "required": [
           "token"
@@ -5374,6 +6021,24 @@
           }
         },
         "description": "The token from the buyer's link to the order."
+      },
+      "PassRateResponse": {
+        "required": [
+          "passed",
+          "ended"
+        ],
+        "type": "object",
+        "properties": {
+          "passed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "ended": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "Of the evaluations that ended in the last 90 days, how many passed every evaluation stage. Cancelled ones are left out."
       },
       "PaymentProvider": {
         "enum": [
@@ -5488,6 +6153,34 @@
           }
         },
         "description": "How the firm's portal takes payment. Provider is what the firm chose, and\nActive whether it works now: Stripe's live keys work only once the firm is live.\nStripeWebhookUrl is where the firm points Stripe's webhook."
+      },
+      "PayoutGroupResponse": {
+        "required": [
+          "count",
+          "totals",
+          "oldest"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "oldest": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "Payouts with a status, their amounts per currency and when the oldest got there: asked for, or approved for those to pay."
       },
       "PayoutQuoteResponse": {
         "required": [
@@ -5655,6 +6348,34 @@
           "Rejected",
           "Failed"
         ]
+      },
+      "PayoutSummaryResponse": {
+        "required": [
+          "toApprove",
+          "toPay",
+          "paidLast30Days",
+          "averageDaysToPay"
+        ],
+        "type": "object",
+        "properties": {
+          "toApprove": {
+            "$ref": "#/components/schemas/PayoutGroupResponse"
+          },
+          "toPay": {
+            "$ref": "#/components/schemas/PayoutGroupResponse"
+          },
+          "paidLast30Days": {
+            "$ref": "#/components/schemas/PayoutGroupResponse"
+          },
+          "averageDaysToPay": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "The payouts to approve, those approved and to pay, those paid in the last 30 days, and how many days those took on\naverage from the request to the payment."
       },
       "PayoutTotalResponse": {
         "required": [
@@ -6114,6 +6835,26 @@
           "Rejected",
           null
         ]
+      },
+      "SalesResponse": {
+        "required": [
+          "orders",
+          "totals"
+        ],
+        "type": "object",
+        "properties": {
+          "orders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          }
+        },
+        "description": "Challenges bought in the portal and paid in the last 30 days, without those refunded."
       },
       "ShopItemResponse": {
         "required": [
@@ -6626,6 +7367,28 @@
         },
         "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid. ReturnPath\nis the page in the admin panel the firm comes back to."
       },
+      "TraderEmailKind": {
+        "enum": [
+          "Invitation",
+          "Notice"
+        ],
+        "description": "What the trader was emailed: an invitation to choose a password, or that the challenge has started."
+      },
+      "TraderEmailResponse": {
+        "required": [
+          "email",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TraderEmailKind"
+          }
+        }
+      },
       "TradeResponse": {
         "required": [
           "positionId",
@@ -6714,6 +7477,64 @@
           }
         },
         "description": "The trader's payouts from every account, newest first, with totals per currency."
+      },
+      "TraderSummaryResponse": {
+        "required": [
+          "email",
+          "since",
+          "hasPassword",
+          "accounts",
+          "orders",
+          "bought",
+          "paidOut",
+          "order"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "hasPassword": {
+            "type": "boolean"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountResponse"
+            }
+          },
+          "orders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bought": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "paidOut": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "order": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrderSummaryResponse"
+              }
+            ]
+          }
+        },
+        "description": "An account's trader as the firm sees them: since when, whether they have chosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency, and\nOrder, the order that started the account asked about."
       },
       "TradeSide": {
         "enum": [
@@ -7005,6 +7826,33 @@
             "type": "string"
           }
         }
+      },
+      "WeekResponse": {
+        "required": [
+          "start",
+          "sales",
+          "payouts"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date"
+          },
+          "sales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "payouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          }
+        },
+        "description": "The week from Monday Start in UTC: challenges bought in the portal and payouts paid, per currency."
       },
       "WelcomeRequest": {
         "required": [

@@ -54,7 +54,7 @@ internal static partial class FirmRules
     /// <summary>The portal's colors a firm may override.</summary>
     public static readonly IReadOnlySet<string> ThemeColors = new HashSet<string>(StringComparer.Ordinal)
     {
-        "background", "panel", "border", "foreground", "muted", "accent", "profit", "loss", "warning",
+        "background", "panel", "border", "foreground", "muted", "accent", "accent-foreground", "profit", "loss", "warning",
     };
 
     /// <summary>Short names that would be confused with our own addresses.</summary>

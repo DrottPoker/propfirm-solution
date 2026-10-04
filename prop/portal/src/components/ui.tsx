@@ -6,6 +6,9 @@ export const buttonClass = "rounded bg-accent px-4 py-2 font-medium text-accent-
 
 export const secondaryButtonClass = "rounded border border-border px-4 py-2 hover:border-muted disabled:opacity-50";
 
+/** For an action that cannot be undone, such as rejecting a payout. */
+export const dangerButtonClass = "rounded bg-loss px-4 py-2 font-medium text-background disabled:opacity-50";
+
 export function Message({ text }: { text: string }) {
   return <main className="flex flex-1 items-center justify-center p-8 text-muted">{text}</main>;
 }
@@ -102,6 +105,105 @@ export function SectionLabel({ id, children }: { id?: string; children: React.Re
     <h2 id={id} className="text-xs font-medium uppercase tracking-wider text-muted">
       {children}
     </h2>
+  );
+}
+
+/** An admin panel page's content, beside the menu. */
+export function AdminPage({ children, narrow = false }: { children: React.ReactNode; narrow?: boolean }) {
+  return <main className={`mx-auto flex w-full flex-col gap-6 px-4 py-6 sm:px-7 sm:py-7 ${narrow ? "max-w-4xl" : "max-w-6xl"}`}>{children}</main>;
+}
+
+/** A page's title with what it is for, and its main actions beside it. */
+export function PageHeader({ title, description, actions, back }: { title: string; description?: React.ReactNode; actions?: React.ReactNode; back?: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {back}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          {description && <p className="max-w-3xl text-muted">{description}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2.5">{actions}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** A figure on its own tile, such as the payouts paid in the last 30 days. */
+export function StatTile({ label, value, unit, note, tone = "", highlight = false }: { label: string; value: string; unit?: string; note?: React.ReactNode; tone?: string; highlight?: boolean }) {
+  return (
+    <div className={`flex flex-col gap-1 rounded-lg border bg-panel px-4 py-3.5 ${highlight ? "border-accent/50" : "border-border"}`}>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className={`font-mono text-xl font-medium tabular-nums sm:text-2xl ${tone}`}>
+        {value} {unit && <span className="text-sm text-muted">{unit}</span>}
+      </dd>
+      {note && <dd className="text-xs text-muted">{note}</dd>}
+    </div>
+  );
+}
+
+/** Filters shown as a row of buttons, each with how many it finds, for example the groups of accounts. */
+export function FilterTabs<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string; count?: number; highlight?: boolean }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap gap-1 self-start rounded-lg border border-border bg-panel p-1 text-sm">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={option.value === value}
+          onClick={() => onChange(option.value)}
+          className={`flex items-center gap-2 rounded-md px-3 py-1.5 ${option.value === value ? "bg-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+        >
+          {option.label}
+          {option.count !== undefined && (
+            <span className={`rounded-full px-1.5 font-mono text-xs tabular-nums ${option.highlight && option.count > 0 ? "bg-warning/20 text-warning" : ""}`}>{option.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Tabs over the parts of a page. The chosen tab's part is shown below them. */
+export function Tabs<T extends string>({
+  label,
+  tabs,
+  value,
+  onChange,
+}: {
+  label: string;
+  tabs: { value: T; label: string; count?: number }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="flex gap-1 overflow-x-auto border-b border-border">
+      {tabs.map((tab) => (
+        <button
+          key={tab.value}
+          type="button"
+          role="tab"
+          id={`tab-${tab.value}`}
+          aria-selected={tab.value === value}
+          aria-controls={`panel-${tab.value}`}
+          onClick={() => onChange(tab.value)}
+          className={`-mb-px whitespace-nowrap border-b-2 px-3.5 py-2.5 text-sm ${tab.value === value ? "border-accent font-medium text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
+        >
+          {tab.label}
+          {tab.count !== undefined && <span className="ml-1.5 font-mono text-xs tabular-nums text-muted">{tab.count}</span>}
+        </button>
+      ))}
+    </div>
   );
 }
 

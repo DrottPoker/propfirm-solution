@@ -154,8 +154,8 @@ function Notices({ details }: { details: AccountDetails }) {
   );
 }
 
-/** Balance, equity, today's result and the stage's result, or for a funded account what has been paid out. */
-function KeyFigures({ details }: { details: AccountDetails }) {
+/** Balance, equity, today's result and the stage's result, or for a funded account what has been paid out. Shared with the admin panel. */
+export function KeyFigures({ details, paidOutLabel = "Paid out to you" }: { details: AccountDetails; paidOutLabel?: string }) {
   const { account, results, payouts } = details;
   const paid = payouts.filter((p) => p.status === "Paid").length;
   return (
@@ -193,7 +193,7 @@ function KeyFigures({ details }: { details: AccountDetails }) {
         }
       />
       {account.funded ? (
-        <Figure label="Paid out to you" value={formatMoney(results.paidOut)} unit={account.currency} note={paid === 1 ? "1 payout on this account" : `${paid} payouts on this account`} />
+        <Figure label={paidOutLabel} value={formatMoney(results.paidOut)} unit={account.currency} note={paid === 1 ? "1 payout on this account" : `${paid} payouts on this account`} />
       ) : (
         <Figure
           label="This stage"
@@ -229,7 +229,7 @@ const objectiveStyles: Record<Objective["state"], { text: string; ring: string }
 };
 
 /** What the current stage must reach and keep, each with how it stands. */
-function Objectives({ details }: { details: AccountDetails }) {
+export function Objectives({ details }: { details: AccountDetails }) {
   const objectives = objectivesOf(details);
   return (
     <section aria-labelledby="objectives-heading" className="flex flex-col gap-3">

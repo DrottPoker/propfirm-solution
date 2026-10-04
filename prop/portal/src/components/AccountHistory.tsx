@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { AccountDetails, DayResult, Trade, TradeStatistics } from "@/lib/api/types";
 import { isTrading, resultTone, toneText } from "@/lib/dashboard";
 import { formatDay, formatLots, formatMoney, formatPrice, formatRatio, formatShortDateTime, formatSignedMoney } from "@/lib/format";
-import { usePerformance, useTrades } from "@/lib/queries";
+import { tradesCsvUrl, usePerformance, useTrades, type Role } from "@/lib/queries";
 
 import { BalanceChart } from "./BalanceChart";
 import { ErrorText, Panel, SegmentedControl, secondaryButtonClass } from "./ui";
@@ -23,13 +23,13 @@ const closeReasons: Record<string, string> = {
 /**
  * How a stage has gone: its balance, its days, statistics and closed trades. The stage is chosen in one row above
  * everything it changes, and the current stage is shown first. What is shown stays while another stage loads.
- * `now` is when the account's figures were last fetched, where equity now is drawn.
+ * `now` is when the account's figures were last fetched, where equity now is drawn. The firm reads any of its accounts with the admin role.
  */
-export function AccountHistory({ details, now }: { details: AccountDetails; now: number }) {
+export function AccountHistory({ details, now, role = "trader" }: { details: AccountDetails; now: number; role?: Role }) {
   const started = details.stages.filter((s) => s.startedAt !== null);
   const [chosen, setChosen] = useState<number | null>(null);
   const stage = chosen ?? started.at(-1)?.stage ?? null;
-  const performance = usePerformance(details.account.id, stage, details.historyVersion);
+  const performance = usePerformance(details.account.id, stage, details.historyVersion, role);
 
   const data = performance.data;
   const tradingThisStage = isTrading(details) && data?.stage === details.account.stage;
@@ -72,7 +72,7 @@ export function AccountHistory({ details, now }: { details: AccountDetails; now:
               <Statistics statistics={data.statistics} />
             </Panel>
           </div>
-          <ClosedTrades details={details} stage={data.stage} />
+          <ClosedTrades details={details} stage={data.stage} role={role} />
         </div>
       )}
     </section>
@@ -151,8 +151,8 @@ function Statistics({ statistics: s }: { statistics: TradeStatistics }) {
   );
 }
 
-function ClosedTrades({ details, stage }: { details: AccountDetails; stage: number }) {
-  const trades = useTrades(details.account.id, stage, details.historyVersion);
+function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage: number; role: Role }) {
+  const trades = useTrades(details.account.id, stage, details.historyVersion, role);
   const rows: Trade[] = trades.data?.pages.flatMap((p) => p.trades) ?? [];
 
   return (
@@ -160,7 +160,7 @@ function ClosedTrades({ details, stage }: { details: AccountDetails; stage: numb
       title="Closed trades"
       actions={
         rows.length > 0 && (
-          <a href={`/api/portal/accounts/${details.account.id}/trades.csv?stage=${stage}`} download className="text-sm text-accent hover:underline">
+          <a href={tradesCsvUrl(details.account.id, stage, role)} download className="text-sm text-accent hover:underline">
             Download CSV
           </a>
         )

@@ -1,170 +1,201 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import type { Order, OrderStatus } from "@/lib/api/types";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { canMarkPaid, canMarkRefunded, orderNote, orderStatusLabels, providerLabels } from "@/lib/orders";
-import { useFirmOrders, useFirmSettings, useOrderDecision } from "@/lib/queries";
+import { useChallenges, useFirmOrders, useFirmSettings, useOrderDecision } from "@/lib/queries";
 
-import { buttonClass, ErrorText, Panel, secondaryButtonClass } from "./ui";
+import { Modal } from "./Dialog";
+import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, FilterTabs, PageHeader, secondaryButtonClass, type BadgeTone } from "./ui";
 
-const views: { label: string; status: OrderStatus | null }[] = [
-  { label: "All", status: null },
-  { label: "Paid", status: "Paid" },
-  { label: "Waiting for payment", status: "Pending" },
-  { label: "Expired", status: "Expired" },
+const views: { id: string; label: string; status: OrderStatus | null }[] = [
+  { id: "all", label: "All", status: null },
+  { id: "paid", label: "Paid", status: "Paid" },
+  { id: "pending", label: "Waiting for payment", status: "Pending" },
+  { id: "expired", label: "Expired", status: "Expired" },
 ];
 
-const statusStyles: Record<OrderStatus, string> = {
-  Pending: "bg-warning/20 text-warning",
-  Paid: "bg-profit/20 text-profit",
-  Expired: "bg-muted/20 text-muted",
+const statusTones: Record<OrderStatus, BadgeTone> = {
+  Pending: "warning",
+  Paid: "profit",
+  Expired: "muted",
 };
 
 /** The challenges bought in the portal. A paid order has started its account. */
 export function AdminOrders() {
-  const [view, setView] = useState(views[0]);
+  const [viewId, setViewId] = useState("all");
+  const view = views.find((v) => v.id === viewId)!;
   const orders = useFirmOrders(view.status);
   const settings = useFirmSettings();
+  const challenges = useChallenges();
+  const challengeName = (id: string) => challenges.data?.find((c) => c.id === id)?.name ?? id;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-      <Panel
+    <AdminPage>
+      <PageHeader
         title="Orders"
-        actions={
-          <nav aria-label="Orders to show" className="flex gap-2 text-sm">
-            {views.map((v) => (
-              <button
-                key={v.label}
-                type="button"
-                aria-pressed={v === view}
-                onClick={() => setView(v)}
-                className={`rounded border px-3 py-1 ${v === view ? "border-accent" : "border-border hover:border-muted"}`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </nav>
-        }
-      >
-        <p className="text-sm text-muted">
-          Challenges bought in your portal. The money goes straight to your payment provider, and a paid order starts its challenge. A refund
-          or a dispute does not cancel the account: cancel it on the account if you want to.
+        description="Challenges bought in your portal. The money goes straight to your payment provider, and a paid order starts its challenge. A refund or a dispute does not cancel the account: cancel it on the account if you want to."
+      />
+      {settings.data && !settings.data.payments.active && (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          Your portal sells nothing right now. Choose how traders pay under{" "}
+          <Link href="/admin/checkout" className="underline">
+            Checkout
+          </Link>{" "}
+          and set prices under{" "}
+          <Link href="/admin/challenges" className="underline">
+            Challenges
+          </Link>
+          .
         </p>
-        {settings.data && !settings.data.payments.active && (
-          <p className="text-sm text-warning">
-            Your portal sells nothing right now. Choose how you take payment under{" "}
-            <Link href="/admin/settings" className="underline">
-              Settings
-            </Link>{" "}
-            and set prices under{" "}
-            <Link href="/admin/challenges" className="underline">
-              Challenges
-            </Link>
-            .
-          </p>
-        )}
-        <ErrorText error={orders.error} />
-        {orders.data && orders.data.length === 0 && <p className="text-sm text-muted">No orders here.</p>}
-        {orders.data && orders.data.length > 0 && <OrderTable orders={orders.data} />}
-      </Panel>
-    </main>
-  );
-}
+      )}
 
-function OrderTable({ orders }: { orders: Order[] }) {
-  const cell = "py-2 pl-6";
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="text-left text-muted">
-          <tr>
-            <th className="py-2 font-normal">Order</th>
-            <th className={`${cell} font-normal`}>Buyer</th>
-            <th className={`${cell} font-normal`}>Challenge</th>
-            <th className={`${cell} text-right font-normal`}>Amount</th>
-            <th className={`${cell} font-normal`}>Paid with</th>
-            <th className={`${cell} font-normal`}>Status</th>
-            <th className={`${cell} font-normal`}>Note</th>
-            <th className={`${cell} font-normal`} />
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((order) => (
-            <tr key={order.id} className="border-t border-border align-top">
-              <td className="whitespace-nowrap py-2">
-                #{order.number}
-                <span className="block text-xs text-muted">{formatDateTime(order.createdAt)}</span>
-              </td>
-              <td className={cell}>{order.email}</td>
-              <td className={cell}>
-                {order.accountId ? (
-                  <Link href={`/admin/accounts/${order.accountId}`} className="text-accent hover:underline">
-                    {order.challengeId}
-                  </Link>
-                ) : (
-                  order.challengeId
-                )}
-              </td>
-              <td className={`${cell} whitespace-nowrap text-right font-mono tabular-nums`}>
-                {formatMoney(order.amount)} {order.currency}
-              </td>
-              <td className={cell}>{providerLabels[order.provider]}</td>
-              <td className={cell}>
-                <span className={`whitespace-nowrap rounded px-2 py-0.5 ${statusStyles[order.status]}`}>{orderStatusLabels[order.status]}</span>
-              </td>
-              <td className={`${cell} text-muted`}>{orderNote(order)}</td>
-              <td className={cell}>
-                <OrderDecisions order={order} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+      <section aria-label="Orders" className="flex flex-col rounded-lg border border-border bg-panel">
+        <div className="border-b border-border px-4 py-3">
+          <FilterTabs label="Orders to show" options={views.map((v) => ({ value: v.id, label: v.label }))} value={viewId} onChange={setViewId} />
+        </div>
+        {orders.error && (
+          <div className="px-4 py-3">
+            <ErrorText error={orders.error} />
+          </div>
+        )}
+        {orders.isPending ? (
+          <p className="px-4 py-6 text-sm text-muted">Loading...</p>
+        ) : (orders.data ?? []).length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted">No orders here.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[60rem] text-sm">
+              <thead className="text-left text-muted">
+                <tr>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Order
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Buyer
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Challenge
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-normal">
+                    Amount
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Paid with
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    <span className="sr-only">Decision</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {(orders.data ?? []).map((order) => (
+                  <tr key={order.id} className="border-t border-border align-top">
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className="font-mono">#{order.number}</span>
+                      <span className="block text-xs text-muted">{formatDateTime(order.createdAt)}</span>
+                    </td>
+                    <td className="px-4 py-3">{order.email}</td>
+                    <td className="px-4 py-3">
+                      {order.accountId ? (
+                        <Link href={`/admin/accounts/${order.accountId}`} className="text-accent hover:underline">
+                          {challengeName(order.challengeId)}
+                        </Link>
+                      ) : (
+                        challengeName(order.challengeId)
+                      )}
+                      <span className="block font-mono text-xs text-muted">{order.challengeId}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums">
+                      {formatMoney(order.amount)} {order.currency}
+                    </td>
+                    <td className="px-4 py-3">{providerLabels[order.provider]}</td>
+                    <td className="px-4 py-3">
+                      <Badge tone={statusTones[order.status]}>{orderStatusLabels[order.status]}</Badge>
+                      {orderNote(order) && <span className="mt-1 block max-w-64 text-xs text-muted">{orderNote(order)}</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <OrderDecisions order={order} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </AdminPage>
   );
 }
 
 /** Orders from the firm's own checkout are marked as paid by hand, and orders not paid through Stripe as refunded. */
 function OrderDecisions({ order }: { order: Order }) {
-  const decision = useOrderDecision();
-  const amount = `${formatMoney(order.amount)} ${order.currency}`;
-
-  const markPaid = () => {
-    const reference = window.prompt(`Mark order #${order.number} of ${amount} as paid? Its challenge starts. Your reference for the payment (optional):`);
-    if (reference !== null) {
-      decision.mutate({ kind: "mark-paid", orderId: order.id, reference: reference.trim() });
-    }
-  };
-
-  const markRefunded = () => {
-    const reference = window.prompt(`Mark order #${order.number} as refunded? The account is not cancelled. Your reference for the refund (optional):`);
-    if (reference !== null) {
-      decision.mutate({ kind: "mark-refunded", orderId: order.id, reference: reference.trim() });
-    }
-  };
-
+  const [dialog, setDialog] = useState<"mark-paid" | "mark-refunded" | null>(null);
   if (!canMarkPaid(order) && !canMarkRefunded(order)) {
     return null;
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex justify-end gap-2">
-        {canMarkPaid(order) && (
-          <button type="button" disabled={decision.isPending} onClick={markPaid} className={buttonClass}>
-            Mark as paid
-          </button>
-        )}
-        {canMarkRefunded(order) && (
-          <button type="button" disabled={decision.isPending} onClick={markRefunded} className={secondaryButtonClass}>
-            Mark as refunded
-          </button>
-        )}
-      </div>
-      <ErrorText error={decision.error} />
+    <div className="flex flex-wrap justify-end gap-2">
+      {canMarkPaid(order) && (
+        <button type="button" onClick={() => setDialog("mark-paid")} className={`${buttonClass} text-sm`}>
+          Mark as paid
+        </button>
+      )}
+      {canMarkRefunded(order) && (
+        <button type="button" onClick={() => setDialog("mark-refunded")} className={`${secondaryButtonClass} text-sm`}>
+          Mark as refunded
+        </button>
+      )}
+      {dialog && <OrderDialog order={order} kind={dialog} onClose={() => setDialog(null)} />}
     </div>
+  );
+}
+
+function OrderDialog({ order, kind, onClose }: { order: Order; kind: "mark-paid" | "mark-refunded"; onClose: () => void }) {
+  const decision = useOrderDecision();
+  const formId = useId();
+  const [reference, setReference] = useState("");
+  const amount = `${formatMoney(order.amount)} ${order.currency}`;
+  const paid = kind === "mark-paid";
+
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    decision.mutate({ kind, orderId: order.id, reference: reference.trim() }, { onSuccess: onClose });
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={paid ? `Mark order #${order.number} of ${amount} as paid?` : `Mark order #${order.number} as refunded?`}
+      description={paid ? `${order.email}. Its challenge starts at once.` : `${order.email}. The account is not cancelled: cancel it on the account if you want to.`}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={secondaryButtonClass}>
+            Cancel
+          </button>
+          <button type="submit" form={formId} disabled={decision.isPending} className={buttonClass}>
+            {decision.isPending ? "Saving..." : paid ? "Mark as paid" : "Mark as refunded"}
+          </button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={submit} className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">
+            Your reference for the {paid ? "payment" : "refund"} <span className="font-normal text-muted">(optional)</span>
+          </span>
+          <input value={reference} onChange={(e) => setReference(e.target.value)} className={fieldClass} />
+        </label>
+        <ErrorText error={decision.error} />
+      </form>
+    </Modal>
   );
 }

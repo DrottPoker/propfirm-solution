@@ -22,7 +22,7 @@ import {
 import { useDebounced } from "@/lib/useDebounced";
 import { reviewStatusLabels } from "@/lib/verification";
 
-import { buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /**
  * What the firm pays us (ADR 0020). In the sandbox, the firm goes live by paying the startup fee and its first
@@ -42,7 +42,8 @@ export function AdminBilling({ returnedFromCheckout }: { returnedFromCheckout: b
 
   const data = billing.data;
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
+    <AdminPage narrow>
+      <PageHeader title="Plan and billing" description="What you pay us: your slots, your card and your charges. A slot is one open challenge, from when it starts until it ends." />
       {waiting && <PaymentConfirmation billing={data} onDone={() => setWaiting(false)} />}
       {data.status !== "Live" ? (
         <GoLive billing={data} />
@@ -60,7 +61,7 @@ export function AdminBilling({ returnedFromCheckout }: { returnedFromCheckout: b
           <p className="text-sm text-muted">Your slots are complimentary, so there is nothing to pay.</p>
         </Panel>
       )}
-    </main>
+    </AdminPage>
   );
 }
 

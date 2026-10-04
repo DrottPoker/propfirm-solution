@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { terminalUrl, tradingPort } from "../playwright.config";
-import { acceptInvitation, admin, firmName, logIn } from "./support";
+import { acceptInvitation, admin, firmName, logIn, startChallenge } from "./support";
 
 test("visitors who are not logged in are sent to the login page of the firm", async ({ page }) => {
   await page.goto("/");
@@ -31,9 +31,7 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
 
   // The firm's administrator starts the challenge and waits for its trading account.
   await logIn(page, "/admin/login", admin.email, admin.password);
-  await page.getByLabel("Trader email").fill(email);
-  await page.getByRole("button", { name: "Start challenge" }).click();
-  await expect(page).toHaveURL(/\/admin\/accounts\/[0-9a-f-]+$/);
+  await startChallenge(page, email);
   await expect(page.getByText(/Trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
   const tradingAccountId = (await page.getByText(/Trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
 
@@ -65,8 +63,9 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
   expect((await login.json()).accounts).toContain(tradingAccountId);
   await trader.close();
 
-  // The firm cancels the account, and its trading account is closed.
-  page.once("dialog", (dialog) => dialog.accept());
+  // The firm cancels the account, and its trading account is closed. The dialog asks first.
   await page.getByRole("button", { name: "Cancel account" }).click();
-  await expect(page.getByText("Cancelled by the firm.")).toBeVisible();
+  await page.getByRole("dialog").getByLabel(/^Reason/).fill("Refunded.");
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel account" }).click();
+  await expect(page.getByText(/^Cancelled by the firm on /)).toBeVisible();
 });

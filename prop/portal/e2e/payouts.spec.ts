@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import { terminalUrl, tradingPort } from "../playwright.config";
-import { acceptInvitation, admin, logIn } from "./support";
+import { acceptInvitation, admin, adminLink, logIn, startChallenge } from "./support";
 
 const tradingUrl = `http://localhost:${tradingPort}`;
 
@@ -35,9 +35,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
 
   // The firm starts the challenge and invites the trader.
   await logIn(page, "/admin/login", admin.email, admin.password);
-  await page.getByLabel("Trader email").fill(email);
-  await page.getByLabel("Challenge").selectOption("quick-test-100k");
-  await page.getByRole("button", { name: "Start challenge" }).click();
+  await startChallenge(page, email, /^Quick test 100000 USD/);
   const phaseOne = page.getByText(/Trading account demo-firm-\d+-1/);
   await expect(phaseOne).toBeVisible({ timeout: 20_000 });
   const accountBase = (await phaseOne.textContent())!.match(/demo-firm-\d+/)![0];
@@ -62,6 +60,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   }
 
   await page.getByRole("button", { name: "Approve funded account" }).click({ timeout: 20_000 });
+  await page.getByRole("dialog").getByRole("button", { name: "Approve funded account" }).click();
   const funded = `${accountBase}-3`;
   await expect(page.getByText(`Trading account ${funded}`)).toBeVisible({ timeout: 20_000 });
   await deposit(request, funded, 8_000);
@@ -89,14 +88,18 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   expect(lines[0]).toBe("Position,Symbol,Side,Volume,Opened (UTC),Open price,Closed (UTC),Close price,Profit,Commission,Result,Close reason");
   expect(lines.slice(1).every((line) => line.includes(",EURUSD,Buy,0.01,"))).toBeTruthy();
 
-  // The firm approves, sends the money and marks the payout as paid.
-  await page.getByRole("link", { name: "Payouts" }).click();
+  // The firm approves the payout waiting for it, sends the money and marks the payout as paid.
+  await adminLink(page, "Payouts").click();
   const row = page.getByRole("row").filter({ hasText: email });
   await row.getByRole("button", { name: "Approve" }).click();
-  page.once("dialog", (dialog) => dialog.accept("wire-e2e"));
-  await row.getByRole("button", { name: "Mark as paid" }).click();
   await expect(row).toHaveCount(0);
-  await page.getByRole("button", { name: "All" }).click();
+  await page.getByRole("button", { name: /^To pay/ }).click();
+  await row.getByRole("button", { name: "Mark as paid" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(/^Your reference/).fill("wire-e2e");
+  await dialog.getByRole("button", { name: "Mark as paid" }).click();
+  await expect(row).toHaveCount(0);
+  await page.getByRole("button", { name: "All", exact: true }).click();
   await expect(row.getByText("Paid. Reference wire-e2e.")).toBeVisible();
 
   await expect(trader.getByText("Paid. Reference wire-e2e.")).toBeVisible({ timeout: 20_000 });

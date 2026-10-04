@@ -58,7 +58,9 @@ På firmans adress:
 | `POST /admin/welcome` | Alla | `{ "token" }` från `adminUrl`. Loggar in administratören. Länken gäller en gång i 10 minuter. |
 | `POST /admin/invites/accept` | Alla | `{ "token", "password" }`. Skapar administratören från en inbjudan och loggar in. |
 | `GET /admin/firm` | Admin | Firmans id, namn, status, portalens adress, utseende, server på handelsplattformen, om en API-nyckel finns, webhookens adress och betalningarna. |
-| `PUT /admin/firm/branding` | Admin | `{ "logoUrl", "colors" }`. Loggan är en https-adress eller tom, färgerna portalens färger som `#rrggbb`. |
+| `PUT /admin/firm/branding` | Admin | `{ "colors" }`, portalens färger som `#rrggbb`, också texten på accentfärgen (`accent-foreground`). |
+| `PUT /admin/firm/logo` | Admin | Laddar upp loggan i formulärfältet `file`: PNG, JPEG, WebP eller SVG upp till 1 MB, känd på sitt innehåll. 413 för en större och 422 för något annat, också en SVG med skript, händelser, inbäddade sidor eller entiteter (ADR 0023). |
+| `DELETE /admin/firm/logo` | Admin | Tar bort loggan, så att portalen visar firmans namn. |
 | `POST /admin/firm/api-key` | Admin | En ny nyckel till firmans API. Visas bara nu, och den gamla slutar fungera. |
 | `PUT /admin/firm/webhook` | Admin | `{ "url" }`, en https-adress eller tom för ingen. Första gången skapas en hemlighet, som visas i svaret. |
 | `POST /admin/firm/webhook/secret` | Admin | En ny hemlighet för webhooks. Visas bara nu. |
@@ -79,9 +81,11 @@ På firmans adress:
 | `/verify?token=` | Plattformens | Bekräftar e-postadressen och skickar vidare till firmans adminpanel. |
 | `/admin/welcome?token=` | Firmans | Loggar in administratören efter registreringen. |
 | `/admin/invite?token=` | Firmans | En inbjuden administratör väljer lösenord. |
-| `/admin/challenges` | Firmans | Firmans challenges. Ny challenge från mall, och ändring av befintliga. |
+| `/admin` | Firmans | I sandlådan stegen till live: servern, challenges, priser, betalning, utseende, att prova som trader, vår granskning och att gå live. Se [specen för portalen](portal.md). |
+| `/admin/challenges` | Firmans | Firmans challenges. Ny challenge från mall, kopia av en annan och ändring av befintliga. |
 | `/admin/team` | Firmans | Administratörer, inbjudningar och borttagning. |
-| `/admin/settings` | Firmans | Logga och färger med förhandsvisning, API-nyckel och webhook. |
+| `/admin/design` | Firmans | Logga, tema och färger med förhandsvisning. |
+| `/admin/integrations` | Firmans | API-nyckel och webhook. |
 
 Alla sidor på en firma i sandlådan visar en rad om att det är en testmiljö. Medan servern skapas visar adminpanelen det, och knappen för att starta en challenge väntar.
 
@@ -93,6 +97,7 @@ Propfirm-tjänsten:
 |---|---|
 | `firms` | Firman: namn, status, om den är konfigurerad, hash av API-nyckeln, server, krypterad nyckel, grupp och valuta på handelsplattformen, webhookens adress och krypterade hemlighet, portalens adress, logga, färger, villkorens version och när de godkändes. |
 | `firm_hosts` | Värdnamnen portalen nås på. Ett värdnamn hör till en firma. |
+| `firm_logos` | Loggan firman laddat upp: innehållstypen, filen och dess SHA-256, som är en del av adressen portalen visar den på. |
 | `firm_signups` | Registreringar som väntar på bekräftelse: namnen, e-post, hash av lösenordet och av länkens token, när den går ut och när den användes. |
 | `admin_invites` | Inbjudningar till administratörer: hash av token, e-post, när den går ut och när den användes. |
 | `admin_login_links` | Engångslänkar som loggar in en administratör: hash av token, administratören och när den går ut. |

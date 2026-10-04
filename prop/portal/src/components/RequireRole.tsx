@@ -5,13 +5,16 @@ import { useEffect } from "react";
 
 import { useMe, type Role } from "@/lib/queries";
 
-import { BillingNotice } from "./BillingNotice";
+import { AdminShell } from "./AdminShell";
 import { PortalHeader } from "./PortalHeader";
 import { Message } from "./ui";
 
 const loginOf: Record<Role, string> = { trader: "/login", admin: "/admin/login" };
 
-/** Shows the page to someone logged in with the role, and sends others to the role's login. */
+/**
+ * Shows the page to someone logged in with the role, and sends others to the role's login. Traders get the portal's
+ * header above the page, and administrators the admin panel's menu beside it.
+ */
 export function RequireRole({ role, children }: { role: Role; children: React.ReactNode }) {
   const router = useRouter();
   const me = useMe(role);
@@ -30,10 +33,11 @@ export function RequireRole({ role, children }: { role: Role; children: React.Re
     return <Message text="Loading..." />;
   }
 
-  return (
+  return role === "admin" ? (
+    <AdminShell me={me.data}>{children}</AdminShell>
+  ) : (
     <>
-      <PortalHeader me={me.data} role={role} />
-      {role === "admin" && <BillingNotice />}
+      <PortalHeader me={me.data} />
       {children}
     </>
   );

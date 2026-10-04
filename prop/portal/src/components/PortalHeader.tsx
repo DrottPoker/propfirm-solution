@@ -4,81 +4,23 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { useBranding } from "@/app/providers";
-
 import type { Me } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
-import { useLogout, useShop, type Role } from "@/lib/queries";
+import { useLogout, useShop } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
 import { buttonClass } from "./ui";
-
-/** The firm's name, the way around the portal, and who is logged in. */
-export function PortalHeader({ me, role }: { me: Me; role: Role }) {
-  return role === "admin" ? <AdminHeader me={me} /> : <TraderHeader me={me} />;
-}
-
-function AdminHeader({ me }: { me: Me }) {
-  const logout = useLogout("admin");
-  const branding = useBranding();
-  const router = useRouter();
-
-  return (
-    <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-border bg-panel px-6 py-3 text-sm">
-      <Link href="/admin">
-        <FirmName />
-      </Link>
-      <span className="rounded bg-accent/20 px-2 py-0.5 text-accent">Admin</span>
-      <nav aria-label="Admin" className="flex gap-4">
-        <Link href="/admin" className="hover:text-accent">
-          Accounts
-        </Link>
-        <Link href="/admin/payouts" className="hover:text-accent">
-          Payouts
-        </Link>
-        <Link href="/admin/orders" className="hover:text-accent">
-          Orders
-        </Link>
-        <Link href="/admin/challenges" className="hover:text-accent">
-          Challenges
-        </Link>
-        <Link href="/admin/team" className="hover:text-accent">
-          Team
-        </Link>
-        <Link href="/admin/billing" className="hover:text-accent">
-          Billing
-        </Link>
-        {branding.status !== "Live" && (
-          <Link href="/admin/verification" className="hover:text-accent">
-            Verification
-          </Link>
-        )}
-        <Link href="/admin/settings" className="hover:text-accent">
-          Settings
-        </Link>
-      </nav>
-      <span className="ml-auto flex items-center gap-4 text-muted">
-        {me.email}
-        <button
-          type="button"
-          className="hover:text-foreground"
-          disabled={logout.isPending}
-          onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/admin/login") })}
-        >
-          Log out
-        </button>
-      </span>
-    </header>
-  );
-}
 
 const traderLinks = [
   { href: "/", label: "Accounts", matches: (path: string) => path === "/" || path.startsWith("/accounts") },
   { href: "/payouts", label: "Payouts", matches: (path: string) => path.startsWith("/payouts") },
 ];
 
-/** The trader's way around: accounts and payouts, the firm's shop, and a menu with the email and log out. On a phone the links move into the menu. */
-function TraderHeader({ me }: { me: Me }) {
+/**
+ * The firm's name and the trader's way around: accounts and payouts, the firm's shop, and a menu with the email and log
+ * out. On a phone the links move into the menu. Administrators have the admin panel's menu instead.
+ */
+export function PortalHeader({ me }: { me: Me }) {
   const shop = useShop(true);
   const path = usePathname();
   const canBuy = shop.data?.open === true;

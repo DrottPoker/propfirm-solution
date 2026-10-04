@@ -18,7 +18,7 @@ import {
   type ApplicationForm,
 } from "@/lib/verification";
 
-import { buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /**
  * Our review of the firm before it goes live (ADR 0021). The firm fills in its company's details, adds documents if
@@ -38,7 +38,8 @@ export function AdminVerification({ returnedFromCheckout }: { returnedFromChecko
 
   const data = verification.data;
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
+    <AdminPage narrow>
+      <PageHeader title="Verification" description="We review every firm before it goes live. Send your company's details here, and follow our review." />
       {waiting && (data.status === "Draft" || data.status === "Submitted") && <DepositConfirmation verification={data} onDone={() => setWaiting(false)} />}
       <Panel title="Verification" actions={<span className="rounded bg-accent/20 px-2 py-0.5 text-sm text-accent">{reviewStatusLabels[data.status]}</span>}>
         <p className="text-sm text-muted">{reviewText(data)}</p>
@@ -50,7 +51,7 @@ export function AdminVerification({ returnedFromCheckout }: { returnedFromChecko
         {data.submittedAt && <p className="text-xs text-muted">Sent {formatDateTime(data.submittedAt)}</p>}
       </Panel>
       <ApplicationEditor key={`${data.status}-${data.canEdit}`} verification={data} />
-    </main>
+    </AdminPage>
   );
 }
 

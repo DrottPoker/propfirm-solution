@@ -117,6 +117,7 @@ builder.Services.AddSingleton<ChallengeQueries>();
 builder.Services.AddSingleton<PayoutQueries>();
 builder.Services.AddSingleton<TradingHistoryQueries>();
 builder.Services.AddSingleton<AccountDetailsBuilder>();
+builder.Services.AddSingleton<AdminFigures>();
 builder.Services.AddSingleton<PriceCatalog>();
 builder.Services.AddSingleton<OrderStore>();
 builder.Services.AddSingleton<OrderService>();

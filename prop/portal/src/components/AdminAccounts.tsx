@@ -1,175 +1,181 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import type { ChallengeStatus } from "@/lib/api/types";
-import { statusLabels } from "@/lib/challenge";
-import { formatDateTime, formatMoney } from "@/lib/format";
-import { useChallenges, useFirmAccounts, useFirmSettings, useStartAccount, type AccountFilter } from "@/lib/queries";
+import { accountGroups, accountStatus, groupLabels, stageLabel } from "@/lib/admin";
+import type { AccountGroup } from "@/lib/api/types";
+import { resultTone, toneText } from "@/lib/dashboard";
+import { formatDate, formatMoney, formatSignedMoney } from "@/lib/format";
+import { useAccountSearch, useChallenges } from "@/lib/queries";
+import { useDebounced } from "@/lib/useDebounced";
 
-import { StatusBadge } from "./AccountOverview";
-import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
+import { SearchIcon } from "./icons";
+import { StartChallengeButton } from "./StartChallenge";
+import { AdminPage, Badge, ErrorText, FilterTabs, PageHeader, secondaryButtonClass } from "./ui";
 
-const statuses = Object.keys(statusLabels) as ChallengeStatus[];
+/** Every challenge account at the firm, newest first: found by email, number or reference, in a group and a challenge. */
+export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: AccountGroup; initialSearch: string }) {
+  const [group, setGroup] = useState(initialGroup);
+  const [search, setSearch] = useState(initialSearch);
+  const [challengeId, setChallengeId] = useState("");
+  const query = useDebounced(search, 300);
+  const accounts = useAccountSearch({ search: query, group, challengeId });
+  const challenges = useChallenges();
 
-/** The firm's admin panel: start challenges for traders and find accounts. */
-export function AdminAccounts() {
-  return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-      <NewAccount />
-      <Accounts />
-    </main>
-  );
-}
+  // The address keeps the group and the search, so going back or sharing it shows the same accounts.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (group !== "All") {
+      params.set("group", group);
+    }
 
-function NewAccount() {
-  const router = useRouter();
-  const settings = useFirmSettings();
-  const challenges = useChallenges(settings.data !== undefined && settings.data.status !== "Provisioning");
-  const start = useStartAccount();
-  const [email, setEmail] = useState("");
-  const [chosenChallenge, setChosenChallenge] = useState("");
-  const [reference, setReference] = useState("");
+    if (query.trim()) {
+      params.set("search", query.trim());
+    }
 
-  const list = challenges.data ?? [];
-  const challengeId = chosenChallenge || list[0]?.id || "";
+    window.history.replaceState(null, "", `/admin/accounts${params.size > 0 ? `?${params}` : ""}`);
+  }, [group, query]);
 
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    start.mutate(
-      { email, challengeId, reference: reference.trim() || null },
-      { onSuccess: (account) => router.push(`/admin/accounts/${account.id}`) },
-    );
-  };
-
-  // A firm that just signed up waits for its trading server, and for its first challenge with it.
-  if (settings.data?.status === "Provisioning") {
-    return (
-      <Panel title="Start a challenge">
-        <p role="status" className="text-sm text-muted">
-          Your trading server is being set up. This takes a few seconds.
-        </p>
-      </Panel>
-    );
-  }
+  const pages = accounts.data?.pages ?? [];
+  const rows = pages.flatMap((p) => p.accounts);
+  const counts = pages[0]?.counts;
+  const challengeName = (id: string) => challenges.data?.find((c) => c.id === id)?.name ?? id;
+  const filtered = query.trim() !== "" || challengeId !== "" || group !== "All";
 
   return (
-    <Panel
-      title="Start a challenge"
-      actions={
-        <Link href="/admin/challenges" className="text-sm text-accent hover:underline">
-          Manage challenges
-        </Link>
-      }
-    >
-      <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm">
-          <span className="text-muted">Trader email</span>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Challenge</span>
-          <select required value={challengeId} onChange={(e) => setChosenChallenge(e.target.value)} className={fieldClass}>
-            {list.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.id})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Order reference (optional)</span>
-          <input value={reference} onChange={(e) => setReference(e.target.value)} className={fieldClass} />
-        </label>
-        <button type="submit" disabled={start.isPending || !challengeId} className={buttonClass}>
-          {start.isPending ? "Starting..." : "Start challenge"}
-        </button>
-      </form>
-      <ErrorText error={start.error ?? challenges.error} />
-    </Panel>
-  );
-}
+    <AdminPage>
+      <PageHeader title="Accounts" description="Every challenge account at your firm, the newest first." actions={<StartChallengeButton />} />
 
-function Accounts() {
-  const [filter, setFilter] = useState<AccountFilter>({ email: "", status: "" });
-  const [email, setEmail] = useState("");
-  const accounts = useFirmAccounts(filter);
+      <FilterTabs
+        label="Accounts to show"
+        options={accountGroups.map((g) => ({ value: g, label: groupLabels[g], count: counts?.[countKey[g]], highlight: g === "AwaitingFunding" }))}
+        value={group}
+        onChange={setGroup}
+      />
 
-  const search = (event: React.FormEvent) => {
-    event.preventDefault();
-    setFilter((f) => ({ ...f, email: email.trim() }));
-  };
-
-  return (
-    <Panel title="Accounts">
-      <form onSubmit={search} className="flex flex-wrap items-end gap-3">
-        <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm">
-          <span className="text-muted">Search by email</span>
-          <input type="search" value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Status</span>
-          <select
-            value={filter.status}
-            onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as ChallengeStatus | "" }))}
-            className={fieldClass}
-          >
-            <option value="">All</option>
-            {statuses.map((status) => (
-              <option key={status} value={status}>
-                {statusLabels[status]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className={secondaryButtonClass}>
-          Search
-        </button>
-      </form>
-
-      <ErrorText error={accounts.error} />
-      {accounts.data && accounts.data.length === 0 && <p className="text-sm text-muted">No accounts found.</p>}
-      {accounts.data && accounts.data.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-muted">
-              <tr>
-                <th className="py-2 font-normal">Account</th>
-                <th className="py-2 font-normal">Trader</th>
-                <th className="py-2 font-normal">Challenge</th>
-                <th className="py-2 font-normal">Stage</th>
-                <th className="py-2 font-normal">Status</th>
-                <th className="py-2 text-right font-normal">Balance</th>
-                <th className="py-2 text-right font-normal">Started</th>
-              </tr>
-            </thead>
-            <tbody>
-              {accounts.data.map((account) => (
-                <tr key={account.id} className="border-t border-border">
-                  <td className="py-2">
-                    <Link href={`/admin/accounts/${account.id}`} className="text-accent hover:underline">
-                      #{account.number}
-                    </Link>
-                  </td>
-                  <td className="py-2">{account.email}</td>
-                  <td className="py-2">{account.challengeId}</td>
-                  <td className="py-2">{account.stageName}</td>
-                  <td className="py-2">
-                    <StatusBadge status={account.status} />
-                    {account.paused && account.status !== "Failed" && account.status !== "Cancelled" && (
-                      <span className="ml-2 rounded bg-warning/20 px-2 py-0.5 text-sm text-warning">Paused</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right font-mono tabular-nums">{formatMoney(account.balance)}</td>
-                  <td className="py-2 text-right text-muted">{formatDateTime(account.createdAt)}</td>
-                </tr>
+      <section aria-label="Accounts" className="flex flex-col rounded-lg border border-border bg-panel">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3.5">
+          <label className="flex min-w-0 flex-[1_1_18rem] items-center gap-2 rounded border border-border bg-background px-3 text-muted focus-within:border-accent">
+            <SearchIcon className="size-4 shrink-0" />
+            <span className="sr-only">Search accounts</span>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Email, account number or order reference"
+              className="min-w-0 flex-1 bg-transparent py-2 text-foreground outline-none"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm text-muted">
+            Challenge
+            <select value={challengeId} onChange={(e) => setChallengeId(e.target.value)} className="rounded border border-border bg-background px-2.5 py-2 text-foreground">
+              <option value="">All challenges</option>
+              {(challenges.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </label>
         </div>
-      )}
-    </Panel>
+
+        {accounts.error && (
+          <div className="px-4 py-3">
+            <ErrorText error={accounts.error} />
+          </div>
+        )}
+        {accounts.isPending ? (
+          <p className="px-4 py-6 text-sm text-muted">Loading...</p>
+        ) : rows.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted">
+            {filtered ? "No accounts found." : "No accounts yet. Start a challenge for a trader, or sell one in your portal's shop."}
+          </p>
+        ) : (
+          <div className={`overflow-x-auto transition-opacity ${accounts.isPlaceholderData ? "opacity-60" : ""}`}>
+            <table className="w-full min-w-[60rem] text-sm">
+              <thead className="text-left text-muted">
+                <tr>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Account
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Trader
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Stage
+                  </th>
+                  <th scope="col" className="px-4 py-3 font-normal">
+                    Status
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-normal">
+                    Balance
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-normal">
+                    Trading days
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-right font-normal">
+                    Started
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((account) => {
+                  const status = accountStatus(account);
+                  const result = account.balance === null ? null : account.balance - account.initialBalance;
+                  return (
+                    <tr key={account.id} className={`border-t border-border ${account.status === "AwaitingFunding" ? "bg-warning/5" : ""}`}>
+                      <td className="px-4 py-3">
+                        <Link href={`/admin/accounts/${account.id}`} className="flex flex-col" aria-label={`Account #${account.number}, ${challengeName(account.challengeId)}`}>
+                          <span className="font-mono text-accent">#{account.number}</span>
+                          <span className="text-xs text-muted">{challengeName(account.challengeId)}</span>
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {account.email}
+                        {account.reference && <span className="block text-xs text-muted">Ref. {account.reference}</span>}
+                      </td>
+                      <td className={`px-4 py-3 ${account.funded && account.status !== "Failed" && account.status !== "Cancelled" ? "text-profit" : ""}`}>{stageLabel(account)}</td>
+                      <td className="px-4 py-3">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        {formatMoney(account.balance)}
+                        {result !== null && <span className={`block text-xs ${toneText[resultTone(result)]}`}>{formatSignedMoney(result)}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        {account.tradingDays} of {account.minTradingDays}
+                      </td>
+                      <td className="px-4 py-3 text-right text-muted">{formatDate(account.createdAt)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {rows.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-sm text-muted">
+            <span>
+              Showing {rows.length}
+              {counts && ` of ${counts[countKey[group]]}`}
+            </span>
+            {accounts.hasNextPage && (
+              <button type="button" onClick={() => accounts.fetchNextPage()} disabled={accounts.isFetchingNextPage} className={`${secondaryButtonClass} text-foreground`}>
+                {accounts.isFetchingNextPage ? "Loading..." : "Show more"}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+    </AdminPage>
   );
 }
+
+const countKey = {
+  All: "all",
+  Evaluation: "evaluation",
+  AwaitingFunding: "awaitingFunding",
+  Funded: "funded",
+  Ended: "ended",
+} as const satisfies Record<AccountGroup, string>;

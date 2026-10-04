@@ -106,6 +106,43 @@ internal static class PlatformEmails
             """,
             firmName);
 
+    /// <summary>
+    /// A trader's invitation to the firm's portal after the firm started a challenge for them. Sent in the firm's name,
+    /// since it is the firm's challenge.
+    /// </summary>
+    public static EmailMessage InviteTrader(string firmName, string challengeName, string to, Uri link, TimeSpan lifetime) =>
+        new(
+            to,
+            $"Your {challengeName} with {firmName} has started",
+            $"""
+            Hi,
+
+            {firmName} has started {challengeName} for you. Open this link to choose a password for {firmName}'s portal, where you follow your challenge and open the trading terminal:
+
+            {link}
+
+            The link works once, within {lifetime.TotalDays:0} days.
+
+            {firmName}
+            """,
+            firmName);
+
+    /// <summary>The firm started another challenge for a trader who already has a password for its portal.</summary>
+    public static EmailMessage ChallengeStarted(string firmName, string challengeName, string to, Uri accountUrl) =>
+        new(
+            to,
+            $"Your {challengeName} with {firmName} has started",
+            $"""
+            Hi,
+
+            {firmName} has started {challengeName} for you. Log in to {firmName}'s portal to follow it and open the trading terminal:
+
+            {accountUrl}
+
+            {firmName}
+            """,
+            firmName);
+
     /// <summary>A charge of the firm's saved card was declined.</summary>
     public static EmailMessage PaymentDeclined(
         string platform,

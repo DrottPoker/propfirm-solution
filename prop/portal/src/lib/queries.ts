@@ -2,9 +2,10 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 
 import { ApiError, api, resultOf } from "./api/client";
 import type {
+  AccountGroup,
   ChallengeDefinition,
-  ChallengeStatus,
   FirmApplication,
+  FirmSettings,
   FirmDocument,
   OrderStatus,
   PaymentProvider,
@@ -118,38 +119,50 @@ export function useMyAccount(accountId: string | null) {
 }
 
 /**
- * How a stage of the account has gone, or the latest stage without one. Asked again only when the account's
- * history version changes, and the last answer stays on screen while the next one loads.
+ * How a stage of the account has gone, or the latest stage without one: the trader's own, or for the firm any of its
+ * accounts. Asked again only when the account's history version changes, and the last answer stays on screen while
+ * the next one loads.
  */
-export function usePerformance(accountId: string, stage: number | null, historyVersion: string) {
+export function usePerformance(accountId: string, stage: number | null, historyVersion: string, role: Role = "trader") {
   return useQuery({
-    queryKey: ["performance", accountId, stage, historyVersion],
-    queryFn: async () =>
-      resultOf(
-        await api.GET("/api/portal/accounts/{accountId}/performance", { params: { path: { accountId }, query: { stage: stage ?? undefined } } }),
+    queryKey: ["performance", role, accountId, stage, historyVersion],
+    queryFn: async () => {
+      const request = { params: { path: { accountId }, query: { stage: stage ?? undefined } } };
+      return resultOf(
+        role === "admin"
+          ? await api.GET("/api/portal/admin/accounts/{accountId}/performance", request)
+          : await api.GET("/api/portal/accounts/{accountId}/performance", request),
         "the account's history",
-      ),
+      );
+    },
     staleTime: Infinity,
     placeholderData: keepPreviousData,
   });
 }
 
 /** The stage's closed positions, newest first, a page at a time. Asked again when the history version changes. */
-export function useTrades(accountId: string, stage: number | null, historyVersion: string) {
+export function useTrades(accountId: string, stage: number | null, historyVersion: string, role: Role = "trader") {
   return useInfiniteQuery({
-    queryKey: ["trades", accountId, stage, historyVersion],
-    queryFn: async ({ pageParam }) =>
-      resultOf(
-        await api.GET("/api/portal/accounts/{accountId}/trades", {
-          params: { path: { accountId }, query: { stage: stage ?? undefined, before: pageParam ?? undefined, limit: tradesPerPage } },
-        }),
+    queryKey: ["trades", role, accountId, stage, historyVersion],
+    queryFn: async ({ pageParam }) => {
+      const request = { params: { path: { accountId }, query: { stage: stage ?? undefined, before: pageParam ?? undefined, limit: tradesPerPage } } };
+      return resultOf(
+        role === "admin"
+          ? await api.GET("/api/portal/admin/accounts/{accountId}/trades", request)
+          : await api.GET("/api/portal/accounts/{accountId}/trades", request),
         "the closed trades",
-      ),
+      );
+    },
     initialPageParam: null as number | null,
     getNextPageParam: (page) => page.next,
     staleTime: Infinity,
     placeholderData: keepPreviousData,
   });
+}
+
+/** Where the stage's closed positions are as a CSV file, for the trader or the firm. */
+export function tradesCsvUrl(accountId: string, stage: number, role: Role = "trader"): string {
+  return `/api/portal/${role === "admin" ? "admin/" : ""}accounts/${accountId}/trades.csv?stage=${stage}`;
 }
 
 /** How many closed trades are shown at first, and added by each "Show more". */
@@ -195,20 +208,92 @@ export function useChallenges(enabled = true) {
   });
 }
 
-export type AccountFilter = { email: string; status: ChallengeStatus | "" };
+/** What the admin panel looks for among the firm's accounts. */
+export type AccountQuery = { search: string; group: AccountGroup; challengeId: string };
 
-/** The firm's newest accounts, optionally one trader's or those with a status. */
-export function useFirmAccounts(filter: AccountFilter) {
-  return useQuery({
-    queryKey: ["firm-accounts", filter],
-    queryFn: async () =>
+/** How many accounts the admin panel shows at first, and adds with each "Show more". */
+export const accountsPerPage = 50;
+
+/** The firm's accounts the search finds in the group, newest first, a page at a time, with how many are in each group. */
+export function useAccountSearch(query: AccountQuery) {
+  return useInfiniteQuery({
+    queryKey: ["firm-accounts", query],
+    queryFn: async ({ pageParam }) =>
       resultOf(
         await api.GET("/api/portal/admin/accounts", {
-          params: { query: { email: filter.email || undefined, status: filter.status || undefined, limit: 200 } },
+          params: {
+            query: {
+              search: query.search.trim() || undefined,
+              group: query.group,
+              challengeId: query.challengeId || undefined,
+              before: pageParam ?? undefined,
+              limit: accountsPerPage,
+            },
+          },
         }),
         "the accounts",
       ),
-    refetchInterval: liveRefreshMs,
+    initialPageParam: null as number | null,
+    getNextPageParam: (page) => page.next,
+    placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
+  });
+}
+
+/** The firm's accounts that wait for a funded account, the newest few with how many there are. */
+export function useWaitingAccounts(limit: number) {
+  return useQuery({
+    queryKey: ["firm-accounts", "waiting", limit],
+    queryFn: async () =>
+      resultOf(await api.GET("/api/portal/admin/accounts", { params: { query: { group: "AwaitingFunding", limit } } }), "the accounts waiting for you"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** A trader's accounts at the firm, for example to see whether an email is a trader already. Not asked for an empty email. */
+export function useTraderAccounts(email: string) {
+  return useQuery({
+    queryKey: ["firm-accounts", "trader", email],
+    enabled: email.length > 0,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/accounts", { params: { query: { search: email, limit: 20 } } }), "the trader's accounts"),
+    staleTime: 30_000,
+  });
+}
+
+/** How the firm is doing: its accounts, payouts, sales, pass rate, weeks and what happened lately. */
+export function useAdminOverview() {
+  return useQuery({
+    queryKey: ["admin-overview"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/overview"), "the overview"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** The account's trader: their accounts at the firm, what they bought and were paid out, and the order behind the account. */
+export function useTraderSummary(accountId: string) {
+  return useQuery({
+    queryKey: ["trader-summary", accountId],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/accounts/{accountId}/trader", accountPath(accountId)), "the trader"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** Emails the account's trader in the firm's name: an invitation to choose a password, or that the challenge has started. */
+export function useEmailTrader() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string) =>
+      resultOf(await api.POST("/api/portal/admin/accounts/{accountId}/email-trader", accountPath(accountId)), "the email"),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["trader-summary"] }),
+  });
+}
+
+/** Each challenge's open accounts, those started in the last 30 days and its pass rate in the last 90. */
+export function useChallengeFigures() {
+  return useQuery({
+    queryKey: ["challenge-figures"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/challenges/figures"), "the challenges' figures"),
+    refetchInterval: 60_000,
   });
 }
 
@@ -233,7 +318,12 @@ export function useStartAccount() {
   return useMutation({
     mutationFn: async (body: { email: string; challengeId: string; reference: string | null }) =>
       resultOf(await api.POST("/api/portal/admin/accounts", { body }), "the new account"),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["firm-accounts"] }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["firm-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["billing"] }),
+      ]),
   });
 }
 
@@ -253,17 +343,28 @@ export function useAccountCommand(accountId: string) {
         queryClient.invalidateQueries({ queryKey: ["firm-account", accountId] }),
         queryClient.invalidateQueries({ queryKey: ["history", accountId] }),
         queryClient.invalidateQueries({ queryKey: ["firm-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
+        queryClient.invalidateQueries({ queryKey: ["trader-summary"] }),
       ]),
   });
 }
 
-/** The firm's newest payouts, all of them or only those with the statuses. */
-export function useFirmPayouts(statuses: PayoutStatus[]) {
+/** The firm's payouts with the statuses, or all: the oldest first for a queue the firm works through, otherwise the newest. */
+export function useAdminPayouts(statuses: PayoutStatus[], oldestFirst: boolean) {
   return useQuery({
-    queryKey: ["firm-payouts", statuses],
+    queryKey: ["firm-payouts", statuses, oldestFirst],
     queryFn: async () =>
-      resultOf(await api.GET("/api/portal/admin/payouts", { params: { query: { status: statuses, limit: 200 } } }), "the payouts"),
+      resultOf(await api.GET("/api/portal/admin/payouts", { params: { query: { status: statuses, oldestFirst, limit: 200 } } }), "the payouts"),
     refetchInterval: liveRefreshMs,
+  });
+}
+
+/** The payouts to approve and to pay, and those paid in the last 30 days. */
+export function usePayoutSummary() {
+  return useQuery({
+    queryKey: ["payout-summary"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/payouts/summary"), "the payouts"),
+    refetchInterval: 15_000,
   });
 }
 
@@ -296,7 +397,10 @@ export function usePayoutDecision() {
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: ["firm-payouts"] }),
+        queryClient.invalidateQueries({ queryKey: ["payout-summary"] }),
+        queryClient.invalidateQueries({ queryKey: ["admin-overview"] }),
         queryClient.invalidateQueries({ queryKey: ["firm-account"] }),
+        queryClient.invalidateQueries({ queryKey: ["trader-summary"] }),
         queryClient.invalidateQueries({ queryKey: ["history"] }),
       ]),
   });
@@ -318,12 +422,39 @@ export function useFirmSettings() {
   });
 }
 
-/** The firm's logo and colors. The portal shows them after the next page load. */
-export function useSaveBranding() {
+/** The firm's colors. The portal shows them after the next page load. */
+export function useSaveColors() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (body: { logoUrl: string | null; colors: Record<string, string> }) =>
-      resultOf(await api.PUT("/api/portal/admin/firm/branding", { body }), "the look"),
+    mutationFn: async (colors: Record<string, string>) => resultOf(await api.PUT("/api/portal/admin/firm/branding", { body: { colors } }), "the colors"),
+    onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
+/** Uploads the firm's logo, which replaces the earlier one. The service answers with what is wrong with a file it refuses. */
+export function useUploadLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File): Promise<FirmSettings> => {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/portal/admin/firm/logo", { method: "PUT", body, credentials: "same-origin" });
+      const answer: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw fieldErrorOf(answer, response.status, "the logo");
+      }
+
+      return answer as FirmSettings;
+    },
+    onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
+/** Removes the logo, so the portal shows the firm's name. */
+export function useRemoveLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => resultOf(await api.DELETE("/api/portal/admin/firm/logo"), "the logo"),
     onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
   });
 }

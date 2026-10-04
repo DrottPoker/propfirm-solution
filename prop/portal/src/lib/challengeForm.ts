@@ -55,6 +55,21 @@ export function nextStage(form: ChallengeForm): StageForm {
   return { ...last, name: `Phase ${form.evaluation.length + 1}` };
 }
 
+/**
+ * A percentage of the account size as an amount, rounded to whole cents as the rule engine does, to show beside a rule
+ * while it is written. Null while either is not a number. Accounts get their amounts from Prop.Api.
+ */
+export function amountOf(initialBalance: string, percent: string): number | null {
+  const balance = numberOf(initialBalance);
+  const value = numberOf(percent);
+  if (balance === null || value === null) {
+    return null;
+  }
+
+  const amount = (balance * value) / 100;
+  return (Math.sign(amount) * Math.round(Math.abs(amount) * 100)) / 100;
+}
+
 /** The definition to save, or the first field that is not a number. */
 export function definitionOf(form: ChallengeForm): { definition: ChallengeDefinition } | { problem: string } {
   const balance = numberOf(form.initialBalance);

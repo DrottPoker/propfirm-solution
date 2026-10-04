@@ -930,6 +930,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/logo/{sha256}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sha256: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/login": {
         parameters: {
             query?: never;
@@ -1797,8 +1832,10 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    email?: string;
-                    status?: components["schemas"]["ChallengeStatus"];
+                    search?: string;
+                    group?: components["schemas"]["AccountGroup"];
+                    challengeId?: string;
+                    before?: number;
                     limit?: number;
                 };
                 header?: never;
@@ -1813,7 +1850,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AccountResponse"][];
+                        "application/json": components["schemas"]["AdminAccountsResponse"];
                     };
                 };
             };
@@ -2047,44 +2084,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/portal/admin/payouts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: {
-                    status?: components["schemas"]["PayoutStatus"][];
-                    limit?: number;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["PayoutResponse"][];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/portal/admin/payouts/{payoutId}/approve": {
         parameters: {
             query?: never;
@@ -2204,6 +2203,341 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminOverviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/trader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderSummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/email-trader": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderEmailResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PerformanceResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/trades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                    before?: number;
+                    limit?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradesResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/trades.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["PayoutStatus"][];
+                    oldestFirst?: boolean;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminPayoutResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/payouts/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PayoutSummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/challenges/figures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ChallengeFiguresResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/firm": {
         parameters: {
             query?: never;
@@ -2273,6 +2607,66 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        file?: components["schemas"]["IFormFile"];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -4042,6 +4436,19 @@ export interface components {
             token: null | string;
             password: null | string;
         };
+        /** @description How many accounts are in each group. */
+        AccountCountsResponse: {
+            /** Format: int32 */
+            all: number;
+            /** Format: int32 */
+            evaluation: number;
+            /** Format: int32 */
+            awaitingFunding: number;
+            /** Format: int32 */
+            funded: number;
+            /** Format: int32 */
+            ended: number;
+        };
         /**
          * @description An account as the portal shows it: the account, its trading account valued right now, the challenge it was bought
          *     with, its stages, its results, the evidence if a floor was breached, why it expired if it ran out of time, when it
@@ -4061,6 +4468,11 @@ export interface components {
             payouts: components["schemas"]["PayoutResponse"][];
             historyVersion: string;
         };
+        /**
+         * @description Which accounts the admin panel lists. Evaluation and funded accounts are those trading or opening their trading account.
+         * @enum {unknown}
+         */
+        AccountGroup: "All" | "Evaluation" | "AwaitingFunding" | "Funded" | "Ended";
         /**
          * @description A trader's challenge account. TradingAccountId is the account on the trading platform
          *     for the current stage, which starts at InitialBalance. The figures are what the trading
@@ -4116,6 +4528,46 @@ export interface components {
             /** Format: int32 */
             autoExpandStep: null | number;
         };
+        /**
+         * @description What happened to an account.
+         * @enum {unknown}
+         */
+        ActivityKind: "ChallengeStarted" | "ChallengeBought" | "StagePassed" | "EvaluationPassed" | "FundedStarted" | "ChallengeFailed" | "ChallengeExpired" | "ChallengeCancelled" | "PayoutRequested" | "PayoutPaid" | "PayoutRejected";
+        /**
+         * @description Something that happened to one of the firm's accounts. StageName is the stage passed, started or
+         *     ended on. Amount is the price of a challenge bought, the result of a stage passed, or the payout.
+         *     Reason is why a challenge failed (a FailureReason), expired (an
+         *     ExpiryReason), was cancelled or why a payout was rejected. Reference is the firm's
+         *     reference for a payment.
+         */
+        ActivityResponse: {
+            kind: components["schemas"]["ActivityKind"];
+            /** Format: date-time */
+            time: string;
+            /** Format: uuid */
+            accountId: string;
+            /** Format: int64 */
+            accountNumber: number;
+            email: string;
+            challengeName: string;
+            stageName: null | string;
+            /** Format: double */
+            amount: null | number;
+            currency: null | string;
+            /** Format: int64 */
+            orderNumber: null | number;
+            /** Format: int32 */
+            tradingDays: null | number;
+            reason: null | string;
+            reference: null | string;
+        };
+        /** @description A page of accounts, the counts in each group, and Next to ask for the next page with, if there is one. */
+        AdminAccountsResponse: {
+            accounts: components["schemas"]["AccountResponse"][];
+            counts: components["schemas"]["AccountCountsResponse"];
+            /** Format: int64 */
+            next: null | number;
+        };
         AdminInviteRequest: {
             email: null | string;
         };
@@ -4123,6 +4575,30 @@ export interface components {
             email: string;
             /** Format: date-time */
             expiresAt: string;
+        };
+        /**
+         * @description How the firm is doing: its accounts in each group, its payouts, its sales in the last 30 days, its pass rate in the
+         *     last 90, sales and payouts in each of the last 12 weeks, oldest first, and what happened lately, newest first.
+         */
+        AdminOverviewResponse: {
+            accounts: components["schemas"]["AccountCountsResponse"];
+            payouts: components["schemas"]["PayoutSummaryResponse"];
+            sales: components["schemas"]["SalesResponse"];
+            passRate: components["schemas"]["PassRateResponse"];
+            weeks: components["schemas"]["WeekResponse"][];
+            activity: components["schemas"]["ActivityResponse"][];
+        };
+        /**
+         * @description A payout as the admin panel lists it: the payout, its challenge's name, and how many payouts the account had paid
+         *     before it was asked for, and how much.
+         */
+        AdminPayoutResponse: {
+            payout: components["schemas"]["PayoutResponse"];
+            challengeName: string;
+            /** Format: int32 */
+            paidBefore: number;
+            /** Format: double */
+            paidBeforeAmount: number;
         };
         /** @description IsYou marks the administrator who asked. */
         AdminResponse: {
@@ -4202,9 +4678,8 @@ export interface components {
             depositPaid: number;
             suspension: null | components["schemas"]["SuspensionResponse"];
         };
-        /** @description The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb. */
+        /** @description The portal's colors to override, as #rrggbb. The logo is uploaded on its own. */
         BrandingRequest: {
-            logoUrl: null | string;
             colors: null | {
                 [key: string]: string;
             };
@@ -4291,6 +4766,15 @@ export interface components {
              * @description The index of the funded stage, after the evaluation stages.
              */
             fundedStage?: number;
+        };
+        /** @description A challenge's open accounts, those started in the last 30 days, and its pass rate in the last 90. */
+        ChallengeFiguresResponse: {
+            challengeId: string;
+            /** Format: int32 */
+            trading: number;
+            /** Format: int32 */
+            startedLast30Days: number;
+            passRate: components["schemas"]["PassRateResponse"];
         };
         /** @description What a challenge sells for in the firm's portal, and whether it is for sale there. */
         ChallengePrice: {
@@ -4559,6 +5043,12 @@ export interface components {
             percent: number;
             kind: components["schemas"]["MaxLossKind"];
         };
+        /** @description An amount in one currency. */
+        MoneyTotalResponse: {
+            currency: string;
+            /** Format: double */
+            amount: number;
+        };
         /** @description The month charged next: when, for how many slots and how much. */
         NextChargeResponse: {
             /** Format: date */
@@ -4697,9 +5187,29 @@ export interface components {
          * @enum {unknown}
          */
         OrderStatus: "Pending" | "Paid" | "Expired";
+        /** @description The paid order that started an account. */
+        OrderSummaryResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: double */
+            amount: number;
+            currency: string;
+            provider: components["schemas"]["PaymentProvider"];
+            /** Format: date-time */
+            paidAt: string;
+        };
         /** @description The token from the buyer's link to the order. */
         OrderTokenRequest: {
             token: null | string;
+        };
+        /** @description Of the evaluations that ended in the last 90 days, how many passed every evaluation stage. Cancelled ones are left out. */
+        PassRateResponse: {
+            /** Format: int32 */
+            passed: number;
+            /** Format: int32 */
+            ended: number;
         };
         /**
          * @description Who takes the trader's money when a challenge is bought in the firm's portal (ADR 0019).
@@ -4734,6 +5244,14 @@ export interface components {
             checkoutUrl: null | string;
             /** Format: uri */
             termsUrl: null | string;
+        };
+        /** @description Payouts with a status, their amounts per currency and when the oldest got there: asked for, or approved for those to pay. */
+        PayoutGroupResponse: {
+            /** Format: int32 */
+            count: number;
+            totals: components["schemas"]["MoneyTotalResponse"][];
+            /** Format: date-time */
+            oldest: null | string;
         };
         /**
          * @description What a payout asked for now would pay the trader: ProfitSplitPercent of the profit, which
@@ -4792,6 +5310,17 @@ export interface components {
         };
         /** @enum {unknown} */
         PayoutStatus: "Withdrawing" | "Pending" | "Approved" | "Paid" | "Rejected" | "Failed";
+        /**
+         * @description The payouts to approve, those approved and to pay, those paid in the last 30 days, and how many days those took on
+         *     average from the request to the payment.
+         */
+        PayoutSummaryResponse: {
+            toApprove: components["schemas"]["PayoutGroupResponse"];
+            toPay: components["schemas"]["PayoutGroupResponse"];
+            paidLast30Days: components["schemas"]["PayoutGroupResponse"];
+            /** Format: double */
+            averageDaysToPay: null | number;
+        };
         /**
          * @description What the firm has paid the trader, what is on its way (asked for and not yet paid or rejected), and what the
          *     trader can ask for right now from funded accounts.
@@ -4945,6 +5474,12 @@ export interface components {
         };
         /** @enum {unknown} */
         ReviewStatus: "Draft" | "Submitted" | "ChangesRequested" | "Approved" | "Rejected" | null;
+        /** @description Challenges bought in the portal and paid in the last 30 days, without those refunded. */
+        SalesResponse: {
+            /** Format: int32 */
+            orders: number;
+            totals: components["schemas"]["MoneyTotalResponse"][];
+        };
         ShopItemResponse: {
             challenge: components["schemas"]["ChallengeDefinition"];
             /** Format: double */
@@ -5122,6 +5657,15 @@ export interface components {
             returnPath: string;
         };
         /**
+         * @description What the trader was emailed: an invitation to choose a password, or that the challenge has started.
+         * @enum {unknown}
+         */
+        TraderEmailKind: "Invitation" | "Notice";
+        TraderEmailResponse: {
+            email: string;
+            kind: components["schemas"]["TraderEmailKind"];
+        };
+        /**
          * @description A closed position. Profit is before Commission, which was charged for opening
          *     and closing it, and Result after. CloseReason is the trading platform's, such
          *     as Manual, StopLoss, TakeProfit, StopOut, EquityFloor or AccountClosed.
@@ -5152,6 +5696,23 @@ export interface components {
         TraderPayoutsResponse: {
             payouts: components["schemas"]["PayoutResponse"][];
             totals: components["schemas"]["PayoutTotalResponse"][];
+        };
+        /**
+         * @description An account's trader as the firm sees them: since when, whether they have chosen a password for the portal, their
+         *     accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency, and
+         *     Order, the order that started the account asked about.
+         */
+        TraderSummaryResponse: {
+            email: string;
+            /** Format: date-time */
+            since: string;
+            hasPassword: boolean;
+            accounts: components["schemas"]["AccountResponse"][];
+            /** Format: int32 */
+            orders: number;
+            bought: components["schemas"]["MoneyTotalResponse"][];
+            paidOut: components["schemas"]["MoneyTotalResponse"][];
+            order: null | components["schemas"]["OrderSummaryResponse"];
         };
         /**
          * @description Whether a position was a buy or a sell.
@@ -5244,6 +5805,13 @@ export interface components {
         };
         WebhookSecretResponse: {
             secret: string;
+        };
+        /** @description The week from Monday Start in UTC: challenges bought in the portal and payouts paid, per currency. */
+        WeekResponse: {
+            /** Format: date */
+            start: string;
+            sales: components["schemas"]["MoneyTotalResponse"][];
+            payouts: components["schemas"]["MoneyTotalResponse"][];
         };
         WelcomeRequest: {
             token: null | string;

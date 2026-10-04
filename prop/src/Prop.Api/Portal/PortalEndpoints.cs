@@ -24,8 +24,6 @@ namespace Prop.Api.Portal;
 /// </summary>
 internal static class PortalEndpoints
 {
-    public const int MaxAccountsPerRequest = 500;
-
     // Verified when the email is unknown, so a wrong email takes as long as a wrong password.
     private static readonly Lazy<string> UnknownUserHash = new(() => new PasswordHasher<PortalUser>().HashPassword(null!, Guid.NewGuid().ToString()));
 
@@ -33,6 +31,7 @@ internal static class PortalEndpoints
     {
         var portal = app.MapGroup("/api/portal").WithTags("Portal").AddEndpointFilter<PortalFirmFilter>();
         portal.MapGet("/branding", (HttpContext context) => TypedResults.Ok(BrandingResponse.From(PortalFirmFilter.FirmOf(context))));
+        portal.MapGet("/logo/{sha256}", GetLogoAsync);
         portal.MapPost(
                 "/login",
                 (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, CancellationToken cancellationToken) =>
@@ -64,17 +63,16 @@ internal static class PortalEndpoints
         var admin = portal.MapGroup("/admin").RequireAuthorization(PortalAuth.AdminPolicy);
         admin.MapGet("/me", MeAsync);
         admin.MapGet("/challenges", ListChallengesAsync);
-        admin.MapGet("/accounts", ListAccountsAsync);
         admin.MapPost("/accounts", StartAccountAsync);
         admin.MapGet("/accounts/{accountId:guid}", GetAccountAsync);
         admin.MapGet("/accounts/{accountId:guid}/history", GetHistoryAsync);
         admin.MapPost("/accounts/{accountId:guid}/approve-funding", ApproveFundingAsync);
         admin.MapPost("/accounts/{accountId:guid}/cancel", CancelAsync);
         admin.MapPost("/accounts/{accountId:guid}/invite", InviteAsync);
-        admin.MapGet("/payouts", ListPayoutsAsync);
         admin.MapPost("/payouts/{payoutId:guid}/approve", ApprovePayoutAsync);
         admin.MapPost("/payouts/{payoutId:guid}/mark-paid", MarkPayoutPaidAsync);
         admin.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
+        admin.MapAdminPanel();
         admin.MapAdminSettings();
         admin.MapAdminOrders();
         admin.MapAdminBilling();
@@ -256,22 +254,27 @@ internal static class PortalEndpoints
         CancellationToken cancellationToken) =>
         TypedResults.Ok(await catalog.ListAsync(PortalFirmFilter.FirmOf(context).Id, cancellationToken));
 
-    /// <summary>The firm's newest accounts, optionally one trader's or those with a status.</summary>
-    private static async Task<Results<Ok<List<AccountResponse>>, ProblemHttpResult>> ListAccountsAsync(
+    /// <summary>
+    /// The logo the firm uploaded, at the address its hash is part of. It never changes there, so it is cached for good.
+    /// An SVG opened on its own could otherwise run scripts in the portal's origin, so it is sandboxed.
+    /// </summary>
+    private static async Task<Results<FileContentHttpResult, NotFound>> GetLogoAsync(
+        string sha256,
         HttpContext context,
-        ChallengeQueries queries,
-        CancellationToken cancellationToken,
-        string? email = null,
-        ChallengeStatus? status = null,
-        int limit = 100)
+        FirmStore store,
+        CancellationToken cancellationToken)
     {
-        if (limit is < 1 or > MaxAccountsPerRequest)
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await store.GetLogoAsync(firm.Id, cancellationToken) is not { } logo || Convert.ToHexStringLower(logo.Sha256) != sha256)
         {
-            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, $"limit must be 1 to {MaxAccountsPerRequest}.");
+            return TypedResults.NotFound();
         }
 
-        var views = await queries.ListAsync(PortalFirmFilter.FirmOf(context).Id, string.IsNullOrWhiteSpace(email) ? null : email, status, limit, cancellationToken);
-        return TypedResults.Ok(views.Select(AccountResponse.From).ToList());
+        var headers = context.Response.Headers;
+        headers.CacheControl = "public, max-age=31536000, immutable";
+        headers.XContentTypeOptions = "nosniff";
+        headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+        return TypedResults.File(logo.Content, logo.ContentType);
     }
 
     private static Task<Results<Created<AccountResponse>, Ok<AccountResponse>, ProblemHttpResult>> StartAccountAsync(
@@ -315,15 +318,6 @@ internal static class PortalEndpoints
         TimeProvider time,
         CancellationToken cancellationToken) =>
         AccountActions.ApplyAsync(PortalFirmFilter.FirmOf(context), accountId, FirmEndpoints.Cancel(request, time), challenges, queries, cancellationToken);
-
-    /// <summary>The firm's newest payouts, optionally only those with the given statuses.</summary>
-    private static Task<Results<Ok<List<PayoutResponse>>, ProblemHttpResult>> ListPayoutsAsync(
-        HttpContext context,
-        PayoutQueries payouts,
-        CancellationToken cancellationToken,
-        PayoutStatus[]? status = null,
-        int limit = 100) =>
-        PayoutActions.ListAsync(PortalFirmFilter.FirmOf(context), status, limit, payouts, cancellationToken);
 
     private static Task<Results<Ok<PayoutResponse>, ProblemHttpResult>> ApprovePayoutAsync(
         Guid payoutId,

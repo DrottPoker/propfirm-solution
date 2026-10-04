@@ -130,7 +130,7 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
         var details = await trader.GetFromJsonAsync<JsonElement>(Portal($"accounts/{id}"), TestContext.Current.CancellationToken);
 
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.Created), (notMine.StatusCode, asked.StatusCode));
-        Assert.Equal((payoutId, "anna@test.example"), (Assert.Single(waiting.EnumerateArray()).GetProperty("id").GetGuid(), waiting[0].GetProperty("email").GetString()));
+        Assert.Equal((payoutId, "anna@test.example"), (Assert.Single(waiting.EnumerateArray()).GetProperty("payout").GetProperty("id").GetGuid(), waiting[0].GetProperty("payout").GetProperty("email").GetString()));
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.Unauthorized), (approved.StatusCode, paid.StatusCode, traderApproves.StatusCode));
         var payout = Assert.Single(details.GetProperty("payouts").EnumerateArray());
         Assert.Equal(("Paid", 6_400m), (payout.GetProperty("status").GetString(), payout.GetProperty("amount").GetDecimal()));

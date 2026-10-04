@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { admin, logIn } from "./support";
+import { admin, adminLink, logIn } from "./support";
 
 // The development firm sells its challenges with test payments (appsettings.Development.json), so a purchase
 // runs the whole way without a payment provider.
@@ -26,10 +26,10 @@ test("a visitor buys a challenge with a test payment, and the firm sees the paid
   await expect(page.getByText("Payment received. Your challenge is starting.")).toBeVisible();
 
   await logIn(page, "/admin/login", admin.email, admin.password);
-  await page.getByRole("link", { name: "Orders" }).click();
+  await adminLink(page, "Orders").click();
   const order = page.getByRole("row").filter({ hasText: buyer });
   await expect(order.getByText("Paid", { exact: true })).toBeVisible();
-  await order.getByRole("link", { name: "quick-test-100k" }).click();
+  await order.getByRole("link", { name: "Quick test 100000 USD" }).click();
   await expect(page).toHaveURL(/\/admin\/accounts\/[0-9a-f-]+$/);
   await expect(page.getByText(buyer).first()).toBeVisible();
 });

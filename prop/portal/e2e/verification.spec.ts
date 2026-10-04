@@ -2,13 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import { opsUrl, platformUrl } from "../playwright.config";
 
-import { fillApplication, openAsStaff, sendApplication, signUp } from "./support";
+import { adminLink, fillApplication, openAsStaff, sendApplication, signUp, waitForSandbox } from "./support";
 
 const pdf = Buffer.from("%PDF-1.7\nA certificate of registration\n%%EOF");
 
 test("a new firm is reviewed by our staff, goes live, and can be suspended", async ({ page }) => {
   await signUp(page, "Review E2E Firm", "review-e2e-firm");
-  await expect(page.getByRole("option", { name: /two-step-100k/ })).toBeAttached({ timeout: 20_000 });
+  await waitForSandbox(page);
 
   // The firm fills in its application, adds a document and sends it with the deposit.
   await fillApplication(page, "Review Trading Ltd");
@@ -45,7 +45,7 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await expect(review.getByRole("button", { name: "Approve" })).toHaveCount(0);
 
   // The firm goes live, with the deposit taken off the startup fee.
-  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
+  await adminLink(page, "Plan and billing").click();
   await page.getByLabel("Slots", { exact: true }).fill("30");
   await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 200.00 USD" })).toBeVisible();
   await page.getByRole("button", { name: /and go live$/ }).click();

@@ -22,7 +22,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                f.webhook_url, f.webhook_secret, f.portal_url, f.logo_url, f.colors,
                coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
                f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url,
-               f.suspended_at, f.suspension_reason
+               f.suspended_at, f.suspension_reason, (select l.sha256 from firm_logos l where l.firm_id = f.id)
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -176,8 +176,50 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 cancellationToken);
     }
 
-    public Task SetBrandingAsync(string firmId, string? logoUrl, IReadOnlyDictionary<string, string> colors, DateTimeOffset now, CancellationToken cancellationToken) =>
-        UpdateAsync("logo_url = $2, colors = $3", firmId, [(object?)logoUrl ?? DBNull.Value, Colors(colors)], now, cancellationToken);
+    public Task SetColorsAsync(string firmId, IReadOnlyDictionary<string, string> colors, DateTimeOffset now, CancellationToken cancellationToken) =>
+        UpdateAsync("colors = $2", firmId, [Colors(colors)], now, cancellationToken);
+
+    /// <summary>Saves the logo the firm uploaded. It replaces the firm's earlier logo, uploaded or an address.</summary>
+    public async Task SetLogoAsync(string firmId, FirmLogo logo, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await ExecuteAsync(
+            connection,
+            """
+            insert into firm_logos (firm_id, content_type, content, sha256, updated_at) values ($1, $2, $3, $4, $5)
+            on conflict (firm_id) do update
+            set content_type = excluded.content_type, content = excluded.content, sha256 = excluded.sha256, updated_at = excluded.updated_at
+            """,
+            [firmId, logo.ContentType, logo.Content, logo.Sha256, now],
+            cancellationToken);
+        await ExecuteAsync(connection, "update firms set logo_url = null, updated_at = $2 where id = $1", [firmId, now], cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>Removes the firm's logo, uploaded or an address, so the portal shows the firm's name.</summary>
+    public async Task RemoveLogoAsync(string firmId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await ExecuteAsync(connection, "delete from firm_logos where firm_id = $1", [firmId], cancellationToken);
+        await ExecuteAsync(connection, "update firms set logo_url = null, updated_at = $2 where id = $1", [firmId, now], cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>The logo the firm uploaded, or null when it has none.</summary>
+    public async Task<FirmLogo?> GetLogoAsync(string firmId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("select content_type, content, sha256 from firm_logos where firm_id = $1");
+        command.Parameters.AddWithValue(firmId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? new FirmLogo(reader.GetString(0), reader.GetFieldValue<byte[]>(1), reader.GetFieldValue<byte[]>(2))
+            : null;
+    }
 
     public Task SetApiKeyHashAsync(string firmId, byte[] apiKeyHash, DateTimeOffset now, CancellationToken cancellationToken) =>
         UpdateAsync("api_key_sha256 = $2", firmId, [apiKeyHash], now, cancellationToken);
@@ -251,6 +293,9 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 ? null
                 : new FirmWebhook(new Uri(reader.GetString(8)), secrets.Unprotect(reader.GetString(9), WebhookSecretPurpose(id)));
             var colors = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(12)) ?? [];
+
+            // An uploaded logo is served from the portal's own address, and comes before an address of the firm's own.
+            var logoUrl = !reader.IsDBNull(21) ? FirmLogo.UrlOf(reader.GetFieldValue<byte[]>(21)) : reader.IsDBNull(11) ? null : reader.GetString(11);
             var stripe = reader.IsDBNull(15) || reader.IsDBNull(16)
                 ? null
                 : new StripeKeys(secrets.Unprotect(reader.GetString(15), StripeKeyPurpose(id)), secrets.Unprotect(reader.GetString(16), StripeWebhookSecretPurpose(id)));
@@ -266,7 +311,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 reader.IsDBNull(3) ? null : reader.GetFieldValue<byte[]>(3),
                 trading,
                 webhook,
-                new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, reader.IsDBNull(11) ? null : reader.GetString(11), colors)),
+                new FirmPortal(new Uri(reader.GetString(10)), reader.GetFieldValue<string[]>(13), new Branding(name, logoUrl, colors)),
                 payments,
                 reader.IsDBNull(19) ? null : new FirmSuspension(reader.GetFieldValue<DateTimeOffset>(19), reader.GetString(20))));
         }

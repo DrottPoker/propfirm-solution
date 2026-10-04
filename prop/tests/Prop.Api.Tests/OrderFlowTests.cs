@@ -95,7 +95,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var completed = await StripeWebhooks.SendAsync(factory, "acme", FakeStripe.CheckoutEvent("checkout.session.completed", session));
         using var again = await StripeWebhooks.SendAsync(factory, "acme", FakeStripe.CheckoutEvent("checkout.session.completed", session));
         var order = await GetAsync(buyer, $"orders/{orderId}?token={token}");
-        var accounts = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?email=buyer@test.example"), TestContext.Current.CancellationToken);
+        var accounts = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?search=buyer@test.example"), TestContext.Current.CancellationToken);
 
         Assert.Equal("https://checkout.stripe.test/c/pay/cs_test_1", checkoutUrl);
         Assert.Equal("/v1/checkout/sessions", session.Path);
@@ -105,7 +105,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.StartsWith($"http://acme.localhost:3002/orders/{orderId}?token=", session.Form["success_url"], StringComparison.Ordinal);
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (completed.StatusCode, again.StatusCode));
         Assert.Equal("Paid", order.GetProperty("status").GetString());
-        Assert.Single(accounts.EnumerateArray());
+        Assert.Single(accounts.GetProperty("accounts").EnumerateArray());
     }
 
     [Fact]

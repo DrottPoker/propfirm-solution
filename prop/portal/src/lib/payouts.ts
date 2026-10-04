@@ -41,3 +41,14 @@ export function payoutNote(payout: Payout): string {
       return "The balance changed before the profit could be taken off, so nothing was paid out.";
   }
 }
+
+/** The payouts the admin panel lists: queues the firm works through, the oldest first, and the rest, the newest first. */
+export const payoutViews = [
+  { id: "to-approve", label: "To approve", statuses: ["Pending"], oldestFirst: true },
+  { id: "to-pay", label: "To pay", statuses: ["Approved"], oldestFirst: true },
+  { id: "paid", label: "Paid", statuses: ["Paid"], oldestFirst: false },
+  { id: "rejected", label: "Rejected", statuses: ["Rejected", "Failed"], oldestFirst: false },
+  { id: "all", label: "All", statuses: [], oldestFirst: false },
+] as const satisfies readonly { id: string; label: string; statuses: readonly PayoutStatus[]; oldestFirst: boolean }[];
+
+export type PayoutView = (typeof payoutViews)[number]["id"];

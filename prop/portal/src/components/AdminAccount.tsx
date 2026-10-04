@@ -1,20 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 
-import type { Account } from "@/lib/api/types";
-import { canCancel, kindOf, kindsOf } from "@/lib/challenge";
-import { formatDateTime } from "@/lib/format";
-import { useAccountCommand, useFirmAccount, useHistory, useInvite } from "@/lib/queries";
+import { accountStatus } from "@/lib/admin";
+import type { AccountDetails } from "@/lib/api/types";
+import { canCancel, expiryLabels, failureLabels, kindOf, kindsOf } from "@/lib/challenge";
+import { isTrading } from "@/lib/dashboard";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { useAccountCommand, useChallenges, useFirmAccount, useHistory } from "@/lib/queries";
 
-import { AccountOverview } from "./AccountOverview";
+import { AccountHistory } from "./AccountHistory";
+import { ChallengeRules } from "./ChallengeRules";
+import { Modal } from "./Dialog";
+import { ShieldCheckIcon } from "./icons";
 import { PayoutTable } from "./Payouts";
-import { buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
+import { StageTiles } from "./StageSteps";
+import { KeyFigures, Objectives } from "./TraderAccount";
+import { TraderCard } from "./TraderCard";
+import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass, Tabs } from "./ui";
 
-/** One of the firm's accounts: its figures, what the firm can do with it, its payouts and its full history. */
-export function AdminAccount({ accountId }: { accountId: string }) {
+type Tab = "overview" | "trading" | "payouts" | "log";
+
+/** What the firm was told about the email to the trader, when it started the challenge. */
+export type Emailed = "Invitation" | "Notice" | "failed" | null;
+
+/**
+ * One of the firm's accounts: what the firm must decide about it, where it stands, its trader, its trading history, its
+ * payouts and every step of the rule engine.
+ */
+export function AdminAccount({ accountId, emailed }: { accountId: string; emailed: Emailed }) {
   const details = useFirmAccount(accountId);
+  const challenges = useChallenges();
+  const [tab, setTab] = useState<Tab>("overview");
 
   if (details.isError) {
     return <Message text={details.error.message} />;
@@ -24,104 +42,265 @@ export function AdminAccount({ accountId }: { accountId: string }) {
     return <Message text="Loading..." />;
   }
 
-  const account = details.data.account;
+  const data = details.data;
+  const challengeName = (id: string) => challenges.data?.find((c) => c.id === id)?.name ?? id;
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <Link href="/admin" className="text-sm text-muted hover:text-foreground">
-        ← All accounts
-      </Link>
-      <AccountOverview details={details.data} actions={<span className="text-sm text-muted">{account.email}</span>} />
-      <div className="grid gap-6 md:grid-cols-2">
-        <TraderAccess account={account} />
-        <AccountCommands account={account} />
+    <AdminPage>
+      <Header details={data} />
+      {emailed && <EmailedNotice emailed={emailed} email={data.account.email} />}
+      <Notices details={data} />
+      {data.account.status === "AwaitingFunding" && <FundingDecision details={data} />}
+
+      <Tabs
+        label="Account"
+        tabs={[
+          { value: "overview", label: "Overview" },
+          { value: "trading", label: "Trading" },
+          { value: "payouts", label: "Payouts", count: data.payouts.length },
+          { value: "log", label: "Rule log" },
+        ]}
+        value={tab}
+        onChange={setTab}
+      />
+
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-6">
+        {tab === "overview" && (
+          <>
+            <StageTiles details={data} audience="firm" />
+            <KeyFigures details={data} paidOutLabel="Paid out" />
+            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
+              <Objectives details={data} />
+              <TraderCard account={data.account} challengeName={challengeName} />
+            </div>
+            <ChallengeRules details={data} audience="firm" />
+          </>
+        )}
+        {tab === "trading" && <AccountHistory details={data} now={details.dataUpdatedAt} role="admin" />}
+        {tab === "payouts" &&
+          (data.payouts.length === 0 ? (
+            <p className="text-sm text-muted">{data.account.funded ? "The trader has not asked for a payout yet." : "Payouts come once the account is funded."}</p>
+          ) : (
+            <Panel>
+              <PayoutTable payouts={data.payouts} />
+            </Panel>
+          ))}
+        {tab === "log" && <RuleLog accountId={accountId} />}
       </div>
-      {details.data.payouts.length > 0 && (
-        <Panel title="Payouts">
-          <PayoutTable payouts={details.data.payouts} decisions />
-        </Panel>
-      )}
-      <History accountId={accountId} />
-    </main>
+    </AdminPage>
   );
 }
 
-/** An invitation for the trader to choose a password, for the firm to send. The link is shown only here. */
-function TraderAccess({ account }: { account: Account }) {
-  const invite = useInvite(account.id);
+function Header({ details }: { details: AccountDetails }) {
+  const { account, challenge } = details;
+  const status = accountStatus(account);
+  const [cancelling, setCancelling] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      <nav aria-label="Breadcrumb" className="text-sm text-muted">
+        <Link href="/admin/accounts" className="hover:text-foreground">
+          Accounts
+        </Link>{" "}
+        <span aria-hidden="true">/</span> <span className="text-foreground">#{account.number}</span>
+      </nav>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight">{challenge.name}</h1>
+            <Badge tone={status.tone}>{status.label}</Badge>
+          </div>
+          <p className="text-sm text-muted">
+            Account #{account.number} ·{" "}
+            <Link href={`/admin/accounts?search=${encodeURIComponent(account.email)}`} className="text-accent hover:underline">
+              {account.email}
+            </Link>
+            {account.reference && <> · Ref. {account.reference}</>}
+            {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt)}
+          </p>
+        </div>
+        {canCancel(account) && (
+          <button type="button" onClick={() => setCancelling(true)} className={`${secondaryButtonClass} text-loss`}>
+            Cancel account
+          </button>
+        )}
+      </div>
+      {cancelling && <CancelDialog details={details} onClose={() => setCancelling(false)} />}
+    </div>
+  );
+}
+
+function EmailedNotice({ emailed, email }: { emailed: Exclude<Emailed, null>; email: string }) {
+  const [shown, setShown] = useState(true);
+  if (!shown) {
+    return null;
+  }
+
+  const failed = emailed === "failed";
+  return (
+    <p role="status" className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm ${failed ? "border-warning/40 bg-warning/10" : "border-profit/40 bg-profit/10"}`}>
+      <span className="flex-1">
+        {failed
+          ? `The challenge started, but the email to ${email} could not be sent. Try again from the trader's card below.`
+          : emailed === "Invitation"
+            ? `The challenge started. We emailed ${email} an invitation to choose a password for your portal.`
+            : `The challenge started. We emailed ${email} that it has started.`}
+      </span>
+      <button type="button" onClick={() => setShown(false)} className="text-muted underline hover:text-foreground">
+        Close
+      </button>
+    </p>
+  );
+}
+
+/** Why the account has stopped, or what is happening to it right now. */
+function Notices({ details }: { details: AccountDetails }) {
+  const { account, breach, expiry, endedAt } = details;
+  const notices: { tone: string; text: string }[] = [];
+  switch (account.status) {
+    case "OpeningAccount":
+      notices.push({ tone: "text-warning", text: `The trading account for ${account.stageName} is being opened.` });
+      break;
+    case "Failed":
+      notices.push({
+        tone: "text-loss",
+        text: breach
+          ? `Failed on ${formatDateTime(breach.time)}: equity ${formatMoney(breach.equity)} fell below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`
+          : expiry
+            ? `Ended on ${formatDate(expiry.day)}: ${expiryLabels[expiry.reason]}`
+            : "Failed.",
+      });
+      break;
+    case "Cancelled":
+      notices.push({ tone: "text-muted", text: `Cancelled by the firm${endedAt ? ` on ${formatDateTime(endedAt)}` : ""}.` });
+      break;
+    default:
+      break;
+  }
+
+  if (account.paused && account.status !== "Failed" && account.status !== "Cancelled") {
+    notices.push({
+      tone: "text-warning",
+      text: "Paused while your month is unpaid. The trader can close positions but not open new ones, and the days do not count.",
+    });
+  }
+
+  if (isTrading(details) && !details.live) {
+    notices.push({ tone: "text-muted", text: "The account cannot be valued right now. The figures are as the trading platform last reported them." });
+  }
+
+  return notices.length === 0 ? null : (
+    <div className="flex flex-col gap-2">
+      {notices.map((notice) => (
+        <p key={notice.text} role="status" className={`rounded-lg border border-border bg-panel px-4 py-3 text-sm ${notice.tone}`}>
+          {notice.text}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/** The trader passed every evaluation stage. The firm approves the funded account once its own checks are done. */
+function FundingDecision({ details }: { details: AccountDetails }) {
+  const { account, challenge, stages } = details;
+  const [confirming, setConfirming] = useState(false);
+  const command = useAccountCommand(account.id);
+  const lastPassed = stages.filter((s) => s.progress === "Passed").at(-1)?.passedAt;
 
   return (
-    <Panel title="Portal access">
-      <p className="text-sm text-muted">
-        Send {account.email} an invitation to choose a password for the portal, or a new password if it is forgotten. It works once,
-        within 7 days, and a new one replaces it.
-      </p>
-      <button type="button" disabled={invite.isPending} onClick={() => invite.mutate()} className={secondaryButtonClass}>
-        {invite.isPending ? "Creating..." : "Create invitation link"}
+    <section aria-labelledby="decision" className="flex flex-wrap items-center gap-x-6 gap-y-4 rounded-lg border border-warning/45 bg-warning/5 px-5 py-4">
+      <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg bg-warning/15 text-warning">
+        <ShieldCheckIcon className="size-5" />
+      </span>
+      <div className="flex min-w-0 flex-[1_1_24rem] flex-col gap-1">
+        <h2 id="decision" className="font-semibold">
+          Passed every evaluation stage{lastPassed ? ` on ${formatDate(lastPassed)}` : ""}
+        </h2>
+        <p className="text-sm text-muted">
+          Approve the funded account when your checks, such as KYC, are done. It starts with {formatMoney(challenge.initialBalance)} {challenge.currency} and{" "}
+          {challenge.funded.profitSplitPercent}% of the profit to the trader. Until then, the trader sees that the account is under review.
+        </p>
+      </div>
+      <button type="button" onClick={() => setConfirming(true)} className={buttonClass}>
+        Approve funded account
       </button>
-      {invite.data && (
-        <div className="flex flex-col gap-2 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-muted">Invitation link, valid until {formatDateTime(invite.data.expiresAt)}</span>
-            <input readOnly value={invite.data.url} onFocus={(e) => e.target.select()} className={`${fieldClass} font-mono text-xs`} />
-          </label>
-          <button type="button" onClick={() => void navigator.clipboard.writeText(invite.data.url)} className={secondaryButtonClass}>
-            Copy link
-          </button>
-        </div>
+      {confirming && (
+        <Modal
+          open
+          onClose={() => setConfirming(false)}
+          title="Approve the funded account?"
+          description={`${account.email} gets a funded account of ${formatMoney(challenge.initialBalance)} ${challenge.currency}, with ${challenge.funded.profitSplitPercent}% of the profit to the trader.`}
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirming(false)} className={secondaryButtonClass}>
+                Not yet
+              </button>
+              <button
+                type="button"
+                disabled={command.isPending}
+                onClick={() => command.mutate({ kind: "approve-funding" }, { onSuccess: () => setConfirming(false) })}
+                className={buttonClass}
+              >
+                {command.isPending ? "Approving..." : "Approve funded account"}
+              </button>
+            </>
+          }
+        >
+          <ErrorText error={command.error} />
+        </Modal>
       )}
-      <ErrorText error={invite.error} />
-    </Panel>
+    </section>
   );
 }
 
-function AccountCommands({ account }: { account: Account }) {
+function CancelDialog({ details, onClose }: { details: AccountDetails; onClose: () => void }) {
+  const { account } = details;
   const command = useAccountCommand(account.id);
+  const formId = useId();
   const [reason, setReason] = useState("");
 
-  const cancel = (event: React.FormEvent) => {
+  const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (window.confirm(`Cancel account #${account.number}? Its trading account is closed and this cannot be undone.`)) {
-      command.mutate({ kind: "cancel", reason });
-    }
+    command.mutate({ kind: "cancel", reason: reason.trim() }, { onSuccess: onClose });
   };
 
   return (
-    <Panel title="Decisions">
-      {account.status === "AwaitingFunding" && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted">The trader passed every evaluation stage. Approve when your checks, such as KYC, are done.</p>
-          <button type="button" disabled={command.isPending} onClick={() => command.mutate({ kind: "approve-funding" })} className={buttonClass}>
-            Approve funded account
+    <Modal
+      open
+      onClose={onClose}
+      title={`Cancel account #${account.number}?`}
+      description={`${account.email} · ${details.challenge.name}. Its trading account is closed, and this cannot be undone. A refund is not made here.`}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={secondaryButtonClass}>
+            Keep the account
           </button>
-        </div>
-      )}
-      {canCancel(account) ? (
-        <form onSubmit={cancel} className="flex flex-col gap-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-muted">Reason for cancelling (optional)</span>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} className={fieldClass} />
-          </label>
-          <button type="submit" disabled={command.isPending} className={`${secondaryButtonClass} text-loss`}>
-            Cancel account
+          <button type="submit" form={formId} disabled={command.isPending} className={dangerButtonClass}>
+            {command.isPending ? "Cancelling..." : "Cancel account"}
           </button>
-        </form>
-      ) : (
-        <p className="text-sm text-muted">The account has ended. Nothing more can be decided.</p>
-      )}
-      <ErrorText error={command.error} />
-    </Panel>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={submit} className="flex flex-col gap-3">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">
+            Reason <span className="font-normal text-muted">(optional)</span>
+          </span>
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="For example: refunded" className={fieldClass} />
+        </label>
+        <ErrorText error={command.error} />
+      </form>
+    </Modal>
   );
 }
 
-/** Every input and what the rule engine decided: the audit trail, including the evidence of a breach. */
-function History({ accountId }: { accountId: string }) {
+/** Every input to the account and what the rule engine decided: the audit trail, with the evidence of a breach. */
+function RuleLog({ accountId }: { accountId: string }) {
   const history = useHistory(accountId);
-
   return (
-    <Panel title="History">
+    <Panel title="Rule log">
+      <p className="text-sm text-muted">Every input to the account and what the rule engine decided, in order. The evidence is the trading platform&apos;s event behind an input.</p>
       <ErrorText error={history.error} />
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[40rem] text-sm">
           <thead className="text-left text-muted">
             <tr>
               <th className="py-2 font-normal">Step</th>

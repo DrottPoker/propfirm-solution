@@ -178,8 +178,8 @@ En firma kan registrera sig själv och prova allt i en sandlåda. Starta handels
 
 1. Öppna http://app.localhost:3002/signup. Fyll i firmans namn, ett kort namn, din e-post och ett lösenord, och godkänn villkoren.
 2. Du hamnar inloggad i firmans adminpanel på dess egen adress, till exempel http://acme.localhost:3002/admin. Firmans server på handelsplattformen skapas på några sekunder, tillsammans med en tvåstegs-challenge på 100 000 USD.
-3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö. Under Verification och Billing går firman live, se nedan.
-4. Under Settings ändrar du logga och färger, skapar en nyckel för firmans API och sätter en webhook. Under Challenges gör du egna challenges, och under Team bjuder du in fler administratörer. Mejlen syns i Mailpit på http://localhost:8025.
+3. Starta en challenge, bjud in en trader och prova hela kedjan som med Demo Firm. Firman är i sandlådan, med högst 10 öppna konton, och portalen visar att det är en testmiljö. Under Verification och Plan and billing går firman live, se nedan.
+4. Översikten visar stegen till live. Under Portal design laddar du upp en logga och ändrar färgerna, och under Integrations skapar du en nyckel för firmans API och sätter en webhook. Under Challenges gör du egna challenges, och under Team bjuder du in fler administratörer. Mejlen syns i Mailpit på http://localhost:8025.
 
 Lokalt behöver e-postadressen inte bekräftas. Vill du prova bekräftelsen, sätt `Signup:RequireEmailVerification` till `true` i propfirm-tjänstens `appsettings.Development.json`, så kommer länken i Mailpit. Webbläsare skickar alla adresser som slutar på `.localhost` till den egna datorn, så inga DNS-inställningar behövs. Se [specen för registreringen](docs/spec/registrering.md).
 
@@ -198,9 +198,9 @@ Se [specen för granskningen](docs/spec/granskning.md).
 
 En firma som vi har godkänt går live genom att betala startavgiften minus handpenningen och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är vårt förslag: 700 USD i startavgift varav 200 USD i handpenning, ett paket med 25 platser för 500 USD i månaden och sedan 5 USD per plats till och med plats 100 och 4 USD därefter.
 
-1. Låt en firma bli godkänd enligt ovan och öppna Billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
+1. Låt en firma bli godkänd enligt ovan och öppna Plan and billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
 2. Välj antal platser och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, och dess konton från sandlådan avslutas.
-3. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler på Billing, eller slå på automatisk utökning.
+3. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler under Plan and billing, eller slå på automatisk utökning.
 4. Under Change card sparar du ett testkort som nekas, för att se vad som händer när en månad inte går att dra. Månaden dras 5 dagar innan den börjar, och är den obetald när den börjar pausas firmans challenges tills ett kort som fungerar betalar den.
 
 Med Stripe betalar firmorna till vårt eget Stripe-konto: sätt `Billing:Provider` till `Stripe`, `Billing:StripeSecretKey` till en testnyckel och `Billing:StripeWebhookSecret` till hemligheten från `stripe listen --forward-to http://localhost:5201/api/payments/v1/billing/stripe`. Se [specen för platser och betalning](docs/spec/platser-och-betalning.md).
@@ -212,9 +212,9 @@ Med Stripe betalar firmorna till vårt eget Stripe-konto: sätt `Billing:Provide
 1. Öppna http://localhost:3002/buy, välj en challenge, ange en e-postadress och klicka på Pay.
 2. Klicka på Pay på testsidan. Ordern blir betald och challengen startar.
 3. Inbjudan att välja lösenord kommer till Mailpit på http://localhost:8025. Är du redan inloggad som trader köper du i stället med din egen e-post och går direkt till kontot.
-4. Under Orders i adminpanelen syns ordern, och under Challenges och Settings ändrar du priser och hur portalen tar betalt.
+4. Under Orders i adminpanelen syns ordern, under Challenges ändrar du priserna och under Checkout hur portalen tar betalt.
 
-Vill du prova Stripe, välj Stripe under Settings hos en firma du har registrerat och klistra in dina testnycklar. Stripe når inte din dator, så skicka webhooks med Stripe CLI: `stripe listen --forward-to http://localhost:5201/api/payments/v1/stripe/FIRMA` ger signeringshemligheten att klistra in. Se [specen för köp i portalen](docs/spec/kop.md).
+Vill du prova Stripe, välj Stripe under Checkout hos en firma du har registrerat och klistra in dina testnycklar. Stripe når inte din dator, så skicka webhooks med Stripe CLI: `stripe listen --forward-to http://localhost:5201/api/payments/v1/stripe/FIRMA` ger signeringshemligheten att klistra in. Se [specen för köp i portalen](docs/spec/kop.md).
 
 ## Prova utbetalningar
 

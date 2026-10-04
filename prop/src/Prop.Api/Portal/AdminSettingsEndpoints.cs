@@ -36,6 +36,8 @@ internal static class AdminSettingsEndpoints
     {
         admin.MapGet("/firm", GetFirm);
         admin.MapPut("/firm/branding", SetBrandingAsync);
+        admin.MapPut("/firm/logo", UploadLogoAsync).DisableAntiforgery();
+        admin.MapDelete("/firm/logo", RemoveLogoAsync);
         admin.MapPost("/firm/api-key", CreateApiKeyAsync);
         admin.MapPut("/firm/webhook", SetWebhookAsync);
         admin.MapPost("/firm/webhook/secret", CreateWebhookSecretAsync);
@@ -121,20 +123,67 @@ internal static class AdminSettingsEndpoints
         TimeProvider time,
         CancellationToken cancellationToken)
     {
-        var logoUrl = string.IsNullOrWhiteSpace(request.LogoUrl) ? null : request.LogoUrl.Trim();
         var colors = request.Colors ?? new Dictionary<string, string>();
-        if (!FirmRules.IsValidLogoUrl(logoUrl))
-        {
-            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The logo must be an https address.");
-        }
-
         if (FirmRules.ColorProblem(colors) is { } problem)
         {
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, problem);
         }
 
         var firm = PortalFirmFilter.FirmOf(context);
-        await store.SetBrandingAsync(firm.Id, logoUrl, colors, time.GetUtcNow(), cancellationToken);
+        await store.SetColorsAsync(firm.Id, colors, time.GetUtcNow(), cancellationToken);
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+    }
+
+    /// <summary>A PNG, JPEG, WebP or SVG logo of at most 1 MB, in the form field file. It replaces the firm's earlier logo.</summary>
+    private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> UploadLogoAsync(
+        IFormFile? file,
+        HttpContext context,
+        FirmStore store,
+        FirmCatalog firms,
+        OrderService orders,
+        IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (file is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "Choose an image file.");
+        }
+
+        if (file.Length > FirmLogo.MaxBytes)
+        {
+            return AccountActions.Problem(StatusCodes.Status413PayloadTooLarge, "A logo can be at most 1 MB.");
+        }
+
+        using var content = new MemoryStream((int)file.Length);
+        await file.CopyToAsync(content, cancellationToken);
+        var (logo, problem) = FirmLogo.From(content.ToArray());
+        if (logo is null)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, problem!);
+        }
+
+        var firm = PortalFirmFilter.FirmOf(context);
+        await store.SetLogoAsync(firm.Id, logo, time.GetUtcNow(), cancellationToken);
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+    }
+
+    /// <summary>Removes the logo, so the portal shows the firm's name.</summary>
+    private static async Task<Ok<FirmSettingsResponse>> RemoveLogoAsync(
+        HttpContext context,
+        FirmStore store,
+        FirmCatalog firms,
+        OrderService orders,
+        IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        await store.RemoveLogoAsync(firm.Id, time.GetUtcNow(), cancellationToken);
         var saved = await ReloadAsync(firm, store, firms, cancellationToken);
         return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
@@ -335,8 +384,8 @@ public sealed record FirmSettingsResponse(
             payments);
 }
 
-/// <summary>The logo as an https address, or empty for none, and the portal's colors to override, as #rrggbb.</summary>
-public sealed record BrandingRequest(string? LogoUrl, IReadOnlyDictionary<string, string>? Colors);
+/// <summary>The portal's colors to override, as #rrggbb. The logo is uploaded on its own.</summary>
+public sealed record BrandingRequest(IReadOnlyDictionary<string, string>? Colors);
 
 /// <summary>The key for the firm API. It is shown only once.</summary>
 public sealed record ApiKeyResponse(string ApiKey);

@@ -3,7 +3,7 @@ import { formatMoney } from "@/lib/format";
 
 import { Panel } from "./ui";
 
-type Row = { label: string; value: (rules: StageRules, stage: StageSummary, funded: boolean) => string };
+type Row = { label: string; value: (rules: StageRules, stage: StageSummary, funded: boolean, trader: string) => string };
 
 const rows: Row[] = [
   {
@@ -27,15 +27,15 @@ const rows: Row[] = [
     value: (rules, _, funded) => (rules.minTradingDays === 0 ? "None" : funded ? `${rules.minTradingDays} per payout` : `${rules.minTradingDays}`),
   },
   { label: "Time limit", value: (rules) => (rules.maxDays == null ? "None" : `${rules.maxDays} days`) },
-  { label: "Profit split", value: (rules) => (rules.profitSplitPercent == null ? "-" : `${rules.profitSplitPercent}% to you`) },
+  { label: "Profit split", value: (rules, _, __, trader) => (rules.profitSplitPercent == null ? "-" : `${rules.profitSplitPercent}% to ${trader}`) },
 ];
 
-/** The rules of every stage of the challenge, as it was bought. Later changes by the firm do not touch it. */
-export function ChallengeRules({ details }: { details: AccountDetails }) {
+/** The rules of every stage of the challenge, as it was bought. Later changes by the firm do not touch it. The firm sees them about its trader. */
+export function ChallengeRules({ details, audience = "trader" }: { details: AccountDetails; audience?: "trader" | "firm" }) {
   const { challenge, stages, account } = details;
   const allRules = [...challenge.evaluation, challenge.funded];
   return (
-    <Panel title="Rules of this challenge">
+    <Panel title={audience === "firm" ? "Rules the trader bought" : "Rules of this challenge"}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[40rem] text-sm">
           <thead className="text-left text-muted">
@@ -57,7 +57,7 @@ export function ChallengeRules({ details }: { details: AccountDetails }) {
                 </th>
                 {stages.map((stage) => (
                   <td key={stage.stage} className="py-2.5 pl-4">
-                    {row.value(allRules[stage.stage], stage, stage.stage === challenge.evaluation.length)}
+                    {row.value(allRules[stage.stage], stage, stage.stage === challenge.evaluation.length, audience === "firm" ? "the trader" : "you")}
                   </td>
                 ))}
               </tr>

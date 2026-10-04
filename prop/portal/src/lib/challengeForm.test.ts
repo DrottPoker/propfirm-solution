@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChallengeDefinition } from "./api/types";
-import { definitionOf, formOf, nextStage } from "./challengeForm";
+import { amountOf, definitionOf, formOf, nextStage } from "./challengeForm";
 
 const twoStep: ChallengeDefinition = {
   id: "two-step-100k",
@@ -92,5 +92,18 @@ describe("challenge form", () => {
 
   it("adds a stage like the last one", () => {
     expect(nextStage(formOf(twoStep))).toMatchObject({ name: "Phase 3", profitTargetPercent: "5", minTradingDays: "4" });
+  });
+});
+
+describe("amountOf", () => {
+  it("is the percentage of the account size, rounded to whole cents", () => {
+    expect(amountOf("100000", "10")).toBe(10_000);
+    expect(amountOf("25000", "4.5")).toBe(1_125);
+    expect(amountOf("33333.33", "3.3333")).toBe(1_111.1);
+  });
+
+  it("is nothing while either is not a number", () => {
+    expect(amountOf("", "10")).toBeNull();
+    expect(amountOf("100000", "ten")).toBeNull();
   });
 });

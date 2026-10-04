@@ -1,0 +1,163 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+
+import { accountStatus, formatTotals } from "@/lib/admin";
+import type { Account, TraderSummary } from "@/lib/api/types";
+import { initials } from "@/lib/dashboard";
+import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { providerLabels } from "@/lib/orders";
+import { useEmailTrader, useInvite, useTraderSummary } from "@/lib/queries";
+
+import { CopyIcon, MailIcon } from "./icons";
+import { Badge, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
+
+/**
+ * The account's trader as the firm sees them: since when, their way into the portal, what they bought and were paid
+ * out, their accounts at the firm, and what started this account.
+ */
+export function TraderCard({ account, challengeName }: { account: Account; challengeName: (id: string) => string }) {
+  const trader = useTraderSummary(account.id);
+  if (trader.isError) {
+    return (
+      <aside className="rounded-lg border border-border bg-panel p-5">
+        <ErrorText error={trader.error} />
+      </aside>
+    );
+  }
+
+  if (!trader.data) {
+    return <aside className="rounded-lg border border-border bg-panel p-5 text-sm text-muted">Loading the trader...</aside>;
+  }
+
+  const data = trader.data;
+  return (
+    <aside aria-labelledby="trader-heading" className="flex flex-col gap-5 rounded-lg border border-border bg-panel p-5">
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-background text-sm font-semibold">
+          {initials(data.email)}
+        </span>
+        <div className="flex min-w-0 flex-col">
+          <h2 id="trader-heading" className="truncate font-semibold">
+            {data.email}
+          </h2>
+          <span className="text-xs text-muted">Trader since {formatDate(data.since)}</span>
+        </div>
+      </div>
+
+      <dl className="grid grid-cols-2 gap-3 text-xs">
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-muted">Bought in your portal</dt>
+          <dd className="font-mono text-sm">{data.orders === 0 ? "Nothing" : formatTotals(data.bought, account.currency)}</dd>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <dt className="text-muted">Paid out</dt>
+          <dd className="font-mono text-sm">{formatTotals(data.paidOut, account.currency)}</dd>
+        </div>
+      </dl>
+
+      <PortalAccess account={account} trader={data} />
+
+      <div className="flex flex-col gap-2">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted">Accounts at your firm</h3>
+        <ul className="flex flex-col text-sm">
+          {data.accounts.map((other) => {
+            const status = accountStatus(other);
+            return (
+              <li key={other.id} className="flex items-center justify-between gap-2 border-t border-border py-2">
+                {other.id === account.id ? (
+                  <span>
+                    <span className="font-mono">#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)} · this one</span>
+                  </span>
+                ) : (
+                  <Link href={`/admin/accounts/${other.id}`} className="min-w-0 truncate">
+                    <span className="font-mono text-accent">#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)}</span>
+                  </Link>
+                )}
+                <Badge tone={status.tone}>{status.label}</Badge>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4 text-sm">
+        <h3 className="text-xs font-medium uppercase tracking-wider text-muted">This account</h3>
+        <dl className="flex flex-col gap-2">
+          <Row label="Started by">{data.order ? `Order #${data.order.number}, ${providerLabels[data.order.provider]}` : "Your firm"}</Row>
+          {data.order && (
+            <Row label="Price">
+              {formatMoney(data.order.amount)} {data.order.currency}
+            </Row>
+          )}
+          {account.reference && <Row label="Your reference">{account.reference}</Row>}
+          {account.tradingAccountId && <Row label="Trading account">{account.tradingAccountId}</Row>}
+        </dl>
+      </div>
+    </aside>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className="min-w-0 break-words text-right">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Whether the trader can log in to the portal, and the ways to let them in: an email in the firm's name, or a link the
+ * firm sends itself. A new link also resets a forgotten password, and replaces the trader's older links.
+ */
+function PortalAccess({ account, trader }: { account: Account; trader: TraderSummary }) {
+  const emailTrader = useEmailTrader();
+  const invite = useInvite(account.id);
+  const [copied, setCopied] = useState(false);
+
+  const copy = async (url: string) => {
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border border-border p-3.5 text-sm">
+      <div className="flex flex-col gap-0.5">
+        <span className="font-medium">Portal access</span>
+        <span className="text-xs text-muted">
+          {trader.hasPassword ? "Has chosen a password and can log in." : "Has not chosen a password yet, so cannot log in."}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={emailTrader.isPending} onClick={() => emailTrader.mutate(account.id)} className={`${secondaryButtonClass} flex items-center gap-1.5 text-sm`}>
+          <MailIcon className="size-3.5" />
+          {emailTrader.isPending ? "Emailing..." : trader.hasPassword ? "Email about this challenge" : "Email an invitation"}
+        </button>
+        <button type="button" disabled={invite.isPending} onClick={() => invite.mutate()} className={`${secondaryButtonClass} flex items-center gap-1.5 text-sm`}>
+          <CopyIcon className="size-3.5" />
+          {invite.isPending ? "Creating..." : "Create invitation link"}
+        </button>
+      </div>
+      {emailTrader.isSuccess && (
+        <p role="status" className="text-xs text-profit">
+          {emailTrader.data.kind === "Invitation" ? `We emailed ${emailTrader.data.email} an invitation.` : `We emailed ${emailTrader.data.email} that the challenge has started.`}
+        </p>
+      )}
+      <ErrorText error={emailTrader.error ?? invite.error} />
+      {invite.data && (
+        <div className="flex flex-col gap-2">
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="text-muted">Invitation link, valid until {formatDateTime(invite.data.expiresAt)}</span>
+            <input readOnly value={invite.data.url} onFocus={(e) => e.target.select()} className={`${fieldClass} font-mono text-xs`} />
+          </label>
+          <button type="button" onClick={() => copy(invite.data.url)} className={`${secondaryButtonClass} self-start text-sm`}>
+            {copied ? "Copied" : "Copy link"}
+          </button>
+          <p className="text-xs text-muted">It works once, within 7 days, and replaces the trader&apos;s older links. It also resets a forgotten password.</p>
+        </div>
+      )}
+    </div>
+  );
+}

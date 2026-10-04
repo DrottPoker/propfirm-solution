@@ -1,359 +1,134 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 
-import type { ChallengeDefinition, ChallengePrice } from "@/lib/api/types";
-import {
-  definitionOf,
-  formOf,
-  maxEvaluationStages,
-  nextStage,
-  type ChallengeForm,
-  type DailyLossReference,
-  type MaxLossKind,
-  type StageForm,
-} from "@/lib/challengeForm";
-import { priceCurrencies } from "@/lib/orders";
-import { useChallenges, useChallengeTemplates, usePrices, useSaveChallenge, useSavePrice } from "@/lib/queries";
+import { passRateText } from "@/lib/admin";
+import type { ChallengeDefinition, ChallengeFigures, ChallengePrice } from "@/lib/api/types";
+import { formatMoney } from "@/lib/format";
+import { useChallengeFigures, useChallenges, useFirmSettings, usePrices } from "@/lib/queries";
 
-import { ChallengeSummary } from "./ChallengeSummary";
-import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
+import { PlusIcon } from "./icons";
+import { AdminPage, Badge, buttonClass, ErrorText, Message, PageHeader, secondaryButtonClass } from "./ui";
 
-type Editing = { form: ChallengeForm; isNew: boolean } | null;
-
-/** The challenges the firm sells: new ones from a template, and changes to existing ones. */
+/** What the firm sells: each challenge with its stages, its price in the portal and how it is doing. */
 export function AdminChallenges() {
-  const challenges = useChallenges();
-  const templates = useChallengeTemplates();
+  const settings = useFirmSettings();
+  const challenges = useChallenges(settings.data !== undefined && settings.data.status !== "Provisioning");
   const prices = usePrices();
-  const [editing, setEditing] = useState<Editing>(null);
+  const figures = useChallengeFigures();
 
-  const startNew = () => {
-    const template = templates.data?.[0];
-    if (template) {
-      setEditing({ form: { ...formOf(template.definition), id: "", name: "" }, isNew: true });
-    }
-  };
+  if (settings.data?.status === "Provisioning") {
+    return <Message text="Your trading server is being set up. Your first challenge comes with it." />;
+  }
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6">
-      {editing ? (
-        <ChallengeEditor key={editing.form.id || "new"} initial={editing.form} isNew={editing.isNew} onDone={() => setEditing(null)} />
-      ) : (
-        <Panel
-          title="Challenges"
-          actions={
-            <button type="button" onClick={startNew} disabled={!templates.data} className={buttonClass}>
-              New challenge
-            </button>
-          }
-        >
-          <p className="text-sm text-muted">
-            What the firm sells. A change applies to challenges started from now on. Accounts already started keep the rules they were bought with.
-            A challenge with a price that is for sale can be bought in your portal, once you take payment under Settings.
-          </p>
-          <ErrorText error={challenges.error ?? templates.error ?? prices.error} />
-          {challenges.data && challenges.data.length === 0 && <p className="text-sm text-muted">No challenges yet.</p>}
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {(challenges.data ?? []).map((challenge) => (
-              <li key={challenge.id} className="flex flex-col gap-3 rounded border border-border p-4">
-                <ChallengeSummary challenge={challenge} />
-                {prices.data && (
-                  <PriceEditor
-                    key={JSON.stringify(prices.data.find((p) => p.challengeId === challenge.id) ?? null)}
-                    challenge={challenge}
-                    price={prices.data.find((p) => p.challengeId === challenge.id)}
-                  />
-                )}
-                <button type="button" onClick={() => setEditing({ form: formOf(challenge), isNew: false })} className={`${secondaryButtonClass} self-start text-sm`}>
-                  Change
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+    <AdminPage>
+      <PageHeader
+        title="Challenges"
+        description="What your firm sells. A change applies to challenges started after it. Accounts keep the rules they were bought with."
+        actions={
+          <Link href="/admin/challenges/edit" className={`${buttonClass} flex items-center gap-2`}>
+            <PlusIcon />
+            New challenge
+          </Link>
+        }
+      />
+      {settings.data && !settings.data.payments.active && (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          Your portal sells nothing yet. A challenge with a price that is for sale is sold once you choose how traders pay under{" "}
+          <Link href="/admin/checkout" className="underline">
+            Checkout
+          </Link>
+          .
+        </p>
       )}
-    </main>
+      <ErrorText error={challenges.error ?? prices.error ?? figures.error} />
+      {challenges.data && challenges.data.length === 0 && <p className="text-sm text-muted">No challenges yet.</p>}
+      <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {(challenges.data ?? []).map((challenge) => (
+          <ChallengeCard
+            key={challenge.id}
+            challenge={challenge}
+            price={prices.data?.find((p) => p.challengeId === challenge.id)}
+            figures={figures.data?.find((f) => f.challengeId === challenge.id)}
+          />
+        ))}
+      </ul>
+    </AdminPage>
   );
 }
 
-/** What the challenge sells for in the portal, and whether it is for sale there. */
-function PriceEditor({ challenge, price }: { challenge: ChallengeDefinition; price: ChallengePrice | undefined }) {
-  const save = useSavePrice();
-  const [amount, setAmount] = useState(price ? String(price.amount) : "");
-  const [currency, setCurrency] = useState(price?.currency ?? (priceCurrencies.some((c) => c === challenge.currency) ? challenge.currency : "USD"));
-  const [forSale, setForSale] = useState(price?.forSale ?? true);
-  const [problem, setProblem] = useState<string | null>(null);
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const value = Number(amount.replace(",", "."));
-    setProblem(Number.isFinite(value) && value > 0 ? null : "Write the price as a number, for example 99 or 89.50.");
-    if (Number.isFinite(value) && value > 0) {
-      save.mutate({ challengeId: challenge.id, amount: value, currency, forSale });
-    }
-  };
-
+function ChallengeCard({ challenge, price, figures }: { challenge: ChallengeDefinition; price?: ChallengePrice; figures?: ChallengeFigures }) {
+  const forSale = price?.forSale === true;
+  const first = challenge.evaluation[0];
+  const timeLimits = challenge.evaluation.map((s) => s.maxDays).filter((d) => d != null);
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-muted">Price in the portal</span>
-          <input
-            aria-label={`${challenge.name} price`}
-            inputMode="decimal"
-            required
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className={`${fieldClass} w-28 text-right`}
-          />
-        </label>
-        <select aria-label={`${challenge.name} price currency`} value={currency} onChange={(e) => setCurrency(e.target.value)} className={fieldClass}>
-          {priceCurrencies.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 py-2">
-          <input type="checkbox" checked={forSale} onChange={(e) => setForSale(e.target.checked)} />
-          For sale
-        </label>
-        <button type="submit" disabled={save.isPending} className={secondaryButtonClass}>
-          Save price
-        </button>
-      </div>
-      {save.isSuccess && <p className="text-profit">Saved.</p>}
-      <ErrorText error={problem ? new Error(problem) : save.error} />
-    </form>
-  );
-}
-
-function ChallengeEditor({ initial, isNew, onDone }: { initial: ChallengeForm; isNew: boolean; onDone: () => void }) {
-  const save = useSaveChallenge();
-  const [form, setForm] = useState(initial);
-  const [problem, setProblem] = useState<string | null>(null);
-
-  const set = (change: Partial<ChallengeForm>) => setForm((f) => ({ ...f, ...change }));
-  const setStage = (index: number, change: Partial<StageForm>) =>
-    setForm((f) => ({ ...f, evaluation: f.evaluation.map((s, i) => (i === index ? { ...s, ...change } : s)) }));
-
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const result = definitionOf(form);
-    setProblem("problem" in result ? result.problem : null);
-    if ("definition" in result) {
-      save.mutate(result.definition, { onSuccess: onDone });
-    }
-  };
-
-  return (
-    <Panel title={isNew ? "New challenge" : `Change ${initial.name}`}>
-      <form onSubmit={submit} className="flex flex-col gap-5">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <TextField label="Id, used by your systems" value={form.id} onChange={(id) => set({ id })} disabled={!isNew} mono placeholder="one-step-50k" />
-          <TextField label="Name, shown to traders" value={form.name} onChange={(name) => set({ name })} placeholder="One-step 50k" />
-          <TextField label={`Account size (${form.currency})`} value={form.initialBalance} onChange={(initialBalance) => set({ initialBalance })} numeric />
-          <div className="grid grid-cols-2 gap-3">
-            <TextField label="Day starts" value={form.dayStart} onChange={(dayStart) => set({ dayStart })} type="time" />
-            <TextField label="Time zone" value={form.timeZone} onChange={(timeZone) => set({ timeZone })} />
-          </div>
-          <TextField
-            label="Ends after days without a new trade"
-            value={form.inactivityDays}
-            onChange={(inactivityDays) => set({ inactivityDays })}
-            numeric
-            optional
-            placeholder="No limit"
-          />
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left text-muted">
-              <tr>
-                <th className="py-2 pr-3 font-normal">Stage</th>
-                <th className="py-2 pr-3 font-normal">Profit target %</th>
-                <th className="py-2 pr-3 font-normal">Min trading days</th>
-                <th className="py-2 pr-3 font-normal">Daily loss %</th>
-                <th className="py-2 pr-3 font-normal">Daily loss from</th>
-                <th className="py-2 pr-3 font-normal">Max loss %</th>
-                <th className="py-2 pr-3 font-normal">Max loss</th>
-                <th className="py-2 pr-3 font-normal">Profit split %</th>
-                <th className="py-2 pr-3 font-normal">Time limit, days</th>
-                <th className="py-2 font-normal" />
-              </tr>
-            </thead>
-            <tbody>
-              {form.evaluation.map((stage, index) => (
-                <StageRow
-                  key={index}
-                  stage={stage}
-                  onChange={(change) => setStage(index, change)}
-                  onRemove={form.evaluation.length > 1 ? () => set({ evaluation: form.evaluation.filter((_, i) => i !== index) }) : undefined}
-                />
-              ))}
-              <StageRow stage={form.funded} funded onChange={(change) => set({ funded: { ...form.funded, ...change } })} />
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => set({ evaluation: [...form.evaluation, nextStage(form)] })}
-            disabled={form.evaluation.length >= maxEvaluationStages}
-            className={`${secondaryButtonClass} text-sm`}
-          >
-            Add stage
-          </button>
-          <span className="text-xs text-muted">
-            Losses are in percent of the account size. The daily loss counts from the balance, or the higher of balance and equity, when the day starts.
-            A stage with a time limit must be passed within that many days after the day it starts. Paused days do not count.
+    <li className={`flex flex-col gap-4 rounded-lg border p-5 ${forSale ? "border-border bg-panel" : "border-dashed border-border"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2 className="font-semibold">{challenge.name}</h2>
+          <span className="text-sm text-muted">
+            <span className="font-mono">{challenge.id}</span> · {formatMoney(challenge.initialBalance)} {challenge.currency} account
           </span>
         </div>
-
-        <ErrorText error={problem ? new Error(problem) : save.error} />
-
-        <div className="flex gap-3">
-          <button type="submit" disabled={save.isPending} className={buttonClass}>
-            {save.isPending ? "Saving..." : "Save challenge"}
-          </button>
-          <button type="button" onClick={onDone} className={secondaryButtonClass}>
-            Cancel
-          </button>
+        <Badge tone={forSale ? "profit" : "muted"}>{forSale ? "For sale" : price ? "Not for sale" : "No price"}</Badge>
+      </div>
+      <ol aria-label="Stages" className="flex flex-wrap items-center gap-1.5 text-xs">
+        {challenge.evaluation.map((stage) => (
+          <li key={stage.name} className="flex items-center gap-1.5">
+            <span className="rounded-full border border-border px-2.5 py-1">
+              {stage.name} · {stage.profitTargetPercent}% target
+            </span>
+            <span aria-hidden="true" className="text-muted">
+              ›
+            </span>
+          </li>
+        ))}
+        <li className="rounded-full border border-profit/40 px-2.5 py-1 text-profit">
+          {challenge.funded.name} · {challenge.funded.profitSplitPercent}% split
+        </li>
+      </ol>
+      <p className="text-sm text-muted">
+        Daily loss {first.dailyLoss.percent}% · max loss {first.maxLoss.percent}% {first.maxLoss.kind.toLowerCase()}
+        {first.minTradingDays > 0 && ` · at least ${first.minTradingDays} trading days a phase`}
+        {timeLimits.length > 0 ? ` · ${timeLimits.join(" and ")} days to pass` : " · no time limit"}
+        {challenge.inactivityDays != null && ` · ends after ${challenge.inactivityDays} days without a trade`}
+      </p>
+      {figures && (
+        <dl className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-xs">
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-muted">Trading now</dt>
+            <dd className="font-mono text-base">{figures.trading}</dd>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-muted">Started, 30 days</dt>
+            <dd className="font-mono text-base">{figures.startedLast30Days}</dd>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <dt className="text-muted">Pass rate, 90 days</dt>
+            <dd className="font-mono text-base">{passRateText(figures.passRate)}</dd>
+          </div>
+        </dl>
+      )}
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3">
+        <span>
+          {price ? (
+            <>
+              <span className="font-mono text-lg font-medium">{formatMoney(price.amount)}</span> <span className="text-muted">{price.currency} in your shop</span>
+            </>
+          ) : (
+            <span className="text-muted">No price</span>
+          )}
+        </span>
+        <div className="flex gap-2">
+          <Link href={`/admin/challenges/edit?from=${encodeURIComponent(challenge.id)}`} className={`${secondaryButtonClass} text-sm`} aria-label={`Copy ${challenge.name}`}>
+            Copy
+          </Link>
+          <Link href={`/admin/challenges/edit?id=${encodeURIComponent(challenge.id)}`} className={`${secondaryButtonClass} text-sm`} aria-label={`Change ${challenge.name}`}>
+            Change
+          </Link>
         </div>
-      </form>
-    </Panel>
-  );
-}
-
-function StageRow({
-  stage,
-  funded = false,
-  onChange,
-  onRemove,
-}: {
-  stage: StageForm;
-  funded?: boolean;
-  onChange: (change: Partial<StageForm>) => void;
-  onRemove?: () => void;
-}) {
-  return (
-    <tr className="border-t border-border align-top">
-      <td className="py-2 pr-3">
-        <input aria-label="Stage name" value={stage.name} onChange={(e) => onChange({ name: e.target.value })} className={`${fieldClass} w-28`} />
-      </td>
-      <td className="py-2 pr-3">
-        {funded ? (
-          <span className="text-muted">none</span>
-        ) : (
-          <NumberCell label={`${stage.name} profit target`} value={stage.profitTargetPercent} onChange={(profitTargetPercent) => onChange({ profitTargetPercent })} />
-        )}
-      </td>
-      <td className="py-2 pr-3">
-        <NumberCell label={`${stage.name} minimum trading days`} value={stage.minTradingDays} onChange={(minTradingDays) => onChange({ minTradingDays })} />
-      </td>
-      <td className="py-2 pr-3">
-        <NumberCell label={`${stage.name} daily loss`} value={stage.dailyLossPercent} onChange={(dailyLossPercent) => onChange({ dailyLossPercent })} />
-      </td>
-      <td className="py-2 pr-3">
-        <select
-          aria-label={`${stage.name} daily loss from`}
-          value={stage.dailyLossReference}
-          onChange={(e) => onChange({ dailyLossReference: e.target.value as DailyLossReference })}
-          className={fieldClass}
-        >
-          <option value="Balance">Balance</option>
-          <option value="HigherOfBalanceAndEquity">Higher of balance and equity</option>
-        </select>
-      </td>
-      <td className="py-2 pr-3">
-        <NumberCell label={`${stage.name} max loss`} value={stage.maxLossPercent} onChange={(maxLossPercent) => onChange({ maxLossPercent })} />
-      </td>
-      <td className="py-2 pr-3">
-        <select
-          aria-label={`${stage.name} max loss kind`}
-          value={stage.maxLossKind}
-          onChange={(e) => onChange({ maxLossKind: e.target.value as MaxLossKind })}
-          className={fieldClass}
-        >
-          <option value="Fixed">Fixed</option>
-          <option value="Trailing">Trailing</option>
-        </select>
-      </td>
-      <td className="py-2 pr-3">
-        {funded ? (
-          <NumberCell label="Profit split" value={stage.profitSplitPercent} onChange={(profitSplitPercent) => onChange({ profitSplitPercent })} />
-        ) : (
-          <span className="text-muted">-</span>
-        )}
-      </td>
-      <td className="py-2 pr-3">
-        {funded ? (
-          <span className="text-muted">none</span>
-        ) : (
-          <NumberCell label={`${stage.name} time limit`} value={stage.maxDays} onChange={(maxDays) => onChange({ maxDays })} placeholder="None" />
-        )}
-      </td>
-      <td className="py-2">
-        {onRemove && (
-          <button type="button" onClick={onRemove} className="text-muted hover:text-loss">
-            Remove
-          </button>
-        )}
-      </td>
-    </tr>
-  );
-}
-
-function NumberCell({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
-  return (
-    <input
-      aria-label={label}
-      inputMode="decimal"
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      className={`${fieldClass} w-20 text-right`}
-    />
-  );
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  disabled = false,
-  mono = false,
-  numeric = false,
-  optional = false,
-  type = "text",
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-  mono?: boolean;
-  numeric?: boolean;
-  optional?: boolean;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-muted">{label}</span>
-      <input
-        type={type}
-        required={!optional}
-        value={value}
-        disabled={disabled}
-        placeholder={placeholder}
-        inputMode={numeric ? "decimal" : undefined}
-        onChange={(e) => onChange(e.target.value)}
-        className={`${fieldClass} ${mono ? "font-mono" : ""} disabled:opacity-60`}
-      />
-    </label>
+      </div>
+    </li>
   );
 }

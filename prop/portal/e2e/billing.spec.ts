@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { getApproved, signUp } from "./support";
+import { adminLink, getApproved, signUp, waitForSandbox } from "./support";
 
 test("an approved firm in the sandbox goes live by paying, and buys more slots", async ({ page }) => {
   await signUp(page, "Billing E2E Firm", "billing-e2e-firm");
-  await expect(page.getByRole("option", { name: /two-step-100k/ })).toBeAttached({ timeout: 20_000 });
+  await waitForSandbox(page);
   await getApproved(page, "billing-e2e-firm");
 
-  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
+  await adminLink(page, "Plan and billing").click();
   await expect(page.getByRole("heading", { name: "Go live" })).toBeVisible();
   await expect(page.getByText("Package with 25 slots: 500.00 USD per month")).toBeVisible();
   await page.getByLabel("Slots", { exact: true }).fill("30");

@@ -18,6 +18,30 @@ internal sealed record AccountView(ChallengeAccount Account, TradingFigures? Tra
 
 internal sealed record TradingFigures(decimal? Balance, int OpenPositions, decimal? DailyFloor, decimal? MaxLossFloor);
 
+/// <summary>Which accounts the admin panel lists. Evaluation and funded accounts are those trading or opening their trading account.</summary>
+public enum AccountGroup
+{
+    All,
+    Evaluation,
+
+    /// <summary>Passed every evaluation stage, and waits for the firm to approve the funded account.</summary>
+    AwaitingFunding,
+
+    Funded,
+
+    /// <summary>Failed or cancelled.</summary>
+    Ended,
+}
+
+/// <summary>
+/// What the admin panel looks for among the firm's accounts: <paramref name="Text"/> is part of the trader's email, part
+/// of the firm's reference or the account number, with or without #.
+/// </summary>
+internal sealed record AccountSearch(string? Text, string? ChallengeId, AccountGroup Group);
+
+/// <summary>How many accounts are in each group.</summary>
+internal sealed record AccountCounts(int All, int Evaluation, int AwaitingFunding, int Funded, int Ended);
+
 /// <summary>One recorded step: the input and what the rule engine decided, with the trading platform's event behind it.</summary>
 internal sealed record StepView(int Step, DateTimeOffset RecordedAt, JsonElement Input, JsonElement Outputs, JsonElement? SourceEvent);
 
@@ -33,15 +57,67 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
         left join trading_accounts ta on ta.account_id = a.state ->> 'accountId'
         """;
 
+    /// <summary>The index of the account's funded stage, from the definition it was bought with, in a query on challenge_accounts a.</summary>
+    internal const string FundedStageSql = "jsonb_array_length(a.state -> 'definition' -> 'evaluation')";
+
+    // Part of an email address, part of the firm's reference or the account number, and the challenge, in $2 to $4.
+    private const string SearchCondition =
+        """
+        ($2::text is null or strpos(t.normalized_email, $2) > 0 or strpos(upper(coalesce(a.reference, '')), $2) > 0 or a.number = $3::bigint)
+        and ($4::text is null or a.definition_id = $4)
+        """;
+
+    /// <summary>Which accounts are in the group, in a query on challenge_accounts a.</summary>
+    internal static string GroupCondition(AccountGroup group) => group switch
+    {
+        AccountGroup.Evaluation => $"(a.status in ('OpeningAccount', 'Active') and a.stage < {FundedStageSql})",
+        AccountGroup.AwaitingFunding => "a.status = 'AwaitingFunding'",
+        AccountGroup.Funded => $"(a.status in ('OpeningAccount', 'Active') and a.stage >= {FundedStageSql})",
+        AccountGroup.Ended => "a.status in ('Failed', 'Cancelled')",
+        _ => "true",
+    };
+
     public async Task<AccountView?> GetAsync(string firmId, Guid id, CancellationToken cancellationToken) =>
         (await ReadAsync($"{SelectView} where a.firm_id = $1 and a.id = $2", [firmId, id], cancellationToken)).SingleOrDefault();
 
-    /// <summary>The firm's newest accounts, optionally only one trader's or only those with a status.</summary>
-    public Task<List<AccountView>> ListAsync(string firmId, string? email, ChallengeStatus? status, int limit, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// A page of the firm's accounts found by the search, the newest first. <paramref name="before"/> is the account
+    /// number the page starts below, from the previous page.
+    /// </summary>
+    public Task<List<AccountView>> SearchAsync(string firmId, AccountSearch search, long? before, int limit, CancellationToken cancellationToken) =>
         ReadAsync(
-            $"{SelectView} where a.firm_id = $1 and ($2::text is null or t.normalized_email = $2) and ($3::text is null or a.status = $3) order by a.number desc limit $4",
-            [firmId, email is null ? DBNull.Value : Emails.Normalize(email), status is { } s ? s.ToString() : DBNull.Value, limit],
+            $"{SelectView} where a.firm_id = $1 and {SearchCondition} and {GroupCondition(search.Group)} and ($5::bigint is null or a.number < $5) order by a.number desc limit $6",
+            [.. SearchValues(firmId, search), before is { } number ? number : DBNull.Value, limit],
             cancellationToken);
+
+    /// <summary>How many of the firm's accounts the search finds in each group, whichever group it asks for.</summary>
+    public async Task<AccountCounts> CountAsync(string firmId, AccountSearch search, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            $"""
+            select count(*),
+                   count(*) filter (where {GroupCondition(AccountGroup.Evaluation)}),
+                   count(*) filter (where {GroupCondition(AccountGroup.AwaitingFunding)}),
+                   count(*) filter (where {GroupCondition(AccountGroup.Funded)}),
+                   count(*) filter (where {GroupCondition(AccountGroup.Ended)})
+            from challenge_accounts a join traders t on t.id = a.trader_id
+            where a.firm_id = $1 and {SearchCondition}
+            """);
+        foreach (var value in SearchValues(firmId, search))
+        {
+            command.Parameters.AddWithValue(value);
+        }
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        await reader.ReadAsync(cancellationToken);
+        return new AccountCounts(
+            (int)reader.GetInt64(0),
+            (int)reader.GetInt64(1),
+            (int)reader.GetInt64(2),
+            (int)reader.GetInt64(3),
+            (int)reader.GetInt64(4));
+    }
 
     public Task<List<AccountView>> ListByTraderAsync(string firmId, Guid traderId, CancellationToken cancellationToken) =>
         ReadAsync($"{SelectView} where a.firm_id = $1 and a.trader_id = $2 order by a.number", [firmId, traderId], cancellationToken);
@@ -110,6 +186,13 @@ internal sealed class ChallengeQueries(NpgsqlDataSource dataSource, DatabaseSche
         }
 
         return views;
+    }
+
+    private static object[] SearchValues(string firmId, AccountSearch search)
+    {
+        var text = string.IsNullOrWhiteSpace(search.Text) ? null : Emails.Normalize(search.Text);
+        var number = text is not null && long.TryParse(text.TrimStart('#'), out var parsed) ? parsed : (long?)null;
+        return [firmId, (object?)text ?? DBNull.Value, number is { } n ? n : DBNull.Value, string.IsNullOrWhiteSpace(search.ChallengeId) ? DBNull.Value : search.ChallengeId];
     }
 
     private static JsonElement Json(string json)

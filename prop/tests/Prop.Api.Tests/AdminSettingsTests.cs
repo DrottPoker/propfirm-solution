@@ -12,8 +12,10 @@ namespace Prop.Api.Tests;
 /// <summary>The admin panel's settings for a firm that runs itself: its look, integration, administrators and challenges.</summary>
 public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
+    private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52];
+
     [Fact]
-    public async Task TheFirmChangesItsLook()
+    public async Task TheFirmChangesItsColors()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await factory.SignUpAsync("acme");
@@ -21,28 +23,88 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
 
         using var saved = await admin.PutAsJsonAsync(
             Url("admin/firm/branding"),
-            new { logoUrl = "https://cdn.acme.test/logo.png", colors = new Dictionary<string, string> { ["accent"] = "#112233" } },
+            new { colors = new Dictionary<string, string> { ["accent"] = "#112233", ["accent-foreground"] = "#0b0e14" } },
             TestContext.Current.CancellationToken);
         var branding = await trader.GetFromJsonAsync<JsonElement>(Url("branding"), TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
-        Assert.Equal(("https://cdn.acme.test/logo.png", "#112233"), (branding.GetProperty("logoUrl").GetString(), branding.GetProperty("colors").GetProperty("accent").GetString()));
+        var colors = branding.GetProperty("colors");
+        Assert.Equal(("#112233", "#0b0e14"), (colors.GetProperty("accent").GetString(), colors.GetProperty("accent-foreground").GetString()));
     }
 
     [Theory]
-    [InlineData("http://cdn.acme.test/logo.png", "accent", "#112233")]
-    [InlineData("", "accent", "red")]
-    [InlineData("", "accent", "#112233; background: url(x)")]
-    [InlineData("", "button", "#112233")]
-    public async Task OnlyAnHttpsLogoAndThePortalsColorsAreAccepted(string logoUrl, string color, string value)
+    [InlineData("accent", "red")]
+    [InlineData("accent", "#112233; background: url(x)")]
+    [InlineData("button", "#112233")]
+    public async Task OnlyThePortalsColorsAreAccepted(string color, string value)
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await factory.SignUpAsync("acme");
 
         using var refused = await admin.PutAsJsonAsync(
-            Url("admin/firm/branding"), new { logoUrl, colors = new Dictionary<string, string> { [color] = value } }, TestContext.Current.CancellationToken);
+            Url("admin/firm/branding"), new { colors = new Dictionary<string, string> { [color] = value } }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, refused.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheFirmUploadsItsLogoAndThePortalServesIt()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+        using var trader = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+
+        var saved = await UploadLogoAsync(admin, Png, "logo.png", HttpStatusCode.OK);
+        var logoUrl = (await trader.GetFromJsonAsync<JsonElement>(Url("branding"), TestContext.Current.CancellationToken)).GetProperty("logoUrl").GetString()!;
+        using var logo = await trader.GetAsync(new Uri(logoUrl, UriKind.Relative), TestContext.Current.CancellationToken);
+        using var oldAddress = await trader.GetAsync(Url($"logo/{new string('0', 64)}"), TestContext.Current.CancellationToken);
+        using var otherFirm = await factory.CreatePortalClient().GetAsync(new Uri(logoUrl, UriKind.Relative), TestContext.Current.CancellationToken);
+        using var removed = await admin.DeleteAsync(Url("admin/firm/logo"), TestContext.Current.CancellationToken);
+        var afterwards = await trader.GetFromJsonAsync<JsonElement>(Url("branding"), TestContext.Current.CancellationToken);
+
+        Assert.Equal($"/api/portal/logo/{Convert.ToHexStringLower(SHA256.HashData(Png))}", logoUrl);
+        Assert.Equal(logoUrl, saved.GetProperty("logoUrl").GetString());
+        Assert.Equal(HttpStatusCode.OK, logo.StatusCode);
+        Assert.Equal(Png, await logo.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+        Assert.Equal("image/png", logo.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("public, max-age=31536000, immutable", logo.Headers.CacheControl?.ToString());
+        Assert.Contains("sandbox", logo.Headers.GetValues("Content-Security-Policy").Single(), StringComparison.Ordinal);
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (oldAddress.StatusCode, otherFirm.StatusCode));
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        Assert.Equal(JsonValueKind.Null, afterwards.GetProperty("logoUrl").ValueKind);
+    }
+
+    [Theory]
+    [InlineData("Just some text.")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"></svg>")]
+    [InlineData("<svg xmlns=\"http://www.w3.org/2000/svg\"><a href=\"javascript:alert(1)\"><rect width=\"1\" height=\"1\"/></a></svg>")]
+    [InlineData("<?xml version=\"1.0\"?><!DOCTYPE svg [<!ENTITY a \"a\">]><svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")]
+    public async Task OnlyAnImageWithoutScriptsIsALogo(string content)
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+
+        var refused = await UploadLogoAsync(admin, Encoding.UTF8.GetBytes(content), "logo.svg", HttpStatusCode.UnprocessableEntity);
+
+        Assert.Contains("logo", refused.GetProperty("title").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AnSvgLogoIsAcceptedAndOneOverAMegabyteIsNot()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+
+        await UploadLogoAsync(admin, [.. Png, .. new byte[1024 * 1024]], "big.png", HttpStatusCode.RequestEntityTooLarge);
+        var svg = await UploadLogoAsync(
+            admin,
+            Encoding.UTF8.GetBytes("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\" fill=\"#123456\"/></svg>"),
+            "logo.svg",
+            HttpStatusCode.OK);
+        using var served = await admin.GetAsync(new Uri(svg.GetProperty("logoUrl").GetString()!, UriKind.Relative), TestContext.Current.CancellationToken);
+
+        Assert.Equal("image/svg+xml", served.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]
@@ -259,6 +321,19 @@ public sealed class AdminSettingsTests(PostgresFixture postgres) : IClassFixture
         using var response = await admin.PostAsync(Url("admin/firm/api-key"), null, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("apiKey").GetString()!;
+    }
+
+    /// <summary>Uploads the logo as the admin panel does, in the form field file, and checks the status. Returns the body.</summary>
+    private static async Task<JsonElement> UploadLogoAsync(HttpClient admin, byte[] content, string fileName, HttpStatusCode expected)
+    {
+        using var form = new MultipartFormDataContent();
+        using var file = new ByteArrayContent(content);
+        form.Add(file, "file", fileName);
+        using var response = await admin.PutAsync(Url("admin/firm/logo"), form, TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        Assert.True(response.StatusCode == expected, $"Expected {expected} but got {response.StatusCode}: {body}");
+        using var document = JsonDocument.Parse(body);
+        return document.RootElement.Clone();
     }
 
     private static async Task<JsonElement> SetWebhookAsync(HttpClient admin, string url)

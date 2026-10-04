@@ -298,8 +298,8 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         await factory.StartActiveAccountAsync("bert@test.example");
 
         var all = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts"), TestContext.Current.CancellationToken);
-        var annas = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?email=Anna@test.example"), TestContext.Current.CancellationToken);
-        var failed = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?status=Failed"), TestContext.Current.CancellationToken);
+        var annas = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?search=Anna@test.example"), TestContext.Current.CancellationToken);
+        var ended = await admin.GetFromJsonAsync<JsonElement>(Url("admin/accounts?group=Ended"), TestContext.Current.CancellationToken);
         using var badLimit = await admin.GetAsync(Url("admin/accounts?limit=0"), TestContext.Current.CancellationToken);
         var details = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}"), TestContext.Current.CancellationToken);
         var history = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/history"), TestContext.Current.CancellationToken);
@@ -310,9 +310,9 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal(["quick-test-100k", "two-step-100k"], challenges.EnumerateArray().Select(c => c.GetProperty("id").GetString()));
         Assert.Equal(HttpStatusCode.Created, started.StatusCode);
         Assert.Equal($"/api/portal/admin/accounts/{id}", started.Headers.Location?.OriginalString);
-        Assert.Equal(["bert@test.example", "anna@test.example"], all.EnumerateArray().Select(a => a.GetProperty("email").GetString()));
-        Assert.Equal(id, Assert.Single(annas.EnumerateArray()).GetProperty("id").GetGuid());
-        Assert.Empty(failed.EnumerateArray());
+        Assert.Equal(["bert@test.example", "anna@test.example"], all.GetProperty("accounts").EnumerateArray().Select(a => a.GetProperty("email").GetString()));
+        Assert.Equal(id, Assert.Single(annas.GetProperty("accounts").EnumerateArray()).GetProperty("id").GetGuid());
+        Assert.Empty(ended.GetProperty("accounts").EnumerateArray());
         Assert.Equal(HttpStatusCode.UnprocessableEntity, badLimit.StatusCode);
         Assert.Equal(100_000m, details.GetProperty("live").GetProperty("equity").GetDecimal());
         Assert.True(history.GetArrayLength() > 0);
@@ -336,7 +336,8 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         using var demoInvite = await portal.PostAsync(Url($"admin/accounts/{id}/invite"), null, TestContext.Current.CancellationToken);
 
         Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.OK), (demoPassword.StatusCode, login.StatusCode));
-        Assert.Empty(accounts.EnumerateArray());
+        Assert.Empty(accounts.GetProperty("accounts").EnumerateArray());
+        Assert.Equal(0, accounts.GetProperty("counts").GetProperty("all").GetInt32());
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (demoAccount.StatusCode, demoInvite.StatusCode));
     }
 

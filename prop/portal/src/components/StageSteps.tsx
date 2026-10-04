@@ -64,8 +64,8 @@ export function StageStepper({ details }: { details: AccountDetails }) {
   );
 }
 
-/** The stages as tiles, for the account page: when each was passed and with what result, and what comes next. */
-export function StageTiles({ details }: { details: AccountDetails }) {
+/** The stages as tiles, for the account page: when each was passed and with what result, and what comes next. The firm sees them about its trader. */
+export function StageTiles({ details, audience = "trader" }: { details: AccountDetails; audience?: "trader" | "firm" }) {
   const { stages, account } = details;
   return (
     <ol aria-label="Stages" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -82,7 +82,7 @@ export function StageTiles({ details }: { details: AccountDetails }) {
               <span className={`font-medium ${state === "upcoming" ? "text-muted" : ""}`}>
                 {stage.name} · {tileState(state)}
               </span>
-              <span className="text-xs text-muted">{tileDetail(stage, state, details)}</span>
+              <span className="text-xs text-muted">{tileDetail(stage, state, details, audience)}</span>
             </span>
           </li>
         );
@@ -124,7 +124,7 @@ function tileState(state: StepState): string {
   }
 }
 
-function tileDetail(stage: StageSummary, state: StepState, details: AccountDetails): string {
+function tileDetail(stage: StageSummary, state: StepState, details: AccountDetails, audience: "trader" | "firm"): string {
   const split = details.challenge.funded.profitSplitPercent;
   const isFunded = stage.stage === details.challenge.evaluation.length;
   switch (state) {
@@ -138,12 +138,12 @@ function tileDetail(stage: StageSummary, state: StepState, details: AccountDetai
         ? `Since ${formatDate(stage.startedAt)}${stage.tradingDays == null ? "" : ` · ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"} so far`}`
         : "The trading account is being opened.";
     case "waiting":
-      return "Every evaluation stage is passed. The firm is reviewing the funded account.";
+      return audience === "firm" ? "Every evaluation stage is passed. The funded account waits for your approval." : "Every evaluation stage is passed. The firm is reviewing the funded account.";
     case "failed":
       return details.endedAt ? `Ended ${formatDate(details.endedAt)}` : "Ended";
     case "cancelled":
       return details.endedAt ? `Cancelled ${formatDate(details.endedAt)}` : "Cancelled by the firm";
     case "upcoming":
-      return isFunded && split != null ? `${split}% of the profit is yours` : "Starts when the stage before is passed";
+      return isFunded && split != null ? `${split}% of the profit ${audience === "firm" ? "to the trader" : "is yours"}` : "Starts when the stage before is passed";
   }
 }

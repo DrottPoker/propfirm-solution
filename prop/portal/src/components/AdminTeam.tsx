@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { useAdmins, useInviteAdmin, useRemoveAdmin } from "@/lib/queries";
 
-import { buttonClass, ErrorText, fieldClass, Panel } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
 
 /** The firm's administrators: who they are, invitations that wait, and removal. */
 export function AdminTeam() {
@@ -19,7 +19,8 @@ export function AdminTeam() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
+    <AdminPage narrow>
+      <PageHeader title="Team" description="The people who run your firm in this admin panel. Each one logs in with their own email and password." />
       <InviteAdmin />
 
       <Panel title="Administrators">
@@ -57,7 +58,7 @@ export function AdminTeam() {
           </div>
         )}
       </Panel>
-    </main>
+    </AdminPage>
   );
 }
 
