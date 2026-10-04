@@ -4253,12 +4253,15 @@ export interface components {
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
         /**
          * @description The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be
-         *     empty in a draft. What is required is checked when the application is sent.
+         *     empty in a draft. What is required is checked when the application is sent. A company in the EU gives its
+         *     VatNumber, or says with NoVatNumber that it has none.
          */
         FirmApplication: {
             companyName: null | string;
             registrationNumber: null | string;
             country: null | string;
+            vatNumber: null | string;
+            noVatNumber: null | boolean;
             address: null | string;
             website: null | string;
             contactName: null | string;
@@ -4622,8 +4625,8 @@ export interface components {
             forSale: boolean;
         };
         /**
-         * @description What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules
-         *     for slots. The prices are examples until they are decided.
+         * @description What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the
+         *     slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
          */
         PricesResponse: {
             currency: string;
@@ -4631,9 +4634,11 @@ export interface components {
             startupFee: number;
             /** Format: double */
             reviewDeposit: number;
-            slotPrices: components["schemas"]["SlotPriceResponse"][];
+            /** Format: double */
+            packagePrice: number;
             /** Format: int32 */
-            minSlots: number;
+            packageSlots: number;
+            slotPrices: components["schemas"]["SlotPriceResponse"][];
             /** Format: int32 */
             maxSlots: number;
             /** Format: int32 */
@@ -4819,6 +4824,7 @@ export interface components {
         /**
          * @description The firm's review for its admin panel. Message is our latest word: the changes we need, or why
          *     it was not approved. SubmitProblem says why the application cannot be sent now.
+         *     EuCountries are where the application gives a VAT number or says the company has none.
          */
         VerificationResponse: {
             status: components["schemas"]["ReviewStatus"];
@@ -4836,6 +4842,7 @@ export interface components {
             maxDocuments: number;
             /** Format: int32 */
             maxDocumentBytes: number;
+            euCountries: string[];
         };
         VerifySignupRequest: {
             token: null | string;

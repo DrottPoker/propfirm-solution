@@ -104,8 +104,8 @@ public sealed class PaymentsOptions
 
 /// <summary>
 /// What firms pay us for their slots, and how (ADR 0020). A slot is room for one open challenge. The firm pays
-/// in advance by card: a startup fee when it goes live, and its slots for each month. The prices are examples
-/// until they are decided.
+/// in advance by card: a startup fee when it goes live, and each month a package with some slots and any slots
+/// beyond it. The prices are our proposal until they are confirmed.
 /// </summary>
 public sealed class BillingOptions
 {
@@ -125,14 +125,18 @@ public sealed class BillingOptions
     /// </summary>
     public decimal ReviewDeposit { get; init; }
 
+    /// <summary>The monthly price of the package, which includes <see cref="PackageSlots"/>.</summary>
+    public decimal PackagePrice { get; init; }
+
+    /// <summary>The slots the package includes, and so the fewest a firm can have.</summary>
+    public int PackageSlots { get; init; }
+
     /// <summary>
-    /// The monthly price of a slot, from the slot each tier starts at. Every slot costs the price of its own tier,
-    /// so the price per slot falls with more slots and never jumps.
+    /// The monthly price of each slot beyond the package, from the slot each tier starts at. The first tier starts
+    /// right after the package's slots. Every slot costs the price of its own tier, so the price per slot falls
+    /// with more slots and never jumps.
     /// </summary>
     public IReadOnlyList<SlotPriceOptions> SlotPrices { get; init; } = [];
-
-    /// <summary>The fewest slots a firm can have.</summary>
-    public int MinSlots { get; init; } = 10;
 
     public int MaxSlots { get; init; } = 10_000;
 

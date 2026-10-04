@@ -8,6 +8,8 @@ const application: FirmApplication = {
   companyName: "Acme Trading Ltd",
   registrationNumber: "559000-1234",
   country: "SE",
+  vatNumber: "SE559000123401",
+  noVatNumber: null,
   address: "Storgatan 1\n111 22 Stockholm",
   website: null,
   contactName: "Anna Andersson",
@@ -33,6 +35,7 @@ const verification: Verification = {
   submitProblem: null,
   maxDocuments: 10,
   maxDocumentBytes: 10 * 1024 * 1024,
+  euCountries: ["DE", "SE"],
 };
 
 describe("the application form", () => {
@@ -45,6 +48,13 @@ describe("the application form", () => {
       { name: "Bert Berg", share: "40" },
     ]);
     expect(applicationOf(form)).toEqual({ application });
+  });
+
+  it("leaves out the VAT number when the company has none", () => {
+    const form = { ...formOf(application), noVatNumber: true };
+
+    expect(applicationOf(form)).toMatchObject({ application: { vatNumber: null, noVatNumber: true } });
+    expect(formOf({ ...application, vatNumber: null, noVatNumber: true }).noVatNumber).toBe(true);
   });
 
   it("sends empty fields as none, trims text and drops empty links", () => {

@@ -9,8 +9,11 @@ test("an approved firm in the sandbox goes live by paying, and buys more slots",
 
   await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
   await expect(page.getByRole("heading", { name: "Go live" })).toBeVisible();
-  await page.getByLabel("Slots", { exact: true }).fill("20");
-  await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 100.00 USD" })).toBeVisible();
+  await expect(page.getByText("Package with 25 slots: 500.00 USD per month")).toBeVisible();
+  await page.getByLabel("Slots", { exact: true }).fill("30");
+  await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 200.00 USD" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^Package with 25 slots, / })).toBeVisible();
+  await expect(page.getByRole("cell", { name: /^5 extra slots, / })).toBeVisible();
   await page.getByRole("button", { name: /and go live$/ }).click();
 
   // The test payment page: a card that declines first, then one that pays.
@@ -24,11 +27,11 @@ test("an approved firm in the sandbox goes live by paying, and buys more slots",
 
   // Live now: the portal no longer says it is a test environment.
   await expect(page.getByRole("status").filter({ hasText: "Test environment" })).toHaveCount(0);
-  await expect(page.getByText("0 of 20 slots taken. 20 free.")).toBeVisible();
+  await expect(page.getByText("0 of 30 slots taken. 30 free.")).toBeVisible();
   await expect(page.getByText("Test ending 4242, expires 12/2034")).toBeVisible();
 
-  await page.getByLabel("New number of slots").fill("25");
+  await page.getByLabel("New number of slots").fill("35");
   await page.getByRole("button", { name: /^Buy now for / }).click();
-  await expect(page.getByText("0 of 25 slots taken. 25 free.")).toBeVisible();
+  await expect(page.getByText("0 of 35 slots taken. 35 free.")).toBeVisible();
   await expect(page.getByRole("cell", { name: /^More slots,/ })).toBeVisible();
 });

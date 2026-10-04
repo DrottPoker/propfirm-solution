@@ -120,11 +120,13 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     public HttpClient CreatePlatformClient() => CreatePortalClient(PlatformHost);
 
     /// <summary>A complete application for our review, as a firm sends it.</summary>
-    public static object Application(string companyName = "Acme Trading Ltd") => new
+    public static object Application(string companyName = "Acme Trading Ltd", string country = "SE", string? vatNumber = "SE559000123401", bool? noVatNumber = null) => new
     {
         companyName,
         registrationNumber = "559000-1234",
-        country = "SE",
+        country,
+        vatNumber,
+        noVatNumber,
         address = "Storgatan 1, 111 22 Stockholm",
         website = "https://acme.test",
         contactName = "Anna Andersson",

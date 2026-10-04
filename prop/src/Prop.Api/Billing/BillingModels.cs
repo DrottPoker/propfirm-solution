@@ -65,15 +65,16 @@ public sealed record NextChargeResponse(DateOnly Month, DateTimeOffset ChargeAt,
 public sealed record SlotPriceResponse(int From, decimal Price);
 
 /// <summary>
-/// What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules
-/// for slots. The prices are examples until they are decided.
+/// What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the
+/// slots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots.
 /// </summary>
 public sealed record PricesResponse(
     string Currency,
     decimal StartupFee,
     decimal ReviewDeposit,
+    decimal PackagePrice,
+    int PackageSlots,
     IReadOnlyList<SlotPriceResponse> SlotPrices,
-    int MinSlots,
     int MaxSlots,
     int ChargeDaysBeforeMonth,
     int WarningPercent);

@@ -2,17 +2,17 @@
 
 - Fas: 7, handpenningen och godkännandet innan live i 9a
 - Status: Implementerad i `prop/src/Prop.Api/Billing`, `prop/src/Prop.Rules`, handelsplattformen och `prop/portal`
-- Datum: 2026-10-03
+- Datum: 2026-10-03, paketet 2026-10-04
 
 ## Syfte
 
-Firman betalar oss i förskott för platser, alltså hur många challenges den kan ha aktiva samtidigt. Den betalar en handpenning när den skickar sin ansökan till vår granskning, och när vi har godkänt den går den live genom att betala startavgiften minus handpenningen och första månaden (se [specen för granskning och avstängning](granskning.md)). Sedan betalar den varje månad innan den börjar. En månad som inte är betald när den börjar pausar firmans challenges tills den är betald. Vi levererar aldrig något som inte är betalt och har aldrig en skuld att driva in. Besluten finns i [ADR 0020](../adr/0020-forbetalda-platser-for-aktiva-challenges.md). Inaktivitetsregeln och tidsgränsen per fas, som frigör platser, beskrivs i [specen för regelmotorn](regelmotor.md).
+Firman betalar oss i förskott för platser, alltså hur många challenges den kan ha aktiva samtidigt. Varje månad betalar den ett paket med ett antal platser, och platser utöver paketet kostar ett pris per plats. Den betalar en handpenning när den skickar sin ansökan till vår granskning, och när vi har godkänt den går den live genom att betala startavgiften minus handpenningen och första månaden (se [specen för granskning och avstängning](granskning.md)). Sedan betalar den varje månad innan den börjar. En månad som inte är betald när den börjar pausar firmans challenges tills den är betald. Vi levererar aldrig något som inte är betalt och har aldrig en skuld att driva in. Besluten finns i [ADR 0020](../adr/0020-forbetalda-platser-for-aktiva-challenges.md). Inaktivitetsregeln och tidsgränsen per fas, som frigör platser, beskrivs i [specen för regelmotorn](regelmotor.md).
 
 ## Flöde
 
 ```
 sandlådan -> /admin/verification: ansökan -> debitering Deposit på en betalsida -> vår granskning -> godkänd
--> /admin/billing: antal platser och automatisk utökning, priset just nu
+-> /admin/billing: antal platser (minst paketets) och automatisk utökning, priset just nu
 -> POST /admin/billing/activate -> debitering Activation och en betalsida (Stripe Checkout eller testsidan)
 -> leverantören bekräftar -> i en transaktion: debiteringen betald, månaden betald, firman live,
    testkontona från sandlådan avslutas och obetalda testordrar går ut
@@ -38,28 +38,30 @@ sista lediga platsen tas och automatisk utökning är på -> debitering Slots me
 
 ## Priser
 
-Priserna är inställningar under `Billing`, och exemplen nedan är inte bestämda.
+Priserna är inställningar under `Billing`. Värdena nedan är vårt förslag från 2026-10-04 och bekräftas när offerterna för prisdata och intervjuerna med firmor finns.
 
-| Del | Exempel |
+| Del | Förslag |
 |---|---|
-| Startavgift, en gång | 500 USD |
-| Handpenning för granskningen, dras av från startavgiften | 100 USD |
-| Plats 1 till 100 | 5 USD per månad |
-| Plats 101 till 500 | 4,50 USD per månad |
-| Plats 501 och uppåt | 4 USD per månad |
+| Startavgift, en gång | 700 USD |
+| Handpenning för granskningen, dras av från startavgiften | 200 USD |
+| Paket med 25 platser | 500 USD per månad |
+| Plats 26 till 100 | 5 USD per månad |
+| Plats 101 och uppåt | 4 USD per månad |
 
-- Varje plats kostar priset för sitt eget steg. 120 platser kostar alltså 100 x 5 + 20 x 4,50 = 590 USD i månaden.
+- Paketet ingår alltid, och dess platser är de färsta en firma kan ha.
+- Varje plats utöver paketet kostar priset för sitt eget steg. 120 platser kostar alltså 500 + 75 x 5 + 20 x 4 = 955 USD i månaden.
 - En del av en månad betalas för dagarna som är kvar, räknat med dagen för betalningen, avrundat till hela cent. Den 5 oktober är 27 av 31 dagar kvar.
 - Månaderna är kalendermånader i UTC.
-- En firma har minst `MinSlots` (10) och högst `MaxSlots` (10 000) platser.
+- En firma har minst paketets platser och högst `MaxSlots` (10 000). Har paketet fler platser än firman valt, till exempel efter att priserna ändrats, debiteras och får firman paketets platser.
+- Paketet och platserna utöver det är egna rader i varje debitering, till exempel `Package with 25 slots, November 2026` och `5 extra slots, November 2026`.
 
 ## Debiteringar
 
 | Sort | När | Vad |
 |---|---|---|
 | `Deposit` | Firman skickar sin ansökan första gången | Handpenningen för vår granskning. Betalas på en betalsida, som sparar kortet. Betalas aldrig tillbaka. |
-| `Activation` | Firman går live, när vi har godkänt den | Startavgiften minus handpenningen som betalats, och platserna för resten av månaden. Från den dag nästa månad debiteras också nästa månad. Betalas på en betalsida, som sparar kortet. |
-| `Renewal` | `ChargeDaysBeforeMonth` (5) dagar innan månaden börjar | Månadens platser: firmans valda antal, eller så många som är tagna om de är fler. Dras från det sparade kortet. |
+| `Activation` | Firman går live, när vi har godkänt den | Startavgiften minus handpenningen som betalats, och paketet och platserna utöver det för resten av månaden. Från den dag nästa månad debiteras också nästa månad. Betalas på en betalsida, som sparar kortet. |
+| `Renewal` | `ChargeDaysBeforeMonth` (5) dagar innan månaden börjar | Månadens paket och platser: firmans valda antal, eller så många som är tagna om de är fler, och aldrig färre än paketets. Dras från det sparade kortet. |
 | `Slots` | Firman köper fler, eller automatisk utökning | Skillnaden i pris för resten av månaden, och för nästa månad om den redan är betald med färre. Dras från kortet direkt. |
 
 | Status | Betyder |
@@ -144,7 +146,7 @@ Mejlen skickas från plattformens adress. Ett mejl som inte går iväg loggas, o
 
 | Sida | Innehåll |
 |---|---|
-| `/admin/billing` | I sandlådan: stegen till live med länk till granskningen tills firman är godkänd, priserna, antal platser, automatisk utökning, priset just nu och knappen som betalar och går live. Live: platserna med en stapel, ändring av platser med priset, automatisk utökning, kortet och nästa betalning, obetalda månader med nytt försök och betalsida, och debiteringarna. Efter en betalsida väntar sidan tills betalningen är bekräftad. |
+| `/admin/billing` | I sandlådan: stegen till live med länk till granskningen tills firman är godkänd, priserna med paketet först, antal platser med paketets som förval, automatisk utökning, priset just nu och knappen som betalar och går live. Live: platserna med en stapel, ändring av platser med priset, automatisk utökning, kortet och nästa betalning, obetalda månader med nytt försök och betalsida, och debiteringarna. Efter en betalsida väntar sidan tills betalningen är bekräftad. |
 | `/admin/billing/checkout/{id}` | Testsidan för betalningar och kort. |
 
 Varje sida i adminpanelen visar en rad när månaden är obetald, när en betalning nekats, när alla platser är tagna eller när de flesta är det.
@@ -166,8 +168,12 @@ Varje sida i adminpanelen visar en rad när månaden är obetald, när en betaln
 | Inställning | Innehåll |
 |---|---|
 | `Billing:Provider` | `Stripe` (standard) eller `Test`, bara för utveckling. |
-| `Billing:Currency`, `StartupFee`, `ReviewDeposit`, `SlotPrices` | Valuta, startavgift, handpenningen för granskningen (0 för ingen, högst startavgiften) och priset per plats från varje steg (`From`, `Price`). Exemplen ligger i `appsettings.json`. |
-| `Billing:MinSlots`, `MaxSlots` | Minst och högst antal platser. Standard 10 och 10 000. |
+| `Billing:Currency`, `StartupFee`, `ReviewDeposit` | Valuta, startavgift och handpenningen för granskningen (0 för ingen, högst startavgiften). |
+| `Billing:PackagePrice`, `PackageSlots` | Paketets pris per månad (över 0) och platserna som ingår (minst 1). Paketets platser är de färsta en firma kan ha. |
+| `Billing:SlotPrices` | Priset per plats utöver paketet från varje steg (`From`, `Price`). Första steget börjar på platsen efter paketets. |
+| `Billing:MaxSlots` | Högst antal platser. Standard 10 000. |
+
+Förslaget till priser ligger i `appsettings.json`.
 | `Billing:ChargeDaysBeforeMonth` | Hur många dagar innan månaden den debiteras. Standard 5. |
 | `Billing:RetryInterval`, `MaxAttempts` | Hur länge till nästa försök efter ett nej, och hur många försök en månad får. Standard 1 dygn och 5. |
 | `Billing:WarningPercent` | När administratörerna varnas. Standard 80. |
@@ -184,13 +190,13 @@ I utveckling används testleverantören. En firma som registrerat sig skickar si
 - En firma som slutar betala förblir pausad. Ingen regel avslutar dess challenges efter en tid.
 - En debitering som betalats två gånger betalas tillbaka för hand.
 - Bara Stripe har en färdig adapter.
-- Priserna är exempel.
+- Priserna är ett förslag tills de är bekräftade.
 
 ## Tester
 
-- `prop/tests/Prop.Api.Tests/BillingRulesTests`: priset per steg, att fler platser aldrig blir billigare, del av en månad, när en månad debiteras, raderna för handpenningen, go-live med och utan avdrag, månaden och fler platser, och att fel inställningar hittas.
+- `prop/tests/Prop.Api.Tests/BillingRulesTests`: paketet och priset per steg utöver det, att fler platser utöver paketet aldrig blir billigare, att en månad aldrig debiteras för färre platser än paketets eller de tagna, paketet och platserna utöver det som egna rader, del av en månad, när en månad debiteras, raderna för handpenningen, go-live med och utan avdrag, månaden och fler platser, och att fel inställningar hittas.
 - `prop/tests/Prop.Api.Tests/SlotTests`: ingen gräns, en full firma som inte kan starta förrän en challenge tar slut, en order som håller den sista platsen åt sin köpare, en order som går ut och lämnar tillbaka platsen, och en betalning utan plats.
 - `prop/tests/Prop.Api.Tests/BillingFlowTests`: att go-live kräver vårt godkännande, go-live med testbetalning, kort som nekas och sandlådans konto som avslutas, go-live som inte är tillåten, go-live som startas om eller går ut, fler och färre platser, månaden som dras i förskott, en månad som börjar obetald och pausar challenges på handelsplattformen tills ett nytt kort betalar, en avstängning som håller challengerna pausade fast månaden betalas, en obetald månad som betalas på en betalsida, färre platser som gäller efter månaden som väntar på betalning, automatisk utökning och en nekad utökning som väntar ett dygn, varningen, att testsidan bara är firmans egen och konfigurerade firmors platser.
 - `prop/tests/Prop.Api.Tests/StripeBillingTests`: handpenningen på Stripe Checkout och samma kund när firman går live, Stripe Checkout med vår nyckel och bara kort, och webhooken som tar firman live en gång, en förfalskad signatur, dragningen av kortet med en nyckel per försök och kort, ett nekat kort med Stripes orsak, ett nytt kort från en setup-sida, en go-live som startas om och stänger den första sidan, en dragning som Stripe rapporterar, en betalning till som sparas för återbetalning, och platser som Stripe fördröjer förbi nästa månads debitering och ändå gäller nästa månad. Stripe är en låtsad version (`FakeStripe`).
-- `prop/portal/src/lib/billing.test.ts`: platserna i text och stapel, prisstegen, kortet, debiteringarnas namn och raden i adminpanelen, också för en avstängd firma.
-- `prop/portal/e2e/billing.spec.ts`: en godkänd firma går live med testbetalning efter ett kort som nekas, ser sina platser och kort, och köper fler platser.
+- `prop/portal/src/lib/billing.test.ts`: platserna i text och stapel, paketet och prisstegen, kortet, debiteringarnas namn och raden i adminpanelen, också för en avstängd firma.
+- `prop/portal/e2e/billing.spec.ts`: en godkänd firma ser paketet, går live med testbetalning efter ett kort som nekas, ser sina platser och kort, och köper fler platser.

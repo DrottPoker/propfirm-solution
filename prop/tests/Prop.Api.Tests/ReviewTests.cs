@@ -55,6 +55,51 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
     }
 
     [Fact]
+    public async Task AFirmInTheEuGivesItsVatNumberOrSaysItHasNone()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await SandboxFirmAsync(factory, "acme");
+
+        using var outsideEu = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application(country: "AE", vatNumber: null), TestContext.Current.CancellationToken);
+        var withoutEuNumber = await outsideEu.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        using var german = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application(country: "DE", vatNumber: null), TestContext.Current.CancellationToken);
+        var withoutNumber = await GetAsync(admin, "admin/verification");
+        using var refused = await PostAsync(admin, "admin/verification/submit", null);
+        using var wrongCountry = await admin.PutAsJsonAsync(
+            Url("admin/verification/application"),
+            PropFactory.Application(country: "DE", vatNumber: "SE559000123401"),
+            TestContext.Current.CancellationToken);
+        using var none = await admin.PutAsJsonAsync(
+            Url("admin/verification/application"),
+            PropFactory.Application(country: "DE", vatNumber: "DE123456789", noVatNumber: true),
+            TestContext.Current.CancellationToken);
+        var withNone = await none.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        using var saved = await admin.PutAsJsonAsync(
+            Url("admin/verification/application"),
+            PropFactory.Application(country: "DE", vatNumber: "de 123.456-789"),
+            TestContext.Current.CancellationToken);
+        var draft = await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        using var sent = await PostAsync(admin, "admin/verification/submit", null);
+
+        Assert.Equal(JsonValueKind.Null, withoutEuNumber.GetProperty("submitProblem").ValueKind);
+        Assert.Equal(HttpStatusCode.OK, german.StatusCode);
+        Assert.Equal("Fill in the company's VAT number, or tick that it has none.", withoutNumber.GetProperty("submitProblem").GetString());
+        var eu = withoutNumber.GetProperty("euCountries").EnumerateArray().Select(c => c.GetString()).ToList();
+        Assert.Equal((true, true, false), (eu.Contains("DE"), eu.Contains("SE"), eu.Contains("AE")));
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, "vatNumber"), (refused.StatusCode, await FieldOfAsync(refused)));
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, "vatNumber"), (wrongCountry.StatusCode, await FieldOfAsync(wrongCountry)));
+        Assert.Equal((JsonValueKind.Null, true, JsonValueKind.Null), (
+            withNone.GetProperty("application").GetProperty("vatNumber").ValueKind,
+            withNone.GetProperty("application").GetProperty("noVatNumber").GetBoolean(),
+            withNone.GetProperty("submitProblem").ValueKind));
+        Assert.Equal(("DE123456789", JsonValueKind.Null), (
+            draft.GetProperty("application").GetProperty("vatNumber").GetString(),
+            draft.GetProperty("application").GetProperty("noVatNumber").ValueKind));
+        Assert.Equal(HttpStatusCode.OK, sent.StatusCode);
+        Assert.Equal("Submitted", (await GetAsync(admin, "admin/verification")).GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task DocumentsAreKnownByTheirContentKeptEncryptedAndOnlyTheFirmsOwn()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
@@ -105,7 +150,7 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         var sent = await GetAsync(admin, "admin/verification");
         var billing = await GetAsync(admin, "admin/billing");
         using var changed = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application("Another name"), TestContext.Current.CancellationToken);
-        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
 
         Assert.Equal(HttpStatusCode.OK, submitted.StatusCode);
         Assert.Equal("Draft", waiting.GetProperty("status").GetString());
@@ -167,8 +212,8 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
 
         using var approved = await PostAsync(ops, "ops/firms/acme/approve", new { message = "Welcome aboard." });
         var firm = await approved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
-        var quote = await GetAsync(admin, "admin/billing/quote?slots=20");
-        using var activated = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=30");
+        using var activated = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         using var paid = await CompleteAsync(admin, CheckoutIdOf(await activated.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)));
         var billing = await GetAsync(admin, "admin/billing");
         using var changed = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application("Another name"), TestContext.Current.CancellationToken);
@@ -178,11 +223,11 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         var email = Assert.Single(factory.Emails.Sent, e => e.To == Owner && e.Subject == "Firm acme is approved");
         Assert.Contains("Welcome aboard.", email.Body, StringComparison.Ordinal);
         Assert.Contains("http://acme.localhost:3002/admin/billing", email.Body, StringComparison.Ordinal);
-        Assert.Equal(487.10m, quote.GetProperty("amount").GetDecimal());
-        Assert.Equal(("Startup fee, less the deposit of 100.00 USD", 400m), (quote.GetProperty("lines")[0].GetProperty("description").GetString(), quote.GetProperty("lines")[0].GetProperty("amount").GetDecimal()));
+        Assert.Equal(1057.25m, quote.GetProperty("amount").GetDecimal());
+        Assert.Equal(("Startup fee, less the deposit of 100.00 USD", 600m), (quote.GetProperty("lines")[0].GetProperty("description").GetString(), quote.GetProperty("lines")[0].GetProperty("amount").GetDecimal()));
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
         Assert.Equal("Live", billing.GetProperty("status").GetString());
-        Assert.Equal([("Activation", 487.10m), ("Deposit", 100m)], billing.GetProperty("charges").EnumerateArray().Select(c => (c.GetProperty("kind").GetString(), c.GetProperty("amount").GetDecimal())));
+        Assert.Equal([("Activation", 1057.25m), ("Deposit", 100m)], billing.GetProperty("charges").EnumerateArray().Select(c => (c.GetProperty("kind").GetString(), c.GetProperty("amount").GetDecimal())));
         Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
     }
 
@@ -228,7 +273,7 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var again = await PostAsync(ops, "ops/firms/acme/reject", new { message = "Again." });
         var verification = await GetAsync(admin, "admin/verification");
         using var resubmitted = await PostAsync(admin, "admin/verification/submit", null);
-        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
 
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.Conflict), (rejected.StatusCode, again.StatusCode));
         Assert.Equal(("Rejected", false), (verification.GetProperty("status").GetString(), verification.GetProperty("canEdit").GetBoolean()));

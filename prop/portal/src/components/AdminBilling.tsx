@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { useBranding } from "@/app/providers";
 
 import type { Billing, Charge, ChargeLine, Quote } from "@/lib/api/types";
-import { cardLabel, chargeKindLabels, chargeLabel, chargeStatusLabels, monthName, priceTiers, slotsSummary, slotsTaken, unpaidCharges } from "@/lib/billing";
+import { cardLabel, chargeKindLabels, chargeLabel, chargeStatusLabels, monthName, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges } from "@/lib/billing";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import {
   useActivate,
@@ -95,7 +95,7 @@ function PaymentConfirmation({ billing, onDone }: { billing: Billing; onDone: ()
 function GoLive({ billing }: { billing: Billing }) {
   const activate = useActivate();
   const prices = billing.prices;
-  const [slots, setSlots] = useState(String(Math.max(prices.minSlots, 50)));
+  const [slots, setSlots] = useState(String(prices.packageSlots));
   const [autoExpand, setAutoExpand] = useState(false);
   const [step, setStep] = useState("10");
   const [problem, setProblem] = useState<string | null>(null);
@@ -125,9 +125,9 @@ function GoLive({ billing }: { billing: Billing }) {
     <Panel title="Go live">
       {billing.review !== "Approved" && <ReviewSteps billing={billing} />}
       <p className="text-sm text-muted">
-        Choose how many challenges you want open at once. Each one takes a slot from when it starts until it ends. You pay the startup fee and the
-        slots for the rest of this month now, and each month in advance from then on. Your card is saved for that. Your test accounts from the sandbox
-        end when you go live.
+        Choose how many challenges you want open at once. Each one takes a slot from when it starts until it ends. The package includes{" "}
+        {prices.packageSlots} slots, and you can add more. You pay the startup fee and the rest of this month now, and each month in advance from
+        then on. Your card is saved for that. Your test accounts from the sandbox end when you go live.
       </p>
       <ul className="text-sm">
         {prices.startupFee > 0 && (
@@ -138,8 +138,8 @@ function GoLive({ billing }: { billing: Billing }) {
               : prices.reviewDeposit > 0 && `, of which ${formatMoney(prices.reviewDeposit)} ${prices.currency} is a deposit paid when you send your application`}
           </li>
         )}
-        {priceTiers(prices).map((tier) => (
-          <li key={tier}>{tier}</li>
+        {monthlyPrices(prices).map((price) => (
+          <li key={price}>{price}</li>
         ))}
       </ul>
       <form onSubmit={submit} className="flex flex-col gap-4">

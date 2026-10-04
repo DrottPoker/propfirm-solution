@@ -9,7 +9,7 @@ Produktplanen kräver en kontroll av bolag och ägare innan en firma får ta emo
 
 ## Beslut
 
-- **Firman skickar en ansökan** från sin adminpanel: bolagets uppgifter, ägarna med minst 25 procent, länkar till sina villkor mot traders och annat vi kan kontrollera. Dokument som registreringsbevis är frivilliga. Vi ber inte om ID-handlingar.
+- **Firman skickar en ansökan** från sin adminpanel: bolagets uppgifter med momsnummer, eller att bolaget saknar ett, för bolag i EU, ägarna med minst 25 procent, länkar till sina villkor mot traders och annat vi kan kontrollera. Dokument som registreringsbevis är frivilliga. Vi ber inte om ID-handlingar.
 - **Firman betalar en handpenning när den skickar.** Den sållar bort oseriösa firmor och betalar vår tid. Den dras av från startavgiften när firman går live, och betalas inte tillbaka om firman nekas. Den är en debitering av sorten `Deposit` i samma betalflöde som platserna, på en betalsida som också sparar kortet. Beloppet är en inställning, och 0 stänger av den.
 - **Godkänn först, betala sedan.** Firman kan bara starta go-live när den är godkänd, så vi tar aldrig emot startavgiften från en firma vi sedan nekar. `Billing:AllowGoLiveWithoutVerification` tas bort.
 - **Fem statusar:** `Draft`, `Submitted`, `ChangesRequested`, `Approved` och `Rejected`. Vi kan be om ändringar, och firman skickar igen utan ny handpenning. Att neka är slutligt.

@@ -113,6 +113,7 @@ function Application({ firm }: { firm: Firm }) {
         <Item label="Legal name" value={application.companyName} />
         <Item label="Registration number" value={application.registrationNumber} />
         <Item label="Country" value={application.country ? `${countryName(application.country)} (${application.country})` : null} />
+        <Item label="VAT number" value={application.noVatNumber ? "None, the company says it has no VAT number" : application.vatNumber} />
         <Item label="Registered address" value={application.address} />
         <Item label="Website">{application.website ? <ExternalLink href={application.website} /> : "-"}</Item>
         <Item label="Contact" value={[application.contactName, application.contactPhone].filter(Boolean).join(", ") || null} />

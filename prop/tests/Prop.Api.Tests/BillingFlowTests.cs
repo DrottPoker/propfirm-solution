@@ -15,7 +15,8 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
 {
     private const string Owner = "owner@firm.test";
 
-    private static readonly Dictionary<string, string> FewSlots = new() { ["Billing:MinSlots"] = "1" };
+    // A package of one slot, so a few challenges fill the slots.
+    private static readonly Dictionary<string, string> FewSlots = new() { ["Billing:PackageSlots"] = "1", ["Billing:SlotPrices:0:From"] = "2" };
 
     [Fact]
     public async Task AFirmInTheSandboxGoesLiveByPayingTheStartupFeeAndItsFirstMonth()
@@ -24,9 +25,9 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         using var admin = await SandboxFirmAsync(factory, "acme");
         var sandboxAccount = await StartAsync(admin, "tester@firm.test");
         var before = await GetAsync(admin, "admin/billing");
-        var quote = await GetAsync(admin, "admin/billing/quote?slots=20");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=30");
 
-        var checkoutId = await ActivateAsync(admin, 20);
+        var checkoutId = await ActivateAsync(admin, 30);
         var page = await GetAsync(admin, $"admin/billing/checkouts/{checkoutId}");
         using var declined = await CompleteAsync(admin, checkoutId, declines: true);
         using var paid = await CompleteAsync(admin, checkoutId, declines: false);
@@ -41,13 +42,16 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
             before.GetProperty("slots").GetProperty("limit").GetString(),
             before.GetProperty("slots").GetProperty("slots").GetInt32(),
             before.GetProperty("goLiveProblem").ValueKind));
-        Assert.Equal(("Activation", 587.10m, "2026-11-01"), (quote.GetProperty("kind").GetString(), quote.GetProperty("amount").GetDecimal(), quote.GetProperty("from").GetString()));
-        Assert.Equal(("Payment", "Open", 587.10m), (page.GetProperty("purpose").GetString(), page.GetProperty("status").GetString(), page.GetProperty("amount").GetDecimal()));
+        Assert.Equal(("Activation", 1157.25m, "2026-11-01"), (quote.GetProperty("kind").GetString(), quote.GetProperty("amount").GetDecimal(), quote.GetProperty("from").GetString()));
+        Assert.Equal(
+            ["Startup fee", "Package with 25 slots, October 2026 (27 of 31 days)", "5 extra slots, October 2026 (27 of 31 days)"],
+            quote.GetProperty("lines").EnumerateArray().Select(l => l.GetProperty("description").GetString()));
+        Assert.Equal(("Payment", "Open", 1157.25m), (page.GetProperty("purpose").GetString(), page.GetProperty("status").GetString(), page.GetProperty("amount").GetDecimal()));
         Assert.Equal(HttpStatusCode.PaymentRequired, declined.StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
 
-        Assert.Equal(("Live", "Paid", "Paid", 20, 0, 20), (
+        Assert.Equal(("Live", "Paid", "Paid", 30, 0, 30), (
             after.GetProperty("status").GetString(),
             after.GetProperty("plan").GetString(),
             after.GetProperty("slots").GetProperty("limit").GetString(),
@@ -56,9 +60,9 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
             after.GetProperty("nextMonthSlots").GetInt32()));
         Assert.Equal(("Test", "4242"), (after.GetProperty("card").GetProperty("brand").GetString(), after.GetProperty("card").GetProperty("last4").GetString()));
         var charge = Assert.Single(after.GetProperty("charges").EnumerateArray());
-        Assert.Equal(("Activation", "Paid", 587.10m, 2), (charge.GetProperty("kind").GetString(), charge.GetProperty("status").GetString(), charge.GetProperty("amount").GetDecimal(), charge.GetProperty("lines").GetArrayLength()));
+        Assert.Equal(("Activation", "Paid", 1157.25m, 3), (charge.GetProperty("kind").GetString(), charge.GetProperty("status").GetString(), charge.GetProperty("amount").GetDecimal(), charge.GetProperty("lines").GetArrayLength()));
         var next = after.GetProperty("nextCharge");
-        Assert.Equal(("2026-11-01", 20, 100m), (next.GetProperty("month").GetString(), next.GetProperty("slots").GetInt32(), next.GetProperty("amount").GetDecimal()));
+        Assert.Equal(("2026-11-01", 30, 525m), (next.GetProperty("month").GetString(), next.GetProperty("slots").GetInt32(), next.GetProperty("amount").GetDecimal()));
         Assert.Equal(new DateTimeOffset(2026, 10, 27, 0, 0, 0, TimeSpan.Zero), next.GetProperty("chargeAt").GetDateTimeOffset());
         Assert.Equal("Live", branding.GetProperty("status").GetString());
         Assert.Equal("Cancelled", account.GetProperty("account").GetProperty("status").GetString());
@@ -70,9 +74,9 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await SandboxFirmAsync(factory, "acme", approved: false);
 
-        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         var billing = await GetAsync(admin, "admin/billing");
-        var quote = await GetAsync(admin, "admin/billing/quote?slots=20");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=30");
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.StartsWith("We review your company before you go live", billing.GetProperty("goLiveProblem").GetString(), StringComparison.Ordinal);
@@ -85,18 +89,18 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await SandboxFirmAsync(factory, "acme");
-        var first = await ActivateAsync(admin, 20);
-        var second = await ActivateAsync(admin, 30);
+        var first = await ActivateAsync(admin, 30);
+        var second = await ActivateAsync(admin, 40);
 
         await factory.AdvanceAsync(TimeSpan.FromHours(1));
         await Eventually.ThatAsync(async () => (await GetAsync(admin, $"admin/billing/checkouts/{second}")).GetProperty("status").GetString() == "Expired", "the checkout to expire");
-        var third = await ActivateAsync(admin, 25);
+        var third = await ActivateAsync(admin, 35);
         using var paid = await CompleteAsync(admin, third, declines: false);
         var billing = await GetAsync(admin, "admin/billing");
 
         Assert.Equal("Expired", (await GetAsync(admin, $"admin/billing/checkouts/{first}")).GetProperty("status").GetString());
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);
-        Assert.Equal(25, billing.GetProperty("slots").GetProperty("slots").GetInt32());
+        Assert.Equal(35, billing.GetProperty("slots").GetProperty("slots").GetInt32());
         Assert.Equal(["Paid", "Void", "Void"], billing.GetProperty("charges").EnumerateArray().Select(c => c.GetProperty("status").GetString()));
     }
 
@@ -126,14 +130,14 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     public async Task EachMonthIsChargedToTheSavedCardBeforeItStarts()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 30);
 
         // From Monday 5 October at 08:00 to 27 October, when November is due.
         await AdvanceToAsync(factory, admin, new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero));
         var billing = await WaitForBillingAsync(admin, b => b.GetProperty("charges").GetArrayLength() == 2, "November's charge");
 
         var renewal = billing.GetProperty("charges")[0];
-        Assert.Equal(("Renewal", "Paid", "2026-11-01", 100m), (renewal.GetProperty("kind").GetString(), renewal.GetProperty("status").GetString(), renewal.GetProperty("month").GetString(), renewal.GetProperty("amount").GetDecimal()));
+        Assert.Equal(("Renewal", "Paid", "2026-11-01", 525m), (renewal.GetProperty("kind").GetString(), renewal.GetProperty("status").GetString(), renewal.GetProperty("month").GetString(), renewal.GetProperty("amount").GetDecimal()));
         Assert.Equal("2026-12-01", billing.GetProperty("nextCharge").GetProperty("month").GetString());
     }
 
@@ -141,7 +145,7 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     public async Task AMonthThatStartsUnpaidPausesTheChallengesUntilItIsPaid()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 30);
         using var webhook = await admin.PutAsJsonAsync(Url("admin/firm/webhook"), new { url = "https://acme.test/webhooks" }, TestContext.Current.CancellationToken);
         var accountId = await StartAsync(admin, "anna@test.example");
         await WaitForAccountAsync(admin, accountId, a => a.GetProperty("account").GetProperty("status").GetString() == "Active");
@@ -176,7 +180,7 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     public async Task ASuspensionAndAnUnpaidMonthBothKeepTheChallengesPaused()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 30);
         var accountId = await StartAsync(admin, "anna@test.example");
         await WaitForAccountAsync(admin, accountId, a => a.GetProperty("account").GetProperty("status").GetString() == "Active");
         await NewCardAsync(admin, declines: true);
@@ -204,7 +208,7 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     public async Task AnUnpaidMonthCanBePaidWithAnotherCardOnACheckoutPage()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 30);
         await NewCardAsync(admin, declines: true);
         await AdvanceToAsync(factory, admin, new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero));
         var declined = await WaitForBillingAsync(admin, b => b.GetProperty("charges")[0].GetProperty("failure").ValueKind == JsonValueKind.String, "November's charge to be declined");
@@ -224,12 +228,12 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
     public async Task FewerSlotsApplyAfterTheMonthThatWaitsForPayment()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await LiveFirmAsync(factory, "acme", slots: 20);
+        using var admin = await LiveFirmAsync(factory, "acme", slots: 30);
         await NewCardAsync(admin, declines: true);
         await AdvanceToAsync(factory, admin, new DateTimeOffset(2026, 10, 27, 0, 0, 1, TimeSpan.Zero));
         await WaitForBillingAsync(admin, b => b.GetProperty("charges")[0].GetProperty("failure").ValueKind == JsonValueKind.String, "November's charge to be declined");
 
-        var quote = await GetAsync(admin, "admin/billing/quote?slots=15");
+        var quote = await GetAsync(admin, "admin/billing/quote?slots=25");
         var billing = await GetAsync(admin, "admin/billing");
 
         Assert.Equal(("FewerSlots", "2026-12-01"), (quote.GetProperty("kind").GetString(), quote.GetProperty("from").GetString()));
@@ -296,7 +300,7 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
         using var admin = await SandboxFirmAsync(factory, "acme");
         using var other = await SandboxFirmAsync(factory, "globex", "owner@globex.test");
-        var checkoutId = await ActivateAsync(admin, 20);
+        var checkoutId = await ActivateAsync(admin, 30);
 
         using var read = await other.GetAsync(Url($"admin/billing/checkouts/{checkoutId}"), TestContext.Current.CancellationToken);
         using var completed = await CompleteAsync(other, checkoutId, declines: false);

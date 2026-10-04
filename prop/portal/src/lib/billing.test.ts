@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Billing, Charge, Slots } from "./api/types";
-import { billingNotice, cardLabel, chargeLabel, priceTiers, slotsSummary, slotsTaken, unpaidCharges } from "./billing";
+import { billingNotice, cardLabel, chargeLabel, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges } from "./billing";
 
 const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, suspended: false, warning: true };
 
@@ -12,8 +12,11 @@ const renewal: Charge = {
   status: "Pending",
   month: "2026-11-01",
   slots: 50,
-  lines: [{ description: "50 slots, November 2026", quantity: 50, amount: 250 }],
-  amount: 250,
+  lines: [
+    { description: "Package with 25 slots, November 2026", quantity: 25, amount: 500 },
+    { description: "25 extra slots, November 2026", quantity: 25, amount: 125 },
+  ],
+  amount: 625,
   currency: "USD",
   failure: "The test card was declined.",
   attempts: 1,
@@ -36,13 +39,14 @@ const billing: Billing = {
   charges: [],
   prices: {
     currency: "USD",
-    startupFee: 500,
-    reviewDeposit: 100,
+    startupFee: 700,
+    reviewDeposit: 200,
+    packagePrice: 500,
+    packageSlots: 25,
     slotPrices: [
-      { from: 1, price: 5 },
-      { from: 101, price: 4.5 },
+      { from: 26, price: 5 },
+      { from: 101, price: 4 },
     ],
-    minSlots: 10,
     maxSlots: 10_000,
     chargeDaysBeforeMonth: 5,
     warningPercent: 80,
@@ -68,8 +72,12 @@ describe("slots", () => {
 });
 
 describe("prices and cards", () => {
-  it("name each tier's slots", () => {
-    expect(priceTiers(billing.prices)).toEqual(["Slots 1 to 100: 5.00 USD each per month", "Slot 101 and up: 4.50 USD each per month"]);
+  it("name the package and then each tier's slots beyond it", () => {
+    expect(monthlyPrices(billing.prices)).toEqual([
+      "Package with 25 slots: 500.00 USD per month",
+      "Slots 26 to 100: 5.00 USD each per month",
+      "Slot 101 and up: 4.00 USD each per month",
+    ]);
   });
 
   it("show the card's brand, last digits and expiry", () => {

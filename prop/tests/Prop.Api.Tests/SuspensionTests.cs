@@ -71,7 +71,7 @@ public sealed class SuspensionTests(PostgresFixture postgres) : IClassFixture<Po
         using var ops = await factory.LogInAsStaffAsync();
 
         using var suspended = await PostAsync(ops, "ops/firms/acme/suspend", new { reason = Reason });
-        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         using var start = await PostAsync(admin, "admin/accounts", new { email = "anna@test.example", challengeId = "two-step-100k" });
 
         Assert.Equal(HttpStatusCode.OK, suspended.StatusCode);

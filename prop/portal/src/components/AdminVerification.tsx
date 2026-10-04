@@ -84,6 +84,7 @@ function ApplicationEditor({ verification }: { verification: Verification }) {
   // What the service says is missing is about the saved application, so it is shown only while nothing is changed.
   const changed = JSON.stringify(form) !== JSON.stringify(formOf(verification.application));
   const set = (changes: Partial<ApplicationForm>) => setForm((current) => ({ ...current, ...changes }));
+  const inEu = verification.euCountries.includes(form.country);
 
   const send = (action: "save" | "submit") => {
     const parsed = applicationOf(form);
@@ -122,7 +123,13 @@ function ApplicationEditor({ verification }: { verification: Verification }) {
           <TextField label="Registration number" value={form.registrationNumber} onChange={(registrationNumber) => set({ registrationNumber })} disabled={!editable} />
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-muted">Country of registration</span>
-            <select aria-label="Country of registration" value={form.country} onChange={(e) => set({ country: e.target.value })} disabled={!editable} className={fieldClass}>
+            <select
+              aria-label="Country of registration"
+              value={form.country}
+              onChange={(e) => set({ country: e.target.value, noVatNumber: form.noVatNumber && verification.euCountries.includes(e.target.value) })}
+              disabled={!editable}
+              className={fieldClass}
+            >
               <option value="">Choose a country</option>
               {countries.map((country) => (
                 <option key={country.code} value={country.code}>
@@ -131,6 +138,22 @@ function ApplicationEditor({ verification }: { verification: Verification }) {
               ))}
             </select>
           </label>
+          <div className="flex flex-col gap-2">
+            <TextField
+              label="VAT number"
+              value={form.noVatNumber ? "" : form.vatNumber}
+              onChange={(vatNumber) => set({ vatNumber })}
+              disabled={!editable || form.noVatNumber}
+              hint={inEu ? "With the country code first, for example SE559000123401." : "The company's VAT or tax number, if it has one."}
+              optional={!inEu}
+            />
+            {inEu && (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.noVatNumber} onChange={(e) => set({ noVatNumber: e.target.checked })} disabled={!editable} />
+                The company has no VAT number
+              </label>
+            )}
+          </div>
           <TextField label="Website" value={form.website} onChange={(website) => set({ website })} disabled={!editable} placeholder="https://" optional />
           <label className="flex flex-col gap-1 text-sm sm:col-span-2">
             <span className="text-muted">Registered address</span>

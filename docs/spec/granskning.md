@@ -28,6 +28,8 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 | `companyName` | Bolagets juridiska namn. Högst 200 tecken. |
 | `registrationNumber` | Organisationsnummer eller motsvarande. Högst 100 tecken. |
 | `country` | Landet där bolaget är registrerat, som ISO 3166-1 alpha-2, till exempel `SE`. |
+| `vatNumber` | Momsnummer med landskoden först, som i EU:s momsregister, till exempel `SE559000123401`. Ett bolag i EU anger det eller `noVatNumber`. Frivilligt utanför EU, där det kan vara ett annat skattenummer, högst 30 bokstäver och siffror. Mellanslag, punkter och bindestreck tas bort och bokstäverna blir versaler. |
+| `noVatNumber` | `true` när bolaget säger att det inte har något momsnummer. Då sparas inget momsnummer. |
 | `address` | Bolagets registrerade adress. Högst 500 tecken. |
 | `website` | Firmans webbplats. Frivillig, en https-adress. |
 | `contactName` | Vem vi pratar med. Högst 200 tecken. |
@@ -37,6 +39,7 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 | `links` | Frivilliga länkar, till exempel sociala medier och omdömen. Högst 5 https-adresser. |
 | `description` | Frivillig. Vilka firman är och hur den säljer challenges och betalar ut. Högst 2 000 tecken. |
 
+- Ett bolag i EU, Sverige också, anger sitt momsnummer eller kryssar i att det inte har något. Vi är ett svenskt bolag, så ett bolag i ett annat EU-land slipper svensk moms bara med ett giltigt momsnummer. Inget land kräver att alla bolag är momsregistrerade, till exempel inte de under omsättningsgränsen, så numret kan inte krävas. Ett bolag i EU utan momsnummer betalar svensk moms. Tjänsten kontrollerar bara formen: landets prefix (`EL` för Grekland) och 2-12 siffror eller bokstäver efter det. Vi kontrollerar numret i EU:s momsregister (VIES) när vi granskar.
 - Ett utkast sparas med bara de fält som är ifyllda. Fälten kontrolleras när de sparas, och att allt som krävs finns när ansökan skickas.
 - Dokument är frivilliga, till exempel registreringsbevis. Högst 10 filer per firma, högst 10 MB var, i formaten PDF, PNG och JPEG. Formatet kontrolleras på filens innehåll, inte på namnet. Filerna sparas krypterade.
 - Ansökan och dokumenten kan ändras som utkast och när vi har bett om ändringar, annars inte.
@@ -57,7 +60,7 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 
 ## Handpenningen
 
-- `Billing:ReviewDeposit` (exempel 100 USD) betalas när ansökan skickas första gången, på en betalsida som också sparar kortet. Är den 0 skickas ansökan direkt utan betalning.
+- `Billing:ReviewDeposit` (förslag 200 USD) betalas när ansökan skickas första gången, på en betalsida som också sparar kortet. Är den 0 skickas ansökan direkt utan betalning.
 - Den är en debitering av sorten `Deposit`, och syns bland firmans debiteringar. En betalsida som inte betalas i tid blir `Void`, och firman kan skicka igen.
 - Den dras av från startavgiften när firman går live, med det belopp som faktiskt betalades. Raden heter då `Startup fee, less the deposit of 100.00 USD`, och försvinner om den blir 0.
 - Den betalas aldrig tillbaka, inte heller när firman nekas. Det står vid knappen innan firman betalar.
@@ -83,7 +86,7 @@ Vägarna börjar med `/api/portal/admin` och kräver en administratör.
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp, valuta och om den är betald), om ansökan kan ändras och varför den inte kan skickas. |
+| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp, valuta och om den är betald), om ansökan kan ändras, varför den inte kan skickas och EU-länderna, där firman anger momsnummer eller att den saknar ett (`euCountries`). |
 | `PUT /verification/application` | Sparar ansökan som utkast. 422 med fältet för ett fel, 409 när den inte kan ändras. Svarar med `GET /verification`. |
 | `POST /verification/documents` | Laddar upp ett dokument som `multipart/form-data` med fältet `file`. 201 med dokumentet. 409 när ansökan inte kan ändras eller firman har 10 dokument, 413 för en för stor fil, 415 för ett annat format. |
 | `GET /verification/documents/{id}` | Hämtar dokumentet. |
@@ -154,7 +157,7 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 | Inställning | Innehåll |
 |---|---|
 | `Platform:OpsUrl` | Vår adminvys adress, med `/` sist. Lokalt http://ops.localhost:3002/. |
-| `Billing:ReviewDeposit` | Handpenningen. 0 för ingen. Högst `StartupFee`. Exemplet ligger i `appsettings.json`. |
+| `Billing:ReviewDeposit` | Handpenningen. 0 för ingen. Högst `StartupFee`. Förslaget ligger i `appsettings.json`. |
 | `Staff:SeedUsers` | Personal som skapas vid start, eller får lösenordet igen: `Email` och `Password`. För utveckling. |
 
 `Billing:AllowGoLiveWithoutVerification` finns inte längre. En firma går live när den är godkänd.
@@ -169,8 +172,9 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 
 ## Tester
 
-- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften och att adminvyn bara finns på sin adress och kräver personal.
+- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften och att adminvyn bara finns på sin adress och kräver personal.
 - `prop/tests/Prop.Api.Tests/SuspensionTests`: en avstängd firma kan inte starta challenges, dess challenges pausas och återupptas, butiken stänger, och en obetald månad håller challengerna pausade när firman slås på igen.
 - `prop/tests/Prop.Api.Tests/BillingRulesTests`: avdraget för handpenningen.
+- `prop/tests/Prop.Api.Tests/VatNumbersTests`: att ett bolag i EU anger momsnummer eller att det saknar ett, hur numret skrivs och vilka former som tas emot och nekas.
 - `prop/portal/src/lib/verification.test.ts`: ansökans fält, ägarna och granskningens texter.
 - `prop/portal/e2e/verification.spec.ts`: en ny firma fyller i ansökan, betalar handpenningen, granskas och godkänns i vår adminvy och går live.

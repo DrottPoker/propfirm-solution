@@ -195,7 +195,7 @@ Se [specen för granskningen](docs/spec/granskning.md).
 
 ## Prova att gå live och betala för platser
 
-En firma som vi har godkänt går live genom att betala startavgiften minus handpenningen och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är exempel.
+En firma som vi har godkänt går live genom att betala startavgiften minus handpenningen och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är vårt förslag: 700 USD i startavgift varav 200 USD i handpenning, ett paket med 25 platser för 500 USD i månaden och sedan 5 USD per plats till och med plats 100 och 4 USD därefter.
 
 1. Låt en firma bli godkänd enligt ovan och öppna Billing i dess adminpanel, till exempel http://acme.localhost:3002/admin/billing.
 2. Välj antal platser och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, och dess konton från sandlådan avslutas.

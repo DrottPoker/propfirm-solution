@@ -35,13 +35,14 @@ export function slotsSummary(slots: Slots): string {
   return `${taken} of ${slots.slots} slots taken${byOrders}. ${slots.free} free.`;
 }
 
-/** Each tier's price, for example "Slots 101 to 500: 4.50 USD each per month". */
-export function priceTiers(prices: Prices): string[] {
-  return prices.slotPrices.map((tier, i) => {
+/** The monthly prices: the package first, then each tier beyond it, for example "Slots 26 to 100: 5.00 USD each per month". */
+export function monthlyPrices(prices: Prices): string[] {
+  const tiers = prices.slotPrices.map((tier, i) => {
     const next = prices.slotPrices[i + 1];
     const range = next ? `Slots ${tier.from} to ${next.from - 1}` : `Slot ${tier.from} and up`;
     return `${range}: ${formatMoney(tier.price)} ${prices.currency} each per month`;
   });
+  return [`Package with ${prices.packageSlots} ${plural(prices.packageSlots, "slot")}: ${formatMoney(prices.packagePrice)} ${prices.currency} per month`, ...tiers];
 }
 
 /** The saved card, for example "visa ending 4242, expires 12/2030". */

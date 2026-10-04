@@ -78,7 +78,7 @@ var billingOptions = builder.Services.AddOptions<BillingOptions>()
     .Bind(builder.Configuration.GetSection(BillingOptions.SectionName))
     .Validate(
         o => BillingTerms.From(o).Problems().Count == 0,
-        "Billing has invalid prices or slot rules. Check Billing:Currency, StartupFee, ReviewDeposit, SlotPrices, MinSlots, MaxSlots and ChargeDaysBeforeMonth.")
+        "Billing has invalid prices or slot rules. Check Billing:Currency, StartupFee, ReviewDeposit, PackagePrice, PackageSlots, SlotPrices, MaxSlots and ChargeDaysBeforeMonth.")
     .Validate(
         o => o.RetryInterval > TimeSpan.Zero && o.MaxAttempts >= 1 && o.WarningPercent is >= 1 and <= 100
             && o.CheckoutLifetime >= TimeSpan.FromMinutes(30) && o.CheckoutLifetime <= TimeSpan.FromHours(23),

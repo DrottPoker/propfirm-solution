@@ -110,8 +110,8 @@ internal sealed partial class BillingService(
     public static string ReturnPathOf(ChargeKind? kind) => kind == ChargeKind.Deposit ? "admin/verification" : "admin/billing";
 
     public string? SlotsProblem(int slots) =>
-        slots < Terms.MinSlots || slots > Terms.MaxSlots
-            ? FormattableString.Invariant($"Choose {Terms.MinSlots:N0} to {Terms.MaxSlots:N0} slots.")
+        slots < Terms.PackageSlots || slots > Terms.MaxSlots
+            ? FormattableString.Invariant($"Choose {Terms.PackageSlots:N0} to {Terms.MaxSlots:N0} slots. The package includes {Terms.PackageSlots:N0}.")
             : null;
 
     public static string? AutoExpandProblem(int? step) =>
@@ -654,7 +654,7 @@ internal sealed partial class BillingService(
         }
 
         var usage = await slots.UsageAsync(connection, firm, null, cancellationToken);
-        var slotCount = Math.Max(billing.Slots ?? Terms.MinSlots, usage.Used + usage.Reserved);
+        var slotCount = Terms.SlotsToCharge(billing.Slots, usage.Used + usage.Reserved);
         await InsertChargeAsync(connection, firm.Id, ChargeKind.Renewal, due, 1, slotCount, BillingRules.Renewal(due, slotCount, Terms), now, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

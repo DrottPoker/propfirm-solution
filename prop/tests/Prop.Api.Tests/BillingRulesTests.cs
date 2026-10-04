@@ -4,10 +4,10 @@ using Prop.Api.Billing;
 
 namespace Prop.Api.Tests;
 
-/// <summary>The arithmetic of billing: graduated slot prices, parts of months and the lines of each charge.</summary>
+/// <summary>The arithmetic of billing: the package, graduated prices beyond it, parts of months and the lines of each charge.</summary>
 public sealed class BillingRulesTests
 {
-    private static readonly BillingTerms Terms = new("USD", 500m, [new SlotPrice(1, 5m), new SlotPrice(101, 4.5m), new SlotPrice(501, 4m)], 10, 10_000, 5, 100m);
+    private static readonly BillingTerms Terms = new("USD", 700m, 500m, 25, [new SlotPrice(26, 5m), new SlotPrice(101, 4m)], 10_000, 5, 200m);
 
     // Monday 5 October 2026: 27 of October's 31 days are left, counting the day itself.
     private static readonly DateTimeOffset October5 = new(2026, 10, 5, 8, 0, 0, TimeSpan.Zero);
@@ -16,23 +16,32 @@ public sealed class BillingRulesTests
     private static readonly DateTimeOffset October28 = new(2026, 10, 28, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]
-    [InlineData(0, "0")]
-    [InlineData(50, "250")]
-    [InlineData(100, "500")]
-    [InlineData(101, "504.5")]
-    [InlineData(600, "2700")]
-    public void EachSlotCostsThePriceOfItsTier(int slots, string price)
+    [InlineData(1, "500")]
+    [InlineData(25, "500")]
+    [InlineData(26, "505")]
+    [InlineData(100, "875")]
+    [InlineData(101, "879")]
+    [InlineData(600, "2875")]
+    public void ThePackageIncludesItsSlotsAndEachSlotBeyondItCostsThePriceOfItsTier(int slots, string price)
     {
-        Assert.Equal(decimal.Parse(price, CultureInfo.InvariantCulture), BillingRules.MonthlyPrice(slots, Terms.SlotPrices));
+        Assert.Equal(decimal.Parse(price, CultureInfo.InvariantCulture), BillingRules.MonthlyPrice(slots, Terms));
     }
 
     [Fact]
-    public void MoreSlotsNeverCostLess()
+    public void MoreSlotsBeyondThePackageNeverCostLess()
     {
-        for (var slots = 1; slots <= 1_000; slots++)
+        for (var slots = Terms.PackageSlots + 1; slots <= 1_000; slots++)
         {
-            Assert.True(BillingRules.MonthlyPrice(slots, Terms.SlotPrices) > BillingRules.MonthlyPrice(slots - 1, Terms.SlotPrices));
+            Assert.True(BillingRules.MonthlyPrice(slots, Terms) > BillingRules.MonthlyPrice(slots - 1, Terms));
         }
+    }
+
+    [Fact]
+    public void AMonthIsChargedForAtLeastThePackageAndTheTakenSlots()
+    {
+        Assert.Equal(
+            (25, 30, 25, 40),
+            (Terms.SlotsToCharge(null, 3), Terms.SlotsToCharge(30, 3), Terms.SlotsToCharge(20, 3), Terms.SlotsToCharge(30, 40)));
     }
 
     [Fact]
@@ -56,10 +65,14 @@ public sealed class BillingRulesTests
     }
 
     [Fact]
-    public void TheFirstPaymentIsTheStartupFeeAndTheRestOfTheMonth()
+    public void TheFirstPaymentIsTheStartupFeeAndThePackageAndExtraSlotsForTheRestOfTheMonth()
     {
         Assert.Equal(
-            [new ChargeLine("Startup fee", 1, 500m), new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)],
+            [
+                new ChargeLine("Startup fee", 1, 700m),
+                new ChargeLine("Package with 25 slots, October 2026 (27 of 31 days)", 25, 435.48m),
+                new ChargeLine("25 extra slots, October 2026 (27 of 31 days)", 25, 108.87m),
+            ],
             BillingRules.Activation(October5, 50, Terms));
     }
 
@@ -68,45 +81,56 @@ public sealed class BillingRulesTests
     {
         Assert.Equal(
             [
-                new ChargeLine("Startup fee", 1, 500m),
-                new ChargeLine("50 slots, October 2026 (4 of 31 days)", 50, 32.26m),
-                new ChargeLine("50 slots, November 2026", 50, 250m),
+                new ChargeLine("Startup fee", 1, 700m),
+                new ChargeLine("Package with 25 slots, October 2026 (4 of 31 days)", 25, 64.52m),
+                new ChargeLine("25 extra slots, October 2026 (4 of 31 days)", 25, 16.13m),
+                new ChargeLine("Package with 25 slots, November 2026", 25, 500m),
+                new ChargeLine("25 extra slots, November 2026", 25, 125m),
             ],
             BillingRules.Activation(October28, 50, Terms));
     }
 
     [Fact]
-    public void WithoutAStartupFeeOnlyTheSlotsArePaid()
+    public void WithoutAStartupFeeOnlyThePackageAndTheSlotsArePaid()
     {
-        Assert.Equal([new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)], BillingRules.Activation(October5, 50, Terms with { StartupFee = 0m }));
+        Assert.Equal(
+            [
+                new ChargeLine("Package with 25 slots, October 2026 (27 of 31 days)", 25, 435.48m),
+                new ChargeLine("25 extra slots, October 2026 (27 of 31 days)", 25, 108.87m),
+            ],
+            BillingRules.Activation(October5, 50, Terms with { StartupFee = 0m }));
     }
 
     [Fact]
     public void TheDepositForTheReviewIsOneLine()
     {
-        Assert.Equal([new ChargeLine("Review deposit, taken off the startup fee", 1, 100m)], BillingRules.Deposit(Terms));
+        Assert.Equal([new ChargeLine("Review deposit, taken off the startup fee", 1, 200m)], BillingRules.Deposit(Terms));
     }
 
     [Fact]
     public void TheDepositPaidIsTakenOffTheStartupFee()
     {
         Assert.Equal(
-            [new ChargeLine("Startup fee, less the deposit of 100.00 USD", 1, 400m), new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)],
-            BillingRules.Activation(October5, 50, Terms, depositPaid: 100m));
+            [
+                new ChargeLine("Startup fee, less the deposit of 200.00 USD", 1, 500m),
+                new ChargeLine("Package with 25 slots, October 2026 (27 of 31 days)", 25, 435.48m),
+            ],
+            BillingRules.Activation(October5, 25, Terms, depositPaid: 200m));
     }
 
     [Fact]
-    public void ADepositAsLargeAsTheStartupFeeLeavesOnlyTheSlots()
+    public void ADepositAsLargeAsTheStartupFeeLeavesOnlyThePackage()
     {
         Assert.Equal(
-            [new ChargeLine("50 slots, October 2026 (27 of 31 days)", 50, 217.74m)],
-            BillingRules.Activation(October5, 50, Terms with { ReviewDeposit = 500m }, depositPaid: 500m));
+            [new ChargeLine("Package with 25 slots, October 2026 (27 of 31 days)", 25, 435.48m)],
+            BillingRules.Activation(October5, 25, Terms with { ReviewDeposit = 700m }, depositPaid: 700m));
     }
 
     [Fact]
     public void MoreSlotsPayTheDifferenceForTheRestOfTheMonth()
     {
         Assert.Equal([new ChargeLine("10 more slots, October 2026 (27 of 31 days)", 10, 43.55m)], BillingRules.MoreSlots(October5, 50, 60, null, Terms));
+        Assert.Equal([new ChargeLine("1 more slot, October 2026 (27 of 31 days)", 1, 4.35m)], BillingRules.MoreSlots(October5, 50, 51, null, Terms));
     }
 
     [Fact]
@@ -119,9 +143,14 @@ public sealed class BillingRulesTests
     }
 
     [Fact]
-    public void AMonthsSlotsAreOneLine()
+    public void AMonthIsThePackageAndTheSlotsBeyondIt()
     {
-        Assert.Equal([new ChargeLine("120 slots, November 2026", 120, 590m)], BillingRules.Renewal(new DateOnly(2026, 11, 1), 120, Terms));
+        var november = new DateOnly(2026, 11, 1);
+
+        Assert.Equal(
+            [new ChargeLine("Package with 25 slots, November 2026", 25, 500m), new ChargeLine("95 extra slots, November 2026", 95, 455m)],
+            BillingRules.Renewal(november, 120, Terms));
+        Assert.Equal([new ChargeLine("Package with 25 slots, November 2026", 25, 500m)], BillingRules.Renewal(november, 25, Terms));
     }
 
     [Fact]
@@ -133,11 +162,13 @@ public sealed class BillingRulesTests
     [Theory]
     [InlineData("currency")]
     [InlineData("startup fee")]
+    [InlineData("package price")]
+    [InlineData("package slots")]
+    [InlineData("max slots")]
     [InlineData("no prices")]
     [InlineData("first tier")]
     [InlineData("falling tiers")]
     [InlineData("fractions of cents")]
-    [InlineData("min slots")]
     [InlineData("charge days")]
     [InlineData("deposit above the startup fee")]
     [InlineData("negative deposit")]
@@ -147,13 +178,15 @@ public sealed class BillingRulesTests
         {
             "currency" => Terms with { Currency = "usd" },
             "startup fee" => Terms with { StartupFee = -1m },
+            "package price" => Terms with { PackagePrice = 0m },
+            "package slots" => Terms with { PackageSlots = 0, SlotPrices = [new SlotPrice(1, 5m)] },
+            "max slots" => Terms with { MaxSlots = 24 },
             "no prices" => Terms with { SlotPrices = [] },
-            "first tier" => Terms with { SlotPrices = [new SlotPrice(2, 5m)] },
-            "falling tiers" => Terms with { SlotPrices = [new SlotPrice(1, 5m), new SlotPrice(1, 4m)] },
-            "fractions of cents" => Terms with { SlotPrices = [new SlotPrice(1, 4.999m)] },
-            "min slots" => Terms with { MinSlots = 0 },
+            "first tier" => Terms with { SlotPrices = [new SlotPrice(25, 5m)] },
+            "falling tiers" => Terms with { SlotPrices = [new SlotPrice(26, 5m), new SlotPrice(26, 4m)] },
+            "fractions of cents" => Terms with { SlotPrices = [new SlotPrice(26, 4.999m)] },
             "charge days" => Terms with { ChargeDaysBeforeMonth = 28 },
-            "deposit above the startup fee" => Terms with { ReviewDeposit = 500.01m },
+            "deposit above the startup fee" => Terms with { ReviewDeposit = 700.01m },
             "negative deposit" => Terms with { ReviewDeposit = -1m },
             _ => throw new ArgumentOutOfRangeException(nameof(problem)),
         };

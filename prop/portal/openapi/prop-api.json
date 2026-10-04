@@ -4258,6 +4258,8 @@
           "companyName",
           "registrationNumber",
           "country",
+          "vatNumber",
+          "noVatNumber",
           "address",
           "website",
           "contactName",
@@ -4285,6 +4287,18 @@
             "type": [
               "null",
               "string"
+            ]
+          },
+          "vatNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "noVatNumber": {
+            "type": [
+              "null",
+              "boolean"
             ]
           },
           "address": {
@@ -4342,7 +4356,7 @@
             ]
           }
         },
-        "description": "The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be\nempty in a draft. What is required is checked when the application is sent."
+        "description": "The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be\nempty in a draft. What is required is checked when the application is sent. A company in the EU gives its\nVatNumber, or says with NoVatNumber that it has none."
       },
       "FirmFilter": {
         "enum": [
@@ -5497,8 +5511,9 @@
           "currency",
           "startupFee",
           "reviewDeposit",
+          "packagePrice",
+          "packageSlots",
           "slotPrices",
-          "minSlots",
           "maxSlots",
           "chargeDaysBeforeMonth",
           "warningPercent"
@@ -5516,15 +5531,19 @@
             "type": "number",
             "format": "double"
           },
+          "packagePrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "packageSlots": {
+            "type": "integer",
+            "format": "int32"
+          },
           "slotPrices": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SlotPriceResponse"
             }
-          },
-          "minSlots": {
-            "type": "integer",
-            "format": "int32"
           },
           "maxSlots": {
             "type": "integer",
@@ -5539,7 +5558,7 @@
             "format": "int32"
           }
         },
-        "description": "What firms pay: the startup fee, the deposit for our review that is taken off it, the slot prices and the rules\nfor slots. The prices are examples until they are decided."
+        "description": "What firms pay: the startup fee, the deposit for our review that is taken off it, the monthly package with the\nslots it includes, which are the fewest a firm can have, the prices of slots beyond it and the rules for slots."
       },
       "QuoteKind": {
         "enum": [
@@ -6080,7 +6099,8 @@
           "canEdit",
           "submitProblem",
           "maxDocuments",
-          "maxDocumentBytes"
+          "maxDocumentBytes",
+          "euCountries"
         ],
         "type": "object",
         "properties": {
@@ -6135,9 +6155,15 @@
           "maxDocumentBytes": {
             "type": "integer",
             "format": "int32"
+          },
+          "euCountries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
-        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now."
+        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now.\nEuCountries are where the application gives a VAT number or says the company has none."
       },
       "VerifySignupRequest": {
         "required": [

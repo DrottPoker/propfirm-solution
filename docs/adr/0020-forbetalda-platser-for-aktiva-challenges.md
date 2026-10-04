@@ -1,7 +1,7 @@
 # 0020. Förbetalda platser för aktiva challenges
 
 - Status: Föreslagen
-- Datum: 2026-10-03
+- Datum: 2026-10-03, paketet 2026-10-04
 
 ## Sammanhang
 
@@ -14,7 +14,8 @@ Hittills har firman inte betalat oss något, och en firma som registrerat sig ka
 - **En plats är en challenge som inte har tagit slut.** En challenge tar en plats från start till underkänd eller avbruten, i alla faser och som funded. Sandlådan har sin egen gräns och inga platser. Konfigurerade firmor har platser utan att betala, ett fast antal eller ingen gräns.
 - **En order som väntar på betalning håller en plats.** Annars kan flera köpare betala för den sista platsen, och någon betalar för en challenge som inte kan startas. Starter och ordrar låser firmans platser i sin transaktion, så den sista platsen tas en gång. Butiken stänger när ingen plats är ledig, och firmans API och adminpanel visar platserna.
 - **Månaden är en kalendermånad i UTC.** Firman betalar varje månad i förskott, `ChargeDaysBeforeMonth` dagar innan den börjar (standard 5). Fler platser betalas direkt för resten av månaden, räknat i dagar inklusive dagen för köpet, och för nästa månad också om den redan är betald. Färre platser gäller från nästa månad som inte är debiterad än, och bara om de öppna challengerna får plats.
-- **Priset per plats sjunker i steg.** Varje plats kostar priset för sitt eget steg, så fler platser aldrig blir billigare totalt. Startavgiften och priserna är inställningar och exempel tills de är bestämda.
+- **Firman betalar ett paket varje månad, och platser utöver paketet kostar per plats.** Paketet har ett fast pris och ett antal platser som ingår, och dess platser är de färsta en firma kan ha. Ett fast pris per firma täcker det som kostar oss lika mycket för varje firma, till exempel prisdata och granskningen, och ett pris långt under konkurrenternas får en helhetslösning att verka oseriös (se produktplanen). Paketet och platserna utöver det är egna rader i varje debitering, så firman ser vad den betalar för.
+- **Priset per plats utöver paketet sjunker i steg.** Varje plats kostar priset för sitt eget steg, så fler platser aldrig blir billigare totalt. Startavgiften, paketet och priserna är inställningar.
 - **Vi äger betalningen, leverantören tar bara emot pengarna.** Varje debitering är en rad med rader för vad den betalar, och varje händelse sparas i `billing_events` med leverantörens meddelande som bevis. Det som en betalning betalar för, till exempel en månads platser eller att firman går live, ändras i samma transaktion som debiteringen markeras som betald. Samma betalning flera gånger ger aldrig mer än en gång.
 - **Leverantören är en adapter.** `Stripe` med vårt eget konto: firman betalar första gången på en Stripe Checkout-sida som sparar kortet på en Stripe-kund, och kortet debiteras sedan utan firman (`off_session`). Ett nytt kort sparas på en Checkout-sida i läget `setup`. `Test`: en sida i portalen med testkort som betalar eller nekas, bara för utveckling.
 - **Varje försök har en egen idempotensnyckel**, `charge-{id}-{försök}-{kort}`. Ett nytt försök eller ett nytt kort blir en ny betalning, men samma försök två gånger dras aldrig två gånger. Svarar Stripe med ett eget fel räknas det som ett försök, eftersom Stripe sparar svaret på nyckeln. Svarar Stripe inte alls görs samma försök igen med samma nyckel. Debiteringen är låst medan kortet dras, och en debitering ändras bara så länge den inte är betald.
@@ -33,5 +34,6 @@ Hittills har firman inte betalat oss något, och en firma som registrerat sig ka
 - Stripes webhook för våra egna betalningar, `/api/payments/v1/billing/stripe`, måste nås från internet (ADR 0018), och signeras med `Billing:StripeWebhookSecret`.
 - En betalning som kommer för en debitering som redan är betald på annat sätt sparas som `paid_twice` och loggas som fel, och betalas tillbaka för hand.
 - Debiteringen av kortet sker medan debiteringen är låst i databasen, i högst Stripes svarstid.
-- Moms, kvitton från oss och fakturor med våra bolagsuppgifter ingår inte. De bestäms när bolaget och dess land är bestämt. Stripe kan skicka kvitton.
-- Priserna i inställningarna är exempel. De bestäms efter intervjuerna och offerterna för prisdata.
+- Moms, kvitton från oss och fakturor med våra bolagsuppgifter ingår inte än. Priserna är utan moms, och bolaget är svenskt, så momsen beror på var kunden finns (se produktplanen). Det byggs inför lansering. Stripe kan skicka kvitton.
+- Priserna i inställningarna är vårt förslag från 2026-10-04 (se produktplanen). De bekräftas efter intervjuerna och offerterna för prisdata.
+- En firma kan inte ha färre platser än paketet, även om den har färre challenges. Får paketet fler platser debiteras befintliga firmor för paketets platser från nästa månad.

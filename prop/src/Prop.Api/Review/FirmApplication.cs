@@ -8,12 +8,15 @@ public sealed record FirmOwner(string? Name, decimal? SharePercent);
 
 /// <summary>
 /// The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be
-/// empty in a draft. What is required is checked when the application is sent.
+/// empty in a draft. What is required is checked when the application is sent. A company in the EU gives its
+/// <paramref name="VatNumber"/>, or says with <paramref name="NoVatNumber"/> that it has none.
 /// </summary>
 public sealed record FirmApplication(
     string? CompanyName,
     string? RegistrationNumber,
     string? Country,
+    string? VatNumber,
+    bool? NoVatNumber,
     string? Address,
     string? Website,
     string? ContactName,
@@ -23,7 +26,7 @@ public sealed record FirmApplication(
     IReadOnlyList<string>? Links,
     string? Description)
 {
-    public static readonly FirmApplication Empty = new(null, null, null, null, null, null, null, [], null, [], null);
+    public static readonly FirmApplication Empty = new(null, null, null, null, null, null, null, null, null, [], null, [], null);
 }
 
 /// <summary>What is wrong with a field of the application.</summary>
@@ -37,12 +40,17 @@ internal static partial class ApplicationRules
     public const int MaxUrlLength = 500;
     public const int MaxDescriptionLength = 2_000;
 
-    /// <summary>The application with text trimmed, empty text as none and the country in capitals.</summary>
+    /// <summary>
+    /// The application with text trimmed, empty text as none, the country in capitals and the VAT number as the EU's
+    /// VAT register writes it. A company that says it has no VAT number has none, and otherwise the answer is left out.
+    /// </summary>
     public static FirmApplication Normalize(FirmApplication application) =>
         new(
             Clean(application.CompanyName),
             Clean(application.RegistrationNumber),
             Clean(application.Country)?.ToUpperInvariant(),
+            application.NoVatNumber == true ? null : VatNumbers.Normalize(application.VatNumber),
+            application.NoVatNumber == true ? true : null,
             Clean(application.Address),
             Clean(application.Website),
             Clean(application.ContactName),
@@ -63,6 +71,7 @@ internal static partial class ApplicationRules
         return Text("companyName", "the company's legal name", application.CompanyName, 200, complete)
             ?? Text("registrationNumber", "the company's registration number", application.RegistrationNumber, 100, complete)
             ?? CountryProblem(application.Country, complete)
+            ?? VatNumbers.Problem(application.VatNumber, application.NoVatNumber == true, application.Country, complete)
             ?? Text("address", "the company's registered address", application.Address, 500, complete)
             ?? Url("website", "The website", application.Website, required: false)
             ?? Text("contactName", "the name of the person we talk to", application.ContactName, 200, complete)

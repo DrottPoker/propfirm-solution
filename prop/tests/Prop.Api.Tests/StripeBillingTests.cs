@@ -22,7 +22,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
         using var admin = await SandboxFirmAsync(factory);
 
-        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         var checkoutUrl = (await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("checkoutUrl").GetString();
         var session = Assert.Single(factory.Stripe.Requests);
         using var forged = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.BillingCheckoutEvent("checkout.session.completed", session), FakeStripe.WebhookSecret);
@@ -38,16 +38,18 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
             session.Form["customer_creation"],
             session.Form["customer_email"],
             session.Form["payment_intent_data[setup_future_usage]"]));
-        Assert.Equal(("Startup fee", "50000", "8710"), (
+        Assert.Equal(("Startup fee", "70000", "Package with 25 slots, October 2026 (27 of 31 days)", "43548", "2177"), (
             session.Form["line_items[0][price_data][product_data][name]"],
             session.Form["line_items[0][price_data][unit_amount]"],
-            session.Form["line_items[1][price_data][unit_amount]"]));
+            session.Form["line_items[1][price_data][product_data][name]"],
+            session.Form["line_items[1][price_data][unit_amount]"],
+            session.Form["line_items[2][price_data][unit_amount]"]));
         Assert.Equal("http://acme.localhost:3002/admin/billing?checkout={CHECKOUT_SESSION_ID}", session.Form["success_url"]);
         Assert.Equal(HttpStatusCode.BadRequest, forged.StatusCode);
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (completed.StatusCode, again.StatusCode));
         Assert.Equal(("Live", "visa", "4242"), (billing.GetProperty("status").GetString(), billing.GetProperty("card").GetProperty("brand").GetString(), billing.GetProperty("card").GetProperty("last4").GetString()));
         var charge = Assert.Single(billing.GetProperty("charges").EnumerateArray());
-        Assert.Equal(("Paid", 587.10m), (charge.GetProperty("status").GetString(), charge.GetProperty("amount").GetDecimal()));
+        Assert.Equal(("Paid", 1157.25m), (charge.GetProperty("status").GetString(), charge.GetProperty("amount").GetDecimal()));
     }
 
     [Fact]
@@ -64,7 +66,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         var verification = await GetAsync(admin, "admin/verification");
         using var ops = await factory.LogInAsStaffAsync();
         using var approved = await PostAsync(ops, "ops/firms/acme/approve", new { message = (string?)null });
-        using var activated = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var activated = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         var goLive = factory.Stripe.Requests[^1];
 
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (saved.StatusCode, submitted.StatusCode));
@@ -73,7 +75,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, completed.StatusCode);
         Assert.Equal(("Submitted", true), (verification.GetProperty("status").GetString(), verification.GetProperty("deposit").GetProperty("paid").GetBoolean()));
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (approved.StatusCode, activated.StatusCode));
-        Assert.Equal((FakeStripe.Customer, "Startup fee, less the deposit of 100.00 USD", "40000"), (
+        Assert.Equal((FakeStripe.Customer, "Startup fee, less the deposit of 100.00 USD", "60000"), (
             goLive.Form["customer"],
             goLive.Form["line_items[0][price_data][product_data][name]"],
             goLive.Form["line_items[0][price_data][unit_amount]"]));
@@ -89,7 +91,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 1, "November's charge");
         var charge = factory.Stripe.Charges[0];
 
-        Assert.Equal(("10000", "usd", FakeStripe.Customer, "pm_card_visa"), (charge.Form["amount"], charge.Form["currency"], charge.Form["customer"], charge.Form["payment_method"]));
+        Assert.Equal(("52500", "usd", FakeStripe.Customer, "pm_card_visa"), (charge.Form["amount"], charge.Form["currency"], charge.Form["customer"], charge.Form["payment_method"]));
         Assert.Equal(("true", "true", "card_on_file"), (charge.Form["off_session"], charge.Form["confirm"], charge.Form["metadata[source]"]));
         Assert.Equal($"charge-{charge.Form["metadata[charge_id]"]}-1-pm_card_visa", charge.IdempotencyKey);
     }
@@ -101,13 +103,13 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         using var admin = await LiveFirmAsync(factory);
         factory.Stripe.DeclineCharges(true);
 
-        using var response = await admin.PutAsJsonAsync(Url("admin/billing/slots"), new { slots = 30 }, TestContext.Current.CancellationToken);
+        using var response = await admin.PutAsJsonAsync(Url("admin/billing/slots"), new { slots = 40 }, TestContext.Current.CancellationToken);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var billing = await GetAsync(admin, "admin/billing");
 
         Assert.Equal(HttpStatusCode.PaymentRequired, response.StatusCode);
         Assert.Equal("The card was declined: Your card was declined.", problem.GetProperty("title").GetString());
-        Assert.Equal(20, billing.GetProperty("slots").GetProperty("slots").GetInt32());
+        Assert.Equal(30, billing.GetProperty("slots").GetProperty("slots").GetInt32());
         Assert.Equal(("Slots", "Void"), (billing.GetProperty("charges")[0].GetProperty("kind").GetString(), billing.GetProperty("charges")[0].GetProperty("status").GetString()));
     }
 
@@ -134,8 +136,8 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), WithStripe);
         using var admin = await SandboxFirmAsync(factory);
 
-        using var first = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
-        using var second = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
+        using var first = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
+        using var second = await PostAsync(admin, "admin/billing/activate", new { slots = 40 });
 
         Assert.Equal(["cs_test_1"], factory.Stripe.Expired);
     }
@@ -151,9 +153,9 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         var chargeId = Guid.Parse(factory.Stripe.Charges[0].Form["metadata[charge_id]"]);
 
         // A payment that is not ours, and one for another amount, change nothing.
-        using var checkoutPayment = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 10_000, source: "checkout"));
-        using var wrongAmount = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 9_999));
-        using var reported = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 10_000));
+        using var checkoutPayment = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 52_500, source: "checkout"));
+        using var wrongAmount = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 52_499));
+        using var reported = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 52_500));
         using var login = await PostAsync(admin, "admin/login", new { email = "owner@firm.test", password = PropFactory.SignupPassword });
         var billing = await GetAsync(admin, "admin/billing");
 
@@ -172,7 +174,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         await factory.AdvanceAsync(new DateTimeOffset(2026, 10, 26, 23, 58, 0, TimeSpan.Zero) - factory.Time.GetUtcNow());
         using var login = await PostAsync(admin, "admin/login", new { email = "owner@firm.test", password = PropFactory.SignupPassword });
         factory.Stripe.FailNextCharges(1);
-        using var purchase = await admin.PutAsJsonAsync(Url("admin/billing/slots"), new { slots = 30 }, TestContext.Current.CancellationToken);
+        using var purchase = await admin.PutAsJsonAsync(Url("admin/billing/slots"), new { slots = 40 }, TestContext.Current.CancellationToken);
         await factory.AdvanceAsync(TimeSpan.FromMinutes(3));
         await Eventually.ThatAsync(() => factory.Stripe.Charges.Count == 2, "November's charge");
         await factory.AdvanceAsync(TimeSpan.FromMinutes(5));
@@ -183,9 +185,9 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(HttpStatusCode.ServiceUnavailable, purchase.StatusCode);
         Assert.Equal(charges[0].Form["metadata[charge_id]"], charges[2].Form["metadata[charge_id]"]);
         Assert.NotEqual(charges[0].IdempotencyKey, charges[2].IdempotencyKey);
-        Assert.Equal(("10000", "5000"), (charges[1].Form["amount"], charges[3].Form["amount"]));
+        Assert.Equal(("52500", "5000"), (charges[1].Form["amount"], charges[3].Form["amount"]));
         var forNovember = billing.GetProperty("charges").EnumerateArray().First(c => c.GetProperty("kind").GetString() == "Slots" && c.GetProperty("month").GetString() == "2026-11-01");
-        Assert.Equal(("Paid", 30), (forNovember.GetProperty("status").GetString(), forNovember.GetProperty("slots").GetInt32()));
+        Assert.Equal(("Paid", 40), (forNovember.GetProperty("status").GetString(), forNovember.GetProperty("slots").GetInt32()));
     }
 
     [Fact]
@@ -198,7 +200,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         var chargeId = Guid.Parse(factory.Stripe.Charges[0].Form["metadata[charge_id]"]);
         await Eventually.ThatAsync(() => Reference(factory, chargeId) is not null, "November to be paid");
 
-        using var again = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 10_000));
+        using var again = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.ChargeSucceededEvent(chargeId, 52_500));
 
         Assert.Equal(HttpStatusCode.OK, again.StatusCode);
         Assert.Equal("pi_offsession_1", Reference(factory, chargeId));
@@ -222,11 +224,11 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         return admin;
     }
 
-    /// <summary>A firm that went live with 20 slots, paid on Stripe Checkout.</summary>
+    /// <summary>A firm that went live with 30 slots, paid on Stripe Checkout.</summary>
     private static async Task<HttpClient> LiveFirmAsync(PropFactory factory)
     {
         var admin = await SandboxFirmAsync(factory);
-        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 20 });
+        using var response = await PostAsync(admin, "admin/billing/activate", new { slots = 30 });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var completed = await StripeWebhooks.SendBillingAsync(factory, FakeStripe.BillingCheckoutEvent("checkout.session.completed", factory.Stripe.Requests[^1]));
         Assert.Equal(HttpStatusCode.OK, completed.StatusCode);

@@ -14,6 +14,8 @@ export type ApplicationForm = {
   companyName: string;
   registrationNumber: string;
   country: string;
+  vatNumber: string;
+  noVatNumber: boolean;
   address: string;
   website: string;
   contactName: string;
@@ -31,6 +33,8 @@ export function formOf(application: FirmApplication): ApplicationForm {
     companyName: application.companyName ?? "",
     registrationNumber: application.registrationNumber ?? "",
     country: application.country ?? "",
+    vatNumber: application.vatNumber ?? "",
+    noVatNumber: application.noVatNumber === true,
     address: application.address ?? "",
     website: application.website ?? "",
     contactName: application.contactName ?? "",
@@ -59,6 +63,8 @@ export function applicationOf(form: ApplicationForm): { application: FirmApplica
       companyName: text(form.companyName),
       registrationNumber: text(form.registrationNumber),
       country: text(form.country),
+      vatNumber: form.noVatNumber ? null : text(form.vatNumber),
+      noVatNumber: form.noVatNumber ? true : null,
       address: text(form.address),
       website: text(form.website),
       contactName: text(form.contactName),

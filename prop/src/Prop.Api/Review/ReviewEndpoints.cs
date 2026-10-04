@@ -119,7 +119,8 @@ internal static class ReviewEndpoints
             review.CanEdit && firm.Status != FirmStatus.Live,
             ReviewService.SubmitProblem(firm, review),
             ReviewService.MaxDocuments,
-            ReviewService.MaxDocumentBytes);
+            ReviewService.MaxDocumentBytes,
+            VatNumbers.EuCountries);
     }
 
     /// <summary>A document as a download, never shown in the browser, so a file cannot run as a page on our address.</summary>

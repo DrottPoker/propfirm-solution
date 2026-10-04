@@ -46,6 +46,7 @@ export async function fillApplication(page: Page, companyName: string) {
   await page.getByLabel("Legal name").fill(companyName);
   await page.getByLabel("Registration number").fill("559000-1234");
   await page.getByLabel("Country of registration").selectOption("SE");
+  await page.getByLabel("VAT number", { exact: true }).fill("SE 5590 0012 3401");
   await page.getByLabel("Registered address").fill("Storgatan 1\n111 22 Stockholm");
   await page.getByLabel("Contact person").fill("Anna Andersson");
   await page.getByRole("button", { name: "Add owner" }).click();

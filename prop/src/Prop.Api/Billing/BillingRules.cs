@@ -11,14 +11,16 @@ internal sealed record SlotPrice(int From, decimal Price);
 public sealed record ChargeLine(string Description, int Quantity, decimal Amount);
 
 /// <summary>
-/// What a firm pays us, from the configuration: the currency, the startup fee, the slot prices and the deposit
-/// paid for our review, which is taken off the startup fee.
+/// What a firm pays us, from the configuration: the currency, the startup fee, the monthly package and the slots
+/// it includes, the prices of slots beyond it, and the deposit paid for our review, which is taken off the startup
+/// fee.
 /// </summary>
 internal sealed record BillingTerms(
     string Currency,
     decimal StartupFee,
+    decimal PackagePrice,
+    int PackageSlots,
     IReadOnlyList<SlotPrice> SlotPrices,
-    int MinSlots,
     int MaxSlots,
     int ChargeDaysBeforeMonth,
     decimal ReviewDeposit)
@@ -27,11 +29,18 @@ internal sealed record BillingTerms(
         new(
             options.Currency,
             options.StartupFee,
+            options.PackagePrice,
+            options.PackageSlots,
             [.. options.SlotPrices.Select(p => new SlotPrice(p.From, p.Price))],
-            options.MinSlots,
             options.MaxSlots,
             options.ChargeDaysBeforeMonth,
             options.ReviewDeposit);
+
+    /// <summary>
+    /// The slots a month is charged for: the firm's choice, but never fewer than the package includes or than its
+    /// open challenges and orders take.
+    /// </summary>
+    public int SlotsToCharge(int? chosen, int taken) => Math.Max(Math.Max(chosen ?? PackageSlots, PackageSlots), taken);
 
     /// <summary>What is wrong with the terms. Empty when they work.</summary>
     public IReadOnlyList<string> Problems()
@@ -52,16 +61,21 @@ internal sealed record BillingTerms(
             problems.Add("Billing:ReviewDeposit must be 0 to Billing:StartupFee, in whole cents.");
         }
 
-        if (SlotPrices.Count == 0 || SlotPrices[0].From != 1
+        if (PackagePrice <= 0 || decimal.Round(PackagePrice, 2) != PackagePrice)
+        {
+            problems.Add("Billing:PackagePrice must be above 0, in whole cents.");
+        }
+
+        if (PackageSlots < 1 || MaxSlots < PackageSlots)
+        {
+            problems.Add("Billing:PackageSlots must be at least 1, and Billing:MaxSlots at least PackageSlots.");
+        }
+
+        if (SlotPrices.Count == 0 || SlotPrices[0].From != PackageSlots + 1
             || SlotPrices.Zip(SlotPrices.Skip(1)).Any(p => p.Second.From <= p.First.From)
             || SlotPrices.Any(p => p.Price <= 0 || decimal.Round(p.Price, 2) != p.Price))
         {
-            problems.Add("Billing:SlotPrices must start from slot 1, rise from tier to tier, and have prices above 0 in whole cents.");
-        }
-
-        if (MinSlots < 1 || MaxSlots < MinSlots)
-        {
-            problems.Add("Billing:MinSlots must be at least 1, and Billing:MaxSlots at least MinSlots.");
+            problems.Add("Billing:SlotPrices must start from the slot after the package's, rise from tier to tier, and have prices above 0 in whole cents.");
         }
 
         if (ChargeDaysBeforeMonth is < 0 or > 27)
@@ -93,9 +107,13 @@ internal static class BillingRules
 
     public static string NameOf(DateOnly month) => month.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
-    /// <summary>A month's price of the slots. Each slot costs the price of the tier it falls in.</summary>
-    public static decimal MonthlyPrice(int slots, IReadOnlyList<SlotPrice> prices)
+    /// <summary>A month's price of the slots: the package, and each slot beyond it at the price of the tier it falls in.</summary>
+    public static decimal MonthlyPrice(int slots, BillingTerms terms) => terms.PackagePrice + ExtraSlotsPrice(slots, terms);
+
+    /// <summary>A month's price of the slots beyond the package. Each slot costs the price of the tier it falls in.</summary>
+    private static decimal ExtraSlotsPrice(int slots, BillingTerms terms)
     {
+        var prices = terms.SlotPrices;
         var total = 0m;
         for (var i = 0; i < prices.Count && slots >= prices[i].From; i++)
         {
@@ -131,12 +149,12 @@ internal static class BillingRules
 
     /// <summary>
     /// The first payment, which takes the firm live: the startup fee less the deposit the firm paid for our review,
-    /// and the slots for the rest of the month, and for the next month too when it is already due.
+    /// and the package and the slots beyond it for the rest of the month, and for the next month too when it is
+    /// already due.
     /// </summary>
     public static IReadOnlyList<ChargeLine> Activation(DateTimeOffset now, int slots, BillingTerms terms, decimal depositPaid = 0)
     {
         var month = MonthOf(now);
-        var monthly = MonthlyPrice(slots, terms.SlotPrices);
         var (left, inMonth) = DaysLeft(now);
         var deposit = Math.Min(depositPaid, terms.StartupFee);
         List<ChargeLine> lines = [];
@@ -147,18 +165,18 @@ internal static class BillingRules
                 : new ChargeLine("Startup fee", 1, terms.StartupFee));
         }
 
-        lines.Add(new ChargeLine(Invariant($"{slots} slots, {NameOf(month)} ({left} of {inMonth} days)"), slots, ForRestOfMonth(monthly, now)));
+        lines.AddRange(MonthLines(slots, terms, Invariant($"{NameOf(month)} ({left} of {inMonth} days)"), price => ForRestOfMonth(price, now)));
         if (IsNextMonthDue(now, terms))
         {
-            lines.Add(new ChargeLine(Invariant($"{slots} slots, {NameOf(month.AddMonths(1))}"), slots, monthly));
+            lines.AddRange(MonthLines(slots, terms, NameOf(month.AddMonths(1)), price => price));
         }
 
         return lines;
     }
 
-    /// <summary>A month's slots, charged before the month starts.</summary>
+    /// <summary>A month's package and slots beyond it, charged before the month starts.</summary>
     public static IReadOnlyList<ChargeLine> Renewal(DateOnly month, int slots, BillingTerms terms) =>
-        [new ChargeLine(Invariant($"{slots} slots, {NameOf(month)}"), slots, MonthlyPrice(slots, terms.SlotPrices))];
+        [.. MonthLines(slots, terms, NameOf(month), price => price)];
 
     /// <summary>
     /// More slots now: the difference in price for the rest of the month, and for the next month too when it is
@@ -168,20 +186,20 @@ internal static class BillingRules
     {
         var month = MonthOf(now);
         var (left, inMonth) = DaysLeft(now);
-        var newPrice = MonthlyPrice(newSlots, terms.SlotPrices);
+        var newPrice = MonthlyPrice(newSlots, terms);
         List<ChargeLine> lines =
         [
             new(
-                Invariant($"{newSlots - currentSlots} more slots, {NameOf(month)} ({left} of {inMonth} days)"),
+                Invariant($"{newSlots - currentSlots} more {Slot(newSlots - currentSlots)}, {NameOf(month)} ({left} of {inMonth} days)"),
                 newSlots - currentSlots,
-                ForRestOfMonth(newPrice - MonthlyPrice(currentSlots, terms.SlotPrices), now)),
+                ForRestOfMonth(newPrice - MonthlyPrice(currentSlots, terms), now)),
         ];
         if (nextMonthPaidSlots is { } next && next < newSlots)
         {
             lines.Add(new ChargeLine(
-                Invariant($"{newSlots - next} more slots, {NameOf(month.AddMonths(1))}"),
+                Invariant($"{newSlots - next} more {Slot(newSlots - next)}, {NameOf(month.AddMonths(1))}"),
                 newSlots - next,
-                newPrice - MonthlyPrice(next, terms.SlotPrices)));
+                newPrice - MonthlyPrice(next, terms)));
         }
 
         return lines;
@@ -191,10 +209,28 @@ internal static class BillingRules
     public static IReadOnlyList<ChargeLine> MoreSlotsInMonth(DateOnly month, int paidSlots, int newSlots, BillingTerms terms) =>
     [
         new(
-            Invariant($"{newSlots - paidSlots} more slots, {NameOf(month)}"),
+            Invariant($"{newSlots - paidSlots} more {Slot(newSlots - paidSlots)}, {NameOf(month)}"),
             newSlots - paidSlots,
-            MonthlyPrice(newSlots, terms.SlotPrices) - MonthlyPrice(paidSlots, terms.SlotPrices)),
+            MonthlyPrice(newSlots, terms) - MonthlyPrice(paidSlots, terms)),
     ];
+
+    /// <summary>
+    /// A month's lines, or part of a month's at <paramref name="part"/> of the price: the package, and the slots
+    /// beyond it when there are any.
+    /// </summary>
+    private static IEnumerable<ChargeLine> MonthLines(int slots, BillingTerms terms, string month, Func<decimal, decimal> part)
+    {
+        yield return new ChargeLine(Invariant($"Package with {terms.PackageSlots} {Slot(terms.PackageSlots)}, {month}"), terms.PackageSlots, part(terms.PackagePrice));
+        if (slots > terms.PackageSlots)
+        {
+            yield return new ChargeLine(
+                Invariant($"{slots - terms.PackageSlots} extra {Slot(slots - terms.PackageSlots)}, {month}"),
+                slots - terms.PackageSlots,
+                part(ExtraSlotsPrice(slots, terms)));
+        }
+    }
+
+    private static string Slot(int count) => count == 1 ? "slot" : "slots";
 
     private static string Invariant(FormattableString text) => FormattableString.Invariant(text);
 }

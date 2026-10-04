@@ -12,7 +12,7 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
 
   // The firm fills in its application, adds a document and sends it with the deposit.
   await fillApplication(page, "Review Trading Ltd");
-  await expect(page.getByText("You pay a deposit of 100.00 USD when you send.")).toBeVisible();
+  await expect(page.getByText("You pay a deposit of 200.00 USD when you send.")).toBeVisible();
   await page.getByLabel("Add a document").setInputFiles({ name: "certificate.pdf", mimeType: "application/pdf", buffer: pdf });
   await expect(page.getByRole("link", { name: "certificate.pdf" })).toBeVisible();
   await sendApplication(page);
@@ -25,8 +25,9 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await ops.close();
   const review = await openAsStaff(page, "review-e2e-firm");
   await expect(review.getByText("Review Trading Ltd")).toBeVisible();
+  await expect(review.getByText("SE559000123401")).toBeVisible();
   await expect(review.getByRole("link", { name: "certificate.pdf" })).toBeVisible();
-  await expect(review.getByText("100.00 USD paid")).toBeVisible();
+  await expect(review.getByText("200.00 USD paid")).toBeVisible();
   await review.getByLabel("Message to the firm").fill("Write your registered address as in the register.");
   await review.getByRole("button", { name: "Ask for changes" }).click();
   await expect(review.getByText("Changes needed", { exact: true })).toBeVisible();
@@ -45,8 +46,8 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
 
   // The firm goes live, with the deposit taken off the startup fee.
   await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Billing" }).click();
-  await page.getByLabel("Slots", { exact: true }).fill("20");
-  await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 100.00 USD" })).toBeVisible();
+  await page.getByLabel("Slots", { exact: true }).fill("30");
+  await expect(page.getByRole("cell", { name: "Startup fee, less the deposit of 200.00 USD" })).toBeVisible();
   await page.getByRole("button", { name: /and go live$/ }).click();
   await page.getByRole("button", { name: /^Pay / }).click();
   await expect(page.getByText("Thank you. The payment went through.")).toBeVisible();

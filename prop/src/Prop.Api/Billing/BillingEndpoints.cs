@@ -77,7 +77,7 @@ internal static partial class BillingEndpoints
         var firm = PortalFirmFilter.FirmOf(context);
         var terms = billing.Terms;
         var now = time.GetUtcNow();
-        var monthly = BillingRules.MonthlyPrice(slots, terms.SlotPrices);
+        var monthly = BillingRules.MonthlyPrice(slots, terms);
         var month = BillingRules.MonthOf(now);
         await using var connection = await store.OpenAsync(cancellationToken);
         if (firm.Status != FirmStatus.Live)
@@ -353,8 +353,8 @@ internal static partial class BillingEndpoints
         {
             var month = await BillingStore.FirstUnchargedMonthAsync(connection, firm.Id, BillingRules.MonthOf(time.GetUtcNow()).AddMonths(1), cancellationToken);
 
-            var nextSlots = Math.Max(plan!.Slots ?? terms.MinSlots, usage.Used + usage.Reserved);
-            next = new NextChargeResponse(month, BillingRules.ChargeTimeOf(month, terms.ChargeDaysBeforeMonth), nextSlots, BillingRules.MonthlyPrice(nextSlots, terms.SlotPrices));
+            var nextSlots = terms.SlotsToCharge(plan!.Slots, usage.Used + usage.Reserved);
+            next = new NextChargeResponse(month, BillingRules.ChargeTimeOf(month, terms.ChargeDaysBeforeMonth), nextSlots, BillingRules.MonthlyPrice(nextSlots, terms));
         }
 
         var charges = await store.ListChargesAsync(firm.Id, ChargesShown, cancellationToken);
@@ -375,8 +375,9 @@ internal static partial class BillingEndpoints
                 terms.Currency,
                 terms.StartupFee,
                 terms.ReviewDeposit,
+                terms.PackagePrice,
+                terms.PackageSlots,
                 [.. terms.SlotPrices.Select(p => new SlotPriceResponse(p.From, p.Price))],
-                terms.MinSlots,
                 terms.MaxSlots,
                 terms.ChargeDaysBeforeMonth,
                 options.WarningPercent),

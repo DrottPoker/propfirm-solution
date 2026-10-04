@@ -1,6 +1,6 @@
 # Produktplan: handelsplattform och propfirm-plattform
 
-Senast uppdaterad: 2026-10-03
+Senast uppdaterad: 2026-10-04
 
 ## Sammanfattning
 
@@ -44,40 +44,46 @@ Att i stället sälja tekniken ger:
 | Challenges, CRM och utbetalningar | FPFX (150+ firms), TradeCore, Axcera, Track360, FXPropTech, B2Prop |
 | Risk och fuskdetektering | QuantSentry, Centroid PropShield, AltimaCRM, PropForge |
 
-Ungefärliga priser hos konkurrenterna (offentliga uppgifter, 2026). Många tar bara offert, och verkliga priser förhandlas ofta.
+Priser hos konkurrenterna enligt deras egna sidor, lästa 2026-10-04 om inget annat anges. Många tar bara offert, och verkliga priser kan förhandlas.
 
 **Allt-i-ett med egen handelsplattform**
 
 | Lösning | Pris | Kommentar |
 |---|---|---|
-| Fintatech | €1 000 i startavgift. €0/mån upp till 50 aktiva konton, sedan €9,90/konto. €1 750/mån (350 konton), €3 500/mån (750), €7 000/mån (1 600). | Närmast vår idé. Egen plattform (FintaTrader), CRM och riskmotor. Litet bolag, grundat 2018, utan externt kapital. Inga namngivna kunder hittade. |
-| TradeLocker | $3 000/mån för upp till 500 aktiva konton, ingen startavgift. Tillägg, till exempel fuskdetektering $1 000/mån. | Simulerad miljö med prisflöde ingår. Ett konto är aktivt om det haft minst en öppen position under månaden. |
-| Match-Trader | White label från $2 500/mån. Turnkey med prop-CRM $4 000/mån. | Prislista från november 2024. |
-| cTrader | $8 000-25 000 i startavgift + $3 000-8 000/mån. Prop-paket från ca €6 000/mån. | |
-| DXtrade | Offert | |
+| Fintatech | Starter: €1 000 i start, €0/mån upp till 50 aktiva konton, sedan €9,90/konto. Professional: €3 000 i start, €1 750/mån för 350 konton, sedan €6,50/konto. Advanced €3 500/mån (750 konton), Enterprise €7 000/mån (1 600). | Närmast vår idé. Starter har bara standardregler och delad server. Egna challenge-regler och egen server kräver Professional. Prisdata ingår. Demosamtal krävs, och nivån går bara att byta en gång per år. Det står inte vad ett aktivt konto är. |
+| TradeLocker | $3 000/mån för upp till 500 aktiva konton, ingen startavgift. | Bara plattformen, challenge-systemet kopplas in via API. Ett konto är aktivt om det haft minst en öppen position under månaden. Tillägget för fuskdetektering finns inte längre på sidan. |
+| Match-Trader | White label från $2 500/mån. Turnkey med prop-CRM $4 000/mån. | Hur många konton som ingår står inte. |
+| Leverate | €1 490/mån för 500 konton, sedan €2/konto. CRM €3 490/mån extra. | Testar en gratis startnivå sedan februari 2026, med okända gränser. |
+| cTrader | Offert. "Från €6 000" för propfirms (2024), oklart om per månad. | Tidigare siffror på $8 000-25 000 i start har ingen källa. |
+| DXtrade, Volumetrica, Quadcode | Offert. Quadcode white label från $17 500. | |
 
 **Challenge-system ovanpå andras plattformar**
 
 | Lösning | Pris | Kommentar |
 |---|---|---|
-| FXPropTech | $1 000/mån upp till 500 aktiva konton, $2 500/mån upp till 5 000, $5 000/mån obegränsat. | MT4/5, TradeLocker och cTrader. Oklart om plattformslicensen ingår. |
-| B2Prop (B2Broker) | $1 000-3 000/mån, ingen startavgift, inga avgifter per konto. | Kräver en plattform, till exempel cTrader. |
-| FPFX, Axcera, Kenmore Design, YourPropFirm, Trade Tech Solutions | Offert | Axcera och Kenmore har fast pris utan avgift per konto. |
+| FXPropTech | $1 000/mån + $1 500 i start för 500 konton, $2 500/mån + $3 000 för 2 000 konton, $5 000/mån + $6 000 utan gräns. $2,50 per konto utöver. | API, webhooks, riskverktyg och eget varumärke först från $2 500/mån. Oklart om plattformslicensen ingår. En annan sida hos dem har andra siffror. |
+| Execurve PropScale | €740/mån för 500 konton, €2 450 i start med någon annans plattform. | |
+| B2Prop (B2Broker) | $1 000-3 000/mån (2024). | Produktsidan finns inte längre 2026. |
+| FPFX, Axcera, Kenmore Design, YourPropFirm, Trade Tech Solutions, TradeCore | Offert | Axcera och Kenmore har fast pris utan avgift per konto. |
 
-**Med intäktsdelning.** Leverantören tar risken för utbetalningar. Riktar sig till influencers utan eget kapital.
+Med en plattform betalar en liten firma i praktiken $3 500-5 500/mån för ett challenge-system. Fuskverktyget QuantSentry kostar €600-1 200/mån till.
+
+**Med intäktsdelning.** Leverantören tar ofta risken för utbetalningar och sköter betalningar och plattform. Riktar sig till influencers utan eget kapital.
 
 | Lösning | Pris |
 |---|---|
-| Match-Prop | $2 500 i startavgift + 30-45 % av bruttoförsäljningen |
-| PropAccount | $3 000 i startavgift. WL1: firman behåller 30 % av bruttointäkterna. WL2: ofta 50/50 netto. |
-| StartPropFirm.Today | $2 000 i startavgift + $2 000/mån + 50 % i intäktsdelning |
+| Match-Prop (september 2026) | $2 500 i start. Firman får 30-45 % av bruttoförsäljningen, och Match-Prop behåller resten. |
+| PropAccount | $3 000 i start. WL1: firman får 30 % av bruttoförsäljningen. WL2: firman får 50 % av nettot. |
+| StartPropFirm.Today | $2 000 i start + $2 000/mån + 50 % i intäktsdelning, eller white label utan intäktsdelning för $3 000-4 000/mån och lika mycket i start. |
+| PropSuite (YourPropFirm) | $2 749 i start + 50 % av nettovinsten + $5 per försäljning + 5 % av försäljningen. |
 
-Som jämförelse kostar en egen MT5-licens ca $10 000-15 000 i startavgift + $7 000-12 000/mån.
+Som jämförelse kostar en egen MT5-licens runt $10 000/mån 2026, och MetaQuotes licensierar knappt propfirms längre.
 
 Slutsatser:
 
-- **Marknadspriset per aktivt konto** ligger på ca $4,50-10 (Fintatech €4,50-9,90, TradeLocker ca $6 vid 500 konton).
-- **Ingen erbjuder självbetjäning.** Alla vi har hittat går via säljsamtal eller demo. Den snabbaste lovar lansering på 48 timmar, och PropAccount och FXPropTech tar 1-2 veckor.
+- **Hela paketet kostar $2 000-4 000/mån** för en liten firma, med plattform och egna challenge-regler. Bara Fintatechs Starter är billigare, och den saknar egna regler.
+- **Priset per konto utöver det som ingår** ligger på ca $2,50-10 (FXPropTech $2,50, Fintatech €4,50-9,90, TradeLocker ca $6 vid 500 konton).
+- **Ingen erbjuder självbetjäning.** Alla vi har hittat går via demo, offert eller samtal. De snabbaste lovar lansering inom en vecka.
 - **Det svåra är att sälja och få förtroende, inte att bygga.** Fintatech har sålt ett liknande erbjudande i minst ett år utan att synas.
 
 Händelser som visar att firms behöver alternativ:
@@ -116,7 +122,7 @@ registrera -> välj challenge-mall -> portalens logga och färger
 
 Mål: sandlådan på några minuter, live inom ett dygn.
 
-Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Firman betalar oss i förskott med kort för platser för aktiva challenges, och går live genom att betala startavgiften och första månaden (fas 7, se [specen för platser och betalning](spec/platser-och-betalning.md)). Innan dess skickar firman uppgifter om bolaget, ägarna och sina villkor och betalar en handpenning, och vi granskar och godkänner den i vår egen adminvy, där vi också kan stänga av en firma (fas 9a, se [specen för granskning och avstängning](spec/granskning.md)). Kvar är egen domän.
+Läge: registreringen, firmans adress och server, challenge-mallen, logga och färger, sandlådan, fler administratörer och kopplingen med API-nyckel och webhooks finns (fas 6, se [specen för registreringen](spec/registrering.md)). Firman kan sälja challenges i portalen med Stripe, sin egen betalsida eller testbetalning i sandlådan (fas 8, se [specen för köp i portalen](spec/kop.md)). Firman betalar oss i förskott med kort för ett paket med platser för aktiva challenges, och går live genom att betala startavgiften och första månaden (fas 7, se [specen för platser och betalning](spec/platser-och-betalning.md)). Innan dess skickar firman uppgifter om bolaget, ägarna och sina villkor och betalar en handpenning, och vi granskar och godkänner den i vår egen adminvy, där vi också kan stänga av en firma (fas 9a, se [specen för granskning och avstängning](spec/granskning.md)). Kvar är egen domän.
 
 ### Krav
 
@@ -125,7 +131,7 @@ Läge: registreringen, firmans adress och server, challenge-mallen, logga och f�
 - **Sandlåda med hela kedjan.** Firman skapar en challenge, handlar och ser regelmotorn godkänna eller stänga ett konto. Bara firmans egna testanvändare, så att kostnaden för prisdata hålls nere.
 - **Kontroll innan live.** Sandlådan kräver ingen kontroll. Innan firman får ta emot riktiga traders granskar vi bolag, ägare och villkor själva, inom ett dygn. Firman betalar en handpenning när den skickar sin ansökan, som dras av från startavgiften och inte betalas tillbaka om den nekas. En automatisk kontroll kan läggas till före vår granskning. Det skyddar mot firmor som tar avgifter och aldrig betalar ut, vilket annars skadar vårt rykte.
 - **Avtal i portalen.** Användarvillkor och personuppgiftsbiträdesavtal godkänns vid registrering.
-- **Betalning i förskott** med kort: startavgift och platser för aktiva challenges (se Affärsmodell och prissättning).
+- **Betalning i förskott** med kort: startavgift och ett paket med platser för aktiva challenges (se Affärsmodell och prissättning).
 - **Hjälp med det som tar längst tid.** Plattformen är sannolikt inte det enda som försenar en ny firma. Erbjud färdiga integrationer mot betalleverantörer som accepterar propfirms, och guider för KYC-leverantör, villkor och bolag.
 - **Bra dokumentation**, så att kunderna klarar sig utan support.
 
@@ -333,38 +339,48 @@ Firman betalar alltid i förskott. Vi fakturerar aldrig i efterhand, så en firm
 
 ### Platser för aktiva challenges
 
-Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva samtidigt. Priset växer med firmans storlek. Priserna nedan är exempel och inte bestämda.
+Firman betalar varje månad för ett paket med ett antal platser, alltså hur många challenges den kan ha aktiva samtidigt, och kan köpa fler platser. Priset växer med firmans storlek. Priserna nedan är vårt förslag från 2026-10-04 och bekräftas efter offerterna för prisdata och intervjuerna.
 
-| Del | Exempel |
+| Del | Förslag |
 |---|---|
-| Startavgift, en gång | 500 USD |
-| 50 platser, per månad | 250 USD (5 USD per plats) |
+| Startavgift, en gång | 700 USD, varav 200 USD är handpenning när firman skickar sin ansökan |
+| Paket med 25 platser, per månad | 500 USD |
+| Plats 26-100, per månad | 5 USD per plats |
+| Plats 101 och fler, per månad | 4 USD per plats |
 
+Per månad blir det 500 USD för 25 platser, 625 USD för 50, 875 USD för 100 och 2 475 USD för 500.
+
+- **Paketet ingår alltid.** Dess platser är de färsta en firma kan ha.
 - **En aktiv challenge tar en plats** från att den startar tills den är slut: underkänd, avbruten eller stängd. Ett funded-konto tar en plats så länge det finns. Alla faser i en challenge delar samma plats, även om varje fas får ett eget handelskonto.
 - **När platserna är slut** kan inga nya challenges startas. Firmans butik ska då sluta sälja, så att ingen trader betalar för en challenge som inte kan startas. Firman ser lediga platser i adminpanelen och i API:t, och får en varning när till exempel 80 % är använda.
-- **Fler platser** kan köpas när som helst och betalas direkt för resten av månaden. Firman kan välja automatisk utökning, till exempel 10 platser i taget, som dras från kortet direkt. Färre platser gäller från nästa månad, och bara om de öppna challengerna får plats.
+- **Fler platser** kan köpas när som helst och betalas direkt för resten av månaden. Firman kan välja automatisk utökning, till exempel 10 platser i taget, som dras från kortet direkt. Färre platser gäller från nästa månad, bara om de öppna challengerna får plats och aldrig färre än paketets.
 - **Månadsbetalningen** dras från kortet 5 dagar innan månaden börjar. Går den inte igenom har firman de dagarna på sig. Är den inte betald när månaden börjar startas inga nya challenges, och befintliga konton pausas. Vi levererar aldrig något som inte är betalt.
 - **Inaktivitet:** en challenge utan affärer på till exempel 30 dagar avslutas och frigör sin plats. Firman kan också avbryta konton själv.
 - **Sandlådan** tar inga platser.
 - **En order som väntar på betalning** i firmans portal håller en plats, så att köparen alltid kan få sin challenge.
 - Avtalet säger att firman ansvarar för att betalningen går igenom, och att traders konton pausas annars.
 
-### Priset per plats
+### Priset
 
-- **Det måste täcka vad en trader kostar oss per månad.** Den största kostnaden blir troligen prisdata per slutanvändare. Sätt priset först när offerterna från dataleverantörerna finns.
+- **Varför ett paket.** En helhetslösning för 50 USD i månaden ser för billig ut, när konkurrenternas hela paket kostar 2 000-4 000 USD (se Marknad och konkurrens). Ett fast pris per firma täcker också det som kostar oss lika mycket för varje firma, till exempel prisdata och granskningen. Och det är lättare att sänka ett pris än att höja det.
+- **Vi är ändå billigast** med plattform och egna challenge-regler i alla storlekar vi har jämfört: 875 USD vid 100 platser mot ca 2 050 USD hos Fintatech Professional och 4 000 USD hos Match-Trader.
+- **Det måste täcka vad en trader kostar oss per månad.** Prisdata som får visas för andras traders kostar 250-500 USD i månaden som fast avgift hos Tiingo och Twelve Data, om ingen avgift tas per slutanvändare. Det måste bekräftas skriftligt innan priset spikas.
 - **Det får inte äta upp firmans intäkt.** En challenge för 50 USD som är aktiv i 10 månader kostar firman 50 USD med 5 USD per plats, alltså hela intäkten. De flesta challenges tar slut inom några veckor eftersom de flesta traders misslyckas, men det ska bekräftas i intervjuerna. Skydd mot fallet:
   - Inaktivitetsregeln ovan.
   - Valfri tidsgräns per fas, som firman ställer in.
   - Lågt pris per plats, och lägre pris per plats ju fler platser firman köper.
 - **Ett funded-konto som lever länge är en verklig kostnad**, både för oss och för firman. Firman räknar med den när den sätter sina priser.
-- **Firmorna är vana vid modellen.** Konkurrenterna säljer i nivåer av aktiva konton (TradeLocker, FXPropTech, Fintatech), och marknadens nivå är ca $4,50-10 per aktivt konto och månad (se Marknad och konkurrens).
+- **De allra minsta firmorna** som säljer 20-30 challenges i månaden betalar 15-20 % av sin intäkt för paketet (egen uppskattning), och väljer kanske Fintatechs gratisnivå. Det accepterar vi, eftersom de ofta läggs ner snabbt. En firma som säljer 200 challenges i månaden betalar runt 3-4 %.
+- **Firmorna är vana vid modellen.** Konkurrenterna säljer i nivåer med ett antal konton som ingår (TradeLocker, FXPropTech, Fintatech), och priset per konto utöver ligger på ca $2,50-10 (se Marknad och konkurrens).
 
 ### Övrigt
 
 - Publik prislista på webbplatsen. Det hör till självbetjäningen.
-- Med självbetjäning kostar uppstarten oss lite, så pröva i intervjuerna om startavgiften kan tas bort eller tas ut först när firman går live.
-- Billigt men inte gratis och inte billigast. För lågt pris skadar förtroendet och är svårt att höja senare.
+- Startavgiften är 700 USD. Den är lägre än Fintatechs lägsta (ca 1 170 USD) och en femtedel av deras startavgift för egna regler, men inte så låg att den ser oseriös ut, och den betalar för granskningen. Pröva i intervjuerna om den stoppar seriösa firmor.
+- Ingen gratisnivå med riktiga konton. Sandlådan är gratis för alla, med högst 10 testkonton, och den är vår viktigaste skillnad.
+- Billigare än konkurrenterna, men inte gratis. För lågt pris skadar förtroendet och är svårt att höja senare.
 - Korta avtal, eftersom små firms ofta läggs ner.
+- Priserna är utan moms. Bolaget är svenskt, så svenska kunder betalar 25 % moms, företag i andra EU-länder med giltigt momsnummer betalar ingen (omvänd skattskyldighet) och företag utanför EU betalar normalt ingen. Firmor i EU anger därför sitt momsnummer i ansökan till vår granskning, eller att de saknar ett och då betalar svensk moms. Moms och egna fakturor byggs inför lansering. En redovisningskonsult ska bekräfta upplägget.
 - Undvik stora intäktsdelningar. Det är det kunderna klagar på hos konkurrenterna.
 
 ## Drift
@@ -411,11 +427,9 @@ Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva
 
 - Namn på produkterna och företaget.
 - Vilken dataleverantör och vilka licensvillkor? Under utvecklingen används Tiingos gratisplan (ADR 0010), som inte får visas för andra. Tiingo har även en plan för vidaredistribution.
-- Priserna: startavgift, pris per plats och rabatt vid fler platser. Bestäms efter intervjuerna och offerterna för prisdata.
-- Bolagsform och vilket land bolaget ska ligga i.
+- Priserna har ett förslag (se Affärsmodell och prissättning). Det bekräftas efter intervjuerna och offerterna för prisdata.
+- Bolagsform. Bolaget finns i Sverige.
 - Vilka plattformar adaptrarna ska stödja först, utöver vår egen handelsplattform.
-- Behövs en gratis eller mycket billig nivå för de minsta firmorna, som hos Fintatech?
-- Ska startavgiften tas bort?
 - Ska kontrollen av kunden bli automatisk före vår granskning, och med vilken leverantör?
 
 ## Källor
@@ -439,6 +453,16 @@ Firman köper ett antal platser, alltså hur många challenges den kan ha aktiva
 - [TraderMade - FIX API](https://tradermade.com/market-data/fix-api)
 - [Finage - Forex](https://finage.co.uk/product/forex)
 - [Fintatech - Prop Firm Platform](https://fintatech.com/prop-firm/)
+- [Fintatech - Bootstrapping your prop firm (september 2026)](https://fintatech.com/blog/bootstrapping-your-prop-firm-how-to-launch-with-zero-tech-risk-and-0-monthly-saas-minimums/)
+- [Leverate](https://leverate.com/)
+- [FXPropTech - Pricing](https://fxproptech.com/pricing.html)
+- [Execurve - Pricing](https://www.execurve.com/pricing)
+- [QuantSentry - Pricing](https://quantsentry.com/pricing)
+- [FX News Group - Match-Prop (september 2026)](https://fxnewsgroup.com/?p=48485)
+- [PropAccount - Pricing](https://propaccount.com/pricing/)
+- [FundedTrading - PropSuite](https://fundedtrading.com/tech-provider/propsuite/)
+- [Tiingo - Forex API](https://www.tiingo.com/products/forex-api)
+- [Twelve Data - Business pricing](https://twelvedata.com/pricing-business)
 - [Fintatech - FintaTrader 3.5](https://fintatech.com/blog/fintatrader-3-5-taking-trading-to-the-next-level/)
 - [Tracxn - Fintatech](https://tracxn.com/d/companies/fintatech/__pQqs_s9ThCBfDV-1NP1nLU8GQ0xEa7MxDOk6ro6g2WQ)
 - [TradeLocker - Prop Firm Pricing](https://tradelocker.com/prop-firm-pricing/)
