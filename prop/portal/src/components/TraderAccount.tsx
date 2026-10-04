@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import type { AccountDetails } from "@/lib/api/types";
 import { expiryLabels, failureLabels } from "@/lib/challenge";
-import { isTrading, objectivesOf, resultTone, statusText, toneText, type Objective } from "@/lib/dashboard";
+import { hasEnded, isTrading, objectivesOf, resultTone, statusText, toneText, type Objective } from "@/lib/dashboard";
 import { formatDate, formatDateTime, formatMoney, formatSignedMoney, formatSignedPercent } from "@/lib/format";
 import { useMyAccount } from "@/lib/queries";
 
@@ -171,7 +171,7 @@ function KeyFigures({ details }: { details: AccountDetails }) {
         value={formatMoney(results.equity)}
         note={
           results.equity == null ? (
-            "Not valued right now"
+            hasEnded(account.status) ? "The account is closed" : "Not valued right now"
           ) : account.openPositions === 0 ? (
             "No open positions"
           ) : (

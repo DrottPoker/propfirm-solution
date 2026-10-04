@@ -139,10 +139,15 @@ describe("objectivesOf", () => {
       breach: { time: "2026-10-06T09:30:00Z", floorId: "daily", level: 97_000, equity: 96_950, reason: "DailyLoss" },
     });
 
-    const daily = objectivesOf(failed).find((o) => o.key === "daily");
+    const objectives = objectivesOf(failed);
+    const daily = objectives.find((o) => o.key === "daily");
 
     expect(daily).toMatchObject({ state: "broken", stateText: "Broken" });
     expect(daily?.detail).toMatch(/^Equity 96,950.00 fell below 97,000.00 on /);
+
+    // What the account no longer works towards is not shown as in progress.
+    expect(objectives.find((o) => o.key === "target")).toMatchObject({ state: "info", stateText: "Not reached" });
+    expect(objectives.find((o) => o.key === "days")).toMatchObject({ state: "info", stateText: "2 of 4" });
   });
 
   it("counts a funded account's trading days towards the next payout", () => {

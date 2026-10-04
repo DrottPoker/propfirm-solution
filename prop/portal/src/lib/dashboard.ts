@@ -262,6 +262,7 @@ export type Objective = {
 export function objectivesOf(details: AccountDetails): Objective[] {
   const { account, results, breach } = details;
   const rules = account.stage < details.challenge.evaluation.length ? details.challenge.evaluation[account.stage] : details.challenge.funded;
+  const ended = hasEnded(account.status);
   const objectives: Objective[] = [];
 
   if (results.targetRequired != null && results.targetGained != null && results.targetPercent != null) {
@@ -269,8 +270,8 @@ export function objectivesOf(details: AccountDetails): Objective[] {
     objectives.push({
       key: "target",
       title: "Profit target",
-      state: reached ? "reached" : "progress",
-      stateText: reached ? "Reached" : "In progress",
+      state: reached ? "reached" : ended ? "info" : "progress",
+      stateText: reached ? "Reached" : ended ? "Not reached" : "In progress",
       detail: `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}`,
       progress: results.targetPercent,
     });
@@ -285,7 +286,7 @@ export function objectivesOf(details: AccountDetails): Objective[] {
       objectives.push({
         key: "days",
         title: "Trading days for a payout",
-        state: quote.tradingDays >= quote.minTradingDays ? "reached" : "progress",
+        state: quote.tradingDays >= quote.minTradingDays ? "reached" : ended ? "info" : "progress",
         stateText: `${quote.tradingDays} of ${quote.minTradingDays}`,
         detail: "A day counts when you open a trade on it. They count from zero again after each payout.",
         segments: { filled: Math.min(quote.tradingDays, quote.minTradingDays), total: quote.minTradingDays },
@@ -295,7 +296,7 @@ export function objectivesOf(details: AccountDetails): Objective[] {
     objectives.push({
       key: "days",
       title: "Minimum trading days",
-      state: account.tradingDays >= account.minTradingDays ? "reached" : "progress",
+      state: account.tradingDays >= account.minTradingDays ? "reached" : ended ? "info" : "progress",
       stateText: `${account.tradingDays} of ${account.minTradingDays}`,
       detail: "A day counts when you open a trade on it.",
       segments: { filled: Math.min(account.tradingDays, account.minTradingDays), total: account.minTradingDays },
