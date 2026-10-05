@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: productName,
-  description: "Simulated trading terminal",
+  description: "Kronant Trader, a simulated trading terminal",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

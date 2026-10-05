@@ -10,7 +10,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Inloggning
 
-- **Vårt eget utseende.** Terminalen är vårt varumärke och inte white label (ADR 0009). Namnet finns på ett ställe, `productName` i `src/lib/config.ts`, tills produkten har fått sitt namn.
+- **Vårt eget utseende.** Terminalen är vårt varumärke och inte white label (ADR 0009). Den heter Kronant Trader (ADR 0046), och namnet finns på ett ställe, `productName` i `src/lib/config.ts`.
 - **Inloggning** på `/login` med server, e-post och lösenord, som i MetaTrader och TradeLocker. Servrarna hämtas från `GET /api/servers` och visas med firmans namn. En server som inte listas, till exempel en firma i sandlådan, hämtas med `GET /api/servers/{id}` när den finns i länken eller användes senast.
 - **Inloggning genom firmans portal** (ADR 0027). En firma vars server har `loginUrl` loggar in sina traders i sin portal, eftersom de inte har något lösenord till terminalen. Sidan visar då knappen "Log in through {firma}" till `loginUrl` med kontot som senast var öppet (`?account=`), och länken "I have a password for the terminal" för den som har ett. Portalen öppnar terminalen igen med en engångslänk. När sessionen i terminalen går ut, eller tjänsten svarar 401, skickas tradern direkt tillbaka till portalen, som loggar in igen utan att tradern märker något om den fortfarande är inloggad där. En trader som loggar ut själv hamnar på inloggningen och skickas inte tillbaka.
 - **Inloggning med länk** på `/login/link?token=...&account=...`. Firmans portal skapar länken via admin-API:t. Länken fungerar en gång i 2 minuter, tas bort ur adressen när den har använts, och sidan skickar ingen referer.

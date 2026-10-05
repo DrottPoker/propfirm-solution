@@ -167,9 +167,9 @@ public sealed class SignupTests(PostgresFixture postgres) : IClassFixture<Postgr
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
 
         using var admin = await factory.SignUpAsync("acme");
-        var welcome = await factory.Emails.WaitForAsync("owner@firm.test", "Welcome to Prop platform");
+        var welcome = await factory.Emails.WaitForAsync("owner@firm.test", "Welcome to Kronant Prop");
 
-        Assert.Equal("Welcome to Prop platform: Firm acme is ready to try", welcome.Subject);
+        Assert.Equal("Welcome to Kronant Prop: Firm acme is ready to try", welcome.Subject);
         Assert.Contains("http://acme.localhost:3002/admin/login", welcome.Body, StringComparison.Ordinal);
         Assert.Contains("Give your first challenge a price", welcome.Body, StringComparison.Ordinal);
     }
@@ -234,7 +234,7 @@ public sealed class SignupTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var platformOnFirmPortal = await firmPortal.GetAsync(Url("platform"), TestContext.Current.CancellationToken);
         using var brandingOnPlatform = await platform.GetAsync(Url("branding"), TestContext.Current.CancellationToken);
 
-        Assert.Equal(("Prop platform", "http://{firm}.localhost:3002/", 10), (about.GetProperty("name").GetString(), about.GetProperty("firmPortalUrl").GetString(), about.GetProperty("minimumPasswordLength").GetInt32()));
+        Assert.Equal(("Kronant Prop", "http://{firm}.localhost:3002/", 10), (about.GetProperty("name").GetString(), about.GetProperty("firmPortalUrl").GetString(), about.GetProperty("minimumPasswordLength").GetInt32()));
 
         // The front page tells what firms pay, before they sign up. The tests take no deposit.
         var prices = about.GetProperty("prices");

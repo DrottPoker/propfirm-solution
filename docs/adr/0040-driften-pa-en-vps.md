@@ -41,7 +41,7 @@ Alternativ som vägdes, med listpriser i oktober 2026 utan moms:
 - **Bara Caddy nås från internet.** Brandväggen släpper bara in port 22, 80 och 443, och bara Caddy publicerar portar från Docker. Postgres, `/api/tls/allowed` och portal-API:t nås bara inifrån servern. SSH tar bara nycklar, inte lösenord.
 - **Caddy gör certifikaten.**
   - Vanliga certifikat för våra egna värdnamn.
-  - Wildcard-certifikat för `*.propbrand.app` med en DNS-utmaning mot Cloudflare.
+  - Wildcard-certifikat för `*.kronant.app` med en DNS-utmaning mot Cloudflare.
   - Certifikat på begäran för firmornas domäner, efter att ha frågat `/api/tls/allowed` (ADR 0039).
   - Bara de vägar som ADR 0018 tillåter släpps igenom.
   - Certifikaten sparas på en egen volym, så att de inte hämtas om vid varje uppdatering.
@@ -51,7 +51,7 @@ Alternativ som vägdes, med listpriser i oktober 2026 utan moms:
   - En hel backup per vecka och en differentiell per dygn. De sparas i 35 dagar.
   - Backupen är krypterad. Nyckeln förvaras offline och i vår lösenordshanterare, inte bara på servern.
   - Vi övar återställning på testservern en gång i kvartalet.
-- **Mejl genom Resend** över SMTP, som tjänsten redan använder. Domänen skickar från Irland (`eu-west-1`). `propbrand.com` får SPF, DKIM och DMARC, så att mejlen inte hamnar i skräpposten. Gratisnivån räcker för testmiljön. Produktionen behöver Pro (50 000 mejl i månaden).
+- **Mejl genom Resend** över SMTP, som tjänsten redan använder. Domänen skickar från Irland (`eu-west-1`). `kronant.com` får SPF, DKIM och DMARC, så att mejlen inte hamnar i skräpposten. Gratisnivån räcker för testmiljön. Produktionen behöver Pro (50 000 mejl i månaden).
 - **Hemligheterna ligger i en fil på servern** som bara tjänsterna kan läsa: lösenorden till databasen, `Secrets:Key`, partnernyckeln, våra Stripe-nycklar, prisflödets nyckel, Resends och Cloudflares nycklar. Originalet finns i vår lösenordshanterare. Hemligheterna finns aldrig i repot eller i containrarna. `Secrets:Key` krypterar firmornas betalningsnycklar och traders utbetalningsmetoder (ADR 0026), så utan den går de inte att läsa.
 - **Bygg och leverans.** CI bygger en container per tjänst för varje commit på `main` och lägger dem i GitHub Container Registry. Testservern uppdateras direkt över SSH. Produktionen uppdateras med ett manuellt steg som anger vilken version. Gamla versioner rensas, så att vi håller oss inom GitHubs kvot. Servern bygger aldrig något själv.
 - **Produktionen uppdateras på helgen**, när marknaden är stängd. Handelstjänsten är nere tills motorn har läst in sitt tillstånd igen. En brådskande rättelse under veckan ger ett kort avbrott, och terminalen ansluter igen av sig själv.

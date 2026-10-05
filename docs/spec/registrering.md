@@ -142,7 +142,7 @@ Propfirm-tjänsten:
 
 | Sektion | Innehåll |
 |---|---|
-| `Platform:Name` | Plattformens namn på registreringen och i mejlen. Ett arbetsnamn tills produkten har ett namn. |
+| `Platform:Name` | Plattformens namn på förstasidan, registreringen, vår adminvy, fakturans PDF och i mejlen. Standard Kronant Prop (ADR 0046). |
 | `Platform:Url` | Plattformens adress, där registreringen ligger. Slutar med `/`. |
 | `Platform:FirmPortalUrl` | Mall för en ny firmas portal, med `{firm}` för det korta namnet, till exempel `https://{firm}.example.com/`. |
 | `Signup:RequireEmailVerification` | Om e-postadressen ska bekräftas innan firman skapas. Standard ja, avstängt i utveckling. |

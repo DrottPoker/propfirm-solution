@@ -1,15 +1,15 @@
-# Produktplan: handelsplattform och propfirm-plattform
+# Produktplan: Kronant Trader och Kronant Prop
 
-Senast uppdaterad: 2026-10-04
+Senast uppdaterad: 2026-10-06
 
 ## Sammanfattning
 
 Vi bygger två separata produkter som säljs till små och nystartade propfirms:
 
-1. **Handelsplattform**: en webbaserad plattform för simulerad handel, i stil med TradeLocker och cTrader men utan riktig orderutförande. Den är vårt eget varumärke och inte white label. Varje firma har en egen server, och traders loggar in med firmans server som i MetaTrader och TradeLocker.
-2. **Propfirm-plattform**: allt som behövs för att driva en challenge-verksamhet, det vill säga challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde. Den är white label med firmans namn, logga, färger och domän, och använder vår handelsplattform.
+1. **Kronant Trader**, handelsplattformen: en webbaserad plattform för simulerad handel, i stil med TradeLocker och cTrader men utan riktig orderutförande. Den är vårt eget varumärke och inte white label. Varje firma har en egen server, och traders loggar in med firmans server som i MetaTrader och TradeLocker.
+2. **Kronant Prop**, propfirm-plattformen: allt som behövs för att driva en challenge-verksamhet, det vill säga challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde. Den är white label med firmans namn, logga, färger och domän, och använder vår handelsplattform.
 
-Produkterna kan säljas tillsammans som ett billigt allt-i-ett-paket eller var för sig. De byggs med ett tydligt gränssnitt emellan.
+Produkterna kan säljas tillsammans som ett billigt allt-i-ett-paket eller var för sig. De byggs med ett tydligt gränssnitt emellan. Bolaget bakom heter Ludware, och produkterna delar namnet Kronant (ADR 0046).
 
 Kunden kommer igång själv via vår portal, utan säljsamtal. Det är, tillsammans med öppen simulering och fast pris utan intäktsdelning, det som skiljer oss från konkurrenterna (se Positionering).
 
@@ -102,7 +102,7 @@ Vi vinner inte på att vara billigast. Det finns redan erbjudanden för $1 000/m
 
 Dessutom:
 
-- **Ett eget varumärke för traders.** Handelsplattformen har samma namn hos alla firmor, som TradeLocker. Traders som känner igen den litar lättare på en ny firma, och varumärket växer med varje firma som använder den.
+- **Ett eget varumärke för traders.** Handelsplattformen heter Kronant Trader hos alla firmor, som TradeLocker. Traders som känner igen den litar lättare på en ny firma, och varumärket växer med varje firma som använder den.
 - **Lätt att byta till oss.** Importverktyg för traders och konton från andra plattformar, och möjlighet att exportera all data.
 - **Skydd mot plattformsrisk.** Tydliga avtal och full dataexport bemöter oron efter MetaQuotes och ProjectX.
 - **Kostnadsfördel mot rena CRM-leverantörer.** Egen handelsmotor betyder inga licensavgifter till tredje part. Det gäller mot leverantörer som bygger ovanpå andras plattformar, men inte mot Fintatech, TradeLocker och Match-Trader som har båda delarna.
@@ -135,7 +135,7 @@ Läge: registreringen, firmans adress och server, challenge-mallen, logga och f�
 - **Hjälp med det som tar längst tid.** Plattformen är sannolikt inte det enda som försenar en ny firma. Erbjud färdiga integrationer mot betalleverantörer som accepterar propfirms, och guider för KYC-leverantör, villkor och bolag.
 - **Bra dokumentation**, så att kunderna klarar sig utan support.
 
-## Produkt 1: Handelsplattform
+## Produkt 1: Kronant Trader (handelsplattform)
 
 ### Syfte
 
@@ -181,7 +181,7 @@ Traders hos firmorna. Plattformen är vårt eget varumärke och inte white label
 
 TradingView Lightweight Charts är gratis och öppen källkod. TradingView ska anges som källa.
 
-## Produkt 2: Propfirm-plattform
+## Produkt 2: Kronant Prop (propfirm-plattform)
 
 ### Syfte
 
@@ -423,10 +423,10 @@ Per månad blir det 500 USD för 25 platser, 625 USD för 50, 875 USD för 100 o
 4. Titta på Fintatechs produkt via deras demo. Var öppen med att du undersöker marknaden.
 5. Skriv teknisk specifikation för version 1 av båda produkterna: datamodell, internt API, regelmotor, händelseflöden och flödet för självbetjäning.
 6. Hitta en lanseringskund, till exempel en trading-influencer eller en nystartad firma, som får lågt pris mot feedback och referens.
+7. Köp domänerna (ADR 0018) och registrera Kronant som EU-varumärke i klass 9, 36 och 42 (ADR 0046).
 
 ## Öppna frågor
 
-- Namn på produkterna och företaget.
 - Vilken dataleverantör och vilka licensvillkor? Under utvecklingen används Tiingos gratisplan (ADR 0010), som inte får visas för andra. Tiingo har även en plan för vidaredistribution.
 - Priserna har ett förslag (se Affärsmodell och prissättning). Det bekräftas efter intervjuerna och offerterna för prisdata.
 - Bolagsform. Bolaget finns i Sverige.

@@ -138,6 +138,7 @@ internal static partial class BillingEndpoints
         HttpContext context,
         BillingStore store,
         IOptions<BillingOptions> options,
+        IOptions<PlatformOptions> platform,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
@@ -147,7 +148,7 @@ internal static partial class BillingEndpoints
         }
 
         context.Response.Headers.CacheControl = "private, no-store";
-        return TypedResults.File(InvoicePdf.Render(charge, firm.Name, options.Value.Seller), "application/pdf", $"Invoice {invoice}.pdf");
+        return TypedResults.File(InvoicePdf.Render(charge, firm.Name, options.Value.Seller, platform.Value.Name), "application/pdf", $"Invoice {invoice}.pdf");
     }
 
     /// <summary>Starts going live: the firm pays the startup fee and its first month on a checkout page, which also saves its card.</summary>

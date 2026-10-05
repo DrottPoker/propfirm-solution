@@ -79,14 +79,14 @@ public sealed partial class VatAndInvoiceTests
             paidAt,
             null,
             2);
-        var seller = new SellerOptions { Name = "Prop Platform AB", Address = "Kungsgatan 1\n111 43 Stockholm", OrganizationNumber = "559000-0000", VatNumber = "SE559000000001" };
+        var seller = new SellerOptions { Name = "Ludware AB", Address = "Kungsgatan 1\n111 43 Stockholm", OrganizationNumber = "559000-0000", VatNumber = "SE559000000001" };
 
-        var pdf = InvoicePdf.Render(charge, "Firm acme", seller);
+        var pdf = InvoicePdf.Render(charge, "Firm acme", seller, "Kronant Prop");
         var text = Encoding.Latin1.GetString(pdf);
 
         Assert.StartsWith("%PDF-1.4", text, StringComparison.Ordinal);
         Assert.EndsWith("%%EOF\n", text, StringComparison.Ordinal);
-        foreach (var expected in new[] { "(ACME-0002)", "(Acme Trading AB)", "(Prop Platform AB)", "(VAT 25%)", "(233.87)", "(1,169.35 USD)", "(Paid by card on 5 Oct 2026)" })
+        foreach (var expected in new[] { "(ACME-0002)", "(Acme Trading AB)", "(Ludware AB)", "(Kronant Prop)", "(VAT 25%)", "(233.87)", "(1,169.35 USD)", "(Paid by card on 5 Oct 2026)" })
         {
             Assert.Contains(expected, text, StringComparison.Ordinal);
         }
@@ -110,7 +110,7 @@ public sealed partial class VatAndInvoiceTests
             [new ChargeLine("Review deposit, taken off the startup fee", 1, 200m)], 200m, new ChargeVat(VatTreatment.ReverseCharge, 0m, 0m), 200m, "USD",
             new ChargeCustomer("Acme GmbH", "HRB 1", "Berlin", "DE", "DE123456789"), BillingProvider.Test, null, null, 1, null, paidAt, paidAt, null, 1);
 
-        var text = Encoding.Latin1.GetString(InvoicePdf.Render(charge, "Firm acme", new SellerOptions { Name = "Prop Platform AB" }));
+        var text = Encoding.Latin1.GetString(InvoicePdf.Render(charge, "Firm acme", new SellerOptions { Name = "Ludware AB" }, "Kronant Prop"));
 
         // Parentheses in PDF text are escaped.
         Assert.Contains(@"(Reverse charge: the buyer accounts for the VAT \(Article 196 of Council Directive 2006/112/EC\).)", text, StringComparison.Ordinal);

@@ -61,7 +61,7 @@ internal sealed record CustomDomain(
 internal static class DomainRules
 {
     /// <summary>The TXT record's name in front of the domain.</summary>
-    public const string RecordPrefix = "_prop-platform";
+    public const string RecordPrefix = "_kronant";
 
     private static readonly IdnMapping Idn = new();
 

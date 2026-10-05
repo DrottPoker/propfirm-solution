@@ -174,8 +174,8 @@ public sealed class BeforeApprovalTests(PostgresFixture postgres) : IClassFixtur
         await PropFactory.WaitUntilProvisionedAsync(admin);
         const string Domain = "portal.acme-firm.test";
         await factory.ScalarAsync($"insert into firm_domains (firm_id, domain, token, status, created_at) values ('acme', '{Domain}', 'prop-verify-old', 'Pending', now())");
-        factory.Dns.Add($"_prop-platform.{Domain}", DnsRecordType.Txt, "prop-verify-old");
-        factory.Dns.Add(Domain, DnsRecordType.Cname, "portals.example-platform.app");
+        factory.Dns.Add($"_kronant.{Domain}", DnsRecordType.Txt, "prop-verify-old");
+        factory.Dns.Add(Domain, DnsRecordType.Cname, "portals.kronant.app");
 
         var waiting = await (await admin.PostAsync(Url("admin/domain/check"), null, TestContext.Current.CancellationToken)).Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         await factory.ApproveAsync(admin, "acme");

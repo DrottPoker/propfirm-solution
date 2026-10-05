@@ -10,7 +10,7 @@ import { buttonClass, secondaryButtonClass } from "./ui";
 
 const included: { title: string; text: string }[] = [
   { title: "Your own portal", text: "Traders buy challenges, follow their accounts and ask for payouts, with your name, logo and colors." },
-  { title: "A trading terminal", text: "In the browser, with forex and metals on the trading conditions you choose." },
+  { title: "Kronant Trader", text: "Our trading terminal in the browser, with forex and metals on the trading conditions you choose." },
   { title: "Challenges that run themselves", text: "Profit targets, loss limits, trading days and time limits are checked as traders trade." },
   { title: "Payments and payouts", text: "Sell with Stripe or your own checkout. Traders ask for payouts, and you approve and pay them." },
   { title: "Emails to you and your traders", text: "When a challenge is bought, passed or ended, and when a payout moves." },
@@ -41,8 +41,8 @@ export function PlatformHome() {
         <section className="flex flex-col gap-5">
           <h1 className="text-3xl font-semibold sm:text-4xl">Start your own prop firm</h1>
           <p className="max-w-2xl text-muted">
-            Everything a prop firm needs, in your brand: a portal for your traders, a trading terminal, challenges that check themselves, payments
-            and payouts. Try it all for free before you pay anything.
+            Everything a prop firm needs: a portal for your traders in your brand, the Kronant Trader terminal, challenges that check themselves,
+            payments and payouts. Try it all for free before you pay anything.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/signup" className={buttonClass}>

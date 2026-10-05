@@ -16,7 +16,8 @@ internal static class InvoicePdf
     private const float Left = 56;
     private const float Right = PageWidth - 56;
 
-    public static byte[] Render(Charge charge, string firmName, SellerOptions seller)
+    /// <summary>The invoice from <paramref name="seller"/> to the firm, made by the product <paramref name="producer"/>.</summary>
+    public static byte[] Render(Charge charge, string firmName, SellerOptions seller, string producer)
     {
         var page = new Page();
         var paidAt = charge.PaidAt ?? charge.CreatedAt;
@@ -99,7 +100,7 @@ internal static class InvoicePdf
         var footer = string.Join("  |  ", new[] { seller.Name, Labelled("Org. no.", seller.OrganizationNumber), Labelled("VAT no.", seller.VatNumber), seller.Email }
             .Where(part => part.Length > 0));
         page.Text(Left, 48, footer, 8.5f, muted: true);
-        return page.ToPdf($"Invoice {charge.Invoice}", seller.Name);
+        return page.ToPdf($"Invoice {charge.Invoice}", seller.Name, producer);
     }
 
     private static IEnumerable<string> SellerLines(SellerOptions seller)
@@ -187,7 +188,7 @@ internal static class InvoicePdf
         public void Rule(float from, float to, float y) =>
             _content.Append(CultureInfo.InvariantCulture, $"0.8 G 0.6 w {from:0.##} {y:0.##} m {to:0.##} {y:0.##} l S\n");
 
-        public byte[] ToPdf(string title, string author)
+        public byte[] ToPdf(string title, string author, string producer)
         {
             var stream = Encoding.Latin1.GetBytes(_content.ToString());
             string[] objects =
@@ -198,7 +199,7 @@ internal static class InvoicePdf
                 "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
                 "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
                 "",
-                $"<< /Title ({Escape(ToLatin1(title))}) /Author ({Escape(ToLatin1(author))}) /Producer (Prop platform) >>",
+                $"<< /Title ({Escape(ToLatin1(title))}) /Author ({Escape(ToLatin1(author))}) /Producer ({Escape(ToLatin1(producer))}) >>",
             ];
 
             using var output = new MemoryStream();

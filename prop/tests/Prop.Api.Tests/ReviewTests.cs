@@ -390,7 +390,7 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         var me = await GetAsync(ops, "ops/me");
 
         Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (onPlatform.StatusCode, onPortal.StatusCode));
-        Assert.Equal(("Prop platform", "http://app.localhost:3002/signup"), (site.GetProperty("name").GetString(), site.GetProperty("signupUrl").GetString()));
+        Assert.Equal(("Kronant Prop", "http://app.localhost:3002/signup"), (site.GetProperty("name").GetString(), site.GetProperty("signupUrl").GetString()));
         Assert.Equal(HttpStatusCode.Unauthorized, notLoggedIn.StatusCode);
         Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.Unauthorized), (wrongPassword.StatusCode, firmAdminAsStaff.StatusCode));
         Assert.Equal(["acme"], toReview.GetProperty("firms").EnumerateArray().Select(f => f.GetProperty("id").GetString()));

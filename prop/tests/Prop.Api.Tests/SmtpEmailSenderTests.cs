@@ -40,7 +40,7 @@ public sealed class SmtpEmailSenderTests : IAsyncLifetime
         var full = await mailbox.GetFromJsonAsync<JsonElement>(
             new Uri($"api/v1/message/{message.GetProperty("ID").GetString()}", UriKind.Relative), TestContext.Current.CancellationToken);
         Assert.Equal("Confirm your email", message.GetProperty("Subject").GetString());
-        Assert.Equal(("no-reply@platform.test", "Prop platform"), (message.GetProperty("From").GetProperty("Address").GetString(), message.GetProperty("From").GetProperty("Name").GetString()));
+        Assert.Equal(("no-reply@platform.test", "Kronant Prop"), (message.GetProperty("From").GetProperty("Address").GetString(), message.GetProperty("From").GetProperty("Name").GetString()));
         Assert.Equal("owner@firm.test", message.GetProperty("To")[0].GetProperty("Address").GetString());
         Assert.Contains("https://app.test/verify?token=abc", full.GetProperty("Text").GetString(), StringComparison.Ordinal);
     }
@@ -59,7 +59,7 @@ public sealed class SmtpEmailSenderTests : IAsyncLifetime
         new(Options.Create(new EmailOptions
         {
             From = "no-reply@platform.test",
-            FromName = "Prop platform",
+            FromName = "Kronant Prop",
             Smtp = new SmtpOptions { Host = host, Port = port, Security = "None" },
         }));
 }

@@ -7,7 +7,7 @@ const serviceUrl = `http://localhost:${servicePort}`;
 // The development firm's admin key and server, from appsettings.Development.json.
 const adminHeaders = { "X-Api-Key": "dev-admin-key" };
 const server = { id: "demo-firm", name: "Demo Firm" };
-const productName = "Trading terminal";
+const productName = "Kronant Trader";
 
 const password = "e2e-password";
 

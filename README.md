@@ -2,8 +2,10 @@
 
 Två produkter för små och nystartade propfirms, som kan säljas var för sig eller tillsammans:
 
-1. **Handelsplattform** för simulerad handel med riktiga livepriser.
-2. **Propfirm-plattform** med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
+1. **Kronant Trader**, en handelsplattform för simulerad handel med riktiga livepriser.
+2. **Kronant Prop**, en propfirm-plattform med challenges, regelmotor, traderportal, adminpanel och utbetalningsflöde.
+
+Bolaget bakom heter Ludware. Se [ADR 0046](docs/adr/0046-namn-pa-bolaget-och-produkterna.md) för namnen.
 
 Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md), [registreringen](docs/spec/registrering.md), [platserna och betalningen](docs/spec/platser-och-betalning.md), [köp i portalen](docs/spec/kop.md) och [granskningen av firmor](docs/spec/granskning.md).
 

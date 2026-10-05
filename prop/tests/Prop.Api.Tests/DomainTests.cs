@@ -11,7 +11,7 @@ namespace Prop.Api.Tests;
 public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
     private const string Domain = "portal.acme-firm.test";
-    private const string Target = "portals.example-platform.app";
+    private const string Target = "portals.kronant.app";
 
     [Fact]
     public async Task AFirmsDomainBecomesThePortalsAddressOnceItsRecordsAreThere()
@@ -32,9 +32,9 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
         using var notOurs = await anyone.GetAsync(new Uri("/api/tls/allowed?domain=elsewhere.example.com", UriKind.Relative), TestContext.Current.CancellationToken);
 
         Assert.Equal(("Pending", Domain, Target), (waiting.GetProperty("status").GetString(), waiting.GetProperty("domain").GetString(), waiting.GetProperty("cnameTarget").GetString()));
-        Assert.Equal($"_prop-platform.{Domain}", waiting.GetProperty("txtName").GetString());
+        Assert.Equal($"_kronant.{Domain}", waiting.GetProperty("txtName").GetString());
         Assert.StartsWith("prop-verify-", waiting.GetProperty("txtValue").GetString(), StringComparison.Ordinal);
-        Assert.Equal($"The TXT record _prop-platform.{Domain} with the value {waiting.GetProperty("txtValue").GetString()} is not there yet.", waiting.GetProperty("problem").GetString());
+        Assert.Equal($"The TXT record _kronant.{Domain} with the value {waiting.GetProperty("txtValue").GetString()} is not there yet.", waiting.GetProperty("problem").GetString());
         Assert.Equal($"{Domain} does not point to {Target} yet. Add a CNAME record for it.", halfway.GetProperty("problem").GetString());
         Assert.Equal(("Active", JsonValueKind.Null), (active.GetProperty("status").GetString(), active.GetProperty("problem").ValueKind));
         Assert.Equal($"https://{Domain}/", settings.GetProperty("portalUrl").GetString());
@@ -65,7 +65,7 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     [InlineData("acme-firm.test", "Use a subdomain of your own domain, such as portal.yourfirm.com. A domain without one cannot point to us with a CNAME record.")]
     [InlineData("10.0.0.1", "Write a domain such as portal.yourfirm.com.")]
     [InlineData("portal.app.localhost", "That domain is ours. Use one of your own.")]
-    [InlineData("acme.portals.example-platform.app", "That domain is ours. Use one of your own.")]
+    [InlineData("acme.portals.kronant.app", "That domain is ours. Use one of your own.")]
     public async Task ADomainMustBeTheFirmsOwnSubdomain(string domain, string problem)
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());

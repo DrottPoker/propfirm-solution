@@ -22,8 +22,8 @@ public sealed class PlatformOptions
 {
     public const string SectionName = "Platform";
 
-    /// <summary>A working name, shown when firms sign up and in emails, until the product is named.</summary>
-    public string Name { get; init; } = "Prop platform";
+    /// <summary>The product's name, shown when firms sign up, in our admin view and in emails (ADR 0046).</summary>
+    public string Name { get; init; } = "Kronant Prop";
 
     /// <summary>Where firms sign up, ending with /, for example https://app.example.com/.</summary>
     public Uri? Url { get; init; }
