@@ -5,6 +5,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.Identity;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -112,18 +113,27 @@ internal static class AccountActions
         return TypedResults.Ok((await details.BuildAsync(firm, [view], cancellationToken)).Single());
     }
 
-    /// <summary>A one-time link that logs the trader in to the trading terminal on the current stage's account.</summary>
+    /// <summary>
+    /// A one-time link that logs the trader in to the trading terminal on the current stage's account. Until we approve the
+    /// firm, only for its administrators' own accounts (ADR 0043).
+    /// </summary>
     public static async Task<Results<Ok<LoginLinkResponse>, ProblemHttpResult>> TerminalLinkAsync(
         Firm firm,
         Guid accountId,
         Guid? traderId,
         ChallengeQueries queries,
         ITradingPlatform trading,
+        FirmApproval approval,
         CancellationToken cancellationToken)
     {
         if (await FindAsync(firm, accountId, traderId, queries, cancellationToken) is not { } view)
         {
             return UnknownAccount();
+        }
+
+        if (!await approval.MayReachAsync(firm.Id, view.Account.Email, cancellationToken))
+        {
+            return Problem(StatusCodes.Status409Conflict, FirmApproval.TeamOnlyProblem);
         }
 
         if (view.Account.State is not { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId }
@@ -146,19 +156,26 @@ internal static class AccountActions
 
     /// <summary>
     /// An invitation for the account's trader to choose a password for the firm's portal, which also resets a
-    /// forgotten one. It replaces the trader's older unused invitations.
+    /// forgotten one. It replaces the trader's older unused invitations. Until we approve the firm, only for its
+    /// administrators' own accounts, since nobody else can log in (ADR 0043).
     /// </summary>
     public static async Task<Results<Ok<InviteResponse>, ProblemHttpResult>> InviteAsync(
         Firm firm,
         Guid accountId,
         ChallengeQueries queries,
         PortalUsers users,
+        FirmApproval approval,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
         if (await queries.GetAsync(firm.Id, accountId, cancellationToken) is not { } view)
         {
             return UnknownAccount();
+        }
+
+        if (!await approval.MayReachAsync(firm.Id, view.Account.Email, cancellationToken))
+        {
+            return Problem(StatusCodes.Status409Conflict, FirmApproval.TeamOnlyProblem);
         }
 
         var invite = await users.CreateInviteAsync(view.Account.TraderId, time.GetUtcNow(), cancellationToken);

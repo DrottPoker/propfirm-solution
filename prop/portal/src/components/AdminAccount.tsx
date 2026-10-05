@@ -12,6 +12,7 @@ import { useAccountCommand, useChallenges, useFirmAccount, useHistory, useTrader
 import { describeInput, describeOutputs } from "@/lib/ruleLog";
 
 import { AccountHistory } from "./AccountHistory";
+import { teamOnlyText } from "./BeforeApproval";
 import { ChallengeRules } from "./ChallengeRules";
 import { Modal } from "./Dialog";
 import { ShieldCheckIcon } from "./icons";
@@ -24,7 +25,8 @@ import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass
 type Tab = "overview" | "trading" | "payouts" | "log";
 
 /** What the firm was told about the email to the trader, when it started the challenge. */
-export type Emailed = "Invitation" | "Notice" | "failed" | null;
+/** How emailing the trader went after the challenge started. Withheld: we have not approved the firm, and the trader is not one of its administrators. */
+export type Emailed = "Invitation" | "Notice" | "failed" | "withheld" | null;
 
 /**
  * One of the firm's accounts: what the firm must decide about it, where it stands, its trader, its trading history, its
@@ -138,12 +140,14 @@ function EmailedNotice({ emailed, email }: { emailed: Exclude<Emailed, null>; em
     return null;
   }
 
-  const failed = emailed === "failed";
+  const failed = emailed === "failed" || emailed === "withheld";
   return (
     <p role="status" className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3 text-sm ${failed ? "border-warning/40 bg-warning/10" : "border-profit/40 bg-profit/10"}`}>
       <span className="flex-1">
-        {failed
+        {emailed === "failed"
           ? `The challenge started, but the email to ${email} could not be sent. Try again from the trader's card below.`
+          : emailed === "withheld"
+            ? `The challenge started, but we did not email ${email}. ${teamOnlyText}`
           : emailed === "Invitation"
             ? `The challenge started. We emailed ${email} an invitation to choose a password for your portal.`
             : `The challenge started. We emailed ${email} that it has started.`}

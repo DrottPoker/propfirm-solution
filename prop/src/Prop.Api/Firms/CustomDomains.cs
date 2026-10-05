@@ -12,6 +12,7 @@ using Npgsql;
 
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
+using Prop.Api.Review;
 
 namespace Prop.Api.Firms;
 
@@ -352,13 +353,15 @@ internal sealed class DnsOverHttpsLookup(IHttpClientFactory clients, IOptions<Do
 
 /// <summary>
 /// Checks a firm's own domain: the TXT record with its token proves it is the firm's, and a CNAME record, or the same
-/// addresses, shows that it points to us. Once both are there, the domain becomes the portal's address.
+/// addresses, shows that it points to us. Once both are there, the domain becomes the portal's address, but only for a
+/// firm we have approved (ADR 0043).
 /// </summary>
 internal sealed class DomainVerifier(
     CustomDomainStore store,
     IDnsLookup dns,
     FirmStore firms,
     FirmCatalog catalog,
+    FirmApproval approval,
     WorkSignals signals,
     IOptions<DomainOptions> options,
     TimeProvider time)
@@ -367,6 +370,13 @@ internal sealed class DomainVerifier(
     {
         if (await store.GetAsync(firmId, cancellationToken) is not { Status: DomainStatus.Pending } domain)
         {
+            return await store.GetAsync(firmId, cancellationToken);
+        }
+
+        // A domain added before the firm had to be approved waits, without asking DNS, until we approve the firm.
+        if (!await approval.IsApprovedAsync(firmId, cancellationToken))
+        {
+            await store.MarkCheckedAsync(firmId, FirmApproval.DomainProblem, time.GetUtcNow(), cancellationToken);
             return await store.GetAsync(firmId, cancellationToken);
         }
 

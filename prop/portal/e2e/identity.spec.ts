@@ -21,8 +21,9 @@ test("a new firm chooses the built-in KYC, and a trader verifies with the test c
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
 
+  // Until we approve the firm, only its administrators can be its traders, so the owner tries the trader's side.
   await adminLink(page, "Accounts").click();
-  await startChallenge(page, "trader@identity-e2e-firm.e2e.example");
+  await startChallenge(page, "owner@identity-e2e-firm.e2e.example");
   await page.getByRole("button", { name: "Create invitation link" }).click();
   const invitation = await page.getByLabel(/Invitation link/).inputValue();
   const trader = await context.newPage();

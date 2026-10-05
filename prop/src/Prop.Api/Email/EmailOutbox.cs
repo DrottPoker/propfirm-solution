@@ -5,6 +5,7 @@ using Npgsql;
 using NpgsqlTypes;
 
 using Prop.Api.Challenges;
+using Prop.Api.Review;
 
 namespace Prop.Api.Email;
 
@@ -16,7 +17,8 @@ internal static class EmailOutbox
 {
     /// <summary>
     /// Queues the email in the caller's transaction. With <paramref name="dedupeKey"/>, an email that was queued before with
-    /// the same key is not queued again. The caller sets <see cref="WorkSignals.Emails"/> after committing.
+    /// the same key is not queued again. The caller sets <see cref="WorkSignals.Emails"/> after committing. An email about
+    /// a firm we have not approved is withheld, kept but never sent, unless it goes to one of the firm's administrators (ADR 0043).
     /// </summary>
     public static async Task AddAsync(
         NpgsqlConnection connection,
@@ -28,9 +30,9 @@ internal static class EmailOutbox
         string? dedupeKey = null)
     {
         await using var command = new NpgsqlCommand(
-            """
-            insert into email_outbox (id, firm_id, kind, to_address, from_name, subject, body, dedupe_key, created_at, next_attempt_at, html_body, reply_to)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11)
+            $"""
+            insert into email_outbox (id, firm_id, kind, to_address, from_name, subject, body, dedupe_key, created_at, next_attempt_at, html_body, reply_to, withheld_at)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $11, case when $2::text is null or {FirmApproval.MayReachSql("$2", "$12")} then null else $9 end)
             on conflict (dedupe_key) do nothing
             """,
             connection);
@@ -45,6 +47,7 @@ internal static class EmailOutbox
         command.Parameters.AddWithValue(now);
         command.Parameters.Add(Text(message.Html));
         command.Parameters.Add(Text(message.ReplyTo));
+        command.Parameters.AddWithValue(Emails.Normalize(message.To));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -159,7 +162,7 @@ internal sealed partial class EmailWorker(
             update email_outbox set next_attempt_at = $2
             where id in (
                 select id from email_outbox
-                where sent_at is null and failed_at is null and next_attempt_at <= $1
+                where sent_at is null and failed_at is null and withheld_at is null and next_attempt_at <= $1
                 order by created_at limit 20
                 for update skip locked)
             returning id, kind, to_address, from_name, subject, body, attempts, created_at, html_body, reply_to

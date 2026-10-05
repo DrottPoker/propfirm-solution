@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Review;
 
 namespace Prop.Api.Portal;
 
@@ -42,7 +43,7 @@ internal static class PortalAuth
 
     public static string SchemeOf(string role) => role == PortalRoles.Admin ? AdminScheme : TraderScheme;
 
-    public static Task SignInAsync(HttpContext context, PortalUser user)
+    public static async Task SignInAsync(HttpContext context, PortalUser user)
     {
         var scheme = SchemeOf(user.Role);
         Claim[] claims =
@@ -53,7 +54,13 @@ internal static class PortalAuth
             new(ClaimTypes.Email, user.Email),
             new(PasswordStampClaim, PasswordStamp(user.PasswordHash)),
         ];
-        return context.SignInAsync(scheme, new ClaimsPrincipal(new ClaimsIdentity(claims, scheme)));
+        await context.SignInAsync(scheme, new ClaimsPrincipal(new ClaimsIdentity(claims, scheme)));
+
+        // Logging in to the admin panel uses it, which keeps the firm's sandbox open, or opens it again (ADR 0045).
+        if (user.Role == PortalRoles.Admin)
+        {
+            await context.RequestServices.GetRequiredService<FirmActivity>().SeenAsync(user.FirmId, context.RequestAborted);
+        }
     }
 
     /// <summary>
@@ -96,16 +103,27 @@ internal static class PortalAuth
         return services;
     }
 
-    // A removed administrator's session, and a session from before a new password, stop working at once, not when the cookie expires.
+    // A removed administrator's session, and a session from before a new password, stop working at once, not when the cookie
+    // expires. So does a trader's who is not one of the firm's administrators while we have not approved the firm (ADR 0043).
     private static async Task ValidateAsync(CookieValidatePrincipalContext context, string role, string scheme)
     {
         var users = context.HttpContext.RequestServices.GetRequiredService<PortalUsers>();
+        var approval = context.HttpContext.RequestServices.GetRequiredService<FirmApproval>();
+        var cancellationToken = context.HttpContext.RequestAborted;
         if (context.Principal is not { } principal
-            || await users.FindByIdAsync(UserIdOf(principal), role, context.HttpContext.RequestAborted) is not { } user
-            || !HasPasswordStamp(principal, user.PasswordHash))
+            || await users.FindByIdAsync(UserIdOf(principal), role, cancellationToken) is not { } user
+            || !HasPasswordStamp(principal, user.PasswordHash)
+            || (role == PortalRoles.Trader && !await approval.MayReachAsync(user.FirmId, user.Email, cancellationToken)))
         {
             context.RejectPrincipal();
             await context.HttpContext.SignOutAsync(scheme);
+            return;
+        }
+
+        // An administrator using the admin panel keeps the firm's sandbox open, or opens it again (ADR 0045).
+        if (role == PortalRoles.Admin)
+        {
+            await context.HttpContext.RequestServices.GetRequiredService<FirmActivity>().SeenAsync(user.FirmId, cancellationToken);
         }
     }
 

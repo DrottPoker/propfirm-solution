@@ -43,6 +43,15 @@ internal static class SupportRules
     /// <summary>Open and answered tickets a trader can have opened at once, so one trader cannot flood the firm. Those the firm opened do not count.</summary>
     public const int MaxOpenTicketsPerTrader = 10;
 
+    /// <summary>The most messages a ticket can have, so nobody fills our database through one (ADR 0045).</summary>
+    public const int MaxMessagesPerTicket = 200;
+
+    /// <summary>The most bytes of files a trader adds in a day, at one firm.</summary>
+    public const long MaxTraderFileBytesPerDay = 25L * 1024 * 1024;
+
+    /// <summary>The most bytes of files a firm's administrators add in a day, together.</summary>
+    public const long MaxFirmFileBytesPerDay = 100L * 1024 * 1024;
+
     public const int MaxTicketsPerPage = 100;
 
     /// <summary>How much of the latest message a list shows.</summary>

@@ -36,20 +36,24 @@ public enum StartRefusal
 
     /// <summary>We have suspended the firm.</summary>
     Suspended,
+
+    /// <summary>Nobody used the firm's sandbox for a while, so it is closed until an administrator comes back (ADR 0045).</summary>
+    SandboxClosed,
 }
 
 /// <summary>
 /// How a firm uses its slots. <paramref name="Used"/> counts challenges that have not ended, and
 /// <paramref name="Reserved"/> orders in the portal that wait for payment, which hold a slot each so a buyer never
 /// pays for a challenge that cannot start. <paramref name="Slots"/> is null when there is no limit. Nothing can
-/// start while the firm is <paramref name="Suspended"/>.
+/// start while the firm is <paramref name="Suspended"/>, or while its sandbox is <paramref name="Closed"/>.
 /// </summary>
-internal sealed record SlotUsage(SlotLimit Limit, int? Slots, int Used, int Reserved, bool Paid, bool Suspended)
+internal sealed record SlotUsage(SlotLimit Limit, int? Slots, int Used, int Reserved, bool Paid, bool Suspended, bool Closed = false)
 {
     public int? Free => Slots is { } slots ? Math.Max(0, slots - Used - Reserved) : null;
 
     public StartRefusal? Refusal =>
         Suspended ? StartRefusal.Suspended
+        : Closed ? StartRefusal.SandboxClosed
         : !Paid ? StartRefusal.Unpaid
         : Free == 0 ? Limit == SlotLimit.Sandbox ? StartRefusal.SandboxFull : StartRefusal.NoFreeSlots
         : null;
@@ -72,6 +76,7 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
         StartRefusal.SandboxFull => "The sandbox has room for no more open challenge accounts. Cancel one to start another, or go live.",
         StartRefusal.NoFreeSlots => "Every slot is taken. Buy more slots in the admin panel, or wait until a challenge ends.",
         StartRefusal.Suspended => "The firm is suspended, so no challenges can start.",
+        StartRefusal.SandboxClosed => "The sandbox is closed, since nobody used the admin panel for a while. Log in to the admin panel to open it again.",
         _ => "This month is not paid, so no challenges can start. Pay it in the admin panel.",
     };
 
@@ -81,6 +86,7 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
         StartRefusal.SandboxFull => "The sandbox had no room for another open challenge account, so none was started.",
         StartRefusal.NoFreeSlots => "Every slot was taken when the payment came, so no account was started. Start it when a slot is free.",
         StartRefusal.Suspended => "The firm was suspended when the payment came, so no account was started.",
+        StartRefusal.SandboxClosed => "The sandbox was closed when the payment came, so no account was started.",
         _ => "The firm's month was not paid when the payment came, so no account was started. Start it once the month is paid.",
     };
 
@@ -118,7 +124,9 @@ internal sealed class SlotService(NpgsqlDataSource dataSource, DatabaseSchema sc
         var state = await BillingStore.GoLiveStateAsync(connection, firm.Id, forUpdate: false, cancellationToken);
         if (state.Status != FirmStatus.Live)
         {
-            return new SlotUsage(SlotLimit.Sandbox, sandbox.Value.MaxOpenAccounts, used, reserved, Paid: true, state.Suspended);
+            await using var closed = new NpgsqlCommand("select sandbox_closed_at is not null from firms where id = $1", connection);
+            closed.Parameters.AddWithValue(firm.Id);
+            return new SlotUsage(SlotLimit.Sandbox, sandbox.Value.MaxOpenAccounts, used, reserved, Paid: true, state.Suspended, await closed.ExecuteScalarAsync(cancellationToken) is true);
         }
 
         var billing = await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken);

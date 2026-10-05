@@ -1,6 +1,6 @@
 import { AdminAccount, type Emailed } from "@/components/AdminAccount";
 
-const emailOutcomes: Emailed[] = ["Invitation", "Notice", "failed"];
+const emailOutcomes: Emailed[] = ["Invitation", "Notice", "failed", "withheld"];
 
 // After starting a challenge, ?emailed= says how emailing the trader went.
 export default async function AdminAccountPage({ params, searchParams }: PageProps<"/admin/accounts/[id]">) {

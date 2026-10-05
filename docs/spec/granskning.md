@@ -15,12 +15,14 @@ sandlådan -> /admin/go-live, steg 1: bolagets uppgifter, ägare, länkar och fr
 -> steg 2: handpenning på en betalsida (Stripe Checkout eller testsidan), med moms, sparar kortet
 -> handpenningen betald -> ansökan skickad, firman mejlas kvittot och att vi har fått den, vår personal mejlas
 -> steg 3, vår adminvy /ops: granska
-   godkänn -> firman mejlas -> KYC under /admin/identity, vår inbyggda eller firmans egen när den fungerat hela vägen (ADR 0042)
+   godkänn -> firman mejlas, och spärrarna i sandlådan släpper (ADR 0043) -> KYC under /admin/identity, vår inbyggda eller firmans egen när den fungerat hela vägen (ADR 0042)
       -> steg 4: betala startavgiften minus handpenningen och platserna -> live
    be om ändringar -> firman mejlas -> ändra och skicka igen, utan ny handpenning
    neka -> firman mejlas -> kan inte gå live, handpenningen betalas inte tillbaka
 live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stänger -> slå på igen
 ```
+
+Tills vi har godkänt firman går dess mejl bara till dess administratörer, den skickar bara några inbjudningar till teamet och kan inte lägga till en egen domän. Se [specen för registrering och sandlåda](registrering.md#innan-vi-har-godkänt-firman) och [ADR 0043](../adr/0043-sparrar-innan-vi-godkant-firman.md).
 
 ## Ansökan
 

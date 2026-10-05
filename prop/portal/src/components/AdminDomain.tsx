@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import type { CustomDomain } from "@/lib/api/types";
@@ -12,7 +13,7 @@ import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Message, PageHead
 
 /**
  * The firm's own domain for its portal (ADR 0039): the firm adds it, puts two DNS records at its domain host, and the
- * portal moves there once we find them. The address with us keeps working.
+ * portal moves there once we find them. The address with us keeps working. A firm adds it once we have approved it (ADR 0043).
  */
 export function AdminDomain() {
   const domain = useDomain();
@@ -41,6 +42,16 @@ export function AdminDomain() {
       {!data.available ? (
         <Panel>
           <p className="text-sm text-muted">Own domains are not on here yet.</p>
+        </Panel>
+      ) : data.domain === null && data.waitsForApproval ? (
+        <Panel title="After our approval">
+          <p className="text-sm text-muted">
+            You can add your own domain once we have approved your firm. Until then, your portal stays at its address with us, which keeps working afterwards
+            too.
+          </p>
+          <Link href="/admin/go-live" className={`${secondaryButtonClass} self-start`}>
+            See the steps to go live
+          </Link>
         </Panel>
       ) : data.domain === null ? (
         <AddDomain />

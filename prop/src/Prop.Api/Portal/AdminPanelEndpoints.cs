@@ -9,6 +9,7 @@ using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Identity;
 using Prop.Api.Payments;
+using Prop.Api.Review;
 using Prop.Rules;
 
 namespace Prop.Api.Portal;
@@ -175,13 +176,15 @@ internal static class AdminPanelEndpoints
 
     /// <summary>
     /// The email <see cref="EmailTraderAsync"/> would send now, so the firm sees it before it goes. An invitation's link
-    /// is made only when it is sent, so the preview shows where it leads without its token.
+    /// is made only when it is sent, so the preview shows where it leads without its token. Says why it cannot be sent
+    /// when the firm is not approved yet and the trader is not one of its administrators (ADR 0043).
     /// </summary>
     private static async Task<Results<Ok<TraderEmailPreviewResponse>, ProblemHttpResult>> PreviewTraderEmailAsync(
         Guid accountId,
         HttpContext context,
         ChallengeQueries accounts,
         PortalUsers users,
+        FirmApproval approval,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
@@ -192,18 +195,21 @@ internal static class AdminPanelEndpoints
         }
 
         var (message, kind) = TraderEmail(firm, view, trader, accountId, new Uri(firm.Portal.Url, "invite?token=..."));
-        return TypedResults.Ok(new TraderEmailPreviewResponse(trader.Email, kind, message.Subject, message.Body));
+        var withheld = await approval.MayReachAsync(firm.Id, trader.Email, cancellationToken) ? null : FirmApproval.TeamOnlyProblem;
+        return TypedResults.Ok(new TraderEmailPreviewResponse(trader.Email, kind, message.Subject, message.Body, withheld));
     }
 
     /// <summary>
     /// Emails the account's trader in the firm's name: an invitation to choose a password for the portal, or, for a
-    /// trader who has one, that the challenge has started. 503 when the email cannot be sent.
+    /// trader who has one, that the challenge has started. 409 when the firm is not approved yet and the trader is not one
+    /// of its administrators (ADR 0043), and 503 when the email cannot be sent.
     /// </summary>
     private static async Task<Results<Ok<TraderEmailResponse>, ProblemHttpResult>> EmailTraderAsync(
         Guid accountId,
         HttpContext context,
         ChallengeQueries accounts,
         PortalUsers users,
+        FirmApproval approval,
         IEmailSender email,
         TimeProvider time,
         CancellationToken cancellationToken)
@@ -213,6 +219,11 @@ internal static class AdminPanelEndpoints
             || await users.FindByIdAsync(view.Account.TraderId, PortalRoles.Trader, cancellationToken) is not { } trader)
         {
             return AccountActions.UnknownAccount();
+        }
+
+        if (!await approval.MayReachAsync(firm.Id, trader.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, FirmApproval.TeamOnlyProblem);
         }
 
         var inviteLink = NeedsInvitation(trader)
@@ -505,8 +516,11 @@ public sealed record TraderCheckResponse(string Item, string Label, DateTimeOffs
 /// <summary>Ticks a check of a trader, or takes the tick away.</summary>
 public sealed record TraderCheckRequest(bool Checked);
 
-/// <summary>The email the firm is about to send the trader: to whom, what kind, its subject and its text.</summary>
-public sealed record TraderEmailPreviewResponse(string Email, TraderEmailKind Kind, string Subject, string Body);
+/// <summary>
+/// The email the firm is about to send the trader: to whom, what kind, its subject and its text. <paramref name="Withheld"/>
+/// says why it cannot be sent, while we have not approved the firm and the trader is not one of its administrators.
+/// </summary>
+public sealed record TraderEmailPreviewResponse(string Email, TraderEmailKind Kind, string Subject, string Body, string? Withheld);
 
 /// <summary>What the trader was emailed: an invitation to choose a password, or that the challenge has started.</summary>
 public enum TraderEmailKind

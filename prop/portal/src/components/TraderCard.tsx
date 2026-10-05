@@ -245,9 +245,15 @@ function PortalAccess({ account, trader }: { account: Account; trader: TraderSum
         description={preview.data ? `To ${preview.data.email}, in your firm's name.` : undefined}
         confirmLabel="Send email"
         pendingLabel="Sending..."
-        pending={emailTrader.isPending || !preview.data}
+        pending={emailTrader.isPending}
+        disabled={!preview.data || preview.data.withheld !== null}
       >
         <ErrorText error={preview.error ?? emailTrader.error} />
+        {preview.data?.withheld && (
+          <p role="status" className="text-sm text-warning">
+            {preview.data.withheld}
+          </p>
+        )}
         {preview.data ? (
           <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-background p-3.5 font-sans text-sm">{preview.data.body}</pre>
         ) : (

@@ -11,6 +11,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 
 namespace Prop.Api.Payments;
 
@@ -82,6 +83,7 @@ internal static class ShopEndpoints
             hasRoom,
             items.Count > 0 && !hasRoom,
             service.ProviderOf(firm) == PaymentProvider.Test,
+            await service.TeamOnlyAsync(firm, cancellationToken),
             firm.Payments.TermsUrl,
             [.. items.Select(i => new ShopItemResponse(i.Challenge, i.Price.Amount, i.Price.Currency))]));
     }
@@ -183,6 +185,8 @@ internal static class ShopEndpoints
             InviteOutcome.NotNeeded => AccountActions.Problem(StatusCodes.Status409Conflict, "You already have a password. Log in with it."),
             InviteOutcome.NotPaid => AccountActions.Problem(StatusCodes.Status409Conflict, "The order has not started a challenge yet."),
             InviteOutcome.TooSoon => AccountActions.Problem(StatusCodes.Status429TooManyRequests, "The email was just sent. Wait a minute before asking again."),
+            InviteOutcome.Withheld => AccountActions.Problem(
+                StatusCodes.Status409Conflict, "This firm is still in its test environment, and emails only its own administrators until it is approved."),
             _ => AccountActions.Problem(StatusCodes.Status503ServiceUnavailable, "The email could not be sent. Try again shortly."),
         };
     }
@@ -198,6 +202,7 @@ internal static class ShopEndpoints
         HttpContext context,
         OrderStore orders,
         PortalUsers users,
+        FirmApproval approval,
         IPasswordHasher<PortalUser> hasher,
         IOptions<LoginOptions> login,
         TimeProvider time,
@@ -207,6 +212,12 @@ internal static class ShopEndpoints
         if (await BuyerOrderAsync(firm, orderId, request.Token, orders, time, cancellationToken) is not { } order)
         {
             return UnknownOrder();
+        }
+
+        // Until we approve the firm, only its administrators log in as its traders (ADR 0043).
+        if (!await approval.MayReachAsync(firm.Id, order.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status403Forbidden, FirmApproval.LoginClosedProblem(firm));
         }
 
         if (PasswordResetEndpoints.PasswordProblem(request.Password, login.Value) is { } problem)

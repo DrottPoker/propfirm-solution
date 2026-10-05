@@ -7,7 +7,7 @@ using Prop.Api.Tests.Support;
 
 namespace Prop.Api.Tests;
 
-/// <summary>A firm's own domain for its portal: proved with a TXT record, pointed to us, and then the portal's address.</summary>
+/// <summary>A firm's own domain for its portal: proved with a TXT record, pointed to us, and then the portal's address. The firms here are approved.</summary>
 public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<PostgresFixture>
 {
     private const string Domain = "portal.acme-firm.test";
@@ -17,8 +17,7 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     public async Task AFirmsDomainBecomesThePortalsAddressOnceItsRecordsAreThere()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await factory.SignUpAsync("acme");
-        await PropFactory.WaitUntilProvisionedAsync(admin);
+        using var admin = await SignUpApprovedAsync(factory, "acme");
 
         var waiting = await SaveAsync(admin, " Portal.Acme-Firm.test. ", HttpStatusCode.OK);
         factory.Dns.Add(waiting.GetProperty("txtName").GetString()!, DnsRecordType.Txt, waiting.GetProperty("txtValue").GetString()!);
@@ -48,8 +47,7 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     public async Task ADomainThatPointsWithTheSameAddressesCountsToo()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await factory.SignUpAsync("acme");
-        await PropFactory.WaitUntilProvisionedAsync(admin);
+        using var admin = await SignUpApprovedAsync(factory, "acme");
         factory.Dns.Add(Target, DnsRecordType.A, "203.0.113.7", "203.0.113.8");
         factory.Dns.Add(Domain, DnsRecordType.A, "203.0.113.8", "203.0.113.7");
 
@@ -71,7 +69,7 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     public async Task ADomainMustBeTheFirmsOwnSubdomain(string domain, string problem)
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var admin = await factory.SignUpAsync("acme");
+        using var admin = await SignUpApprovedAsync(factory, "acme");
 
         var refused = await SaveAsync(admin, domain, HttpStatusCode.UnprocessableEntity);
 
@@ -82,9 +80,8 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     public async Task ADomainBelongsToOneFirmAndGoesBackWhenRemoved()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
-        using var acme = await factory.SignUpAsync("acme");
-        await PropFactory.WaitUntilProvisionedAsync(acme);
-        using var other = await factory.SignUpAsync("other", "owner@other.test");
+        using var acme = await SignUpApprovedAsync(factory, "acme");
+        using var other = await SignUpApprovedAsync(factory, "other", "owner@other.test");
         var saved = await SaveAsync(acme, Domain, HttpStatusCode.OK);
         factory.Dns.Add(saved.GetProperty("txtName").GetString()!, DnsRecordType.Txt, saved.GetProperty("txtValue").GetString()!);
         factory.Dns.Add(Domain, DnsRecordType.Cname, Target);
@@ -106,6 +103,15 @@ public sealed class DomainTests(PostgresFixture postgres) : IClassFixture<Postgr
     }
 
     private static Uri Url(string path) => new($"/api/portal/{path}", UriKind.Relative);
+
+    // A firm adds its own domain once we have approved it (ADR 0043), which BeforeApprovalTests tries.
+    private static async Task<HttpClient> SignUpApprovedAsync(PropFactory factory, string firmId, string email = "owner@firm.test")
+    {
+        var admin = await factory.SignUpAsync(firmId, email);
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+        await factory.ApproveAsync(admin, firmId);
+        return admin;
+    }
 
     private static async Task<JsonElement> SaveAsync(HttpClient admin, string domain, HttpStatusCode expected)
     {

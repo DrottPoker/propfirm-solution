@@ -18,6 +18,7 @@ using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 using Prop.Rules;
 
 namespace Prop.Api.Payments;
@@ -62,6 +63,9 @@ internal enum InviteOutcome
     NotPaid,
     TooSoon,
     Failed,
+
+    /// <summary>We have not approved the firm, and the buyer is not one of its administrators (ADR 0043).</summary>
+    Withheld,
 }
 
 /// <summary>
@@ -80,6 +84,7 @@ internal sealed partial class OrderService(
     WorkSignals signals,
     PortalUsers users,
     IEmailSender email,
+    FirmApproval approval,
     StripeClient stripe,
     NpgsqlDataSource dataSource,
     DatabaseSchema schema,
@@ -97,6 +102,13 @@ internal sealed partial class OrderService(
     public bool TestPaymentsAllowed(Firm firm) => TestPaymentsAllowed(firm, options.Value.TestPaymentsForLiveFirms);
 
     public static bool TestPaymentsAllowed(Firm firm, bool testPaymentsForLiveFirms) => firm.Status != FirmStatus.Live || testPaymentsForLiveFirms;
+
+    /// <summary>
+    /// Whether the shop sells only to the firm's own administrators now, who try it (ADR 0043): until we approve the firm,
+    /// and with its own checkout page until it is live, since a firm takes real money through its portal only once it is live.
+    /// </summary>
+    public async Task<bool> TeamOnlyAsync(Firm firm, CancellationToken cancellationToken) =>
+        (firm.Status != FirmStatus.Live && ProviderOf(firm) == PaymentProvider.External) || !await approval.IsApprovedAsync(firm.Id, cancellationToken);
 
     /// <summary>
     /// The provider the firm's portal takes payment with now, or null when it cannot sell. Stripe's live keys work only once
@@ -208,6 +220,11 @@ internal sealed partial class OrderService(
         if (string.IsNullOrWhiteSpace(buyerEmail) || !buyerEmail.Contains('@', StringComparison.Ordinal))
         {
             return new NewOrder.Refused(StatusCodes.Status422UnprocessableEntity, "A valid email address is required.");
+        }
+
+        if (await TeamOnlyAsync(firm, cancellationToken) && !await approval.IsAdministratorAsync(firm.Id, buyerEmail, cancellationToken))
+        {
+            return new NewOrder.Refused(StatusCodes.Status403Forbidden, FirmApproval.ShopClosedProblem(firm));
         }
 
         var buyerName = buyer.Name?.Trim();
@@ -468,7 +485,8 @@ internal sealed partial class OrderService(
 
     /// <summary>
     /// Emails the buyer of a paid order an invitation to choose a password for the firm's portal, unless the
-    /// trader already has one. A new invitation replaces the trader's older unused ones.
+    /// trader already has one. A new invitation replaces the trader's older unused ones. Before we approve the firm,
+    /// only a buyer who is one of its administrators gets one (ADR 0043).
     /// </summary>
     public async Task<InviteOutcome> SendInviteAsync(Firm firm, Order order, string source, CancellationToken cancellationToken)
     {
@@ -480,6 +498,11 @@ internal sealed partial class OrderService(
         if (trader.PasswordHash is not null)
         {
             return InviteOutcome.NotNeeded;
+        }
+
+        if (!await approval.MayReachAsync(firm.Id, order.Email, cancellationToken))
+        {
+            return InviteOutcome.Withheld;
         }
 
         var now = time.GetUtcNow();

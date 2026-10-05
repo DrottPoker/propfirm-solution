@@ -114,6 +114,7 @@ export function ConfirmDialog({
   confirmLabel,
   pendingLabel,
   pending = false,
+  disabled = false,
   danger = false,
   children,
 }: {
@@ -125,6 +126,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   pendingLabel?: string;
   pending?: boolean;
+  /** The action cannot be taken now, for a reason the dialog shows. */
+  disabled?: boolean;
   danger?: boolean;
   children?: React.ReactNode;
 }) {
@@ -139,7 +142,7 @@ export function ConfirmDialog({
           <button type="button" onClick={onClose} className={secondaryButtonClass}>
             Cancel
           </button>
-          <button type="button" disabled={pending} onClick={onConfirm} className={danger ? dangerButtonClass : buttonClass}>
+          <button type="button" disabled={pending || disabled} onClick={onConfirm} className={danger ? dangerButtonClass : buttonClass}>
             {pending ? (pendingLabel ?? confirmLabel) : confirmLabel}
           </button>
         </>

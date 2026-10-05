@@ -4,13 +4,14 @@ using Microsoft.Extensions.Options;
 using Prop.Api.Api;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Review;
 
 namespace Prop.Api.Portal;
 
 /// <summary>
 /// The firm's own domain for its portal (ADR 0039): it is added in the admin panel, proved with a TXT record and pointed
 /// to us with a CNAME record, and becomes the portal's address once both are there. Our proxy asks which hosts may get a
-/// certificate.
+/// certificate. A firm adds its domain once we have approved it (ADR 0043).
 /// </summary>
 internal static class AdminDomainEndpoints
 {
@@ -40,11 +41,13 @@ internal static class AdminDomainEndpoints
     private static async Task<Ok<DomainResponse>> GetAsync(
         HttpContext context,
         CustomDomainStore domains,
+        FirmApproval approval,
         IOptions<DomainOptions> options,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
-        return TypedResults.Ok(DomainResponse.From(await domains.GetAsync(firm.Id, cancellationToken), options.Value));
+        var approved = await approval.IsApprovedAsync(firm.Id, cancellationToken);
+        return TypedResults.Ok(DomainResponse.From(await domains.GetAsync(firm.Id, cancellationToken), options.Value, approved));
     }
 
     // A new domain is looked up at once, so records added beforehand take effect without waiting.
@@ -53,6 +56,7 @@ internal static class AdminDomainEndpoints
         HttpContext context,
         CustomDomainStore domains,
         DomainVerifier verifier,
+        FirmApproval approval,
         IOptions<DomainOptions> options,
         IOptions<PlatformOptions> platform,
         TimeProvider time,
@@ -62,6 +66,11 @@ internal static class AdminDomainEndpoints
         if (!options.Value.Enabled)
         {
             return AccountActions.Problem(StatusCodes.Status409Conflict, "Own domains are not on here yet.");
+        }
+
+        if (!await approval.IsApprovedAsync(firm.Id, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, FirmApproval.DomainProblem);
         }
 
         var domain = DomainRules.Normalize(request.Domain);
@@ -78,18 +87,19 @@ internal static class AdminDomainEndpoints
                 return AccountActions.Problem(StatusCodes.Status409Conflict, "Your firm's addresses come from our configuration, so they are changed there.");
         }
 
-        return TypedResults.Ok(DomainResponse.From(await verifier.CheckAsync(firm.Id, cancellationToken), options.Value));
+        return TypedResults.Ok(DomainResponse.From(await verifier.CheckAsync(firm.Id, cancellationToken), options.Value, approved: true));
     }
 
     private static async Task<Results<Ok<DomainResponse>, ProblemHttpResult>> CheckAsync(
         HttpContext context,
         DomainVerifier verifier,
+        FirmApproval approval,
         IOptions<DomainOptions> options,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
         return await verifier.CheckAsync(firm.Id, cancellationToken) is { } domain
-            ? TypedResults.Ok(DomainResponse.From(domain, options.Value))
+            ? TypedResults.Ok(DomainResponse.From(domain, options.Value, await approval.IsApprovedAsync(firm.Id, cancellationToken)))
             : AccountActions.Problem(StatusCodes.Status404NotFound, "Add your domain first.");
     }
 
@@ -99,6 +109,7 @@ internal static class AdminDomainEndpoints
         CustomDomainStore domains,
         FirmStore store,
         FirmCatalog firms,
+        FirmApproval approval,
         Challenges.WorkSignals signals,
         IOptions<DomainOptions> options,
         IOptions<PlatformOptions> platform,
@@ -108,7 +119,7 @@ internal static class AdminDomainEndpoints
         await domains.RemoveAsync(firm.Id, platform.Value.PortalUrlOf(firm.Id), cancellationToken);
         await AdminSettingsEndpoints.ReloadAsync(firm, store, firms, cancellationToken);
         signals.Provisioning.Set();
-        return TypedResults.Ok(DomainResponse.From(null, options.Value));
+        return TypedResults.Ok(DomainResponse.From(null, options.Value, await approval.IsApprovedAsync(firm.Id, cancellationToken)));
     }
 }
 
@@ -118,10 +129,12 @@ public sealed record DomainRequest(string? Domain);
 /// <summary>
 /// The firm's own domain and the DNS records it needs: a CNAME record to <paramref name="CnameTarget"/>, and a TXT record
 /// named <paramref name="TxtName"/> with <paramref name="TxtValue"/>. <paramref name="Problem"/> says what the last lookup,
-/// at <paramref name="CheckedAt"/>, missed. <paramref name="Available"/> is false while own domains are not on.
+/// at <paramref name="CheckedAt"/>, missed. <paramref name="Available"/> is false while own domains are not on, and
+/// <paramref name="WaitsForApproval"/> is true until we have approved the firm, which can add its domain only then.
 /// </summary>
 public sealed record DomainResponse(
     bool Available,
+    bool WaitsForApproval,
     string? Domain,
     DomainStatus? Status,
     string CnameTarget,
@@ -131,6 +144,16 @@ public sealed record DomainResponse(
     DateTimeOffset? ActiveAt,
     string? Problem)
 {
-    internal static DomainResponse From(CustomDomain? domain, DomainOptions options) =>
-        new(options.Enabled, domain?.Domain, domain?.Status, options.CnameTarget, domain?.TxtName, domain?.Token, domain?.CheckedAt, domain?.ActiveAt, domain?.Problem);
+    internal static DomainResponse From(CustomDomain? domain, DomainOptions options, bool approved) =>
+        new(
+            options.Enabled,
+            !approved,
+            domain?.Domain,
+            domain?.Status,
+            options.CnameTarget,
+            domain?.TxtName,
+            domain?.Token,
+            domain?.CheckedAt,
+            domain?.ActiveAt,
+            domain?.Problem);
 }

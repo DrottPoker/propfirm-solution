@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
 
 import { accountStatus } from "@/lib/admin";
+import { ApiError } from "@/lib/api/client";
 import { formatMoney } from "@/lib/format";
-import { useBilling, useChallenges, useEmailTrader, useFirmSettings, usePrices, useStartAccount, useTraderAccounts } from "@/lib/queries";
+import { useAdmins, useApproved, useBilling, useChallenges, useEmailTrader, useFirmSettings, usePrices, useStartAccount, useTraderAccounts } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
 
+import { TeamOnlyNote } from "./BeforeApproval";
 import { Sheet } from "./Dialog";
 import { InfoIcon, PlusIcon } from "./icons";
 import { buttonClass, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
@@ -30,7 +32,8 @@ const looksLikeEmail = (text: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.
 
 /**
  * Starts a challenge for a trader who paid outside the portal, or won one. The trader is found by email, so the panel
- * says when the email is a trader's already. It can email the trader in the firm's name at once.
+ * says when the email is a trader's already. It can email the trader in the firm's name at once, though only an
+ * administrator's address until we have approved the firm.
  */
 function StartChallengeSheet({ onClose }: { onClose: () => void }) {
   const router = useRouter();
@@ -47,6 +50,9 @@ function StartChallengeSheet({ onClose }: { onClose: () => void }) {
   const [notify, setNotify] = useState(true);
   const lookup = useDebounced(looksLikeEmail(email) ? email.trim() : "", 400);
   const traderAccounts = useTraderAccounts(lookup);
+  const approved = useApproved();
+  const admins = useAdmins(approved === false);
+  const mayEmail = approved !== false || (admins.data?.admins ?? []).some((a) => a.email.toLowerCase() === email.trim().toLowerCase());
 
   const list = [...(challenges.data ?? [])].sort((a, b) => a.name.localeCompare(b.name));
   const challengeId = chosen || list[0]?.id || "";
@@ -61,10 +67,10 @@ function StartChallengeSheet({ onClose }: { onClose: () => void }) {
       {
         onSuccess: async (account) => {
           let emailed = "";
-          if (notify) {
+          if (notify && mayEmail) {
             emailed = await emailTrader.mutateAsync(account.id).then(
               (sent) => sent.kind,
-              () => "failed",
+              (error) => (error instanceof ApiError && error.status === 409 ? "withheld" : "failed"),
             );
           }
 
@@ -143,13 +149,20 @@ function StartChallengeSheet({ onClose }: { onClose: () => void }) {
           <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="For example an order number from your own shop" className={fieldClass} />
         </label>
 
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5 text-sm">
-          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-1 accent-accent" />
-          <span className="flex flex-col gap-0.5">
+        <label className={`flex items-start gap-3 rounded-lg border border-border p-3.5 text-sm ${mayEmail ? "cursor-pointer" : "opacity-80"}`}>
+          <input
+            type="checkbox"
+            checked={notify && mayEmail}
+            disabled={!mayEmail}
+            onChange={(e) => setNotify(e.target.checked)}
+            className="mt-1 accent-accent"
+          />
+          <span className="flex flex-col gap-1.5">
             <span className="font-medium">Email the trader</span>
             <span className="text-xs text-muted">
               In your firm&apos;s name: an invitation to choose a password for your portal, or for a trader who has one, that the challenge has started.
             </span>
+            <TeamOnlyNote />
           </span>
         </label>
 

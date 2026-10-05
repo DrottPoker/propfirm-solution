@@ -6,6 +6,7 @@ using Prop.Api.Firms;
 using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Api.Portal;
+using Prop.Api.Review;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -18,11 +19,14 @@ namespace Prop.Api.Api;
 /// </summary>
 internal static class FirmEndpoints
 {
+    /// <summary>Limits how fast one key calls the firm API (ADR 0045).</summary>
+    public const string RateLimit = "firm-api";
+
     private const string Accounts = "/api/firm/v1/accounts";
 
     public static IEndpointRouteBuilder MapFirmApi(this IEndpointRouteBuilder app)
     {
-        var firm = app.MapGroup("/api/firm/v1").WithTags("Firm").AddEndpointFilter<FirmApiKeyFilter>();
+        var firm = app.MapGroup("/api/firm/v1").WithTags("Firm").AddEndpointFilter<FirmApiKeyFilter>().RequireRateLimiting(RateLimit);
         firm.MapPut("/challenges/{challengeId}", SaveChallengeAsync);
         firm.MapGet("/challenges", ListChallengesAsync);
         firm.MapPost("/accounts", StartAccountAsync);
@@ -152,8 +156,9 @@ internal static class FirmEndpoints
         HttpContext context,
         ChallengeQueries queries,
         ITradingPlatform trading,
+        FirmApproval approval,
         CancellationToken cancellationToken) =>
-        AccountActions.TerminalLinkAsync(FirmApiKeyFilter.FirmOf(context), accountId, null, queries, trading, cancellationToken);
+        AccountActions.TerminalLinkAsync(FirmApiKeyFilter.FirmOf(context), accountId, null, queries, trading, approval, cancellationToken);
 
     /// <summary>An invitation for the trader to choose a password for the firm's portal, for the firm to send.</summary>
     private static Task<Results<Ok<InviteResponse>, ProblemHttpResult>> CreateInviteAsync(
@@ -161,9 +166,10 @@ internal static class FirmEndpoints
         HttpContext context,
         ChallengeQueries queries,
         PortalUsers users,
+        FirmApproval approval,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        AccountActions.InviteAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, users, time, cancellationToken);
+        AccountActions.InviteAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, users, approval, time, cancellationToken);
 
     /// <summary>A payout for the trader, for firms whose own site lets traders ask for one. The portal does the same.</summary>
     private static Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(

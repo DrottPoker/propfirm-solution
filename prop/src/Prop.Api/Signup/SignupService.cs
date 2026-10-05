@@ -38,6 +38,9 @@ internal abstract record SignupOutcome
     public sealed record Completed(string FirmId, Uri AdminUrl) : SignupOutcome;
 
     public sealed record EmailNotSent : SignupOutcome;
+
+    /// <summary>The address got <see cref="SignupOptions.MaxEmailsPerDay"/> confirmation emails in the last day (ADR 0045).</summary>
+    public sealed record TooManyEmails : SignupOutcome;
 }
 
 /// <summary>
@@ -151,7 +154,13 @@ internal sealed partial class SignupService(
 
         var now = time.GetUtcNow();
         var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
-        await SaveAsync(token, firmId!, firmName.Trim(), emailAddress.Trim(), hasher.HashPassword(null!, password), accountCurrency, now, cancellationToken);
+
+        // Each sign-up with confirmation emails the address, so an address gets a few in a day at most.
+        var emailsLeft = signup.Value.RequireEmailVerification ? signup.Value.MaxEmailsPerDay : (int?)null;
+        if (!await SaveAsync(token, firmId!, firmName.Trim(), emailAddress.Trim(), hasher.HashPassword(null!, password), accountCurrency, emailsLeft, now, cancellationToken))
+        {
+            return new SignupOutcome.TooManyEmails();
+        }
 
         if (!signup.Value.RequireEmailVerification)
         {
@@ -165,7 +174,7 @@ internal sealed partial class SignupService(
         try
         {
             var link = new Uri(platform.Value.Url!, $"verify?token={token}");
-            await email.SendAsync(PlatformEmails.ConfirmSignup(platform.Value.Name, firmName.Trim(), emailAddress.Trim(), link, VerificationLifetime), cancellationToken);
+            await email.SendAsync(PlatformEmails.ConfirmSignup(platform.Value.Name, emailAddress.Trim(), link, VerificationLifetime), cancellationToken);
             return new SignupOutcome.VerificationSent();
         }
         catch (EmailNotSentException exception)
@@ -279,41 +288,62 @@ internal sealed partial class SignupService(
         return await command.ExecuteScalarAsync(cancellationToken) is true;
     }
 
-    // A new sign-up replaces the person's earlier unconfirmed ones. Sign-ups that expired long ago are removed.
-    private async Task SaveAsync(
+    // A new sign-up replaces the person's earlier unconfirmed ones, which expire, so they still count toward
+    // emailsPerDay. False when the address had that many in the last day. Sign-ups that expired long ago are removed.
+    private async Task<bool> SaveAsync(
         string token,
         string firmId,
         string firmName,
         string emailAddress,
         string passwordHash,
         string currency,
+        int? emailsPerDay,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        await using var batch = dataSource.CreateBatch();
-        var cleanUp = new NpgsqlBatchCommand("delete from firm_signups where (normalized_email = $1 and used_at is null) or expires_at < $2");
-        cleanUp.Parameters.AddWithValue(Emails.Normalize(emailAddress));
-        cleanUp.Parameters.AddWithValue(now - TimeSpan.FromDays(30));
-        batch.BatchCommands.Add(cleanUp);
+        var normalized = Emails.Normalize(emailAddress);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (emailsPerDay is { } most)
+        {
+            // Sign-ups with the same address wait for each other, so the limit holds.
+            await ExecuteAsync(connection, "select pg_advisory_xact_lock(hashtextextended('firm_signups:' || $1, 0))", [normalized], cancellationToken);
+            await using var count = new NpgsqlCommand("select count(*) from firm_signups where normalized_email = $1 and created_at > $2", connection);
+            count.Parameters.AddWithValue(normalized);
+            count.Parameters.AddWithValue(now - TimeSpan.FromDays(1));
+            if ((long)(await count.ExecuteScalarAsync(cancellationToken))! >= most)
+            {
+                return false;
+            }
+        }
 
-        var insert = new NpgsqlBatchCommand(
+        await ExecuteAsync(
+            connection,
+            "update firm_signups set expires_at = $2 where normalized_email = $1 and used_at is null and expires_at > $2",
+            [normalized, now],
+            cancellationToken);
+        await ExecuteAsync(connection, "delete from firm_signups where expires_at < $1", [now - TimeSpan.FromDays(30)], cancellationToken);
+        await ExecuteAsync(
+            connection,
             """
             insert into firm_signups (token_hash, firm_id, firm_name, email, normalized_email, password_hash, terms_version, created_at, expires_at, currency)
             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-            """);
-        insert.Parameters.AddWithValue(Hash(token));
-        insert.Parameters.AddWithValue(firmId);
-        insert.Parameters.AddWithValue(firmName);
-        insert.Parameters.AddWithValue(emailAddress);
-        insert.Parameters.AddWithValue(Emails.Normalize(emailAddress));
-        insert.Parameters.AddWithValue(passwordHash);
-        insert.Parameters.AddWithValue(signup.Value.TermsVersion);
-        insert.Parameters.AddWithValue(now);
-        insert.Parameters.AddWithValue(now + VerificationLifetime);
-        insert.Parameters.AddWithValue(currency);
-        batch.BatchCommands.Add(insert);
+            """,
+            [Hash(token), firmId, firmName, emailAddress, normalized, passwordHash, signup.Value.TermsVersion, now, now + VerificationLifetime, currency],
+            cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
 
-        await batch.ExecuteNonQueryAsync(cancellationToken);
+    private static async Task ExecuteAsync(NpgsqlConnection connection, string sql, object[] parameters, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(sql, connection);
+        foreach (var parameter in parameters)
+        {
+            command.Parameters.AddWithValue(parameter);
+        }
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private async Task DeleteAsync(string token, CancellationToken cancellationToken)

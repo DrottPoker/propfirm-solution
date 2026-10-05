@@ -41,8 +41,8 @@ internal static class PortalEndpoints
         portal.MapGet("/logo/{sha256}", GetLogoAsync);
         portal.MapPost(
                 "/login",
-                (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, CancellationToken cancellationToken) =>
-                    LoginAsync(PortalRoles.Trader, request, context, users, hasher, cancellationToken))
+                (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, FirmApproval approval, CancellationToken cancellationToken) =>
+                    LoginAsync(PortalRoles.Trader, request, context, users, hasher, approval, cancellationToken))
             .RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/invites/confirm", ConfirmInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
@@ -68,8 +68,8 @@ internal static class PortalEndpoints
 
         portal.MapPost(
                 "/admin/login",
-                (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, CancellationToken cancellationToken) =>
-                    LoginAsync(PortalRoles.Admin, request, context, users, hasher, cancellationToken))
+                (PortalLoginRequest request, HttpContext context, PortalUsers users, IPasswordHasher<PortalUser> hasher, FirmApproval approval, CancellationToken cancellationToken) =>
+                    LoginAsync(PortalRoles.Admin, request, context, users, hasher, approval, cancellationToken))
             .RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/admin/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Admin)));
         portal.MapAdminWaysIn();
@@ -99,13 +99,15 @@ internal static class PortalEndpoints
         return app;
     }
 
-    // A trader without a password has not accepted an invitation yet, and cannot log in.
+    // A trader without a password has not accepted an invitation yet, and cannot log in. Until we approve the firm, only
+    // its administrators log in as its traders (ADR 0043), which is checked after the password, so it tells nothing to others.
     private static async Task<Results<Ok<PortalMeResponse>, ProblemHttpResult>> LoginAsync(
         string role,
         PortalLoginRequest request,
         HttpContext context,
         PortalUsers users,
         IPasswordHasher<PortalUser> hasher,
+        FirmApproval approval,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
@@ -119,6 +121,11 @@ internal static class PortalEndpoints
             return AccountActions.Problem(StatusCodes.Status401Unauthorized, "Wrong email or password.");
         }
 
+        if (role == PortalRoles.Trader && !await approval.MayReachAsync(firm.Id, user.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status403Forbidden, FirmApproval.LoginClosedProblem(firm));
+        }
+
         await PortalAuth.SignInAsync(context, user);
         return TypedResults.Ok(PortalMeResponse.Of(user, firm.Name));
     }
@@ -129,6 +136,7 @@ internal static class PortalEndpoints
         HttpContext context,
         PortalUsers users,
         IPasswordHasher<PortalUser> hasher,
+        FirmApproval approval,
         IOptions<LoginOptions> login,
         TimeProvider time,
         CancellationToken cancellationToken)
@@ -143,6 +151,16 @@ internal static class PortalEndpoints
         }
 
         var firm = PortalFirmFilter.FirmOf(context);
+
+        // Checked before the invitation is used up, so it still works once we have approved the firm.
+        if (!string.IsNullOrEmpty(request.Token)
+            && await users.FindInviteAsync(firm.Id, request.Token, time.GetUtcNow(), cancellationToken) is { Status: LinkStatus.Valid } invite
+            && await users.FindByIdAsync(invite.UserId, PortalRoles.Trader, cancellationToken) is { } invited
+            && !await approval.MayReachAsync(firm.Id, invited.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status403Forbidden, FirmApproval.LoginClosedProblem(firm));
+        }
+
         var traderId = string.IsNullOrEmpty(request.Token) ? null : await users.UseInviteAsync(firm.Id, request.Token, time.GetUtcNow(), cancellationToken);
         if (traderId is null || await users.FindByIdAsync(traderId.Value, PortalRoles.Trader, cancellationToken) is not { } trader)
         {
@@ -166,6 +184,7 @@ internal static class PortalEndpoints
         LinkCheckRequest request,
         HttpContext context,
         PortalUsers users,
+        FirmApproval approval,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -181,6 +200,11 @@ internal static class PortalEndpoints
         if (trader.PasswordHash is null)
         {
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "Choose a password.");
+        }
+
+        if (!await approval.MayReachAsync(firm.Id, trader.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status403Forbidden, FirmApproval.LoginClosedProblem(firm));
         }
 
         if (await users.UseInviteAsync(firm.Id, request.Token, now, cancellationToken) is null)
@@ -385,8 +409,9 @@ internal static class PortalEndpoints
         HttpContext context,
         ChallengeQueries queries,
         ITradingPlatform trading,
+        FirmApproval approval,
         CancellationToken cancellationToken) =>
-        AccountActions.TerminalLinkAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, trading, cancellationToken);
+        AccountActions.TerminalLinkAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), queries, trading, approval, cancellationToken);
 
     private static async Task<Ok<IReadOnlyList<ChallengeDefinition>>> ListChallengesAsync(
         HttpContext context,
@@ -494,7 +519,8 @@ internal static class PortalEndpoints
         HttpContext context,
         ChallengeQueries queries,
         PortalUsers users,
+        FirmApproval approval,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        AccountActions.InviteAsync(PortalFirmFilter.FirmOf(context), accountId, queries, users, time, cancellationToken);
+        AccountActions.InviteAsync(PortalFirmFilter.FirmOf(context), accountId, queries, users, approval, time, cancellationToken);
 }

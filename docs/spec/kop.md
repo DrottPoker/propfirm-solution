@@ -12,7 +12,7 @@ En trader ska kunna köpa en challenge direkt i firmans portal. Pengarna går ti
 
 ```
 / på firmans adress -> en besökare skickas till /buy, med Log in uppe till höger
-/buy -> pristabeller, kontostorlekarna som kolumner och reglerna som rader -> tradern väljer storlek,
+/buy -> pristabeller, kontostorlekarna som kolumner och reglerna som rader (och en rad om att bara firmans team kan köpa, när det gäller) -> tradern väljer storlek,
    anger e-post, namn och land (eller är inloggad), kan skriva en rabattkod och godkänner firmans villkor
 -> POST /api/portal/orders -> ordern sparas med priset just nu och koden, status Pending
 -> tradern skickas till leverantörens betalsida (Stripe, firmans egen sida eller testsidan)
@@ -97,7 +97,8 @@ Tradern skickas till firmans adress med `order={id}&return={orderns sida}`. Firm
 - En trader som är inloggad i portalen köper med sin egen e-postadress, och kontot syns direkt bland traderns konton.
 - Firmans administratörer får mejlet "New sale" med köparen, challengen, beloppet och ordernumret, om firman inte stängt av det under Notifications (ADR 0025). Det köas i samma transaktion som betalningen.
 - En ny köpare väljer lösenord direkt på orderns sida och kommer till sitt konto. Det går bara när ordern startade traderns enda konto och tradern inte har något lösenord, så att någon som skriver en annans e-post aldrig kommer åt konton från förut (`canChoosePassword`).
-- Har tradern inget lösenord mejlar plattformen dessutom en inbjudan när ordern är betald, i firmans namn och utseende (ADR 0033). Länken gäller en gång i 7 dagar. Har köparen redan valt lösenord bekräftar länken e-posten, annars väljer köparen lösenordet med den.
+- Har tradern inget lösenord mejlar plattformen dessutom en inbjudan när ordern är betald, i firmans namn och utseende (ADR 0033). Länken gäller en gång i 7 dagar. Har köparen redan valt lösenord bekräftar länken e-posten, annars väljer köparen lösenordet med den. Innan vi har godkänt firman köper bara firmans administratörer (ADR 0043), och orderns sida säger bara att länken mejlats när den har det.
+- **Bara teamet köper innan firman får sälja.** Innan vi har godkänt firman, och med firmans egen betalsida innan firman är live, nekas en order från någon annan än firmans administratörer med 403, och `GET /shop` har `teamOnly`, så att butiken säger det. Riktiga pengar tas i portalen först när firman är live (ADR 0029 och 0043).
 - E-posten är bekräftad när tradern har öppnat en länk från ett mejl till den: en inbjudan, en länk för nytt lösenord eller en bekräftelse. Utbetalningar kräver det. Portalen visar en ruta med "Send the link again" tills dess.
 - Kunde mejlet inte skickas kan köparen be om det igen från orderns sida, tidigast en minut efter förra gången. Firman kan också skapa en inbjudan på kontots sida i adminpanelen, som går till en trader utan lösenord eller utan bekräftad e-post.
 
@@ -116,7 +117,7 @@ Vägarna börjar med `/api/portal` och finns på firmans adress. Köparen behöv
 | `POST /orders/{id}/password` | `{ "token", "password" }`. Köparen väljer lösenord och loggas in. 409 när ordern inte startade traderns enda konto eller tradern redan har lösenord, 422 för ett för kort lösenord. Samma gräns för försök som inloggningen. |
 | `POST /invites/confirm` | `{ "token" }`. En trader med lösenord bekräftar e-posten med inbjudan och loggas in. 422 för en trader utan lösenord, som väljer det med `POST /invites/accept`. |
 | `POST /me/confirm-email` | Mejlar den inloggade tradern en ny länk som bekräftar e-posten. 202, 409 när den redan är bekräftad. |
-| `POST /orders/{id}/invite` | `{ "token" }`. Skickar inbjudan igen. 202, 409 när tradern redan har lösenord eller ordern inte har startat något, 429 inom en minut från förra, 503 när mejlet inte gick iväg. |
+| `POST /orders/{id}/invite` | `{ "token" }`. Skickar inbjudan igen. 202, 409 när tradern redan har lösenord, ordern inte har startat något eller firman inte är godkänd och köparen inte är en administratör, 429 inom en minut från förra, 503 när mejlet inte gick iväg. |
 | `POST /orders/{id}/test-payment` | `{ "token" }`. Betalar en testorder. 409 för andra ordrar, en order som gått ut och när firman inte får ta testbetalningar. |
 
 I adminpanelen:

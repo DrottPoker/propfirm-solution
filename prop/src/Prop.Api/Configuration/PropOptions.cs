@@ -64,6 +64,9 @@ public sealed class SignupOptions
     /// <summary>Whether the email address must be confirmed before the firm is created. Development turns it off.</summary>
     public bool RequireEmailVerification { get; init; } = true;
 
+    /// <summary>The most confirmation emails one address gets in a day, so sign-ups cannot be used to flood it (ADR 0045).</summary>
+    public int MaxEmailsPerDay { get; init; } = 3;
+
     /// <summary>The version of the terms and the data processing agreement that firms accept, recorded with each firm.</summary>
     public string TermsVersion { get; init; } = "";
 
@@ -88,6 +91,12 @@ public sealed class SandboxOptions
 
     /// <summary>The most challenge accounts a firm in the sandbox may have open at once.</summary>
     public int MaxOpenAccounts { get; init; } = 10;
+
+    /// <summary>The most invitations to its team a firm may send in 30 days before we approve it (ADR 0043).</summary>
+    public int MaxAdminInvites { get; init; } = 10;
+
+    /// <summary>A sandbox whose administrators have not used the admin panel for this many days closes until they come back (ADR 0045).</summary>
+    public int IdleDays { get; init; } = 60;
 }
 
 /// <summary>How challenges are bought in the firms' portals (ADR 0019).</summary>
@@ -297,6 +306,18 @@ public sealed class SecretsOptions
 
     /// <summary>32 random bytes in base64. A secret: keep it out of files outside development, and never change it without encrypting the secrets again.</summary>
     public string Key { get; init; } = "";
+}
+
+/// <summary>How often one client may call, so nobody can overload the service or fill its database (ADR 0045). 0 turns a limit off.</summary>
+public sealed class LimitsOptions
+{
+    public const string SectionName = "Limits";
+
+    /// <summary>Support tickets and messages one address may write in a minute, as a trader or an administrator.</summary>
+    public int SupportWritesPerMinute { get; init; } = 20;
+
+    /// <summary>Calls one key may make to the firm API in a minute.</summary>
+    public int FirmApiCallsPerMinute { get; init; } = 600;
 }
 
 /// <summary>Rules for portal passwords, logins and sessions. Development turns them off; elsewhere the defaults hold.</summary>

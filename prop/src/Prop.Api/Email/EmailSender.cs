@@ -110,18 +110,22 @@ internal static class PlatformEmails
             {platform}
             """);
 
-    public static EmailMessage ConfirmSignup(string platform, string firmName, string to, Uri link, TimeSpan lifetime) =>
+    /// <summary>
+    /// Confirms the address of someone who signed a firm up. Anyone can type any address, so the email says nothing they
+    /// chose, such as the firm's name (ADR 0045).
+    /// </summary>
+    public static EmailMessage ConfirmSignup(string platform, string to, Uri link, TimeSpan lifetime) =>
         new(
             to,
-            $"Confirm your email for {firmName}",
+            $"Confirm your email for {platform}",
             $"""
             Hi,
 
-            Thank you for signing up {firmName} on {platform}. Open this link to confirm your email address and open your admin panel:
+            Someone signed a firm up on {platform} with this email address. If it was you, open this link to confirm the address and open your admin panel:
 
             {link}
 
-            The link works once, within {lifetime.TotalHours:0} hours. If you did not sign up, you can ignore this email.
+            The link works once, within {lifetime.TotalHours:0} hours. If it was not you, ignore this email, and nothing is created.
 
             {platform}
             """);
@@ -348,6 +352,42 @@ internal static class PlatformEmails
             We have lifted the suspension of {firmName}, so your challenges, your shop and your traders' accounts go on as before.
 
             {adminUrl}
+
+            {platform}
+            """);
+
+    /// <summary>Nobody has used the firm's sandbox for a while, so it closes on <paramref name="closesAt"/> unless someone logs in (ADR 0045).</summary>
+    public static EmailMessage SandboxClosing(string platform, string firmName, string to, int idleDays, DateTimeOffset closesAt, Uri adminLogin) =>
+        new(
+            to,
+            $"The sandbox of {firmName} closes on {closesAt:d MMM yyyy}",
+            $"""
+            Hi,
+
+            Nobody has used the admin panel of {firmName} for {idleDays - 7} days. A sandbox that is not used for {idleDays} days closes: its test accounts end, and no new ones start.
+
+            Log in before {closesAt:d MMM yyyy} to keep it open:
+
+            {adminLogin}
+
+            If it closes, logging in opens it again, with everything you set up.
+
+            {platform}
+            """);
+
+    /// <summary>Nobody used the firm's sandbox for <paramref name="idleDays"/> days, so it closed, and logging in opens it again.</summary>
+    public static EmailMessage SandboxClosed(string platform, string firmName, string to, int idleDays, int accountsEnded, Uri adminLogin) =>
+        new(
+            to,
+            $"The sandbox of {firmName} is closed",
+            $"""
+            Hi,
+
+            Nobody used the admin panel of {firmName} for {idleDays} days, so its sandbox is closed.{(accountsEnded switch { 0 => "", 1 => " Its test account has ended.", _ => $" Its {accountsEnded} test accounts have ended." })} No new challenges start until it opens again.
+
+            Your settings, challenges and design are kept. Log in to open the sandbox again:
+
+            {adminLogin}
 
             {platform}
             """);

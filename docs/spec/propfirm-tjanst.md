@@ -42,7 +42,7 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, med positionerna ett brott stängde och saldot efteråt, och för en underkänd challenge ett nytt försök med firmans bästa kod för nya försök. Och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil. |
 | `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. En firmas kommandon väntar tills den har en server. Ett nekat uttag rapporteras till regelmotorn i samma transaktion, så att utbetalningen blir `Failed`. |
 | `TradingDayScheduler`, `TradingStreamProgress` | Startar handelsdagen för varje öppet konto när dagen börjar, och kommer ikapp efter en omstart. En dag som avslutar en challenge på tid väntar tills firmans händelseström är läst förbi dagens början. |
-| `WebhookWorker`, `WebhookOutbox` | Webhooks till firman köas i samma transaktion som ändringen bakom dem, och skickas signerade tills de tas emot. |
+| `WebhookWorker`, `WebhookOutbox` | Webhooks till firman köas i samma transaktion som ändringen bakom dem, och skickas signerade tills de tas emot. De skickas bara till publika adresser på internet, genom `PublicAddresses`, utan att följa omdirigeringar (ADR 0044). |
 | `WebhookDeliveries`, `WebhookEvents` | Alla händelser webhooks berättar om, de senaste leveranserna för adminpanelen och testhändelsen `webhook.test`. |
 | `OrderService`, `OrderStore` | Köp i portalen: ordern med priset, betalningen som startar kontot i samma transaktion, återbetalningar, bestridanden och inbjudan till köparen (ADR 0019). |
 | `PriceCatalog` | Challengernas priser i portalen, skilda från challengerna. |
@@ -134,7 +134,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `traders` | Firmans traders, deras användare på handelsplattformen, hash av lösenordet till portalen och när det valdes, namnet och landet från köpet och när e-posten bekräftades. E-postadressen är unik inom firman. |
 | `firm_admins` | Firmans administratörer i portalen, och när lösenordet valdes. E-postadressen är unik inom firman. |
 | `password_resets` | Länkar för att välja nytt lösenord: hash av token, slag (`trader`, `admin` eller `staff`), personen, när länken går ut och när den användes. |
-| `email_outbox` | Mejl som väntar på att skickas, med texten, HTML och svarsadressen, försök, senaste fel, när de skickades eller gavs upp, och en nyckel som hindrar att samma påminnelse köas två gånger. |
+| `email_outbox` | Mejl som väntar på att skickas, med texten, HTML och svarsadressen, försök, senaste fel, när de skickades eller gavs upp, och en nyckel som hindrar att samma påminnelse köas två gånger. `withheld_at` är satt för ett mejl som aldrig skickas, eftersom vi inte har godkänt firman och mottagaren inte är en administratör (ADR 0043). |
 | `trader_payout_methods` | Traderns utbetalningsmetod, krypterad. |
 | `portal_invites` | Inbjudningar till portalen: hash av token, trader, när den går ut och när den användes. |
 | `data_protection_keys` | Nycklarna som skyddar portalens sessioner. |
@@ -162,7 +162,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 
 ## Firmans API
 
-Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-Api-Key`. Andra firmors data svarar 404.
+Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-Api-Key`. Andra firmors data svarar 404. En nyckel gör högst `Limits:FirmApiCallsPerMinute` anrop per minut (standard 600), och fler svarar 429 (ADR 0045). Alla svar 429 har en rubrik som säger att vänta en minut.
 
 | Metod och väg | Beskrivning |
 |---|---|

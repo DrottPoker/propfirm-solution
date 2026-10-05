@@ -10,6 +10,11 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await signUp(page, "Review E2E Firm", "review-e2e-firm");
   await waitForSandbox(page);
 
+  // Until we have approved the firm, it cannot put its portal on its own domain.
+  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Your domain" }).click();
+  await expect(page.getByText(/^You can add your own domain once we have approved your firm\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add domain" })).toHaveCount(0);
+
   // Every field that is missing is marked, and listed by the buttons.
   await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Go live" }).click();
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -62,9 +67,11 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await page.getByRole("button", { name: "Send the changes for review" }).click();
   await expect(page.getByText("We are reviewing your application, usually within a day.")).toBeVisible();
 
-  // Our staff approve it.
+  // Our staff approve it, and the firm can add its own domain.
   await review.reload();
   await approveAsStaff(review);
+  await page.goto(new URL("/admin/domain", page.url()).href);
+  await expect(page.getByRole("button", { name: "Add domain" })).toBeVisible();
 
   // Approved without KYC, the firm cannot go live until it has chosen how its traders are checked.
   await page.goto(new URL("/admin/go-live", page.url()).href);

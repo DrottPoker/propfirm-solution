@@ -36,6 +36,16 @@ test("a firm signs up, gets its own portal and server, and starts a challenge in
   await page.getByRole("link", { name: "Go to your overview" }).click();
   await expect(page.getByText(/One challenge is for sale in your portal's shop/)).toBeVisible();
 
+  // Until we have approved the firm, its emails go only to its administrators, so only the owner could be emailed.
+  await page.getByRole("button", { name: "Start a challenge" }).click();
+  const panel = page.getByRole("dialog", { name: "Start a challenge" });
+  await panel.getByLabel("Trader's email").fill("trader@nordic-e2e-prop.e2e.example");
+  await expect(panel.getByRole("checkbox", { name: /^Email the trader/ })).toBeDisabled();
+  await expect(panel.getByText(/^Until we have approved your firm, it reaches only its administrators/)).toBeVisible();
+  await panel.getByLabel("Trader's email").fill("owner@nordic-e2e-prop.e2e.example");
+  await expect(panel.getByRole("checkbox", { name: /^Email the trader/ })).toBeEnabled();
+  await panel.getByRole("button", { name: "Cancel" }).click();
+
   await startChallenge(page, "trader@nordic-e2e-prop.e2e.example");
   await expect(page.getByText("Trading account nordic-e2e-prop-1001-1")).toBeVisible({ timeout: 20_000 });
 });

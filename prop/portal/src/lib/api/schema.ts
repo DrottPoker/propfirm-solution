@@ -7227,10 +7227,12 @@ export interface components {
         /**
          * @description The firm's own domain and the DNS records it needs: a CNAME record to CnameTarget, and a TXT record
          *     named TxtName with TxtValue. Problem says what the last lookup,
-         *     at CheckedAt, missed. Available is false while own domains are not on.
+         *     at CheckedAt, missed. Available is false while own domains are not on, and
+         *     WaitsForApproval is true until we have approved the firm, which can add its domain only then.
          */
         DomainResponse: {
             available: boolean;
+            waitsForApproval: boolean;
             domain: null | string;
             status: null | components["schemas"]["DomainStatus"];
             cnameTarget: string;
@@ -8233,6 +8235,7 @@ export interface components {
          *     (FirmPortalUrl with {firm} for the short name), whether the email is confirmed first, what firms
          *     pay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may
          *     choose, the first by default. TermsVersion is recorded with the firm, not shown.
+         *     RobotCheckSiteKey shows the robot check on the sign-up page, and is null while it is off.
          */
         PlatformResponse: {
             name: string;
@@ -8249,6 +8252,7 @@ export interface components {
             /** Format: int32 */
             sandboxMaxOpenAccounts: number;
             currencies: string[];
+            robotCheckSiteKey: null | string;
         };
         PortalLoginRequest: {
             email: null | string;
@@ -8415,12 +8419,14 @@ export interface components {
         /**
          * @description What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or
          *     cannot start more challenges now, which Full says. TermsUrl is the firm's
-         *     terms, which the buyer accepts. Test means no money is taken.
+         *     terms, which the buyer accepts. Test means no money is taken. TeamOnly means only
+         *     the firm's own administrators can buy now, to try the shop (ADR 0043).
          */
         ShopResponse: {
             open: boolean;
             full: boolean;
             test: boolean;
+            teamOnly: boolean;
             /** Format: uri */
             termsUrl: null | string;
             items: components["schemas"]["ShopItemResponse"][];
@@ -8436,6 +8442,7 @@ export interface components {
             password: null | string;
             acceptTerms: boolean;
             currency?: null | string;
+            robotCheck?: null | string;
         };
         /** @description Either the email with the confirmation link is sent, or the firm is created and AdminUrl logs its administrator in. */
         SignupResponse: {
@@ -8730,12 +8737,16 @@ export interface components {
          * @enum {unknown}
          */
         TraderEmailKind: "Invitation" | "Notice";
-        /** @description The email the firm is about to send the trader: to whom, what kind, its subject and its text. */
+        /**
+         * @description The email the firm is about to send the trader: to whom, what kind, its subject and its text. Withheld
+         *     says why it cannot be sent, while we have not approved the firm and the trader is not one of its administrators.
+         */
         TraderEmailPreviewResponse: {
             email: string;
             kind: components["schemas"]["TraderEmailKind"];
             subject: string;
             body: string;
+            withheld: null | string;
         };
         TraderEmailResponse: {
             email: string;

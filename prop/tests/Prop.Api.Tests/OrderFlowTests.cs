@@ -299,7 +299,8 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var firmApi = factory.CreateFirmClient(await NewApiKeyAsync(admin));
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
 
-        var (orderId, token, checkoutUrl) = await BuyAsync(buyer, "buyer@test.example");
+        // Before the firm is live, only its own team buys through its own checkout, to try it (ADR 0043).
+        var (orderId, token, checkoutUrl) = await BuyAsync(buyer, "owner@firm.test");
         await SetPriceAsync(admin, 199m);
         var seenByFirm = await firmApi.GetFromJsonAsync<JsonElement>(FirmUrl($"orders/{orderId}"), TestContext.Current.CancellationToken);
         using var paid = await firmApi.PostAsJsonAsync(FirmUrl($"orders/{orderId}/mark-paid"), new { reference = "pay_123" }, TestContext.Current.CancellationToken);
@@ -310,7 +311,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
 
         var returnUrl = Uri.EscapeDataString($"http://acme.localhost:3002/orders/{orderId}?token={token}");
         Assert.Equal($"https://pay.acme.test/checkout?lang=en&order={orderId}&return={returnUrl}", checkoutUrl);
-        Assert.Equal(("Pending", "buyer@test.example", 149m), (seenByFirm.GetProperty("order").GetProperty("status").GetString(), seenByFirm.GetProperty("order").GetProperty("email").GetString(), seenByFirm.GetProperty("order").GetProperty("amount").GetDecimal()));
+        Assert.Equal(("Pending", "owner@firm.test", 149m), (seenByFirm.GetProperty("order").GetProperty("status").GetString(), seenByFirm.GetProperty("order").GetProperty("email").GetString(), seenByFirm.GetProperty("order").GetProperty("amount").GetDecimal()));
         Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK, HttpStatusCode.OK), (paid.StatusCode, again.StatusCode, refunded.StatusCode));
         var order = Assert.Single(paidOrders.EnumerateArray());
         Assert.Equal(("pay_123", 149m), (order.GetProperty("paymentReference").GetString(), order.GetProperty("amount").GetDecimal()));
@@ -379,7 +380,7 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
 
         using var refused = await buyer.PostAsJsonAsync(
-            Url("orders"), new { challengeId = Challenge, email = "second@test.example", acceptTerms = false, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
+            Url("orders"), new { challengeId = Challenge, email = "second@test.example", acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
     }
@@ -476,7 +477,8 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
     [Fact]
     public async Task ABuyerChoosesAPasswordOnTheOrdersPageAndConfirmsTheEmailLater()
     {
-        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        // Approving the firm logs our staff in, which would take the test past the limit for login attempts.
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), new Dictionary<string, string> { ["Login:AttemptsPerMinute"] = "0" });
         using var admin = await OpenTestShopAsync(factory, "acme");
         using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
         var (orderId, token, _) = await BuyAsync(buyer, "new.trader@test.example");
@@ -509,6 +511,45 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
         Assert.True(meAfter.GetProperty("emailConfirmed").GetBoolean());
         Assert.Equal(HttpStatusCode.Conflict, resendAfter.StatusCode);
+    }
+
+    // Anyone can type any email in the shop, so until we approve the firm only its own team can buy, to try it.
+    [Fact]
+    public async Task UntilWeApproveTheFirmOnlyItsTeamBuysInItsShop()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme", approved: false);
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        var shop = await GetAsync(buyer, "shop");
+        using var stranger = await buyer.PostAsJsonAsync(
+            Url("orders"), new { challengeId = Challenge, email = "stranger@test.example", acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
+        var (ownersOrder, ownersToken, _) = await BuyAsync(buyer, "owner@firm.test");
+        (await buyer.PostAsJsonAsync(Url($"orders/{ownersOrder}/test-payment"), new { token = ownersToken }, TestContext.Current.CancellationToken)).Dispose();
+        var owners = await GetAsync(buyer, $"orders/{ownersOrder}?token={ownersToken}");
+
+        Assert.True(shop.GetProperty("teamOnly").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, stranger.StatusCode);
+        Assert.Equal("Firm acme does not sell here yet, so only its own team can buy, to try the shop.", await TitleOfAsync(stranger));
+        Assert.Equal(JsonValueKind.String, owners.GetProperty("inviteSentAt").ValueKind);
+        Assert.Single(factory.Emails.Sent, e => e.To == "owner@firm.test" && e.Subject.Contains("is starting", StringComparison.Ordinal));
+    }
+
+    // A firm takes real money in its portal only once it is live, so its own checkout page sells only to its team before (ADR 0043).
+    [Fact]
+    public async Task TheFirmsOwnCheckoutSellsOnlyToItsTeamUntilItIsLive()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        await SetPaymentsAsync(admin, new { provider = "External", checkoutUrl = "https://pay.acme.test/checkout" });
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        var shop = await GetAsync(buyer, "shop");
+        using var stranger = await buyer.PostAsJsonAsync(
+            Url("orders"), new { challengeId = Challenge, email = "stranger@test.example", acceptTerms = true, name = "Ann Buyer", country = "SE" }, TestContext.Current.CancellationToken);
+        var (_, _, ownersCheckout) = await BuyAsync(buyer, "owner@firm.test");
+
+        Assert.True(shop.GetProperty("teamOnly").GetBoolean());
+        Assert.Equal(HttpStatusCode.Forbidden, stranger.StatusCode);
+        Assert.StartsWith("https://pay.acme.test/checkout?", ownersCheckout, StringComparison.Ordinal);
     }
 
     // Anyone can type any email in the shop, so the order's page never opens what a trader had before.
@@ -605,21 +646,30 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
 
     private static string TokenIn(string url) => url.Split("token=")[1].Split('&')[0];
 
-    /// <summary>A firm that signed up, with its server, the two-step challenge for 99 USD and test payments.</summary>
-    private static async Task<HttpClient> OpenTestShopAsync(PropFactory factory, string firmId)
+    /// <summary>
+    /// A firm that signed up, with its server, the two-step challenge for 99 USD and test payments. It is still in the
+    /// sandbox, and <paramref name="approved"/> by us, so anyone can buy, unless told otherwise (ADR 0043).
+    /// </summary>
+    private static async Task<HttpClient> OpenTestShopAsync(PropFactory factory, string firmId, bool approved = true)
     {
         var admin = await factory.SignUpAsync(firmId);
         await PropFactory.WaitUntilProvisionedAsync(admin);
         await SetPriceAsync(admin, 99m);
         await SetPaymentsAsync(admin, new { provider = "Test" });
+        if (approved)
+        {
+            await factory.ApproveAsync(admin, firmId, chooseKyc: false);
+        }
+
         return admin;
     }
 
-    /// <summary>A firm that signed up, with the two-step challenge for 99 USD and its own Stripe test keys.</summary>
+    /// <summary>A firm that signed up and that we approved, with the two-step challenge for 99 USD and its own Stripe test keys.</summary>
     private static async Task<HttpClient> OpenStripeShopAsync(PropFactory factory, string firmId)
     {
         var admin = await factory.SignUpAsync(firmId);
         await PropFactory.WaitUntilProvisionedAsync(admin);
+        await factory.ApproveAsync(admin, firmId, chooseKyc: false);
         await SetPriceAsync(admin, 99m);
         await SetPaymentsAsync(admin, new { provider = "Stripe", stripeSecretKey = FakeStripe.SecretKey, stripeWebhookSecret = FakeStripe.WebhookSecret });
         return admin;

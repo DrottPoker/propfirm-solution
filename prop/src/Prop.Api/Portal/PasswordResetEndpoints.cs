@@ -11,6 +11,7 @@ using Prop.Api.Api;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
+using Prop.Api.Review;
 
 namespace Prop.Api.Portal;
 
@@ -117,8 +118,18 @@ internal static class PasswordResetEndpoints
         if (string.IsNullOrEmpty(request.Token)
             || await services.Resets.FindAsync(kind, request.Token, now, cancellationToken) is not { Status: LinkStatus.Valid } link
             || await services.Users.FindByIdAsync(link.UserId, role, cancellationToken) is not { } user
-            || user.FirmId != firm.Id
-            || await services.Resets.UseAsync(kind, request.Token, now, cancellationToken) is null)
+            || user.FirmId != firm.Id)
+        {
+            return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The link has expired or was already used. Ask for a new one.");
+        }
+
+        // Until we approve the firm, only its administrators log in as its traders (ADR 0043). The link stays good until then.
+        if (role == PortalRoles.Trader && !await services.Approval.MayReachAsync(firm.Id, user.Email, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status403Forbidden, FirmApproval.LoginClosedProblem(firm));
+        }
+
+        if (await services.Resets.UseAsync(kind, request.Token, now, cancellationToken) is null)
         {
             return AccountActions.Problem(StatusCodes.Status401Unauthorized, "The link has expired or was already used. Ask for a new one.");
         }
@@ -190,6 +201,7 @@ internal static class PasswordResetEndpoints
 internal sealed record ResetServices(
     PortalUsers Users,
     PasswordResets Resets,
+    FirmApproval Approval,
     IPasswordHasher<PortalUser> Hasher,
     IOptions<LoginOptions> Login,
     IOptions<PlatformOptions> Platform,

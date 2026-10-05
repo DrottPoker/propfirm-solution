@@ -116,7 +116,8 @@ public sealed class SupportTests(PostgresFixture postgres) : IClassFixture<Postg
     [Fact]
     public async Task WhatATicketNeedsIsCheckedBeforeItIsSaved()
     {
-        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        // Many refused tries in a row, which the limit per minute would stop. AbuseLimitsTests tries that limit.
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), new Dictionary<string, string> { ["Limits:SupportWritesPerMinute"] = "0" });
         var accountId = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
         var othersAccount = (await factory.StartActiveAccountAsync("bert@test.example")).GetProperty("id").GetGuid();
         using var trader = await factory.LogInAsTraderAsync(accountId);

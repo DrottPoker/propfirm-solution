@@ -7278,6 +7278,7 @@
       "DomainResponse": {
         "required": [
           "available",
+          "waitsForApproval",
           "domain",
           "status",
           "cnameTarget",
@@ -7290,6 +7291,9 @@
         "type": "object",
         "properties": {
           "available": {
+            "type": "boolean"
+          },
+          "waitsForApproval": {
             "type": "boolean"
           },
           "domain": {
@@ -7344,7 +7348,7 @@
             ]
           }
         },
-        "description": "The firm's own domain and the DNS records it needs: a CNAME record to CnameTarget, and a TXT record\nnamed TxtName with TxtValue. Problem says what the last lookup,\nat CheckedAt, missed. Available is false while own domains are not on."
+        "description": "The firm's own domain and the DNS records it needs: a CNAME record to CnameTarget, and a TXT record\nnamed TxtName with TxtValue. Problem says what the last lookup,\nat CheckedAt, missed. Available is false while own domains are not on, and\nWaitsForApproval is true until we have approved the firm, which can add its domain only then."
       },
       "DomainStatus": {
         "enum": [
@@ -10399,7 +10403,8 @@
           "emailVerification",
           "prices",
           "sandboxMaxOpenAccounts",
-          "currencies"
+          "currencies",
+          "robotCheckSiteKey"
         ],
         "type": "object",
         "properties": {
@@ -10445,9 +10450,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "robotCheckSiteKey": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "The platform, for its front page and the sign-up page: its name, the terms firms accept, the address new portals get\n(FirmPortalUrl with {firm} for the short name), whether the email is confirmed first, what firms\npay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may\nchoose, the first by default. TermsVersion is recorded with the firm, not shown."
+        "description": "The platform, for its front page and the sign-up page: its name, the terms firms accept, the address new portals get\n(FirmPortalUrl with {firm} for the short name), whether the email is confirmed first, what firms\npay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may\nchoose, the first by default. TermsVersion is recorded with the firm, not shown.\nRobotCheckSiteKey shows the robot check on the sign-up page, and is null while it is off."
       },
       "PortalLoginRequest": {
         "required": [
@@ -10939,6 +10950,7 @@
           "open",
           "full",
           "test",
+          "teamOnly",
           "termsUrl",
           "items"
         ],
@@ -10951,6 +10963,9 @@
             "type": "boolean"
           },
           "test": {
+            "type": "boolean"
+          },
+          "teamOnly": {
             "type": "boolean"
           },
           "termsUrl": {
@@ -10967,7 +10982,7 @@
             }
           }
         },
-        "description": "What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or\ncannot start more challenges now, which Full says. TermsUrl is the firm's\nterms, which the buyer accepts. Test means no money is taken."
+        "description": "What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or\ncannot start more challenges now, which Full says. TermsUrl is the firm's\nterms, which the buyer accepts. Test means no money is taken. TeamOnly means only\nthe firm's own administrators can buy now, to try the shop (ADR 0043)."
       },
       "SignupRequest": {
         "required": [
@@ -11007,6 +11022,12 @@
             "type": "boolean"
           },
           "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "robotCheck": {
             "type": [
               "null",
               "string"
@@ -11869,7 +11890,8 @@
           "email",
           "kind",
           "subject",
-          "body"
+          "body",
+          "withheld"
         ],
         "type": "object",
         "properties": {
@@ -11884,9 +11906,15 @@
           },
           "body": {
             "type": "string"
+          },
+          "withheld": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "The email the firm is about to send the trader: to whom, what kind, its subject and its text."
+        "description": "The email the firm is about to send the trader: to whom, what kind, its subject and its text. Withheld\nsays why it cannot be sent, while we have not approved the firm and the trader is not one of its administrators."
       },
       "TraderEmailResponse": {
         "required": [

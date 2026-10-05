@@ -138,7 +138,7 @@ function ChoosePassword({ order, token }: { order: BuyerOrder; token: string }) 
       <button type="submit" disabled={choose.isPending || choose.isSuccess} className={`${buttonClass} self-start`}>
         {choose.isPending || choose.isSuccess ? "Opening..." : "Open my account"}
       </button>
-      <p className="text-xs text-muted">We have also emailed you a link. Open it later to confirm your email, which payouts need.</p>
+      {order.inviteSentAt && <p className="text-xs text-muted">We have also emailed you a link. Open it later to confirm your email, which payouts need.</p>}
     </form>
   );
 }

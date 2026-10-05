@@ -118,8 +118,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
             await ExecuteAsync(
                 connection,
                 """
-                insert into firms (id, name, status, configured, portal_url, colors, terms_version, terms_accepted_at, account_currency, created_at, updated_at)
-                values ($1, $2, $3, false, $4, '{}', $5, $6, $7, $6, $6)
+                insert into firms (id, name, status, configured, portal_url, colors, terms_version, terms_accepted_at, account_currency, created_at, updated_at, active_at)
+                values ($1, $2, $3, false, $4, '{}', $5, $6, $7, $6, $6, $6)
                 """,
                 [firmId, name, FirmStatus.Provisioning.ToString(), portalUrl.ToString(), termsVersion, now, accountCurrency],
                 cancellationToken);

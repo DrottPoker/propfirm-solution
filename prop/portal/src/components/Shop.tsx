@@ -30,7 +30,7 @@ export function Shop({ challenge = null, code = null }: { challenge?: string | n
     return <Message text="Loading..." />;
   }
 
-  const { items, open, full, test, termsUrl } = shop.data;
+  const { items, open, full, test, teamOnly, termsUrl } = shop.data;
   const tables = open ? shopTables(items) : [];
   const chosenItem = items.find((i) => i.challenge.id === chosen) ?? null;
   return (
@@ -46,6 +46,11 @@ export function Shop({ challenge = null, code = null }: { challenge?: string | n
       </header>
 
       {!open && <p className="text-muted">{full ? "No new challenges can be bought right now. Try again later." : "No challenges are for sale here right now."}</p>}
+      {open && teamOnly && (
+        <p role="note" className="rounded border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+          This shop does not sell yet. Only the firm&apos;s own team can buy here, with their own email, to try it.
+        </p>
+      )}
       {test && (
         <p role="note" className="rounded border border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Test payments: you pay on a test page, and no money is taken.

@@ -30,6 +30,7 @@ internal static class SignupEndpoints
         IOptions<SignupOptions> signup,
         IOptions<LoginOptions> login,
         IOptions<SandboxOptions> sandbox,
+        IOptions<RobotCheckOptions> robots,
         BillingService billing,
         IOptions<BillingOptions> billingOptions) =>
         TypedResults.Ok(new PlatformResponse(
@@ -42,7 +43,8 @@ internal static class SignupEndpoints
             signup.Value.RequireEmailVerification,
             BillingEndpoints.PricesOf(billing.Terms, billingOptions.Value),
             sandbox.Value.MaxOpenAccounts,
-            signup.Value.Currencies.Count > 0 ? signup.Value.Currencies : [signup.Value.DefaultCurrency]));
+            signup.Value.Currencies.Count > 0 ? signup.Value.Currencies : [signup.Value.DefaultCurrency],
+            robots.Value.Enabled ? robots.Value.SiteKey : null));
 
     /// <summary>
     /// Emails a one-time login link to each firm the email administers, for an administrator who does not remember the firm's
@@ -73,13 +75,23 @@ internal static class SignupEndpoints
 
     /// <summary>
     /// Signs a firm up. With email confirmation, 202 and an email with a link. Without, 200 and a link that logs
-    /// the administrator in on the firm's portal.
+    /// the administrator in on the firm's portal. The robot check comes first (ADR 0045).
     /// </summary>
     private static async Task<Results<Ok<SignupResponse>, Accepted<SignupResponse>, ProblemHttpResult>> SignUpAsync(
         SignupRequest request,
+        HttpContext context,
         SignupService signups,
+        RobotCheck robots,
         CancellationToken cancellationToken)
     {
+        switch (await robots.VerifyAsync(request.RobotCheck, context.Connection.RemoteIpAddress?.ToString(), cancellationToken))
+        {
+            case RobotCheckResult.Failed:
+                return ProblemOf(new SignupOutcome.Invalid("robotCheck", "Show that you are not a robot, then sign up again."));
+            case RobotCheckResult.Unavailable:
+                return TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "We could not check that you are not a robot. Try again shortly.");
+        }
+
         var outcome = await signups.SignUpAsync(request.FirmName, request.FirmId, request.Email, request.Password, request.AcceptTerms, request.Currency, cancellationToken);
         return outcome switch
         {
@@ -115,6 +127,10 @@ internal static class SignupEndpoints
         SignupOutcome.EmailNotSent => TypedResults.Problem(
             statusCode: StatusCodes.Status503ServiceUnavailable,
             title: "The confirmation email could not be sent. Try again shortly."),
+        SignupOutcome.TooManyEmails => TypedResults.Problem(
+            statusCode: StatusCodes.Status429TooManyRequests,
+            title: "We have sent this email address as many confirmation emails as a day allows. Use the link in the latest one, or try again tomorrow.",
+            extensions: new Dictionary<string, object?> { ["field"] = "email" }),
         _ => throw new InvalidOperationException($"Unexpected outcome {outcome.GetType().Name}."),
     };
 }
@@ -138,6 +154,7 @@ internal sealed class PlatformHostFilter(IOptions<PlatformOptions> platform) : I
 /// (<paramref name="FirmPortalUrl"/> with {firm} for the short name), whether the email is confirmed first, what firms
 /// pay when they go live, how many test accounts the sandbox has room for and the account currencies a firm may
 /// choose, the first by default. <paramref name="TermsVersion"/> is recorded with the firm, not shown.
+/// <paramref name="RobotCheckSiteKey"/> shows the robot check on the sign-up page, and is null while it is off.
 /// </summary>
 public sealed record PlatformResponse(
     string Name,
@@ -149,7 +166,8 @@ public sealed record PlatformResponse(
     bool EmailVerification,
     PricesResponse Prices,
     int SandboxMaxOpenAccounts,
-    IReadOnlyList<string> Currencies);
+    IReadOnlyList<string> Currencies,
+    string? RobotCheckSiteKey);
 
 /// <summary>Whether the short name can be chosen, and when it is taken or reserved up to three free names like it.</summary>
 public sealed record AvailabilityResponse(string FirmId, bool Available, string? Reason, IReadOnlyList<string> Suggestions);
@@ -158,7 +176,7 @@ public sealed record AvailabilityResponse(string FirmId, bool Available, string?
 /// <paramref name="FirmId"/> is the short name: the portal's subdomain and the server on the trading platform.
 /// <paramref name="Currency"/> is the currency of the firm's accounts, one of the platform's, or its first when left out.
 /// </summary>
-public sealed record SignupRequest(string? FirmName, string? FirmId, string? Email, string? Password, bool AcceptTerms, string? Currency = null);
+public sealed record SignupRequest(string? FirmName, string? FirmId, string? Email, string? Password, bool AcceptTerms, string? Currency = null, string? RobotCheck = null);
 
 /// <summary>Either the email with the confirmation link is sent, or the firm is created and <paramref name="AdminUrl"/> logs its administrator in.</summary>
 public sealed record SignupResponse(bool VerificationRequired, string FirmId, Uri? AdminUrl);

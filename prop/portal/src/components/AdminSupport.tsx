@@ -13,6 +13,7 @@ import { FieldError, useChallenges, useCloseTicket, useFirmTicket, useFirmTicket
 import { filesProblem, lastAuthorName, supportGroupLabels, supportGroups, supportLimits, waitingText } from "@/lib/support";
 import { useDebounced } from "@/lib/useDebounced";
 
+import { TeamOnlyNote } from "./BeforeApproval";
 import { PlusIcon, SearchIcon } from "./icons";
 import { Conversation, FilePicker, MessageField, MessageForm, TicketStatusBadge } from "./SupportThread";
 import { AdminPage, buttonClass, ErrorText, fieldClass, FilterTabs, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
@@ -209,6 +210,7 @@ export function AdminNewTicket({ initialEmail, initialAccountId }: { initialEmai
         title="Write to a trader"
         description={`The trader gets your message by email in ${branding.name}'s name, and answers in the portal. Never ask for ID documents or passwords in a ticket.`}
       />
+      <TeamOnlyNote />
       <form
         onSubmit={(event) => {
           event.preventDefault();

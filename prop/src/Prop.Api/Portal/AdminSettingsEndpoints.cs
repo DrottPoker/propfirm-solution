@@ -11,7 +11,9 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Net;
 using Prop.Api.Payments;
+using Prop.Api.Review;
 using Prop.Rules;
 
 namespace Prop.Api.Portal;
@@ -268,7 +270,10 @@ internal static class AdminSettingsEndpoints
         return TypedResults.Ok(new ApiKeyResponse(apiKey));
     }
 
-    /// <summary>Sets where webhooks go, or turns them off. The first time, a secret is made and shown, only now.</summary>
+    /// <summary>
+    /// Sets where webhooks go, or turns them off. The first time, a secret is made and shown, only now. The address must be
+    /// on the public internet (ADR 0044); a name is checked again each time it is called.
+    /// </summary>
     private static async Task<Results<Ok<WebhookResponse>, ProblemHttpResult>> SetWebhookAsync(
         WebhookRequest request,
         HttpContext context,
@@ -282,6 +287,11 @@ internal static class AdminSettingsEndpoints
             && (!Uri.TryCreate(request.Url.Trim(), UriKind.Absolute, out url) || url.Scheme != Uri.UriSchemeHttps))
         {
             return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The webhook address must be an https address.");
+        }
+
+        if (url is not null && !PublicAddresses.MayBeCalled(url.Host))
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, "The webhook address must be on the public internet.");
         }
 
         var firm = PortalFirmFilter.FirmOf(context);
@@ -399,14 +409,19 @@ internal static class AdminSettingsEndpoints
             ? TypedResults.NoContent()
             : AccountActions.Problem(StatusCodes.Status404NotFound, "There is no invitation to that email.");
 
-    /// <summary>Emails an invitation to administer the firm. It replaces earlier ones to the same address, so sending it again is the same.</summary>
+    /// <summary>
+    /// Emails an invitation to administer the firm. It replaces earlier ones to the same address, so sending it again is
+    /// the same. Before we approve the firm, it sends a few in a month at most (ADR 0043).
+    /// </summary>
     private static async Task<Results<Created<AdminInviteResponse>, ProblemHttpResult>> InviteAdminAsync(
         AdminInviteRequest request,
         HttpContext context,
         ClaimsPrincipal principal,
         FirmAdmins admins,
+        FirmApproval approval,
         IEmailSender email,
         IOptions<PlatformOptions> platform,
+        IOptions<SandboxOptions> sandbox,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -422,7 +437,15 @@ internal static class AdminSettingsEndpoints
             return AccountActions.Problem(StatusCodes.Status409Conflict, "That person is already an administrator.");
         }
 
-        var (token, expiresAt) = await admins.CreateInviteAsync(firm.Id, address, time.GetUtcNow(), cancellationToken);
+        var limit = await approval.IsApprovedAsync(firm.Id, cancellationToken) ? (int?)null : sandbox.Value.MaxAdminInvites;
+        if (await admins.CreateInviteAsync(firm.Id, address, limit, time.GetUtcNow(), cancellationToken) is not { } invite)
+        {
+            return AccountActions.Problem(
+                StatusCodes.Status409Conflict,
+                FormattableString.Invariant($"Until we have approved your firm, it can send {limit} invitations in 30 days. You can send more once we have approved it."));
+        }
+
+        var (token, expiresAt) = invite;
         try
         {
             var invitedBy = principal.FindFirstValue(ClaimTypes.Email) ?? firm.Name;

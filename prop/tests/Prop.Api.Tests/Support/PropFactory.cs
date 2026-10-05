@@ -99,6 +99,8 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     public FakeDidit Didit { get; } = new();
 
+    public FakeRobotCheck Robots { get; } = new();
+
     /// <summary>Settings that give the development firm a webhook to <see cref="Webhooks"/>.</summary>
     public static Dictionary<string, string> WithWebhook() => new()
     {
@@ -180,9 +182,9 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     /// <summary>
     /// The firm sends a complete application, by default <see cref="Application"/>'s, without a deposit as in most
-    /// tests, our staff approve it, and the firm chooses its KYC, so it can go live by paying.
+    /// tests, our staff approve it, and with <paramref name="chooseKyc"/> the firm chooses its KYC, so it can go live by paying.
     /// </summary>
-    public async Task ApproveAsync(HttpClient admin, string firmId, object? application = null)
+    public async Task ApproveAsync(HttpClient admin, string firmId, object? application = null, bool chooseKyc = true)
     {
         using var saved = await admin.PutAsJsonAsync(new Uri("/api/portal/admin/verification/application", UriKind.Relative), application ?? Application());
         Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
@@ -192,7 +194,10 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         using var ops = await LogInAsStaffAsync();
         using var approved = await ops.PostAsJsonAsync(new Uri($"/api/portal/ops/firms/{firmId}/approve", UriKind.Relative), new { message = (string?)null });
         Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
-        await ChooseIdentityChecksAsync(admin, firmId);
+        if (chooseKyc)
+        {
+            await ChooseIdentityChecksAsync(admin, firmId);
+        }
     }
 
     /// <summary>
@@ -407,6 +412,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);
             services.AddHttpClient(StripeClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stripe);
             services.AddHttpClient(DiditChecker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Didit);
+            services.AddHttpClient(Signup.RobotCheck.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Robots);
         });
     }
 }

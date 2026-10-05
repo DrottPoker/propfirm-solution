@@ -7,6 +7,7 @@ import type { FirmSettings } from "@/lib/api/types";
 import { isOn, notificationKinds, type NotificationAudience } from "@/lib/notifications";
 import { useFirmSettings, useSaveEmailSettings, useSaveSupportEmail } from "@/lib/queries";
 
+import { TeamOnlyNote } from "./BeforeApproval";
 import { AdminPage, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /** Which emails we send for the firm: to its team when something waits for it, and to its traders as their challenges move on. */
@@ -26,6 +27,7 @@ export function AdminNotifications() {
         title="Notifications"
         description="The emails we send for you. Turn off those your own systems send, for example from webhooks. Invitations and password links are always sent."
       />
+      <TeamOnlyNote />
       <SupportEmail settings={settings.data} />
       <Emails settings={settings.data} />
     </AdminPage>

@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using Npgsql;
+
 using Prop.Api.Challenges;
 using Prop.Api.Email;
 using Prop.Api.Files;
@@ -57,6 +59,11 @@ internal sealed class SupportService(
                 $"You have {SupportRules.MaxOpenTicketsPerTrader} tickets that are not closed. Write in one of them, or close one, before you open another.");
         }
 
+        if (await LimitRefusalAsync(connection, firm.Id, traderId, null, attachments, now, cancellationToken) is { } limited)
+        {
+            return limited;
+        }
+
         var number = await SupportStore.NextNumberAsync(connection, firm.Id, cancellationToken);
         await SupportStore.InsertTicketAsync(connection, ticketId, firm.Id, number, traderId, accountId, cleanSubject, SupportAuthor.Trader, now, cancellationToken);
         var ticket = (await SupportStore.LockAsync(connection, firm.Id, ticketId, traderId, cancellationToken))!;
@@ -104,6 +111,11 @@ internal sealed class SupportService(
         var ticketId = Guid.CreateVersion7(now);
         await using var connection = await store.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (await LimitRefusalAsync(connection, firm.Id, null, null, attachments, now, cancellationToken) is { } limited)
+        {
+            return limited;
+        }
+
         var number = await SupportStore.NextNumberAsync(connection, firm.Id, cancellationToken);
         await SupportStore.InsertTicketAsync(connection, ticketId, firm.Id, number, trader.Id, accountId, cleanSubject, SupportAuthor.Firm, now, cancellationToken);
         var ticket = (await SupportStore.LockAsync(connection, firm.Id, ticketId, null, cancellationToken))!;
@@ -128,9 +140,15 @@ internal sealed class SupportService(
         var now = time.GetUtcNow();
         await using var connection = await store.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SupportStore.LockTraderAsync(connection, traderId, cancellationToken);
         if (await SupportStore.LockAsync(connection, firm.Id, ticketId, traderId, cancellationToken) is not { } ticket)
         {
             return UnknownTicket();
+        }
+
+        if (await LimitRefusalAsync(connection, firm.Id, traderId, ticket, attachments, now, cancellationToken) is { } limited)
+        {
+            return limited;
         }
 
         await SupportStore.AddMessageAsync(connection, ticket, SupportAuthor.Trader, null, message, attachments, Protect(firm), now, cancellationToken);
@@ -168,6 +186,11 @@ internal sealed class SupportService(
         if (await SupportStore.LockAsync(connection, firm.Id, ticketId, null, cancellationToken) is not { } ticket)
         {
             return UnknownTicket();
+        }
+
+        if (await LimitRefusalAsync(connection, firm.Id, null, ticket, attachments, now, cancellationToken) is { } limited)
+        {
+            return limited;
         }
 
         await SupportStore.AddMessageAsync(connection, ticket, SupportAuthor.Firm, adminEmail, message, attachments, Protect(firm), now, cancellationToken);
@@ -263,6 +286,37 @@ internal sealed class SupportService(
         accountId is not { } id || (await accounts.GetAsync(firm.Id, id, cancellationToken))?.Account.TraderId == traderId;
 
     // The message and the files ready to save, once Refusal has found nothing wrong with them.
+    // Caps that keep one trader, or one firm, from filling our database (ADR 0045): messages in a ticket, and files in a day.
+    // Without a trader, the firm's administrators write.
+    private static async Task<SupportResult.Refused?> LimitRefusalAsync(
+        NpgsqlConnection connection,
+        string firmId,
+        Guid? traderId,
+        SupportTicket? ticket,
+        IReadOnlyList<CheckedAttachment> attachments,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (ticket?.Messages >= SupportRules.MaxMessagesPerTicket)
+        {
+            return new SupportResult.Refused(
+                StatusCodes.Status409Conflict,
+                $"This ticket has {SupportRules.MaxMessagesPerTicket} messages, as many as a ticket can have. Open a new ticket to write more.");
+        }
+
+        var adding = attachments.Sum(a => (long)a.Content.Length);
+        var most = traderId is null ? SupportRules.MaxFirmFileBytesPerDay : SupportRules.MaxTraderFileBytesPerDay;
+        if (adding > 0 && await SupportStore.FileBytesSinceAsync(connection, firmId, traderId, now - TimeSpan.FromDays(1), cancellationToken) + adding > most)
+        {
+            return new SupportResult.Refused(
+                StatusCodes.Status409Conflict,
+                FormattableString.Invariant($"At most {most / (1024 * 1024)} MB of files can be added in a day, and this would go past it. Write without files, or add them tomorrow."),
+                "files");
+        }
+
+        return null;
+    }
+
     private static (string Message, List<CheckedAttachment> Attachments) Prepare(string? body, IReadOnlyList<UploadedAttachment> files) =>
         (CleanMessage(body), [.. files.Select(f => new CheckedAttachment(UploadedFiles.CleanFileName(f.FileName, "attachment"), UploadedFiles.ContentTypeOf(f.Content)!, f.Content))]);
 

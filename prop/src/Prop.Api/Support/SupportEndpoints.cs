@@ -15,14 +15,17 @@ namespace Prop.Api.Support;
 /// </summary>
 internal static class SupportEndpoints
 {
+    /// <summary>Limits how fast tickets and messages are written (ADR 0045).</summary>
+    public const string WriteRateLimit = "support-writes";
+
     public static RouteGroupBuilder MapTraderSupport(this RouteGroupBuilder portal)
     {
         var support = portal.MapGroup("/support").RequireAuthorization(PortalAuth.TraderPolicy);
         support.MapGet("/summary", GetMySummaryAsync);
         support.MapGet("/tickets", ListMyTicketsAsync);
-        support.MapPost("/tickets", OpenTicketAsync).DisableAntiforgery();
+        support.MapPost("/tickets", OpenTicketAsync).DisableAntiforgery().RequireRateLimiting(WriteRateLimit);
         support.MapGet("/tickets/{ticketId:guid}", GetMyTicketAsync);
-        support.MapPost("/tickets/{ticketId:guid}/messages", WriteInMyTicketAsync).DisableAntiforgery();
+        support.MapPost("/tickets/{ticketId:guid}/messages", WriteInMyTicketAsync).DisableAntiforgery().RequireRateLimiting(WriteRateLimit);
         support.MapPost("/tickets/{ticketId:guid}/close", CloseMyTicketAsync);
         support.MapPost("/tickets/{ticketId:guid}/read", MarkReadAsync);
         support.MapGet("/attachments/{attachmentId:guid}", GetMyAttachmentAsync);
@@ -33,9 +36,9 @@ internal static class SupportEndpoints
     {
         admin.MapGet("/support/summary", GetFirmSummaryAsync);
         admin.MapGet("/support/tickets", ListTicketsAsync);
-        admin.MapPost("/support/tickets", OpenTicketWithTraderAsync).DisableAntiforgery();
+        admin.MapPost("/support/tickets", OpenTicketWithTraderAsync).DisableAntiforgery().RequireRateLimiting(WriteRateLimit);
         admin.MapGet("/support/tickets/{ticketId:guid}", GetTicketAsync);
-        admin.MapPost("/support/tickets/{ticketId:guid}/messages", AnswerAsync).DisableAntiforgery();
+        admin.MapPost("/support/tickets/{ticketId:guid}/messages", AnswerAsync).DisableAntiforgery().RequireRateLimiting(WriteRateLimit);
         admin.MapPost("/support/tickets/{ticketId:guid}/close", CloseTicketAsync);
         admin.MapGet("/support/attachments/{attachmentId:guid}", GetAttachmentAsync);
         return admin;

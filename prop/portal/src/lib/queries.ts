@@ -669,9 +669,10 @@ export function useSaveChallenge() {
   });
 }
 
-export function useAdmins() {
+export function useAdmins(enabled = true) {
   return useQuery({
     queryKey: ["admins"],
+    enabled,
     queryFn: async () => resultOf(await api.GET("/api/portal/admin/admins"), "the administrators"),
   });
 }
@@ -770,7 +771,7 @@ export class SignupError extends ApiError {
   }
 }
 
-export type SignupForm = { firmName: string; firmId: string; email: string; password: string; acceptTerms: boolean; currency: string };
+export type SignupForm = { firmName: string; firmId: string; email: string; password: string; acceptTerms: boolean; currency: string; robotCheck: string | null };
 
 export function useSignUp() {
   return useMutation({
@@ -1162,6 +1163,15 @@ export function useVerification(waitingForPayment = false) {
     refetchInterval: (query) =>
       waitingForPayment && query.state.data?.deposit.paid === false ? 2_000 : query.state.data?.status === "Submitted" ? 30_000 : false,
   });
+}
+
+/**
+ * Whether we have approved the firm, which a live firm is. Until then its emails go only to its administrators and it
+ * cannot add its own domain (ADR 0043). Undefined while it is not known.
+ */
+export function useApproved(): boolean | undefined {
+  const verification = useVerification();
+  return verification.data ? verification.data.status === "Approved" : undefined;
 }
 
 /** The service said no because of one of the application's fields, named as in the application. */

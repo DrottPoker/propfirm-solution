@@ -7,6 +7,7 @@ using Common.Postgres;
 using Npgsql;
 
 using Prop.Api.Challenges;
+using Prop.Api.Review;
 
 namespace Prop.Api.Portal;
 
@@ -200,20 +201,36 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
 
     /// <summary>
     /// Creates an invitation and returns its token. Older unused invitations for the same email stop working, so
-    /// only the newest one can be used.
+    /// only the newest one can be used. With <paramref name="limit"/>, null when the firm has made that many invitations
+    /// in <see cref="FirmApproval.InvitePeriod"/>, those taken back or sent again too (ADR 0043).
     /// </summary>
-    public async Task<(string Token, DateTimeOffset ExpiresAt)> CreateInviteAsync(string firmId, string email, DateTimeOffset now, CancellationToken cancellationToken)
+    public async Task<(string Token, DateTimeOffset ExpiresAt)?> CreateInviteAsync(string firmId, string email, int? limit, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         var token = NewToken();
         var expiresAt = now + InviteLifetime;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        if (limit is { } most)
+        {
+            // The firm's invitations wait for each other, so the limit holds.
+            await ExecuteAsync(connection, "select pg_advisory_xact_lock(hashtextextended('admin_invites:' || $1, 0))", [firmId], cancellationToken);
+            await using var count = new NpgsqlCommand("select count(*) from admin_invites where firm_id = $1 and created_at > $2", connection);
+            count.Parameters.AddWithValue(firmId);
+            count.Parameters.AddWithValue(now - FirmApproval.InvitePeriod);
+            if ((long)(await count.ExecuteScalarAsync(cancellationToken))! >= most)
+            {
+                return null;
+            }
+        }
+
+        // Older invitations are expired rather than deleted, so they are counted until they are cleaned up a month later.
         await ExecuteAsync(
             connection,
-            "delete from admin_invites where (firm_id = $1 and normalized_email = $2 and used_at is null) or expires_at < $3",
-            [firmId, Emails.Normalize(email), now - TimeSpan.FromDays(30)],
+            "update admin_invites set expires_at = $3 where firm_id = $1 and normalized_email = $2 and used_at is null and expires_at > $3",
+            [firmId, Emails.Normalize(email), now],
             cancellationToken);
+        await ExecuteAsync(connection, "delete from admin_invites where expires_at < $1", [now - TimeSpan.FromDays(30)], cancellationToken);
         await ExecuteAsync(
             connection,
             "insert into admin_invites (token_hash, firm_id, email, normalized_email, created_at, expires_at) values ($1, $2, $3, $4, $5, $6)",
@@ -238,12 +255,15 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
             : null;
     }
 
-    /// <summary>Takes back the firm's unused invitations to the email, so their links stop working. False when there were none.</summary>
+    /// <summary>
+    /// Takes back the firm's unused invitations to the email, so their links stop working. They are expired rather than
+    /// deleted, so they still count before we approve the firm. False when there were none.
+    /// </summary>
     public async Task<bool> WithdrawInvitesAsync(string firmId, string email, DateTimeOffset now, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var command = dataSource.CreateCommand(
-            "delete from admin_invites where firm_id = $1 and normalized_email = $2 and used_at is null and expires_at > $3");
+            "update admin_invites set expires_at = $3 where firm_id = $1 and normalized_email = $2 and used_at is null and expires_at > $3");
         command.Parameters.AddWithValue(firmId);
         command.Parameters.AddWithValue(Emails.Normalize(email));
         command.Parameters.AddWithValue(now);

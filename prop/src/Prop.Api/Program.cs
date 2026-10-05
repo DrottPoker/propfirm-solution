@@ -21,6 +21,7 @@ using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Identity;
 using Prop.Api.Json;
+using Prop.Api.Net;
 using Prop.Api.Ops;
 using Prop.Api.Payments;
 using Prop.Api.Persistence;
@@ -72,9 +73,16 @@ var signupOptions = builder.Services.AddOptions<SignupOptions>()
             || (o.TermsUrl is { IsAbsoluteUri: true, Scheme: "https" } && o.DpaUrl is { IsAbsoluteUri: true, Scheme: "https" } && o.TermsVersion.Length > 0),
         "Signup:TermsUrl and Signup:DpaUrl must be https addresses, with Signup:TermsVersion, outside development.")
     .Validate(o => o.Currencies.All(c => c.Length == 3 && c.All(char.IsAsciiLetterUpper)), "Signup:Currencies must be three-letter currency codes, such as USD.");
+// Outside development, scripts must not be able to sign firms up in bulk (ADR 0045).
+var robotCheck = builder.Services.AddOptions<RobotCheckOptions>()
+    .Bind(builder.Configuration.GetSection(RobotCheckOptions.SectionName))
+    .Validate(o => (o.SiteKey.Length > 0) == (o.SecretKey.Length > 0), "RobotCheck needs both its SiteKey and its SecretKey, or neither.")
+    .Validate(o => builder.Environment.IsDevelopment() || o.Enabled, "RobotCheck:SiteKey and RobotCheck:SecretKey are needed outside development.");
 builder.Services.AddOptions<SandboxOptions>()
     .Bind(builder.Configuration.GetSection(SandboxOptions.SectionName))
     .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
+    .Validate(o => o.MaxAdminInvites >= 1, "Sandbox:MaxAdminInvites must be at least 1.")
+    .Validate(o => o.IdleDays >= 14, "Sandbox:IdleDays must be at least 14, since firms are warned a week before.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
 builder.Services.AddOptions<DomainOptions>()
@@ -128,6 +136,7 @@ if (!isOpenApiGeneration)
     identity.ValidateOnStart();
     platform.ValidateOnStart();
     signupOptions.ValidateOnStart();
+    robotCheck.ValidateOnStart();
     email.ValidateOnStart();
     billingOptions.ValidateOnStart();
 }
@@ -179,6 +188,8 @@ builder.Services.AddSingleton<IPasswordHasher<StaffUser>, PasswordHasher<StaffUs
 builder.Services.AddSingleton<StaffNotifier>();
 builder.Services.AddSingleton<ReviewStore>();
 builder.Services.AddSingleton<ReviewService>();
+builder.Services.AddSingleton<FirmApproval>();
+builder.Services.AddSingleton<FirmActivity>();
 builder.Services.AddSingleton<OpsFirms>();
 builder.Services.AddSingleton<OpsFigures>();
 builder.Services.AddSingleton<SupportStore>();
@@ -202,19 +213,37 @@ builder.Services.AddOptions<LoginOptions>()
         o => o.MinimumPasswordLength >= 1 && o.AttemptsPerMinute >= 0 && o.SessionLifetime > TimeSpan.Zero,
         "Login needs a password length of at least 1, attempts per minute of 0 or more and a positive session lifetime.")
     .ValidateOnStart();
+builder.Services.AddOptions<LimitsOptions>()
+    .Bind(builder.Configuration.GetSection(LimitsOptions.SectionName))
+    .Validate(o => o.SupportWritesPerMinute >= 0 && o.FirmApiCallsPerMinute >= 0, "Limits must be 0 or more.")
+    .ValidateOnStart();
 builder.Services.AddPortalAuth();
 builder.Services.AddStaffAuth();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // A title the portal can show, as for every other refusal.
+    options.OnRejected = (context, _) => new ValueTask(
+        TypedResults.Problem(statusCode: StatusCodes.Status429TooManyRequests, title: "Too many tries in a short time. Wait a minute and try again.")
+            .ExecuteAsync(context.HttpContext));
     options.AddPolicy(PortalAuth.LoginRateLimit, context =>
+        PerMinute(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", context.RequestServices.GetRequiredService<IOptions<LoginOptions>>().Value.AttemptsPerMinute));
+    options.AddPolicy(SupportEndpoints.WriteRateLimit, context =>
+        PerMinute(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", context.RequestServices.GetRequiredService<IOptions<LimitsOptions>>().Value.SupportWritesPerMinute));
+
+    // Per key, so one firm's calls never hold back another's. Calls without a key share their address's limit.
+    options.AddPolicy(FirmEndpoints.RateLimit, context =>
     {
-        var address = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-        var attempts = context.RequestServices.GetRequiredService<IOptions<LoginOptions>>().Value.AttemptsPerMinute;
-        return attempts == 0
-            ? RateLimitPartition.GetNoLimiter(address)
-            : RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions { PermitLimit = attempts, Window = TimeSpan.FromMinutes(1) });
+        var key = context.Request.Headers[FirmApiKeyFilter.HeaderName].ToString();
+        var partition = key.Length > 0 ? $"key:{FirmCatalog.HashApiKey(key)}" : $"address:{context.Connection.RemoteIpAddress}";
+        return PerMinute(partition, context.RequestServices.GetRequiredService<IOptions<LimitsOptions>>().Value.FirmApiCallsPerMinute);
     });
+
+    static RateLimitPartition<string> PerMinute(string partition, int permits) =>
+        permits == 0
+            ? RateLimitPartition.GetNoLimiter(partition)
+            : RateLimitPartition.GetFixedWindowLimiter(partition, _ => new FixedWindowRateLimiterOptions { PermitLimit = permits, Window = TimeSpan.FromMinutes(1) });
 });
 
 // Long enough for the trading platform's longest wait for new events.
@@ -225,8 +254,12 @@ builder.Services.AddHttpClient(TradingPlatformClient.HttpClientName, (sp, client
 });
 builder.Services.AddSingleton<ITradingPlatform, TradingPlatformClient>();
 builder.Services.AddSingleton<ITradingPartner, TradingPartnerClient>();
-builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+// The firm chooses where its webhooks go, so they reach only the public internet (ADR 0044).
+builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10))
+    .ConfigurePrimaryHttpMessageHandler(PublicAddresses.CreateHandler);
 builder.Services.AddHttpClient(DnsOverHttpsLookup.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient(RobotCheck.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<RobotCheck>();
 builder.Services.AddSingleton<IDnsLookup, DnsOverHttpsLookup>();
 builder.Services.AddSingleton<CustomDomainStore>();
 builder.Services.AddSingleton<DomainVerifier>();
@@ -260,6 +293,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<BillingWorker>();
     builder.Services.AddHostedService<DomainVerificationWorker>();
     builder.Services.AddHostedService<TradingAccountDescriber>();
+    builder.Services.AddHostedService<IdleSandboxWorker>();
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => PropJson.Configure(o.SerializerOptions));

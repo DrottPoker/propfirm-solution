@@ -8,6 +8,7 @@ import { isValidFirmId, portalAddress, suggestFirmId } from "@/lib/signup";
 import { useDebounced } from "@/lib/useDebounced";
 
 import { PlatformCard } from "./PlatformCard";
+import { RobotCheck } from "./RobotCheck";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
 
 /**
@@ -23,6 +24,9 @@ export function SignupForm() {
   const [password, setPassword] = useState("");
   const [currency, setCurrency] = useState(platform.currencies[0] ?? "USD");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [robotAnswer, setRobotAnswer] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const robotCheckDone = platform.robotCheckSiteKey === null || robotAnswer !== null;
 
   // The short name follows the firm's name until it is edited.
   const firmId = chosenFirmId ?? suggestFirmId(firmName);
@@ -30,13 +34,15 @@ export function SignupForm() {
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     signUp.mutate(
-      { firmName: firmName.trim(), firmId, email: email.trim(), password, acceptTerms, currency },
+      { firmName: firmName.trim(), firmId, email: email.trim(), password, acceptTerms, currency, robotCheck: robotAnswer },
       {
         onSuccess: (result) => {
           if (result.adminUrl) {
             window.location.assign(result.adminUrl);
           }
         },
+        // The answer to the robot check works once, so a new try needs a new one.
+        onError: () => setAttempt((a) => a + 1),
       },
     );
   };
@@ -128,9 +134,11 @@ export function SignupForm() {
           </span>
         </label>
 
+        {platform.robotCheckSiteKey && <RobotCheck siteKey={platform.robotCheckSiteKey} attempt={attempt} onAnswer={setRobotAnswer} />}
+
         <ErrorText error={signUp.error} />
 
-        <button type="submit" disabled={signUp.isPending || signUp.isSuccess || !acceptTerms} className={buttonClass}>
+        <button type="submit" disabled={signUp.isPending || signUp.isSuccess || !acceptTerms || !robotCheckDone} className={buttonClass}>
           {signUp.isPending ? "Setting up your firm..." : signUp.isSuccess ? "Opening your admin panel..." : "Create my firm"}
         </button>
         <p className="text-xs text-muted">

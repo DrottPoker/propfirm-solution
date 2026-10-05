@@ -48,6 +48,9 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0040](0040-driften-pa-en-vps.md) | Driften på en VPS i Sverige med Postgres i Docker | Föreslagen |
 | [0041](0041-supportarenden-mellan-traders-och-firman.md) | Supportärenden mellan traders och firman i portalen | Föreslagen |
 | [0042](0042-id-kontroll-med-en-extern-tjanst.md) | ID-kontroll av traders med Didit, eller firmans egen tjänst | Föreslagen |
+| [0043](0043-sparrar-innan-vi-godkant-firman.md) | Firman når bara sitt eget team innan vi har godkänt den | Föreslagen |
+| [0044](0044-anrop-bara-till-internet.md) | Anrop till firmans adresser når bara internet | Föreslagen |
+| [0045](0045-skydd-mot-missbruk-av-gratis-sandlador.md) | Skydd mot missbruk av gratis sandlådor | Föreslagen |
 
 ## Så skriver du en ny ADR
 

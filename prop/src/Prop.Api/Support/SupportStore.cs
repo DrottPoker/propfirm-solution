@@ -212,6 +212,25 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
         return (int)(long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
+    /// <summary>
+    /// The bytes of files the trader added at the firm since <paramref name="since"/>, or without a trader, those the firm's
+    /// administrators added.
+    /// </summary>
+    public static async Task<long> FileBytesSinceAsync(NpgsqlConnection connection, string firmId, Guid? traderId, DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            """
+            select coalesce(sum(a.size), 0)::bigint from support_attachments a
+            join support_messages m on m.id = a.message_id
+            join support_tickets t on t.id = a.ticket_id
+            where t.firm_id = $1 and a.created_at > $3
+              and (($2::uuid is null and m.author = 'Firm') or (m.author = 'Trader' and t.trader_id = $2::uuid))
+            """,
+            [firmId, new NpgsqlParameter { Value = (object?)traderId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Uuid }, since]);
+        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
     /// <summary>The firm's next ticket number, from 1.</summary>
     public static async Task<long> NextNumberAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken)
     {
