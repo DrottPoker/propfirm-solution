@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -23,6 +22,7 @@ import {
 } from "@/lib/theme";
 
 import { DropZone } from "./DropZone";
+import { FirmLogo } from "./FirmLogo";
 import { AlertIcon, CheckIcon } from "./icons";
 import { AdminPage, buttonClass, ErrorText, Message, PageHeader, Panel, secondaryButtonClass, SegmentedControl } from "./ui";
 
@@ -296,7 +296,7 @@ export function Logo({ settings, hardToSee }: { settings: FirmSettings; hardToSe
     <Panel title="Logo">
       {settings.logoUrl && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
-          <Image src={settings.logoUrl} alt="Your logo" width={160} height={40} unoptimized className="h-10 w-auto max-w-[12rem] object-contain" />
+          <FirmLogo src={settings.logoUrl} alt="Your logo" className="h-10 max-w-[12rem]" />
           <button type="button" disabled={remove.isPending} onClick={() => remove.mutate(undefined, { onSuccess: () => router.refresh() })} className="text-sm text-muted hover:text-loss">
             {remove.isPending ? "Removing..." : "Remove"}
           </button>
@@ -332,7 +332,7 @@ function Preview({ colors, settings }: { colors: ThemeColors; settings: FirmSett
     <div style={themeStyle({ colors: colors as Record<string, string> }) as React.CSSProperties} className="overflow-hidden rounded-lg border border-border bg-background text-sm text-foreground">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-border bg-panel px-4 py-2.5">
         {settings.logoUrl ? (
-          <Image src={settings.logoUrl} alt={settings.name} width={112} height={28} unoptimized className="h-7 w-auto object-contain" />
+          <FirmLogo src={settings.logoUrl} alt={settings.name} className="h-7" />
         ) : (
           <span className="font-semibold">{settings.name}</span>
         )}
