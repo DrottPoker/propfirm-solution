@@ -385,6 +385,7 @@ Per månad blir det 500 USD för 25 platser, 625 USD för 50, 875 USD för 100 o
 
 ## Drift
 
+- Allt körs i containrar på en VPS per miljö i Stockholm, med Postgres och backup utanför servern, Caddy framför och mejl via Resend (ADR 0040).
 - Stabilitet prioriteras före nya funktioner. Ett avbrott under en stor nyhetshändelse kan sänka förtroendet helt.
 - Övervakning och larm dygnet runt under handelsveckan.
 - Öppen statussida.

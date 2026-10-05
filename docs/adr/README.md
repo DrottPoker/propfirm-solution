@@ -45,6 +45,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0037](0037-firmans-kontroller-och-utbetalningsbeslut.md) | Firmans kontroller av traders, nej med återförd vinst och en konsistensregel | Föreslagen |
 | [0038](0038-en-tidszon-for-kontots-tider.md) | Ett kontos tider visas i challengens tidszon | Föreslagen |
 | [0039](0039-egen-doman-for-firmans-portal.md) | Egen domän för firmans portal | Föreslagen |
+| [0040](0040-driften-pa-en-vps.md) | Driften på en VPS i Sverige med Postgres i Docker | Föreslagen |
 
 ## Så skriver du en ny ADR
 
