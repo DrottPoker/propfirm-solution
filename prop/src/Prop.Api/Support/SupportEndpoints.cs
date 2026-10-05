@@ -10,8 +10,8 @@ using Prop.Api.Portal;
 namespace Prop.Api.Support;
 
 /// <summary>
-/// Support tickets in the portal (ADR 0041): the trader's own tickets, and the firm's in its admin panel. A message, with
-/// up to three files, is sent as a form, so the files go with it in one request.
+/// Support tickets in the portal (ADR 0041): the trader's own tickets, and the firm's in its admin panel, where it can also
+/// write to a trader first. A message, with up to three files, is sent as a form, so the files go with it in one request.
 /// </summary>
 internal static class SupportEndpoints
 {
@@ -33,6 +33,7 @@ internal static class SupportEndpoints
     {
         admin.MapGet("/support/summary", GetFirmSummaryAsync);
         admin.MapGet("/support/tickets", ListTicketsAsync);
+        admin.MapPost("/support/tickets", OpenTicketWithTraderAsync).DisableAntiforgery();
         admin.MapGet("/support/tickets/{ticketId:guid}", GetTicketAsync);
         admin.MapPost("/support/tickets/{ticketId:guid}/messages", AnswerAsync).DisableAntiforgery();
         admin.MapPost("/support/tickets/{ticketId:guid}/close", CloseTicketAsync);
@@ -190,6 +191,33 @@ internal static class SupportEndpoints
         var items = await store.ListAsync(firmId, null, group, search, after, limit, cancellationToken);
         var counts = await store.CountAsync(firmId, search, cancellationToken);
         return TypedResults.Ok(new AdminSupportTicketsResponse([.. items.Select(SupportTicketSummaryResponse.From)], SupportTicketCountsResponse.From(counts), Next(items, group, limit)));
+    }
+
+    /// <summary>
+    /// The administrator writes to one of the firm's traders first: <c>traderEmail</c>, <c>subject</c>, <c>body</c>,
+    /// optionally <c>accountId</c>, one of the trader's accounts, and up to three files. The ticket waits for the trader,
+    /// who is emailed the message.
+    /// </summary>
+    private static async Task<Results<Created<SupportTicketResponse>, ProblemHttpResult>> OpenTicketWithTraderAsync(
+        [FromForm] string? traderEmail,
+        [FromForm] string? subject,
+        [FromForm] string? body,
+        [FromForm] Guid? accountId,
+        IFormFileCollection? files,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        SupportService support,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        var result = await support.FirmOpensAsync(firm, AdminEmailOf(principal), traderEmail, subject, body, accountId, await ReadFilesAsync(files, cancellationToken), cancellationToken);
+        if (result is SupportResult.Refused refused)
+        {
+            return ProblemOf(refused);
+        }
+
+        var ticketId = ((SupportResult.Done)result).TicketId;
+        return TypedResults.Created($"/api/portal/admin/support/tickets/{ticketId}", await support.ViewAsync(firm, ticketId, null, cancellationToken));
     }
 
     /// <summary>The firm's ticket with every message, oldest first, and which administrator wrote each answer.</summary>

@@ -35,7 +35,13 @@ export const notificationKinds: NotificationKind[] = [
     label: "Trade soon reminder",
     description: "The challenge ends in a few days unless the trader opens a trade.",
   },
-  { kind: "traderSupportAnswers", audience: "trader", label: "Support answer", description: "You answered the trader's support ticket. The email has your answer." },
+  {
+    kind: "traderSupportAnswers",
+    audience: "trader",
+    label: "Support messages",
+    description: "You answered the trader's support ticket, or wrote to the trader in a new one. The email has your message.",
+  },
+  { kind: "traderIdentity", audience: "trader", label: "KYC outcome", description: "Our built-in KYC approved the trader's ID, or declined it with the reason." },
 ];
 
 /** Whether the firm sends the email. One it never chose is sent. */

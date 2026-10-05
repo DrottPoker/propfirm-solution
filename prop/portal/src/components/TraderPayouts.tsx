@@ -10,6 +10,7 @@ import { payoutNote } from "@/lib/payouts";
 import { useMyAccounts, useMyPayouts } from "@/lib/queries";
 
 import { PayoutMethodPanel } from "./PayoutMethodPanel";
+import { IdentityPanel } from "./TraderIdentity";
 import { PayoutSteps } from "./PayoutPanel";
 import { PayoutBadge } from "./Payouts";
 import { Message } from "./ui";
@@ -38,6 +39,7 @@ export function TraderPayouts() {
       </div>
 
       <PayoutMethodPanel />
+      <IdentityPanel />
 
       {totals.length > 0 && (
         <div className="flex flex-col gap-3">

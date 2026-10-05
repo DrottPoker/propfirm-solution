@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ageText, formatTotals } from "@/lib/admin";
 import { formatDateTime, formatMoney } from "@/lib/format";
+import { namesDiffer } from "@/lib/identity";
 import { payoutNote, payoutViews, type PayoutView } from "@/lib/payouts";
 import { useAdminPayouts, useFirmSettings, usePayoutSummary } from "@/lib/queries";
 
@@ -123,7 +124,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                 </tr>
               </thead>
               <tbody>
-                {(payouts.data ?? []).map(({ payout, challengeName, paidBefore, paidBeforeAmount, traderChecked }) => {
+                {(payouts.data ?? []).map(({ payout, challengeName, paidBefore, paidBeforeAmount, traderChecked, identityName }) => {
                   const late = payout.status === "Pending" && now - Date.parse(payout.requestedAt) > lateAfterDays * 86_400_000;
                   return (
                     <tr key={payout.id} className="border-t border-border align-top">
@@ -149,6 +150,9 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                       <td className="px-4 py-3.5 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
                       <td className="max-w-64 px-4 py-3.5">
                         <PayTo method={payout.payTo} />
+                        {namesDiffer(identityName, payout.payTo?.accountHolder) && (
+                          <span className="mt-1.5 block text-xs text-warning">The name on the trader&apos;s ID is {identityName}, not the account holder&apos;s.</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5">
                         {paidBefore === 0 ? (

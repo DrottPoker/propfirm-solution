@@ -147,6 +147,46 @@ internal static class TraderEmails
             ticketUrl,
             askForReplies: false);
 
+    /// <summary>The firm wrote to the trader first, in a new support ticket (ADR 0041), with its message.</summary>
+    public static EmailMessage SupportOpened(Firm firm, string to, long ticketNumber, string subject, string text, int files, Uri ticketUrl) =>
+        Create(
+            firm,
+            to,
+            $"Message from {firm.Name}: {subject}",
+            [
+                $"{firm.Name} has written to you in support ticket #{ticketNumber.ToString(CultureInfo.InvariantCulture)}, \"{subject}\":",
+                text,
+                .. files > 0 ? [FilesNote(files)] : Array.Empty<string>(),
+                "Answer in the portal, so the whole conversation stays in one place.",
+            ],
+            "Open the ticket",
+            ticketUrl,
+            askForReplies: false);
+
+    /// <summary>Our built-in ID check approved the trader (ADR 0042).</summary>
+    public static EmailMessage IdentityVerified(Firm firm, string to, Uri page) =>
+        Create(
+            firm,
+            to,
+            $"Your identity is verified with {firm.Name}",
+            [$"Thank you. Your identity is verified, so nothing about it stands in the way of your funded account or your payouts with {firm.Name}."],
+            "Go to the portal",
+            page);
+
+    /// <summary>Our built-in ID check declined the trader, with why. The trader can try again.</summary>
+    public static EmailMessage IdentityDeclined(Firm firm, string to, string reason, Uri page) =>
+        Create(
+            firm,
+            to,
+            $"Your ID check with {firm.Name} did not pass",
+            [
+                "Your ID check did not pass:",
+                reason,
+                "You can try again in the portal. Use a valid ID document, in good light, and make sure every corner of it is in the picture.",
+            ],
+            "Try again",
+            page);
+
     /// <summary>That a message has files, which are only in the portal, for example "1 file is attached in the ticket."</summary>
     public static string FilesNote(int files) => files == 1 ? "1 file is attached in the ticket." : $"{files.ToString(CultureInfo.InvariantCulture)} files are attached in the ticket.";
 

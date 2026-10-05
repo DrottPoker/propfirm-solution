@@ -13,6 +13,7 @@ using Microsoft.Extensions.Time.Testing;
 using Prop.Api.Challenges;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Api.Trading;
 
@@ -96,6 +97,8 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
     public FakeDns Dns { get; } = new();
 
+    public FakeDidit Didit { get; } = new();
+
     /// <summary>Settings that give the development firm a webhook to <see cref="Webhooks"/>.</summary>
     public static Dictionary<string, string> WithWebhook() => new()
     {
@@ -162,8 +165,22 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
+    /// The firm chooses how its traders' IDs are checked, its KYC, which going live waits for: its own service, so no test
+    /// is charged for our built-in checks unless it chooses them, and payouts wait for the check. The service is saved as
+    /// if it had worked through the whole flow, which IdentityTests tries for real.
+    /// </summary>
+    public async Task ChooseIdentityChecksAsync(HttpClient admin, string firmId)
+    {
+        using var chosen = await admin.PutAsJsonAsync(
+            new Uri("/api/portal/admin/identity", UriKind.Relative),
+            new { mode = "External", requiredBefore = "FirstPayout", checkAddress = false, checkSanctions = false, externalUrl = "https://kyc.firm.test/start" });
+        Assert.Equal(HttpStatusCode.OK, chosen.StatusCode);
+        await ScalarAsync($"update firm_identity_settings set external_tested_at = external_since where firm_id = '{firmId}'");
+    }
+
+    /// <summary>
     /// The firm sends a complete application, by default <see cref="Application"/>'s, without a deposit as in most
-    /// tests, and our staff approve it, so the firm can go live by paying.
+    /// tests, our staff approve it, and the firm chooses its KYC, so it can go live by paying.
     /// </summary>
     public async Task ApproveAsync(HttpClient admin, string firmId, object? application = null)
     {
@@ -175,6 +192,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
         using var ops = await LogInAsStaffAsync();
         using var approved = await ops.PostAsJsonAsync(new Uri($"/api/portal/ops/firms/{firmId}/approve", UriKind.Relative), new { message = (string?)null });
         Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+        await ChooseIdentityChecksAsync(admin, firmId);
     }
 
     /// <summary>
@@ -369,6 +387,9 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
 
         // Most tests are about other things than the deposit for our review. The review tests pay it.
         builder.UseSetting("Billing:ReviewDeposit", "0");
+
+        // Test ID checks even when the developer's user secrets choose Didit. The Didit tests choose it themselves.
+        builder.UseSetting("Identity:Provider", "Test");
         foreach (var (key, value) in _settings)
         {
             builder.UseSetting(key, value);
@@ -385,6 +406,7 @@ internal sealed class PropFactory : WebApplicationFactory<Program>
             services.AddSingleton<IDnsLookup>(Dns);
             services.AddHttpClient(WebhookWorker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Webhooks);
             services.AddHttpClient(StripeClient.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Stripe);
+            services.AddHttpClient(DiditChecker.HttpClientName).ConfigurePrimaryHttpMessageHandler(() => Didit);
         });
     }
 }

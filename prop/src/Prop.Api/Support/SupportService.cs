@@ -4,17 +4,20 @@ using Prop.Api.Challenges;
 using Prop.Api.Email;
 using Prop.Api.Files;
 using Prop.Api.Firms;
+using Prop.Api.Portal;
 
 namespace Prop.Api.Support;
 
 /// <summary>
 /// Support tickets between a firm's traders and the firm (ADR 0041). A trader opens a ticket about anything, or about one
-/// of their accounts, and the trader and the firm's administrators write in it until one of them closes it. The firm's
-/// administrators are emailed when a ticket starts to wait for them, and the trader when the firm answers.
+/// of their accounts, or the firm writes to a trader first, and the trader and the firm's administrators write in it until
+/// one of them closes it. The firm's administrators are emailed when a ticket starts to wait for them, and the trader when
+/// the firm writes.
 /// </summary>
 internal sealed class SupportService(
     SupportStore store,
     ChallengeQueries accounts,
+    PortalUsers users,
     Notifications notifications,
     SecretProtector secrets,
     WorkSignals signals,
@@ -31,24 +34,13 @@ internal sealed class SupportService(
         CancellationToken cancellationToken)
     {
         var cleanSubject = CleanSubject(subject);
-        if (cleanSubject.Length == 0)
-        {
-            return new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, "Write what your question is about.", "subject");
-        }
-
-        if (cleanSubject.Length > SupportRules.MaxSubjectLength)
-        {
-            return new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, $"Keep the subject to {SupportRules.MaxSubjectLength} characters.", "subject");
-        }
-
-        if (Refusal(body, files) is { } refused)
+        if ((SubjectRefusal(cleanSubject, "Write what your question is about.") ?? Refusal(body, files)) is { } refused)
         {
             return refused;
         }
 
         var (message, attachments) = Prepare(body, files);
-
-        if (accountId is { } id && (await accounts.GetAsync(firm.Id, id, cancellationToken))?.Account.TraderId != traderId)
+        if (!await IsTradersAccountAsync(firm, traderId, accountId, cancellationToken))
         {
             return new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, "Choose one of your accounts, or none.", "accountId");
         }
@@ -66,11 +58,58 @@ internal sealed class SupportService(
         }
 
         var number = await SupportStore.NextNumberAsync(connection, firm.Id, cancellationToken);
-        await SupportStore.InsertTicketAsync(connection, ticketId, firm.Id, number, traderId, accountId, cleanSubject, now, cancellationToken);
+        await SupportStore.InsertTicketAsync(connection, ticketId, firm.Id, number, traderId, accountId, cleanSubject, SupportAuthor.Trader, now, cancellationToken);
         var ticket = (await SupportStore.LockAsync(connection, firm.Id, ticketId, traderId, cancellationToken))!;
         await SupportStore.AddMessageAsync(connection, ticket, SupportAuthor.Trader, null, message, attachments, Protect(firm), now, cancellationToken);
         await SupportStore.TraderWroteAsync(connection, ticketId, now, cancellationToken);
         await notifications.QueueSupportTicketAsync(connection, firm, ticket, message, attachments.Count, opened: true, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        signals.Emails.Set();
+        return new SupportResult.Done(ticketId);
+    }
+
+    /// <summary>
+    /// An administrator writes to one of the firm's traders first, in a new ticket that waits for the trader, optionally
+    /// about one of the trader's accounts. The trader gets the message by email. Tickets the firm opens do not count toward
+    /// the trader's limit.
+    /// </summary>
+    public async Task<SupportResult> FirmOpensAsync(
+        Firm firm,
+        string adminEmail,
+        string? traderEmail,
+        string? subject,
+        string? body,
+        Guid? accountId,
+        IReadOnlyList<UploadedAttachment> files,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(traderEmail) || await users.FindTraderAsync(firm.Id, traderEmail, cancellationToken) is not { } trader)
+        {
+            return new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, "No trader at your firm has this email.", "traderEmail");
+        }
+
+        var cleanSubject = CleanSubject(subject);
+        if ((SubjectRefusal(cleanSubject, "Write what the ticket is about.") ?? Refusal(body, files)) is { } refused)
+        {
+            return refused;
+        }
+
+        var (message, attachments) = Prepare(body, files);
+        if (!await IsTradersAccountAsync(firm, trader.Id, accountId, cancellationToken))
+        {
+            return new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, "Choose one of the trader's accounts, or none.", "accountId");
+        }
+
+        var now = time.GetUtcNow();
+        var ticketId = Guid.CreateVersion7(now);
+        await using var connection = await store.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        var number = await SupportStore.NextNumberAsync(connection, firm.Id, cancellationToken);
+        await SupportStore.InsertTicketAsync(connection, ticketId, firm.Id, number, trader.Id, accountId, cleanSubject, SupportAuthor.Firm, now, cancellationToken);
+        var ticket = (await SupportStore.LockAsync(connection, firm.Id, ticketId, null, cancellationToken))!;
+        await SupportStore.AddMessageAsync(connection, ticket, SupportAuthor.Firm, adminEmail, message, attachments, Protect(firm), now, cancellationToken);
+        await SupportStore.FirmWroteAsync(connection, ticketId, adminEmail, close: false, now, cancellationToken);
+        await Notifications.QueueSupportToTraderAsync(connection, firm, ticket, message, attachments.Count, opened: true, closed: false, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         signals.Emails.Set();
         return new SupportResult.Done(ticketId);
@@ -133,7 +172,7 @@ internal sealed class SupportService(
 
         await SupportStore.AddMessageAsync(connection, ticket, SupportAuthor.Firm, adminEmail, message, attachments, Protect(firm), now, cancellationToken);
         await SupportStore.FirmWroteAsync(connection, ticketId, adminEmail, close, now, cancellationToken);
-        await Notifications.QueueSupportAnswerAsync(connection, firm, ticket, message, attachments.Count, close, now, cancellationToken);
+        await Notifications.QueueSupportToTraderAsync(connection, firm, ticket, message, attachments.Count, opened: false, close, now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         signals.Emails.Set();
         return new SupportResult.Done(ticketId);
@@ -212,6 +251,16 @@ internal sealed class SupportService(
             ? new SupportResult.Refused(StatusCodes.Status415UnsupportedMediaType, "Add PDF, PNG or JPEG files, such as a screenshot.", "files")
             : null;
     }
+
+    // Why the subject, already cleaned, cannot be used. Null when it can.
+    private static SupportResult.Refused? SubjectRefusal(string subject, string missing) =>
+        subject.Length == 0 ? new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, missing, "subject")
+        : subject.Length > SupportRules.MaxSubjectLength ? new SupportResult.Refused(StatusCodes.Status422UnprocessableEntity, $"Keep the subject to {SupportRules.MaxSubjectLength} characters.", "subject")
+        : null;
+
+    // Whether the account, if one is chosen, is one of the trader's at the firm.
+    private async Task<bool> IsTradersAccountAsync(Firm firm, Guid traderId, Guid? accountId, CancellationToken cancellationToken) =>
+        accountId is not { } id || (await accounts.GetAsync(firm.Id, id, cancellationToken))?.Account.TraderId == traderId;
 
     // The message and the files ready to save, once Refusal has found nothing wrong with them.
     private static (string Message, List<CheckedAttachment> Attachments) Prepare(string? body, IReadOnlyList<UploadedAttachment> files) =>

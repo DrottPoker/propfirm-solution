@@ -6,17 +6,24 @@ const names = { firm: "Demo Firm", trader: "anna@test.com", me: "admin@test.com"
 
 describe("a support ticket's status", () => {
   it("says who it waits for, to whoever looks", () => {
-    expect(ticketStatus("Open", "trader", "Demo Firm")).toEqual({ label: "Waiting for Demo Firm", tone: "accent" });
-    expect(ticketStatus("Open", "admin", "Demo Firm")).toEqual({ label: "Waiting for you", tone: "warning" });
-    expect(ticketStatus("Answered", "trader", "Demo Firm")).toEqual({ label: "Answered", tone: "profit" });
-    expect(ticketStatus("Answered", "admin", "Demo Firm")).toEqual({ label: "Waiting for the trader", tone: "accent" });
-    expect(ticketStatus("Closed", "trader", "Demo Firm").label).toBe("Closed");
+    expect(ticketStatus({ status: "Open", openedBy: "Trader" }, "trader", "Demo Firm")).toEqual({ label: "Waiting for Demo Firm", tone: "accent" });
+    expect(ticketStatus({ status: "Open", openedBy: "Trader" }, "admin", "Demo Firm")).toEqual({ label: "Waiting for you", tone: "warning" });
+    expect(ticketStatus({ status: "Answered", openedBy: "Trader" }, "trader", "Demo Firm")).toEqual({ label: "Answered", tone: "profit" });
+    expect(ticketStatus({ status: "Answered", openedBy: "Trader" }, "admin", "Demo Firm")).toEqual({ label: "Waiting for the trader", tone: "accent" });
+    expect(ticketStatus({ status: "Closed", openedBy: "Trader" }, "trader", "Demo Firm").label).toBe("Closed");
+  });
+
+  it("is a message from the firm, not an answer, when the firm wrote first", () => {
+    expect(ticketStatus({ status: "Answered", openedBy: "Firm" }, "trader", "Demo Firm")).toEqual({ label: "Message from Demo Firm", tone: "accent" });
+    expect(ticketStatus({ status: "Answered", openedBy: "Firm" }, "admin", "Demo Firm").label).toBe("Waiting for the trader");
+    expect(ticketStatus({ status: "Open", openedBy: "Firm" }, "trader", "Demo Firm").label).toBe("Waiting for Demo Firm");
   });
 
   it("tells the trader what happens next", () => {
-    expect(traderTicketNote("Open", "Demo Firm")).toContain("Demo Firm has your message");
-    expect(traderTicketNote("Answered", "Demo Firm")).toContain("close the ticket if it is solved");
-    expect(traderTicketNote("Closed", "Demo Firm")).toContain("Write in it to open it again");
+    expect(traderTicketNote({ status: "Open", openedBy: "Trader" }, "Demo Firm")).toContain("Demo Firm has your message");
+    expect(traderTicketNote({ status: "Answered", openedBy: "Trader" }, "Demo Firm")).toContain("close the ticket if it is solved");
+    expect(traderTicketNote({ status: "Answered", openedBy: "Firm" }, "Demo Firm")).toBe("Demo Firm wrote to you. Answer here, or close the ticket if nothing more is needed.");
+    expect(traderTicketNote({ status: "Closed", openedBy: "Firm" }, "Demo Firm")).toContain("Write in it to open it again");
   });
 });
 

@@ -259,6 +259,40 @@ internal static class BillingRules
         }
     }
 
+    /// <summary>
+    /// A month of the built-in KYC: the <paramref name="monthly"/> price with the checks it includes, the checks sent in
+    /// that month beyond those included, and the extra checks of the address and against sanctions lists, which are never
+    /// included. Empty when there is nothing to pay.
+    /// </summary>
+    public static IReadOnlyList<ChargeLine> IdentityChecks(DateOnly month, bool monthly, int checks, int address, int sanctions, IdentityCheckPriceOptions prices)
+    {
+        List<ChargeLine> lines = [];
+        if (monthly && prices.MonthlyPrice > 0)
+        {
+            lines.Add(new ChargeLine(Invariant($"KYC, {NameOf(month)}, {prices.Included} checks included"), 1, prices.MonthlyPrice));
+        }
+
+        var beyond = Math.Max(0, checks - prices.Included);
+        if (beyond > 0 && prices.PerCheck > 0)
+        {
+            lines.Add(new ChargeLine(Invariant($"{beyond} KYC {Check(beyond)} beyond the {prices.Included} included"), beyond, beyond * prices.PerCheck));
+        }
+
+        if (address > 0 && prices.Address > 0)
+        {
+            lines.Add(new ChargeLine(Invariant($"{address} proof of address {Check(address)}"), address, address * prices.Address));
+        }
+
+        if (sanctions > 0 && prices.Sanctions > 0)
+        {
+            lines.Add(new ChargeLine(Invariant($"{sanctions} sanctions {(sanctions == 1 ? "screening" : "screenings")}"), sanctions, sanctions * prices.Sanctions));
+        }
+
+        return lines;
+    }
+
+    private static string Check(int count) => count == 1 ? "check" : "checks";
+
     private static string Slot(int count) => count == 1 ? "slot" : "slots";
 
     private static string Invariant(FormattableString text) => FormattableString.Invariant(text);

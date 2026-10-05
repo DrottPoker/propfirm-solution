@@ -47,6 +47,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0039](0039-egen-doman-for-firmans-portal.md) | Egen domän för firmans portal | Föreslagen |
 | [0040](0040-driften-pa-en-vps.md) | Driften på en VPS i Sverige med Postgres i Docker | Föreslagen |
 | [0041](0041-supportarenden-mellan-traders-och-firman.md) | Supportärenden mellan traders och firman i portalen | Föreslagen |
+| [0042](0042-id-kontroll-med-en-extern-tjanst.md) | ID-kontroll av traders med Didit, eller firmans egen tjänst | Föreslagen |
 
 ## Så skriver du en ny ADR
 

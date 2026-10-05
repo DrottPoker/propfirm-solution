@@ -1,5 +1,5 @@
 import type { StatusTone } from "./admin";
-import type { SupportMessage, SupportTicketGroup, SupportTicketStatus, SupportTicketSummary } from "./api/types";
+import type { SupportAuthor, SupportMessage, SupportTicketGroup, SupportTicketStatus, SupportTicketSummary } from "./api/types";
 
 // Support tickets between traders and their firm (ADR 0041). Prop.Api keeps them; this words and checks them.
 
@@ -12,13 +12,23 @@ export const acceptedFiles = "application/pdf,image/png,image/jpeg,.pdf,.png,.jp
 /** Who looks at a ticket: its trader, or one of the firm's administrators. */
 export type SupportViewer = "trader" | "admin";
 
-/** Where a ticket is, in a few words for whoever looks at it, with its tone. */
-export function ticketStatus(status: SupportTicketStatus, viewer: SupportViewer, firmName: string): { label: string; tone: StatusTone } {
-  switch (status) {
+/** Where a ticket is and who opened it. */
+export type TicketState = { status: SupportTicketStatus; openedBy: SupportAuthor };
+
+/**
+ * Where a ticket is, in a few words for whoever looks at it, with its tone. A ticket the firm opened that waits for the
+ * trader is a message from the firm, not an answer.
+ */
+export function ticketStatus(ticket: TicketState, viewer: SupportViewer, firmName: string): { label: string; tone: StatusTone } {
+  switch (ticket.status) {
     case "Open":
       return viewer === "admin" ? { label: "Waiting for you", tone: "warning" } : { label: `Waiting for ${firmName}`, tone: "accent" };
     case "Answered":
-      return viewer === "admin" ? { label: "Waiting for the trader", tone: "accent" } : { label: "Answered", tone: "profit" };
+      return viewer === "admin"
+        ? { label: "Waiting for the trader", tone: "accent" }
+        : ticket.openedBy === "Firm"
+          ? { label: `Message from ${firmName}`, tone: "accent" }
+          : { label: "Answered", tone: "profit" };
     default:
       return { label: "Closed", tone: "muted" };
   }
@@ -76,12 +86,14 @@ export function waitingText(since: string, now: number): string {
 }
 
 /** What the trader is told about where a ticket is, under its messages. */
-export function traderTicketNote(status: SupportTicketStatus, firmName: string): string {
-  switch (status) {
+export function traderTicketNote(ticket: TicketState, firmName: string): string {
+  switch (ticket.status) {
     case "Open":
       return `${firmName} has your message and answers here. You also get an email when it does.`;
     case "Answered":
-      return `${firmName} has answered. Write back if you need more help, or close the ticket if it is solved.`;
+      return ticket.openedBy === "Firm"
+        ? `${firmName} wrote to you. Answer here, or close the ticket if nothing more is needed.`
+        : `${firmName} has answered. Write back if you need more help, or close the ticket if it is solved.`;
     default:
       return "This ticket is closed. Write in it to open it again.";
   }

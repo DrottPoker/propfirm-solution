@@ -56,7 +56,7 @@ export function TraderTickets() {
                     <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                       <span className={`min-w-0 truncate ${ticket.unread ? "font-semibold" : "font-medium"}`}>{ticket.subject}</span>
                       {ticket.unread && <span className="sr-only">(new answer)</span>}
-                      <TicketStatusBadge status={ticket.status} viewer="trader" firmName={branding.name} />
+                      <TicketStatusBadge ticket={ticket} viewer="trader" firmName={branding.name} />
                     </span>
                     <span className="truncate text-sm text-muted">
                       {lastAuthorName(ticket, "trader", branding.name)}: {ticket.preview}
@@ -233,10 +233,11 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="break-words text-2xl font-semibold tracking-tight">{data.subject}</h1>
-            <TicketStatusBadge status={data.status} viewer="trader" firmName={branding.name} />
+            <TicketStatusBadge ticket={data} viewer="trader" firmName={branding.name} />
           </div>
           <p className="text-sm text-muted">
             Ticket #{data.number}
+            {data.openedBy === "Firm" && <> from {branding.name}</>}
             {data.account && (
               <>
                 {" "}
@@ -258,7 +259,7 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
       <ErrorText error={close.error} />
 
       <Conversation ticket={data} viewer="trader" names={{ firm: branding.name, trader: me.data?.email ?? "You", me: me.data?.email ?? "" }} />
-      <p className="text-sm text-muted">{traderTicketNote(data.status, branding.name)}</p>
+      <p className="text-sm text-muted">{traderTicketNote(data, branding.name)}</p>
       <MessageForm ticket={data} viewer="trader" />
     </main>
   );

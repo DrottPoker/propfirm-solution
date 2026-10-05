@@ -37,7 +37,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: `dotnet run --project ../src/Prop.Api -c Release --no-build -- --urls http://localhost:${propApiPort} --ConnectionStrings:Prop=${JSON.stringify(propDatabase)} --TradingPlatform:Url=http://localhost:${tradingPort}/ --Firms:0:Portal:Url=http://localhost:${portalPort}/ --Platform:Url=${platformUrl}/ --Platform:FirmPortalUrl=${firmPortalUrl} --Platform:OpsUrl=${opsUrl}/`,
+      // Test ID checks even when the developer's user secrets choose Didit.
+      command: `dotnet run --project ../src/Prop.Api -c Release --no-build -- --urls http://localhost:${propApiPort} --ConnectionStrings:Prop=${JSON.stringify(propDatabase)} --TradingPlatform:Url=http://localhost:${tradingPort}/ --Firms:0:Portal:Url=http://localhost:${portalPort}/ --Platform:Url=${platformUrl}/ --Platform:FirmPortalUrl=${firmPortalUrl} --Platform:OpsUrl=${opsUrl}/ --Identity:Provider=Test`,
       url: `http://localhost:${propApiPort}/health`,
       timeout: 120_000,
     },

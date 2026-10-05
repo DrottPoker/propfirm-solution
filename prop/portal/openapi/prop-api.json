@@ -801,6 +801,62 @@
         }
       }
     },
+    "/api/firm/v1/traders/identity": {
+      "get": {
+        "tags": [
+          "Firm"
+        ],
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderIdentityResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Firm"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderIdentityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/branding": {
       "get": {
         "tags": [
@@ -2095,6 +2151,77 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/identity": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyIdentityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/identity/start": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/identity/test/{sessionId}": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestIdentityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -4285,6 +4412,76 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "traderEmail": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "subject": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "accountId": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/components/schemas/IFormFileCollection"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/portal/admin/support/tickets/{ticketId}": {
@@ -4432,6 +4629,52 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/identity": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentitySettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentitySettingsResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -5679,9 +5922,15 @@
           "traderChecked": {
             "type": "boolean",
             "default": false
+          },
+          "identityName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
-        "description": "A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid\nbefore it was asked for, and how much, and whether the firm has done every check of the trader."
+        "description": "A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid\nbefore it was asked for, and how much, whether the firm has done every check of the trader, and the name on the\ntrader's ID when an ID check approved it, to compare with whom the money goes to."
       },
       "AdminResponse": {
         "required": [
@@ -6414,7 +6663,8 @@
           "Activation",
           "Renewal",
           "Slots",
-          "Deposit"
+          "Deposit",
+          "IdentityChecks"
         ]
       },
       "ChargeLine": {
@@ -7177,6 +7427,65 @@
           "Inactivity"
         ]
       },
+      "ExternalIdentityRequest": {
+        "required": [
+          "email",
+          "status",
+          "reason",
+          "fullName",
+          "dateOfBirth",
+          "country"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityStatus"
+              }
+            ]
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fullName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dateOfBirth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressChecked": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "description": "What a firm reports about a trader checked by its own service."
+      },
       "FailureReason": {
         "enum": [
           "DailyLoss",
@@ -7511,6 +7820,198 @@
         },
         "description": "A loss limit's level from Time, until the next point."
       },
+      "IdentityMode": {
+        "enum": [
+          "BuiltIn",
+          "External",
+          null
+        ]
+      },
+      "IdentityPricesResponse": {
+        "required": [
+          "currency",
+          "monthlyPrice",
+          "included",
+          "perCheck",
+          "address",
+          "sanctions"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "monthlyPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "included": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "perCheck": {
+            "type": "number",
+            "format": "double"
+          },
+          "address": {
+            "type": "number",
+            "format": "double"
+          },
+          "sanctions": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "What the built-in checks cost the firm, from our prices."
+      },
+      "IdentityProvider": {
+        "enum": [
+          "Didit",
+          "Test",
+          "External"
+        ],
+        "description": "Who checked a trader's ID."
+      },
+      "IdentityReadiness": {
+        "enum": [
+          "NotChosen",
+          "NotTested",
+          "Ready"
+        ],
+        "description": "Whether a firm's KYC is ready for going live: not chosen, its own service not yet tried through the whole flow, or\nready. Our review does not wait for it."
+      },
+      "IdentityRequirement": {
+        "enum": [
+          "FirstPayout",
+          "Funding"
+        ],
+        "description": "What waits until the trader's ID is checked."
+      },
+      "IdentitySettingsRequest": {
+        "required": [
+          "mode",
+          "requiredBefore",
+          "checkAddress",
+          "checkSanctions",
+          "externalUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityMode"
+              }
+            ]
+          },
+          "requiredBefore": {
+            "$ref": "#/components/schemas/IdentityRequirement"
+          },
+          "checkAddress": {
+            "type": "boolean"
+          },
+          "checkSanctions": {
+            "type": "boolean"
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A firm's choice of how its traders are checked, as the admin panel saves it. Mode must be chosen."
+      },
+      "IdentitySettingsResponse": {
+        "required": [
+          "mode",
+          "requiredBefore",
+          "checkAddress",
+          "checkSanctions",
+          "externalUrl",
+          "prices",
+          "checksSinceLastCharge",
+          "testChecks",
+          "readiness",
+          "externalTestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityMode"
+              }
+            ]
+          },
+          "requiredBefore": {
+            "$ref": "#/components/schemas/IdentityRequirement"
+          },
+          "checkAddress": {
+            "type": "boolean"
+          },
+          "checkSanctions": {
+            "type": "boolean"
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "prices": {
+            "$ref": "#/components/schemas/IdentityPricesResponse"
+          },
+          "checksSinceLastCharge": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "testChecks": {
+            "type": "boolean"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/IdentityReadiness"
+          },
+          "externalTestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The firm's choice, our prices for the built-in checks, and the built-in checks its traders sent in since the firm was\nlast charged for them. Mode is null until the firm chooses, and Readiness says\nwhether the firm can go live, with ExternalTestedAt when its own service first worked\nthrough the whole flow. In the sandbox the checks are test checks, which cost nothing."
+      },
+      "IdentityStartResponse": {
+        "required": [
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        },
+        "description": "Where the trader does the check: the provider's page, or the firm's own."
+      },
+      "IdentityStatus": {
+        "enum": [
+          "NotStarted",
+          "Pending",
+          "InReview",
+          "Approved",
+          "Declined",
+          "Expired"
+        ],
+        "description": "Where a trader's ID check is."
+      },
       "IFormFile": {
         "type": "string",
         "format": "binary"
@@ -7695,6 +8196,56 @@
           }
         },
         "description": "An amount in one currency."
+      },
+      "MyIdentityResponse": {
+        "required": [
+          "mode",
+          "requiredBefore",
+          "status",
+          "verified",
+          "canStart",
+          "reason",
+          "decidedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityMode"
+              }
+            ]
+          },
+          "requiredBefore": {
+            "$ref": "#/components/schemas/IdentityRequirement"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IdentityStatus"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "canStart": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The trader's own ID check: how the firm checks, what waits for it, where the check is, and why it was declined.\nMode is null while the firm has not chosen, and then nothing waits for a check.\nVerified also holds when the firm ticked \"ID checked\" by hand, as an exception. CanStart\nis whether the trader can start a check now."
       },
       "NextChargeResponse": {
         "required": [
@@ -8271,6 +8822,7 @@
           "decidedBy",
           "checks",
           "sandboxUse",
+          "identity",
           "billing",
           "figures",
           "suspension",
@@ -8358,6 +8910,9 @@
           "sandboxUse": {
             "$ref": "#/components/schemas/OpsSandboxUseResponse"
           },
+          "identity": {
+            "$ref": "#/components/schemas/OpsIdentityResponse"
+          },
           "billing": {
             "$ref": "#/components/schemas/OpsBillingResponse"
           },
@@ -8381,7 +8936,7 @@
             }
           }
         },
-        "description": "A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it\ntried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events."
+        "description": "A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it\ntried in the sandbox, its ID checks, how it pays us, how it is doing and pays its traders, its suspension and its events."
       },
       "OpsFirmsResponse": {
         "required": [
@@ -8460,6 +9015,44 @@
           }
         },
         "description": "The firms that signed up in the last 90 days and how far they got, the approved firms of any age that are not live\nyet, and how many hours our decisions in the last 90 days took on average from the application they answered."
+      },
+      "OpsIdentityResponse": {
+        "required": [
+          "mode",
+          "externalUrl",
+          "externalTestedAt",
+          "readiness"
+        ],
+        "type": "object",
+        "properties": {
+          "mode": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IdentityMode"
+              }
+            ]
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "externalTestedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/IdentityReadiness"
+          }
+        },
+        "description": "How the firm checks its traders' IDs, its KYC: not chosen, our built-in checks, or its own service at the address and\nwhen that first worked through the whole flow. The firm goes live only once it is ready; our approval does not wait."
       },
       "OpsLatePayoutsResponse": {
         "required": [
@@ -10919,6 +11512,7 @@
           "closedBy",
           "closedByAdmin",
           "unread",
+          "openedBy",
           "messages"
         ],
         "type": "object",
@@ -10997,6 +11591,9 @@
           "unread": {
             "type": "boolean"
           },
+          "openedBy": {
+            "$ref": "#/components/schemas/SupportAuthor"
+          },
           "messages": {
             "type": "array",
             "items": {
@@ -11004,7 +11601,7 @@
             }
           }
         },
-        "description": "A ticket with every message, oldest first. ClosedBy is who closed it, and\nClosedByAdmin which administrator, which only the admin panel sees. Unread is\nwhether the trader has an answer to read, and is always false in the admin panel."
+        "description": "A ticket with every message, oldest first. ClosedBy is who closed it, and\nClosedByAdmin which administrator, which only the admin panel sees. Unread is\nwhether the trader has an answer to read, and is always false in the admin panel. OpenedBy is who\nwrote first."
       },
       "SupportTicketsResponse": {
         "required": [
@@ -11050,7 +11647,8 @@
           "messages",
           "lastAuthor",
           "preview",
-          "unread"
+          "unread",
+          "openedBy"
         ],
         "type": "object",
         "properties": {
@@ -11108,9 +11706,12 @@
           },
           "unread": {
             "type": "boolean"
+          },
+          "openedBy": {
+            "$ref": "#/components/schemas/SupportAuthor"
           }
         },
-        "description": "A ticket in a list: its trader and account, when it was last written in, since when it has waited for the firm, how\nmany messages it has and the start of the latest, and whether the trader has an answer to read."
+        "description": "A ticket in a list: its trader and account, who opened it, when it was last written in, since when it has waited for\nthe firm, how many messages it has and the start of the latest, and whether the trader has an answer to read."
       },
       "SuspendRequest": {
         "required": [
@@ -11200,6 +11801,18 @@
           }
         },
         "description": "A test checkout page in the portal: what it is for and, for a payment, what is paid. ReturnPath\nis the page in the admin panel the firm comes back to."
+      },
+      "TestIdentityRequest": {
+        "required": [
+          "approve"
+        ],
+        "type": "object",
+        "properties": {
+          "approve": {
+            "type": "boolean"
+          }
+        },
+        "description": "A test check's outcome, chosen on the test page."
       },
       "TraderCheckRequest": {
         "required": [
@@ -11357,6 +11970,67 @@
         },
         "description": "A closed position. Profit is before Commission, which was charged for opening\nand closing it, and Result after. CloseReason is the trading platform's, such\nas Manual, StopLoss, TakeProfit, StopOut, EquityFloor or AccountClosed."
       },
+      "TraderIdentityResponse": {
+        "required": [
+          "status",
+          "provider",
+          "fullName",
+          "dateOfBirth",
+          "country",
+          "addressChecked",
+          "sanctionsChecked",
+          "reason",
+          "decidedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/IdentityStatus"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/IdentityProvider"
+          },
+          "fullName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "dateOfBirth": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date"
+          },
+          "country": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "addressChecked": {
+            "type": "boolean"
+          },
+          "sanctionsChecked": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "A trader's ID check as the firm sees it: where it is, who checked, what the document said, why it was declined, and\nwhen it was decided."
+      },
       "TraderPayoutsResponse": {
         "required": [
           "payouts",
@@ -11454,9 +12128,19 @@
             "items": {
               "$ref": "#/components/schemas/TraderCheckResponse"
             }
+          },
+          "identity": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TraderIdentityResponse"
+              }
+            ]
           }
         },
-        "description": "An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have\nchosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,\nOrder, the order that started the account asked about, and the firm's Checks of them."
+        "description": "An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have\nchosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,\nOrder, the order that started the account asked about, the firm's Checks of them,\nand their Identity check (ADR 0042)."
       },
       "TraderSupportSummaryResponse": {
         "required": [
@@ -11769,7 +12453,8 @@
           "maxDocuments",
           "maxDocumentBytes",
           "euCountries",
-          "problems"
+          "problems",
+          "identity"
         ],
         "type": "object",
         "properties": {
@@ -11836,9 +12521,12 @@
             "items": {
               "$ref": "#/components/schemas/FieldProblem"
             }
+          },
+          "identity": {
+            "$ref": "#/components/schemas/IdentityReadiness"
           }
         },
-        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now, and\nProblems what is missing or wrong in each field of the saved application, while it can be changed.\nEuCountries are where the application gives a VAT number or says the company has none."
+        "description": "The firm's review for its admin panel. Message is our latest word: the changes we need, or why\nit was not approved. SubmitProblem says why the application cannot be sent now, and\nProblems what is missing or wrong in each field of the saved application, while it can be changed.\nEuCountries are where the application gives a VAT number or says the company has none.\nIdentity is whether the firm's KYC is ready, which going live waits for once we have approved the firm."
       },
       "VerifySignupRequest": {
         "required": [

@@ -19,6 +19,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
+using Prop.Api.Identity;
 using Prop.Api.Json;
 using Prop.Api.Ops;
 using Prop.Api.Payments;
@@ -104,10 +105,27 @@ var billingOptions = builder.Services.AddOptions<BillingOptions>()
     // Every invoice names us, so outside development who we are must be there.
     .Validate(
         o => builder.Environment.IsDevelopment() || o.Seller.IsComplete,
-        "Billing:Seller needs Name, Address, OrganizationNumber and VatNumber outside development, for the invoices.");
+        "Billing:Seller needs Name, Address, OrganizationNumber and VatNumber outside development, for the invoices.")
+    // The built-in ID checks are an addition to the package, with prices like the others.
+    .Validate(
+        o => new[] { o.IdentityChecks.MonthlyPrice, o.IdentityChecks.PerCheck, o.IdentityChecks.Address, o.IdentityChecks.Sanctions }.All(p => p >= 0 && decimal.Round(p, 2) == p)
+            && o.IdentityChecks.Included >= 0,
+        "Billing:IdentityChecks needs prices of 0 or more with at most two decimals, and Included of 0 or more.");
+var identity = builder.Services.AddOptions<IdentityCheckOptions>()
+    .Bind(builder.Configuration.GetSection(IdentityCheckOptions.SectionName))
+    .Validate(
+        o => (o.Provider == nameof(IdentityProvider.Test) && builder.Environment.IsDevelopment())
+            || (o.Provider == nameof(IdentityProvider.Didit) && o.Didit.ApiUrl is { IsAbsoluteUri: true } url && url.AbsolutePath.EndsWith('/')),
+        "Identity:Provider must be Didit, with Identity:Didit:ApiUrl ending with /, or Test in development.")
+    // Outside development the checks must work, so Didit's key, webhook secret and workflow must be there.
+    .Validate(
+        o => builder.Environment.IsDevelopment() || o.Provider != nameof(IdentityProvider.Didit)
+            || (o.Didit.ApiKey.Length > 0 && o.Didit.WebhookSecret.Length > 0 && o.Didit.Workflow.Length > 0),
+        "Identity:Didit needs ApiKey, WebhookSecret and Workflow outside development.");
 if (!isOpenApiGeneration)
 {
     tradingPlatform.ValidateOnStart();
+    identity.ValidateOnStart();
     platform.ValidateOnStart();
     signupOptions.ValidateOnStart();
     email.ValidateOnStart();
@@ -165,6 +183,10 @@ builder.Services.AddSingleton<OpsFirms>();
 builder.Services.AddSingleton<OpsFigures>();
 builder.Services.AddSingleton<SupportStore>();
 builder.Services.AddSingleton<SupportService>();
+builder.Services.AddSingleton<IdentityStore>();
+builder.Services.AddSingleton<IdentityService>();
+builder.Services.AddSingleton<DiditChecker>();
+builder.Services.AddSingleton<TestChecker>();
 
 // Portal sessions survive restarts and work across instances, since the keys that protect them are in the database.
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
@@ -208,6 +230,11 @@ builder.Services.AddHttpClient(DnsOverHttpsLookup.HttpClientName, client => clie
 builder.Services.AddSingleton<IDnsLookup, DnsOverHttpsLookup>();
 builder.Services.AddSingleton<CustomDomainStore>();
 builder.Services.AddSingleton<DomainVerifier>();
+builder.Services.AddHttpClient(DiditChecker.HttpClientName, (sp, client) =>
+{
+    client.BaseAddress = sp.GetRequiredService<IOptions<IdentityCheckOptions>>().Value.Didit.ApiUrl;
+    client.Timeout = TimeSpan.FromSeconds(20);
+});
 builder.Services.AddHttpClient(StripeClient.HttpClientName, (sp, client) =>
 {
     client.BaseAddress = sp.GetRequiredService<IOptions<PaymentsOptions>>().Value.StripeApiUrl;
@@ -266,5 +293,6 @@ app.MapSignupApi();
 app.MapOpsApi();
 app.MapPaymentWebhooks();
 app.MapBillingWebhooks();
+app.MapIdentityWebhooks();
 
 app.Run();

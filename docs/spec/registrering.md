@@ -85,7 +85,7 @@ På firmans adress:
 | `/verify?token=` | Plattformens | Bekräftar e-postadressen och skickar vidare till firmans adminpanel. |
 | `/admin/welcome?token=` | Firmans | Loggar in administratören efter registreringen. |
 | `/admin/invite?token=` | Firmans | En inbjuden administratör väljer lösenord. |
-| `/admin` | Firmans | I sandlådan stegen till live: servern, challenges, priser, betalning, utseende, att prova som trader, vår granskning och att gå live. Se [specen för portalen](portal.md). |
+| `/admin` | Firmans | I sandlådan stegen till live: servern, challenges, priser, betalning, utseende, att prova som trader, vår granskning, KYC och att gå live. Se [specen för portalen](portal.md). |
 | `/admin/challenges` | Firmans | Firmans challenges. Ny challenge från mall, kopia av en annan och ändring av befintliga. |
 | `/admin/team` | Firmans | Administratörer, inbjudningar och borttagning. |
 | `/admin/design` | Firmans | Logga, tema och färger med förhandsvisning. |

@@ -6,10 +6,11 @@ import { useEffect, useState } from "react";
 
 import { useBranding } from "@/app/providers";
 
-import type { Billing, FirmSettings, Verification } from "@/lib/api/types";
+import type { Billing, FirmSettings, IdentityReadiness, Verification } from "@/lib/api/types";
 import { expansionText, invoiceUrl, monthlyPrices, vatOn, vatText } from "@/lib/billing";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { goLiveStateLabels, goLiveStates, goLiveStepKeys, goLiveStepOf, goLiveStepTitles, type GoLiveStepKey, type GoLiveStepState } from "@/lib/goLivePage";
+import { readinessText } from "@/lib/identity";
 import { providerLabels } from "@/lib/orders";
 import { useActivate, useBilling, useBillingQuote, useFirmSettings, useSubmitApplication, useVerification } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
@@ -98,7 +99,7 @@ export function AdminGoLive({ step, returnedFromCheckout }: { step: string | nul
           {current === "details" && <ApplicationEditor key={`${v.status}-${v.canEdit}`} verification={v} onContinue={() => go("deposit")} />}
           {current === "deposit" && <DepositStep verification={v} billing={b} onDetails={() => go("details")} onSent={() => go("answer")} />}
           {current === "answer" && <AnswerStep verification={v} onGo={go} />}
-          {current === "payment" && <PaymentStep billing={b} settings={settings.data} />}
+          {current === "payment" && <PaymentStep billing={b} settings={settings.data} identity={v.identity} />}
         </>
       )}
     </AdminPage>
@@ -321,8 +322,8 @@ function AnswerStep({ verification, onGo }: { verification: Verification; onGo: 
   }
 }
 
-/** The slots and the first payment, once we have approved the firm. Before that, what it will cost. */
-function PaymentStep({ billing, settings }: { billing: Billing; settings: FirmSettings }) {
+/** The slots and the first payment, once we have approved the firm and its KYC is set up. Before that, what it will cost. */
+function PaymentStep({ billing, settings, identity }: { billing: Billing; settings: FirmSettings; identity: IdentityReadiness }) {
   if (billing.review !== "Approved") {
     const { prices } = billing;
     return (
@@ -340,14 +341,23 @@ function PaymentStep({ billing, settings }: { billing: Billing; settings: FirmSe
           ))}
         </ul>
         <p className="text-xs text-muted">{vatText(billing.vat)}</p>
+        {identity !== "Ready" && (
+          <p className="text-sm text-muted">
+            Before you go live, also{" "}
+            <Link href="/admin/identity" className="text-accent hover:underline">
+              set up KYC
+            </Link>
+            , how your traders are checked. You can do it now.
+          </p>
+        )}
       </Panel>
     );
   }
 
-  return <GoLiveForm billing={billing} settings={settings} />;
+  return <GoLiveForm billing={billing} settings={settings} identity={identity} />;
 }
 
-function GoLiveForm({ billing, settings }: { billing: Billing; settings: FirmSettings }) {
+function GoLiveForm({ billing, settings, identity }: { billing: Billing; settings: FirmSettings; identity: IdentityReadiness }) {
   const activate = useActivate();
   const { prices } = billing;
   const [slots, setSlots] = useState(String(prices.packageSlots));
@@ -408,6 +418,9 @@ function GoLiveForm({ billing, settings }: { billing: Billing; settings: FirmSet
               (settings.payments.provider === null
                 ? "You do not sell in the portal, so its shop stays closed."
                 : `Your shop takes real payments with ${providerLabels[settings.payments.provider]} from the moment you are live.`)}
+          </Check>
+          <Check ok={identity === "Ready"} link={{ href: "/admin/identity", label: "Set up KYC" }}>
+            {readinessText(identity, false) ?? "Your KYC is set up, so your traders are checked as you chose."}
           </Check>
           <Check ok={settings.logoUrl !== null || Object.keys(settings.colors).length > 0} link={{ href: "/admin/design", label: "Portal design" }}>
             {settings.logoUrl !== null || Object.keys(settings.colors).length > 0

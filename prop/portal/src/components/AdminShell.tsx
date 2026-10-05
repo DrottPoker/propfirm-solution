@@ -12,7 +12,7 @@ import { useFirmSupportSummary, useLogout, usePayoutSummary, useWaitingAccounts 
 
 import { BillingNotice } from "./BillingNotice";
 import { FirmName } from "./FirmName";
-import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, SupportIcon, TagIcon, TeamIcon } from "./icons";
+import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, ShieldCheckIcon, SupportIcon, TagIcon, TeamIcon } from "./icons";
 
 type NavLink = {
   href: string;
@@ -46,6 +46,7 @@ function navigation(status: FirmStatus): { label: string | null; links: NavLink[
         { href: "/admin/domain", label: "Your domain", icon: GlobeIcon, matches: startsWith("/admin/domain") },
         { href: "/admin/checkout", label: "Checkout", icon: CardIcon, matches: startsWith("/admin/checkout") },
         { href: "/admin/trading", label: "Trading conditions", icon: ServerIcon, matches: startsWith("/admin/trading") },
+        { href: "/admin/identity", label: "KYC", icon: ShieldCheckIcon, matches: startsWith("/admin/identity") },
         { href: "/admin/notifications", label: "Notifications", icon: MailIcon, matches: startsWith("/admin/notifications") },
         { href: "/admin/integrations", label: "Integrations", icon: CodeIcon, matches: startsWith("/admin/integrations") },
         { href: "/admin/team", label: "Team", icon: TeamIcon, matches: startsWith("/admin/team") },

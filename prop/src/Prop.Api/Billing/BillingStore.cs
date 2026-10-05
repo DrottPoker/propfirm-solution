@@ -33,6 +33,12 @@ public enum ChargeKind
 
     /// <summary>The deposit for our review, paid when the firm sends its application and taken off the startup fee (ADR 0021).</summary>
     Deposit,
+
+    /// <summary>
+    /// A month of the built-in ID checks (ADR 0042): the month's price when they were on all of it or used in it, and the
+    /// checks beyond those included. Charged when the next month is.
+    /// </summary>
+    IdentityChecks,
 }
 
 public enum ChargeStatus
@@ -116,6 +122,7 @@ internal sealed record Charge(
         ChargeKind.Activation => $"Going live, charge {Number}",
         ChargeKind.Renewal => $"Slots for {BillingRules.NameOf(Month)}, charge {Number}",
         ChargeKind.Deposit => $"Review deposit, charge {Number}",
+        ChargeKind.IdentityChecks => $"KYC checks for {BillingRules.NameOf(Month)}, charge {Number}",
         _ => $"More slots, charge {Number}",
     };
 
@@ -127,7 +134,7 @@ internal sealed record Charge(
 }
 
 /// <summary>What decides whether a firm may go live: its status, whether we suspended it, and our review of it.</summary>
-internal sealed record GoLiveState(Firms.FirmStatus Status, bool Suspended, ReviewStatus? Review);
+internal sealed record GoLiveState(Firms.FirmStatus Status, bool Suspended, ReviewStatus? Review, Identity.IdentityReadiness Identity);
 
 /// <summary>A page where the firm pays a charge or saves a card at the provider.</summary>
 internal sealed record BillingCheckout(
@@ -361,6 +368,16 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
     public static async Task<Charge?> GetChargeAsync(NpgsqlConnection connection, Guid chargeId, bool forUpdate, CancellationToken cancellationToken) =>
         (await ReadChargesAsync(connection, $"{SelectCharge} where id = $1{(forUpdate ? " for update" : "")}", [chargeId], cancellationToken)).SingleOrDefault();
 
+    /// <summary>Whether the firm has a charge of the kind for the month that is not void.</summary>
+    public static async Task<bool> HasChargeAsync(NpgsqlConnection connection, string firmId, ChargeKind kind, DateOnly month, CancellationToken cancellationToken)
+    {
+        await using var command = Command(
+            connection,
+            "select exists (select 1 from billing_charges where firm_id = $1 and kind = $2 and month = $3 and status <> 'Void')",
+            [firmId, kind.ToString(), month]);
+        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+    }
+
     /// <summary>The firm's charges that are not paid or void, oldest first.</summary>
     public static Task<List<Charge>> OpenChargesAsync(NpgsqlConnection connection, string firmId, CancellationToken cancellationToken) =>
         ReadChargesAsync(connection, $"{SelectCharge} where firm_id = $1 and status in ('Pending', 'Failed') order by created_at", [firmId], cancellationToken);
@@ -561,19 +578,27 @@ internal sealed class BillingStore(NpgsqlDataSource dataSource, DatabaseSchema s
         return Enum.Parse<Firms.FirmStatus>((string)(await command.ExecuteScalarAsync(cancellationToken))!);
     }
 
-    /// <summary>The firm's status, suspension and review as saved, with the firm locked until the caller's transaction ends when <paramref name="forUpdate"/> is set.</summary>
+    /// <summary>
+    /// The firm's status, suspension, review and KYC as saved, with the firm locked until the caller's transaction
+    /// ends when <paramref name="forUpdate"/> is set.
+    /// </summary>
     public static async Task<GoLiveState> GoLiveStateAsync(NpgsqlConnection connection, string firmId, bool forUpdate, CancellationToken cancellationToken)
     {
         await using var command = Command(
             connection,
-            $"select f.status, f.suspended_at is not null, r.status from firms f left join firm_reviews r on r.firm_id = f.id where f.id = $1{(forUpdate ? " for update of f" : "")}",
+            $"""
+            select f.status, f.suspended_at is not null, r.status, i.mode, i.external_tested_at is not null
+            from firms f left join firm_reviews r on r.firm_id = f.id left join firm_identity_settings i on i.firm_id = f.id
+            where f.id = $1{(forUpdate ? " for update of f" : "")}
+            """,
             [firmId]);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
         return new GoLiveState(
             Enum.Parse<Firms.FirmStatus>(reader.GetString(0)),
             reader.GetBoolean(1),
-            reader.IsDBNull(2) ? null : Enum.Parse<ReviewStatus>(reader.GetString(2)));
+            reader.IsDBNull(2) ? null : Enum.Parse<ReviewStatus>(reader.GetString(2)),
+            Identity.IdentitySettings.ReadinessOf(reader.IsDBNull(3) ? null : Enum.Parse<Identity.IdentityMode>(reader.GetString(3)), !reader.IsDBNull(4) && reader.GetBoolean(4)));
     }
 
     /// <summary>

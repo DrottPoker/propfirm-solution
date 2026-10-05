@@ -109,6 +109,7 @@ internal static class ReviewEndpoints
         var review = await reviews.GetAsync(firm, cancellationToken);
         var documents = await store.ListDocumentsAsync(firm.Id, cancellationToken);
         var (amount, currency, paid) = await reviews.DepositAsync(firm, cancellationToken);
+        var identity = await reviews.IdentityReadinessAsync(firm.Id, cancellationToken);
         return new VerificationResponse(
             review.Status,
             review.Application,
@@ -122,7 +123,8 @@ internal static class ReviewEndpoints
             ReviewService.MaxDocuments,
             ReviewService.MaxDocumentBytes,
             VatNumbers.EuCountries,
-            review.CanEdit && firm.Status != FirmStatus.Live ? ApplicationRules.Problems(review.Application, complete: true) : []);
+            review.CanEdit && firm.Status != FirmStatus.Live ? ApplicationRules.Problems(review.Application, complete: true) : [],
+            identity);
     }
 
     /// <summary>A document as a download, never shown in the browser, so a file cannot run as a page on our address.</summary>

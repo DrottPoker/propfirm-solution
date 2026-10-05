@@ -219,6 +219,8 @@ function unpaidWhat(charge: Charge): string {
       return "to go live";
     case "Deposit":
       return "the deposit";
+    case "IdentityChecks":
+      return `for KYC checks in ${monthName(charge.month)}`;
     default:
       return "for more slots";
   }

@@ -9,6 +9,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Ops;
 using Prop.Api.Payments;
 using Prop.Api.Portal;
@@ -77,6 +78,7 @@ internal sealed partial class BillingService(
     IOptions<BillingOptions> options,
     IOptions<PlatformOptions> platform,
     IOptions<PaymentsOptions> payments,
+    IdentityStore identities,
     TimeProvider time,
     ILogger<BillingService> logger)
 {
@@ -96,13 +98,16 @@ internal sealed partial class BillingService(
 
     public BillingProvider Provider => gateway.Provider;
 
-    /// <summary>Why the firm cannot go live by paying now. Null when it can: in the sandbox, approved by us and not suspended.</summary>
+    /// <summary>
+    /// Why the firm cannot go live by paying now. Null when it can: in the sandbox, approved by us, not suspended, and with
+    /// its KYC ready.
+    /// </summary>
     public static string? GoLiveProblem(GoLiveState state) => state switch
     {
         { Status: FirmStatus.Live } => "The firm is already live.",
         { Status: FirmStatus.Provisioning } => "The firm's trading server is still being set up. Try again in a minute.",
         { Suspended: true } => "The firm is suspended, so it cannot go live.",
-        { Review: ReviewStatus.Approved } => null,
+        { Review: ReviewStatus.Approved } => IdentityService.ReadinessProblem(state.Identity),
         { Review: ReviewStatus.Submitted } => "We are reviewing your application. You can go live once it is approved.",
         { Review: ReviewStatus.Rejected } => "Your application was not approved, so the firm cannot go live.",
         _ => "We review your company before you go live. Send its details under Go live.",
@@ -629,6 +634,7 @@ internal sealed partial class BillingService(
     public async Task RunFirmAsync(Firm firm, CancellationToken cancellationToken)
     {
         await CreateRenewalIfDueAsync(firm, cancellationToken);
+        await CreateIdentityChargeIfDueAsync(firm, cancellationToken);
 
         var usage = await slots.UsageAsync(firm, cancellationToken);
         FirmBilling billing;
@@ -671,6 +677,46 @@ internal sealed partial class BillingService(
         var usage = await slots.UsageAsync(connection, firm, null, cancellationToken);
         var slotCount = Terms.SlotsToCharge(billing.Slots, usage.Used + usage.Reserved);
         await InsertChargeAsync(connection, firm.Id, ChargeKind.Renewal, due, 1, slotCount, BillingRules.Renewal(due, slotCount, Terms), now, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// When the next month is charged, the month that ends is charged for the built-in ID checks (ADR 0042), from when the
+    /// last month was charged: the month's price with the checks it includes, when the firm used the checks in it or had
+    /// them on all of it while live, the checks beyond those included, and the extra checks. Turning the checks off before
+    /// the month is charged does not make the checks used in it free, and a month the firm turns them on without a check
+    /// costs nothing. An unpaid charge for ID checks does not pause challenges.
+    /// </summary>
+    private async Task CreateIdentityChargeIfDueAsync(Firm firm, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var month = BillingRules.MonthOf(now);
+        if (now < BillingRules.ChargeTimeOf(month.AddMonths(1), Terms.ChargeDaysBeforeMonth))
+        {
+            return;
+        }
+
+        var settings = await identities.GetSettingsAsync(firm.Id, cancellationToken);
+        await using var connection = await store.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await SlotService.LockAsync(connection, firm.Id, cancellationToken);
+        if (await BillingStore.GetBillingAsync(connection, firm.Id, forUpdate: false, cancellationToken) is not { Plan: BillingPlan.Paid, ActivatedAt: { } activatedAt }
+            || await BillingStore.HasChargeAsync(connection, firm.Id, ChargeKind.IdentityChecks, month, cancellationToken))
+        {
+            return;
+        }
+
+        var (checks, address, sanctions) = await IdentityStore.UnbilledAsync(connection, firm.Id, cancellationToken);
+        var monthStarted = BillingRules.ChargeTimeOf(month, Terms.ChargeDaysBeforeMonth);
+        var onAllMonth = settings is { Mode: IdentityMode.BuiltIn, BuiltInSince: { } since } && since <= monthStarted && activatedAt <= monthStarted;
+        var lines = BillingRules.IdentityChecks(month, checks.Count > 0 || onAllMonth, checks.Count, address, sanctions, options.Value.IdentityChecks);
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        var charge = await InsertChargeAsync(connection, firm.Id, ChargeKind.IdentityChecks, month, 0, 0, lines, now, now, cancellationToken);
+        await IdentityStore.MarkBilledAsync(connection, checks, charge.Id, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
 

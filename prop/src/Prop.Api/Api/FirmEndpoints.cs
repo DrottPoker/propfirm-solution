@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Api.Portal;
 using Prop.Api.Trading;
@@ -41,6 +42,7 @@ internal static class FirmEndpoints
         firm.MapPost("/payouts/{payoutId:guid}/reject", RejectPayoutAsync);
         firm.MapFirmOrders();
         firm.MapFirmSlots();
+        firm.MapFirmIdentity();
         return app;
     }
 
@@ -121,15 +123,19 @@ internal static class FirmEndpoints
         CancellationToken cancellationToken) =>
         HistoryAsync(FirmApiKeyFilter.FirmOf(context), accountId, queries, cancellationToken);
 
-    /// <summary>The firm has done its checks, for example KYC and agreement, and the trader gets the funded account.</summary>
+    /// <summary>
+    /// The firm has done its checks, for example KYC and agreement, and the trader gets the funded account. 409 when the
+    /// firm wants the trader's identity verified first and it is not.
+    /// </summary>
     private static Task<Results<Ok<AccountResponse>, ProblemHttpResult>> ApproveFundingAsync(
         Guid accountId,
         HttpContext context,
         ChallengeService challenges,
         ChallengeQueries queries,
+        IdentityService identity,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        AccountActions.ApplyAsync(FirmApiKeyFilter.FirmOf(context), accountId, new ApproveFunding(time.GetUtcNow()), challenges, queries, cancellationToken);
+        AccountActions.ApproveFundingAsync(FirmApiKeyFilter.FirmOf(context), accountId, challenges, queries, identity, time, cancellationToken);
 
     private static Task<Results<Ok<AccountResponse>, ProblemHttpResult>> CancelAsync(
         Guid accountId,

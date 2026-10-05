@@ -193,4 +193,28 @@ public sealed class BillingRulesTests
 
         Assert.NotEmpty(terms.Problems());
     }
+
+    [Fact]
+    public void BuiltInIdChecksCostTheMonthsPriceAndTheChecksBeyondThoseIncluded()
+    {
+        var prices = new Configuration.IdentityCheckPriceOptions();
+        var november = new DateOnly(2026, 11, 1);
+
+        var within = BillingRules.IdentityChecks(november, monthly: true, checks: 25, address: 0, sanctions: 0, prices);
+        var beyond = BillingRules.IdentityChecks(november, monthly: true, checks: 37, address: 3, sanctions: 1, prices);
+        var turnedOff = BillingRules.IdentityChecks(november, monthly: false, checks: 4, address: 0, sanctions: 0, prices);
+        var nothing = BillingRules.IdentityChecks(november, monthly: false, checks: 0, address: 0, sanctions: 0, prices);
+
+        Assert.Equal([new ChargeLine("KYC, November 2026, 25 checks included", 1, 15m)], within);
+        Assert.Equal(
+            [
+                new ChargeLine("KYC, November 2026, 25 checks included", 1, 15m),
+                new ChargeLine("12 KYC checks beyond the 25 included", 12, 9.6m),
+                new ChargeLine("3 proof of address checks", 3, 0.9m),
+                new ChargeLine("1 sanctions screening", 1, 0.3m),
+            ],
+            beyond);
+        Assert.Empty(turnedOff);
+        Assert.Empty(nothing);
+    }
 }

@@ -7,6 +7,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
+using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Rules;
 
@@ -110,6 +111,7 @@ internal static class AdminPanelEndpoints
         PayoutQueries payouts,
         AdminFigures figures,
         TraderChecks checks,
+        IdentityService identity,
         CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
@@ -139,7 +141,8 @@ internal static class AdminPanelEndpoints
             MoneyTotalResponse.From(trader.Bought),
             [.. paidOut],
             order is null ? null : new OrderSummaryResponse(order.Id, order.Number, order.Amount, order.Currency, order.Provider, order.PaidAt),
-            TraderCheckResponse.All(ticked)));
+            TraderCheckResponse.All(ticked),
+            TraderIdentityResponse.From(await identity.TraderAsync(trader.Id, cancellationToken))));
     }
 
     /// <summary>Ticks one of the firm's checks of the account's trader, or takes the tick away. Answers with every check.</summary>
@@ -279,6 +282,7 @@ internal static class AdminPanelEndpoints
         HttpContext context,
         PayoutQueries payouts,
         TraderChecks checks,
+        IdentityStore identities,
         CancellationToken cancellationToken,
         PayoutStatus[]? status = null,
         bool oldestFirst = false,
@@ -290,14 +294,17 @@ internal static class AdminPanelEndpoints
         }
 
         var views = await payouts.ListForAdminAsync(PortalFirmFilter.FirmOf(context).Id, status ?? [], oldestFirst, limit, cancellationToken);
-        var ticked = await checks.ListAsync([.. views.Select(v => v.Payout.TraderId).Distinct()], cancellationToken);
+        Guid[] traders = [.. views.Select(v => v.Payout.TraderId).Distinct()];
+        var ticked = await checks.ListAsync(traders, cancellationToken);
+        var verified = await identities.ListTradersAsync(traders, cancellationToken);
         return TypedResults.Ok(views
             .Select(v => new AdminPayoutResponse(
                 PayoutResponse.From(v.Payout),
                 v.ChallengeName,
                 v.PaidBefore,
                 v.PaidBeforeAmount,
-                TraderCheckItems.All.All(c => ticked[v.Payout.TraderId].Any(t => t.Item == c.Item))))
+                TraderCheckItems.All.All(c => ticked[v.Payout.TraderId].Any(t => t.Item == c.Item)),
+                verified.TryGetValue(v.Payout.TraderId, out var id) && id.Status == IdentityStatus.Approved ? id.FullName : null))
             .ToList());
     }
 
@@ -359,9 +366,10 @@ public sealed record PayoutSummaryResponse(PayoutGroupResponse ToApprove, Payout
 
 /// <summary>
 /// A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid
-/// before it was asked for, and how much, and whether the firm has done every check of the trader.
+/// before it was asked for, and how much, whether the firm has done every check of the trader, and the name on the
+/// trader's ID when an ID check approved it, to compare with whom the money goes to.
 /// </summary>
-public sealed record AdminPayoutResponse(PayoutResponse Payout, string ChallengeName, int PaidBefore, decimal PaidBeforeAmount, bool TraderChecked = false);
+public sealed record AdminPayoutResponse(PayoutResponse Payout, string ChallengeName, int PaidBefore, decimal PaidBeforeAmount, bool TraderChecked = false, string? IdentityName = null);
 
 /// <summary>Challenges bought in the portal and paid in the last 30 days, without those refunded.</summary>
 public sealed record SalesResponse(int Orders, IReadOnlyList<MoneyTotalResponse> Totals);
@@ -462,7 +470,8 @@ public sealed record OrderSummaryResponse(Guid Id, long Number, decimal Amount, 
 /// An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have
 /// chosen a password for the portal, their
 /// accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,
-/// <paramref name="Order"/>, the order that started the account asked about, and the firm's <paramref name="Checks"/> of them.
+/// <paramref name="Order"/>, the order that started the account asked about, the firm's <paramref name="Checks"/> of them,
+/// and their <paramref name="Identity"/> check (ADR 0042).
 /// </summary>
 public sealed record TraderSummaryResponse(
     string Email,
@@ -475,7 +484,8 @@ public sealed record TraderSummaryResponse(
     IReadOnlyList<MoneyTotalResponse> Bought,
     IReadOnlyList<MoneyTotalResponse> PaidOut,
     OrderSummaryResponse? Order,
-    IReadOnlyList<TraderCheckResponse> Checks);
+    IReadOnlyList<TraderCheckResponse> Checks,
+    TraderIdentityResponse? Identity = null);
 
 /// <summary>One of the firm's checks of a trader, such as "ID checked", and when and by whom it was ticked. Not ticked when <paramref name="CheckedAt"/> is null.</summary>
 public sealed record TraderCheckResponse(string Item, string Label, DateTimeOffset? CheckedAt, string? CheckedBy)

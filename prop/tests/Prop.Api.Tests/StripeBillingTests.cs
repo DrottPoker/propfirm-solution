@@ -75,6 +75,7 @@ public sealed class StripeBillingTests(PostgresFixture postgres) : IClassFixture
         using var admin = await factory.SignUpAsync("acme");
         await PropFactory.WaitUntilProvisionedAsync(admin);
         using var saved = await admin.PutAsJsonAsync(Url("admin/verification/application"), PropFactory.Application(), TestContext.Current.CancellationToken);
+        await factory.ChooseIdentityChecksAsync(admin, "acme");
 
         using var submitted = await PostAsync(admin, "admin/verification/submit", null);
         var deposit = Assert.Single(factory.Stripe.Requests);

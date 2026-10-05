@@ -229,6 +229,65 @@ public sealed class SupportTests(PostgresFixture postgres) : IClassFixture<Postg
     }
 
     [Fact]
+    public async Task TheFirmWritesToATraderFirst()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), PropFactory.WithOtherFirm());
+        var accountId = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+        var othersAccount = (await factory.StartActiveAccountAsync("bert@test.example")).GetProperty("id").GetGuid();
+        using var trader = await factory.LogInAsTraderAsync(accountId);
+        using var admin = await factory.LogInAsAdminAsync();
+        using var otherAdmin = factory.CreatePortalClient(PropFactory.OtherFirmHost);
+        using var login = await otherAdmin.PostAsJsonAsync(Url("admin/login"), new { email = Admin, password = "other-admin-password" }, TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+
+        Assert.Equal((422, "traderEmail"), await RefusedAtAsync(admin, "admin/support/tickets", new() { ["subject"] = "Hello", ["body"] = "Hello" }));
+        Assert.Equal((422, "traderEmail"), await RefusedAtAsync(admin, "admin/support/tickets", new() { ["traderEmail"] = "nobody@test.example", ["subject"] = "Hello", ["body"] = "Hello" }));
+        Assert.Equal((422, "traderEmail"), await RefusedAtAsync(otherAdmin, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = "Hello", ["body"] = "Hello" }));
+        Assert.Equal((422, "subject"), await RefusedAtAsync(admin, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = "", ["body"] = "Hello" }));
+        Assert.Equal(
+            (422, "accountId"),
+            await RefusedAtAsync(admin, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = "Hello", ["body"] = "Hello", ["accountId"] = othersAccount.ToString() }));
+        using var traderAsAdmin = await PostFormAsync(trader, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = "Hello", ["body"] = "Hello" });
+        Assert.Equal(HttpStatusCode.Unauthorized, traderAsAdmin.StatusCode);
+
+        // The ticket waits for the trader, who is emailed the message and sees it unread. The firm is not told of its own.
+        var opened = await JsonAsync(
+            await PostFormAsync(
+                admin,
+                "admin/support/tickets",
+                new() { ["traderEmail"] = " ANNA@test.example ", ["subject"] = "Your EURUSD trade", ["body"] = "Did the terminal show a gap before your EURUSD trade closed?", ["accountId"] = accountId.ToString() },
+                ("form.pdf", Pdf)),
+            HttpStatusCode.Created);
+        var ticketId = opened.GetProperty("id").GetGuid();
+        Assert.Equal(("Answered", "Firm", "anna@test.example"), (opened.GetProperty("status").GetString(), opened.GetProperty("openedBy").GetString(), opened.GetProperty("traderEmail").GetString()));
+        Assert.Equal((JsonValueKind.Null, 1001L), (opened.GetProperty("waitingSince").ValueKind, opened.GetProperty("account").GetProperty("number").GetInt64()));
+        Assert.Equal(("Firm", Admin), (opened.GetProperty("messages")[0].GetProperty("author").GetString(), opened.GetProperty("messages")[0].GetProperty("adminEmail").GetString()));
+        var email = await factory.Emails.WaitForAsync("anna@test.example", "Message from Demo Firm: Your EURUSD trade");
+        Assert.Contains("Demo Firm has written to you in support ticket #1, \"Your EURUSD trade\":", email.Body, StringComparison.Ordinal);
+        Assert.Contains("Did the terminal show a gap before your EURUSD trade closed?\n\n1 file is attached in the ticket.", email.Body, StringComparison.Ordinal);
+        Assert.Contains($"/support/{ticketId}", email.Body, StringComparison.Ordinal);
+        Assert.Equal((1, 1), await TraderSummaryAsync(trader));
+        var mine = Assert.Single((await trader.GetFromJsonAsync<JsonElement>(Url("support/tickets"), TestContext.Current.CancellationToken)).GetProperty("tickets").EnumerateArray());
+        Assert.Equal(("Firm", true, "Firm"), (mine.GetProperty("openedBy").GetString(), mine.GetProperty("unread").GetBoolean(), mine.GetProperty("lastAuthor").GetString()));
+        Assert.Equal(0L, await factory.ScalarAsync("select count(*) from email_outbox where kind = 'firmSupport'"));
+        Assert.Equal([1L], Numbers(await ListAsync(admin, "?group=Answered")));
+
+        // The trader answers, and the ticket waits for the firm, which is emailed.
+        await factory.AdvanceAsync(TimeSpan.FromMinutes(5));
+        var answered = await JsonAsync(await PostFormAsync(trader, $"support/tickets/{ticketId}/messages", new() { ["body"] = "Yes, here is a screenshot." }, ("gap.png", Png)), HttpStatusCode.OK);
+        Assert.Equal(("Open", "Firm"), (answered.GetProperty("status").GetString(), answered.GetProperty("openedBy").GetString()));
+        await factory.Emails.WaitForAsync(Admin, "anna@test.example wrote in support ticket #1");
+
+        // Tickets the firm opens do not count toward the trader's limit of ten.
+        for (var i = 0; i < 10; i++)
+        {
+            await JsonAsync(await PostFormAsync(admin, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = $"Notice {i}", ["body"] = "Hello" }), HttpStatusCode.Created);
+        }
+
+        await JsonAsync(await PostFormAsync(trader, "support/tickets", Hello()), HttpStatusCode.Created);
+    }
+
+    [Fact]
     public async Task TheFirmCanTurnTheSupportEmailsOff()
     {
         await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
@@ -243,9 +302,10 @@ public sealed class SupportTests(PostgresFixture postgres) : IClassFixture<Postg
         var ticketId = (await JsonAsync(await PostFormAsync(trader, "support/tickets", Hello()), HttpStatusCode.Created)).GetProperty("id").GetGuid();
         await factory.AdvanceAsync(TimeSpan.FromMinutes(1));
         await JsonAsync(await PostFormAsync(admin, $"admin/support/tickets/{ticketId}/messages", new() { ["body"] = "Hello to you." }), HttpStatusCode.OK);
+        await JsonAsync(await PostFormAsync(admin, "admin/support/tickets", new() { ["traderEmail"] = "anna@test.example", ["subject"] = "A notice", ["body"] = "Hello" }), HttpStatusCode.Created);
 
         Assert.Equal(0L, await factory.ScalarAsync("select count(*) from email_outbox where kind in ('firmSupport', 'traderSupportAnswers')"));
-        Assert.Equal((1, 1), await TraderSummaryAsync(trader));
+        Assert.Equal((2, 2), await TraderSummaryAsync(trader));
     }
 
     private static Dictionary<string, string> Hello() => new() { ["subject"] = "A question", ["body"] = "Hello" };
@@ -279,9 +339,12 @@ public sealed class SupportTests(PostgresFixture postgres) : IClassFixture<Postg
     }
 
     // The status and the field the problem is about, when a new ticket is refused.
-    private static async Task<(int Status, string? Field)> RefusedAsync(HttpClient trader, Dictionary<string, string> fields, params (string Name, byte[] Content)[] files)
+    private static Task<(int Status, string? Field)> RefusedAsync(HttpClient trader, Dictionary<string, string> fields, params (string Name, byte[] Content)[] files) =>
+        RefusedAtAsync(trader, "support/tickets", fields, files);
+
+    private static async Task<(int Status, string? Field)> RefusedAtAsync(HttpClient client, string path, Dictionary<string, string> fields, params (string Name, byte[] Content)[] files)
     {
-        using var response = await PostFormAsync(trader, "support/tickets", fields, files);
+        using var response = await PostFormAsync(client, path, fields, files);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         return ((int)response.StatusCode, problem.TryGetProperty("field", out var field) ? field.GetString() : null);
     }

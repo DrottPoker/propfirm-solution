@@ -30,6 +30,8 @@ internal static class WebhookEvents
         ("order.paid", "A challenge bought in your portal is paid."),
         ("order.refunded", "The money for an order went back to the buyer."),
         ("order.disputed", "The buyer disputed the payment for an order."),
+        ("trader.identity_verified", "Our built-in KYC approved a trader, with the name, date of birth and country from the document."),
+        ("trader.identity_declined", "Our built-in KYC declined a trader, with the reason."),
         (Test, "A test you sent from the admin panel."),
     ];
 }

@@ -90,6 +90,7 @@ Vi är ett svenskt bolag (`Billing:Seller:Country`), och momsen på en debiterin
 | `Activation` | Firman går live, när vi har godkänt den | Startavgiften minus handpenningen som betalats, och paketet och platserna utöver det för resten av månaden. Från den dag nästa månad debiteras också nästa månad. Betalas på en betalsida, som sparar kortet. |
 | `Renewal` | `ChargeDaysBeforeMonth` (5) dagar innan månaden börjar | Månadens paket och platser: firmans valda antal, eller så många som är tagna om de är fler, och aldrig färre än paketets. Dras från det sparade kortet. |
 | `Slots` | Firman köper fler, eller automatisk utökning | Skillnaden i pris för resten av månaden, och för nästa månad om den redan är betald med färre. Dras från kortet direkt. |
+| `IdentityChecks` | När nästa månad debiteras, för månaden som slutar, om firman gjorde kontroller med vår inbyggda ID-kontroll i den eller hade den påslagen hela månaden | Månadens pris för ID-kontrollen, kontrollerna utöver de 25 som ingår och kontrollerna av adress och sanktionslistor. Dras från det sparade kortet. En obetald pausar inga challenges. Se [specen för ID-kontroll](id-kontroll.md). |
 
 | Status | Betyder |
 |---|---|
@@ -215,6 +216,7 @@ Förslaget till priser ligger i `appsettings.json`.
 | `Billing:CheckoutLifetime` | Hur länge en betalsida är öppen, 30 minuter till 23 timmar som Stripe tillåter. Standard 1 timme. |
 | `Billing:StripeSecretKey`, `StripeWebhookSecret` | Vårt Stripe-kontos nyckel och webhookens signeringshemlighet. Hemligheter. |
 | `Billing:VatPercent` | Vår moms i procent. Standard 25. |
+| `Billing:IdentityChecks:MonthlyPrice`, `Included`, `PerCheck`, `Address`, `Sanctions` | Vår inbyggda ID-kontroll: pris per månad (15), kontroller som ingår (25), pris per kontroll utöver dem (0,80) och för adress och listor per kontroll (0,30). Se [specen för ID-kontroll](id-kontroll.md). |
 | `Billing:Seller:Name`, `Address`, `Country`, `OrganizationNumber`, `VatNumber`, `Email` | Vi som säljare på fakturorna. `Country` (standard `SE`) avgör vilka firmor som betalar vår moms. Utanför utveckling startar tjänsten inte utan namn, adress, organisationsnummer och momsnummer. |
 | `Firms:N:Slots` | En konfigurerad firmas platser utan betalning. Tomt för ingen gräns. |
 

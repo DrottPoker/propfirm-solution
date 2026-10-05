@@ -202,9 +202,10 @@ Se [specen för granskningen](docs/spec/granskning.md).
 En firma som vi har godkänt går live genom att betala startavgiften minus handpenningen och sina platser för resten av månaden. Lokalt är det testbetalningar, så inga pengar dras. Priserna i `appsettings.json` är vårt förslag: 700 USD i startavgift varav 200 USD i handpenning, ett paket med 25 platser för 500 USD i månaden och sedan 5 USD per plats till och med plats 100 och 4 USD därefter.
 
 1. Låt en firma bli godkänd enligt ovan och öppna Go live i dess adminpanel, till exempel http://acme.localhost:3002/admin/go-live, som nu öppnar sista steget.
-2. Välj antal platser, se vad en automatisk utökning kostar och vad som händer när du går live, och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, dess konton från sandlådan avslutas och deras traders får ett mejl, kvittot kommer till Mailpit och dess server syns i terminalens serverlista. Lokalt fortsätter testbetalningarna i butiken efter go-live. Utanför utveckling hindras go-live tills butiken tar riktiga pengar.
-3. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler under Plan and billing, som ersatt Go live i menyn, eller slå på automatisk utökning. Där finns också varje betald debitering som faktura i PDF, och bolagets uppgifter under en egen flik.
-4. Under Change card sparar du ett testkort som nekas, för att se vad som händer när en månad inte går att dra. Månaden dras 5 dagar innan den börjar, och är den obetald när den börjar pausas firmans challenges tills ett kort som fungerar betalar den.
+2. Välj hur traders kontrolleras under KYC, vår inbyggda kontroll eller en egen tjänst. Innan dess går det inte att betala, och sista steget säger det.
+3. Välj antal platser, se vad en automatisk utökning kostar och vad som händer när du går live, och klicka på knappen som betalar och går live. På testsidan nekar Try a card that declines, och Pay betalar. Firman är live, dess konton från sandlådan avslutas och deras traders får ett mejl, kvittot kommer till Mailpit och dess server syns i terminalens serverlista. Lokalt fortsätter testbetalningarna i butiken efter go-live. Utanför utveckling hindras go-live tills butiken tar riktiga pengar.
+4. Starta challenges som vanligt. Varje challenge som inte har tagit slut tar en plats, och en order i portalen som väntar på betalning håller en. När platserna är slut stänger butiken. Köp fler under Plan and billing, som ersatt Go live i menyn, eller slå på automatisk utökning. Där finns också varje betald debitering som faktura i PDF, och bolagets uppgifter under en egen flik.
+5. Under Change card sparar du ett testkort som nekas, för att se vad som händer när en månad inte går att dra. Månaden dras 5 dagar innan den börjar, och är den obetald när den börjar pausas firmans challenges tills ett kort som fungerar betalar den.
 
 Med Stripe betalar firmorna till vårt eget Stripe-konto: sätt `Billing:Provider` till `Stripe`, `Billing:StripeSecretKey` till en testnyckel och `Billing:StripeWebhookSecret` till hemligheten från `stripe listen --forward-to http://localhost:5201/api/payments/v1/billing/stripe`. Se [specen för platser och betalning](docs/spec/platser-och-betalning.md).
 
@@ -241,9 +242,27 @@ Traders skriver till sin firma i portalen, och firman svarar i adminpanelen. Sta
 2. Administratören får ett mejl i Mailpit på http://localhost:8025. Logga in som administratör på http://localhost:3002/admin/login. Vid Support i menyn och i Needs you på översikten står hur många ärenden som väntar.
 3. Öppna ärendet under Support och svara. Send and close svarar och stänger på en gång, och Close without answering stänger utan mejl.
 4. Tradern får svaret per mejl i firmans namn, och ser det som oläst vid Support i portalen tills ärendet öppnas. Tradern skriver tillbaka eller stänger ärendet med Close ticket, och ett nytt meddelande öppnar ett stängt ärende igen.
-5. Under Notifications stänger firman av mejlen om ärenden, till teamet och till traderna, var för sig.
+5. Firman kan också skriva först, med Write to a trader under Support eller Write to the trader på traderns kort på ett kontos sida. Tradern får meddelandet per mejl och ser det som oläst vid Support.
+6. Under Notifications stänger firman av mejlen om ärenden, till teamet och till traderna, var för sig.
 
 Se [specen för supportärenden](docs/spec/support.md) och [ADR 0041](docs/adr/0041-supportarenden-mellan-traders-och-firman.md).
+
+## Prova ID-kontrollen
+
+Firman väljer hur traders kontrolleras under KYC i adminpanelen: vår inbyggda kontroll eller sin egen tjänst. Inget är förvalt. En firma i sandlådan kan skicka sin ansökan och bli godkänd utan att ha valt, men kan inte gå live förrän den valt, och fått sin egen tjänst att fungera hela vägen. Demo Firm är live utan val, så inget väntar på en kontroll där förrän du väljer. Lokalt är alla kontroller testkontroller, utan Didit och utan kostnad.
+
+1. Logga in som administratör på http://localhost:3002/admin/login, öppna KYC och välj Our built-in KYC och Before the first payout. Spara.
+2. Logga in som trader med ett funded-konto, eller öppna Payouts, och klicka på Verify your identity. Testsidan låter dig välja Approve eller Decline.
+3. Godkänd visas tradern som kontrollerad, och traderns kort i adminpanelen har ID-kontrollen med ID checked bockad. Nekad visar orsaken, och tradern kan försöka igen. Mejlen kommer till Mailpit på http://localhost:8025.
+4. Välj Your own KYC service för att skicka traders till en egen adress, och berätta resultatet med `PUT /api/firm/v1/traders/identity` och firmans nyckel, till exempel `dev-prop-key` för Demo Firm. När en trader har klickat på Verify with Demo Firm och du rapporterat Approved eller Declined för den tradern visar KYC att hela flödet fungerar.
+
+För riktiga kontroller behövs ett konto hos Didit. Sätt `Identity:Provider` till `Didit` och lägg nyckeln, webhookens hemlighet och arbetsflödena i user secrets, aldrig i en fil i repot:
+
+```bash
+dotnet user-secrets set "Identity:Didit:ApiKey" "din-nyckel" --project prop/src/Prop.Api
+```
+
+Se [specen för ID-kontroll](docs/spec/id-kontroll.md) och [ADR 0042](docs/adr/0042-id-kontroll-med-en-extern-tjanst.md).
 
 ## Riktiga priser från Tiingo
 

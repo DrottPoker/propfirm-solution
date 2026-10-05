@@ -7,7 +7,7 @@ import type { AdminOverview, Billing, FirmSettings } from "@/lib/api/types";
 import { monthName, monthlyPrices } from "@/lib/billing";
 import { formatDate, formatMoney } from "@/lib/format";
 import { goLiveSteps, type GoLiveStep, type StepStatus } from "@/lib/goLive";
-import { useAdminOverview, useBilling, useChallenges, useFirmSettings, useFirmSupportSummary, usePrices, useWaitingAccounts } from "@/lib/queries";
+import { useAdminOverview, useBilling, useChallenges, useFirmSettings, useFirmSupportSummary, useIdentitySettings, usePrices, useWaitingAccounts } from "@/lib/queries";
 
 import { ActivityList, toneMarks } from "./ActivityList";
 import { AlertIcon, BagIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon, SupportIcon } from "./icons";
@@ -254,16 +254,24 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
   const prices = usePrices();
   const billing = useBilling();
   const overview = useAdminOverview();
-  const error = challenges.error ?? prices.error ?? billing.error ?? overview.error;
+  const identity = useIdentitySettings();
+  const error = challenges.error ?? prices.error ?? billing.error ?? overview.error ?? identity.error;
   if (error) {
     return <Message text={error.message} />;
   }
 
-  if (!challenges.data || !prices.data || !billing.data || !overview.data) {
+  if (!challenges.data || !prices.data || !billing.data || !overview.data || !identity.data) {
     return <Message text="Loading..." />;
   }
 
-  const steps = goLiveSteps({ settings, challenges: challenges.data, prices: prices.data, billing: billing.data, accounts: overview.data.accounts.all });
+  const steps = goLiveSteps({
+    settings,
+    challenges: challenges.data,
+    prices: prices.data,
+    billing: billing.data,
+    accounts: overview.data.accounts.all,
+    identity: identity.data.readiness,
+  });
   const done = steps.filter((s) => s.status === "done").length;
   return (
     <AdminPage>

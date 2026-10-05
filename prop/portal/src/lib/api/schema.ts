@@ -895,6 +895,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/firm/v1/traders/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    email: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderIdentityResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ExternalIdentityRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderIdentityResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/branding": {
         parameters: {
             query?: never;
@@ -2558,6 +2618,115 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MyIdentityResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/identity/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentityStartResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/identity/test/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sessionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TestIdentityRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5264,7 +5433,41 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        traderEmail?: string;
+                    } & {
+                        subject?: string;
+                    } & {
+                        body?: string;
+                    } & {
+                        /** Format: uuid */
+                        accountId?: string;
+                    } & {
+                        files?: components["schemas"]["IFormFileCollection"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5420,6 +5623,64 @@ export interface paths {
             };
         };
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/identity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentitySettingsResponse"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IdentitySettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentitySettingsResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete?: never;
         options?: never;
@@ -6504,7 +6765,8 @@ export interface components {
         };
         /**
          * @description A payout as the admin panel lists it: the payout, its challenge's name, how many payouts the account had paid
-         *     before it was asked for, and how much, and whether the firm has done every check of the trader.
+         *     before it was asked for, and how much, whether the firm has done every check of the trader, and the name on the
+         *     trader's ID when an ID check approved it, to compare with whom the money goes to.
          */
         AdminPayoutResponse: {
             payout: components["schemas"]["PayoutResponse"];
@@ -6515,6 +6777,7 @@ export interface components {
             paidBeforeAmount: number;
             /** @default false */
             traderChecked: boolean;
+            identityName?: null | string;
         };
         /** @description IsYou marks the administrator who asked. */
         AdminResponse: {
@@ -6754,7 +7017,7 @@ export interface components {
             definition: components["schemas"]["ChallengeDefinition"];
         };
         /** @enum {unknown} */
-        ChargeKind: "Activation" | "Renewal" | "Slots" | "Deposit";
+        ChargeKind: "Activation" | "Renewal" | "Slots" | "Deposit" | "IdentityChecks";
         /** @description One line of a charge: what is paid for, how many, and the amount for all of them. */
         ChargeLine: {
             description: string;
@@ -7012,6 +7275,18 @@ export interface components {
         };
         /** @enum {unknown} */
         ExpiryReason: "TimeLimit" | "Inactivity";
+        /** @description What a firm reports about a trader checked by its own service. */
+        ExternalIdentityRequest: {
+            email: null | string;
+            status: null | components["schemas"]["IdentityStatus"];
+            reason: null | string;
+            fullName: null | string;
+            /** Format: date */
+            dateOfBirth: null | string;
+            country: null | string;
+            /** @default false */
+            addressChecked: boolean;
+        };
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
         /** @description What is wrong with a field of the application. */
@@ -7114,6 +7389,76 @@ export interface components {
             /** Format: double */
             level: number;
         };
+        /** @enum {unknown} */
+        IdentityMode: "BuiltIn" | "External" | null;
+        /** @description What the built-in checks cost the firm, from our prices. */
+        IdentityPricesResponse: {
+            currency: string;
+            /** Format: double */
+            monthlyPrice: number;
+            /** Format: int32 */
+            included: number;
+            /** Format: double */
+            perCheck: number;
+            /** Format: double */
+            address: number;
+            /** Format: double */
+            sanctions: number;
+        };
+        /**
+         * @description Who checked a trader's ID.
+         * @enum {unknown}
+         */
+        IdentityProvider: "Didit" | "Test" | "External";
+        /**
+         * @description Whether a firm's KYC is ready for going live: not chosen, its own service not yet tried through the whole flow, or
+         *     ready. Our review does not wait for it.
+         * @enum {unknown}
+         */
+        IdentityReadiness: "NotChosen" | "NotTested" | "Ready";
+        /**
+         * @description What waits until the trader's ID is checked.
+         * @enum {unknown}
+         */
+        IdentityRequirement: "FirstPayout" | "Funding";
+        /** @description A firm's choice of how its traders are checked, as the admin panel saves it. Mode must be chosen. */
+        IdentitySettingsRequest: {
+            mode: null | components["schemas"]["IdentityMode"];
+            requiredBefore: components["schemas"]["IdentityRequirement"];
+            checkAddress: boolean;
+            checkSanctions: boolean;
+            externalUrl: null | string;
+        };
+        /**
+         * @description The firm's choice, our prices for the built-in checks, and the built-in checks its traders sent in since the firm was
+         *     last charged for them. Mode is null until the firm chooses, and Readiness says
+         *     whether the firm can go live, with ExternalTestedAt when its own service first worked
+         *     through the whole flow. In the sandbox the checks are test checks, which cost nothing.
+         */
+        IdentitySettingsResponse: {
+            mode: null | components["schemas"]["IdentityMode"];
+            requiredBefore: components["schemas"]["IdentityRequirement"];
+            checkAddress: boolean;
+            checkSanctions: boolean;
+            externalUrl: null | string;
+            prices: components["schemas"]["IdentityPricesResponse"];
+            /** Format: int32 */
+            checksSinceLastCharge: number;
+            testChecks: boolean;
+            readiness: components["schemas"]["IdentityReadiness"];
+            /** Format: date-time */
+            externalTestedAt: null | string;
+        };
+        /** @description Where the trader does the check: the provider's page, or the firm's own. */
+        IdentityStartResponse: {
+            /** Format: uri */
+            url: string;
+        };
+        /**
+         * @description Where a trader's ID check is.
+         * @enum {unknown}
+         */
+        IdentityStatus: "NotStarted" | "Pending" | "InReview" | "Approved" | "Declined" | "Expired";
         /** Format: binary */
         IFormFile: string;
         IFormFileCollection: components["schemas"]["IFormFile"][];
@@ -7179,6 +7524,22 @@ export interface components {
             currency: string;
             /** Format: double */
             amount: number;
+        };
+        /**
+         * @description The trader's own ID check: how the firm checks, what waits for it, where the check is, and why it was declined.
+         *     Mode is null while the firm has not chosen, and then nothing waits for a check.
+         *     Verified also holds when the firm ticked "ID checked" by hand, as an exception. CanStart
+         *     is whether the trader can start a check now.
+         */
+        MyIdentityResponse: {
+            mode: null | components["schemas"]["IdentityMode"];
+            requiredBefore: components["schemas"]["IdentityRequirement"];
+            status: components["schemas"]["IdentityStatus"];
+            verified: boolean;
+            canStart: boolean;
+            reason: null | string;
+            /** Format: date-time */
+            decidedAt: null | string;
         };
         /** @description The month charged next: when, for how many slots and how much, without VAT and with it. */
         NextChargeResponse: {
@@ -7362,7 +7723,7 @@ export interface components {
         };
         /**
          * @description A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it
-         *     tried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events.
+         *     tried in the sandbox, its ID checks, how it pays us, how it is doing and pays its traders, its suspension and its events.
          */
         OpsFirmResponse: {
             id: string;
@@ -7385,6 +7746,7 @@ export interface components {
             decidedBy: null | string;
             checks: components["schemas"]["ReviewCheckResponse"][];
             sandboxUse: components["schemas"]["OpsSandboxUseResponse"];
+            identity: components["schemas"]["OpsIdentityResponse"];
             billing: components["schemas"]["OpsBillingResponse"];
             figures: components["schemas"]["OpsFirmFiguresResponse"];
             suspension: null | components["schemas"]["SuspensionResponse"];
@@ -7418,6 +7780,17 @@ export interface components {
             approvedNotLive: number;
             /** Format: double */
             averageHoursToDecision: null | number;
+        };
+        /**
+         * @description How the firm checks its traders' IDs, its KYC: not chosen, our built-in checks, or its own service at the address and
+         *     when that first worked through the whole flow. The firm goes live only once it is ready; our approval does not wait.
+         */
+        OpsIdentityResponse: {
+            mode: null | components["schemas"]["IdentityMode"];
+            externalUrl: null | string;
+            /** Format: date-time */
+            externalTestedAt: null | string;
+            readiness: components["schemas"]["IdentityReadiness"];
         };
         /**
          * @description A firm's payouts that traders asked for more than the late age ago and are neither paid nor rejected: how many, how
@@ -8243,7 +8616,8 @@ export interface components {
         /**
          * @description A ticket with every message, oldest first. ClosedBy is who closed it, and
          *     ClosedByAdmin which administrator, which only the admin panel sees. Unread is
-         *     whether the trader has an answer to read, and is always false in the admin panel.
+         *     whether the trader has an answer to read, and is always false in the admin panel. OpenedBy is who
+         *     wrote first.
          */
         SupportTicketResponse: {
             /** Format: uuid */
@@ -8266,6 +8640,7 @@ export interface components {
             closedBy: null | components["schemas"]["SupportAuthor"];
             closedByAdmin: null | string;
             unread: boolean;
+            openedBy: components["schemas"]["SupportAuthor"];
             messages: components["schemas"]["SupportMessageResponse"][];
         };
         /** @description A page of tickets, and Next to ask for the next page with, if there is one. */
@@ -8279,8 +8654,8 @@ export interface components {
          */
         SupportTicketStatus: "Open" | "Answered" | "Closed";
         /**
-         * @description A ticket in a list: its trader and account, when it was last written in, since when it has waited for the firm, how
-         *     many messages it has and the start of the latest, and whether the trader has an answer to read.
+         * @description A ticket in a list: its trader and account, who opened it, when it was last written in, since when it has waited for
+         *     the firm, how many messages it has and the start of the latest, and whether the trader has an answer to read.
          */
         SupportTicketSummaryResponse: {
             /** Format: uuid */
@@ -8302,6 +8677,7 @@ export interface components {
             lastAuthor: components["schemas"]["SupportAuthor"];
             preview: string;
             unread: boolean;
+            openedBy: components["schemas"]["SupportAuthor"];
         };
         /** @description Why we suspend the firm. Its administrators see it. */
         SuspendRequest: {
@@ -8332,6 +8708,10 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             returnPath: string;
+        };
+        /** @description A test check's outcome, chosen on the test page. */
+        TestIdentityRequest: {
+            approve: boolean;
         };
         /** @description Ticks a check of a trader, or takes the tick away. */
         TraderCheckRequest: {
@@ -8388,6 +8768,23 @@ export interface components {
             result: number;
             closeReason: string;
         };
+        /**
+         * @description A trader's ID check as the firm sees it: where it is, who checked, what the document said, why it was declined, and
+         *     when it was decided.
+         */
+        TraderIdentityResponse: {
+            status: components["schemas"]["IdentityStatus"];
+            provider: components["schemas"]["IdentityProvider"];
+            fullName: null | string;
+            /** Format: date */
+            dateOfBirth: null | string;
+            country: null | string;
+            addressChecked: boolean;
+            sanctionsChecked: boolean;
+            reason: null | string;
+            /** Format: date-time */
+            decidedAt: null | string;
+        };
         /** @description The trader's payouts from every account, newest first, with totals per currency. */
         TraderPayoutsResponse: {
             payouts: components["schemas"]["PayoutResponse"][];
@@ -8397,7 +8794,8 @@ export interface components {
          * @description An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have
          *     chosen a password for the portal, their
          *     accounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,
-         *     Order, the order that started the account asked about, and the firm's Checks of them.
+         *     Order, the order that started the account asked about, the firm's Checks of them,
+         *     and their Identity check (ADR 0042).
          */
         TraderSummaryResponse: {
             email: string;
@@ -8413,6 +8811,7 @@ export interface components {
             paidOut: components["schemas"]["MoneyTotalResponse"][];
             order: null | components["schemas"]["OrderSummaryResponse"];
             checks: components["schemas"]["TraderCheckResponse"][];
+            identity?: null | components["schemas"]["TraderIdentityResponse"];
         };
         /** @description The trader's tickets that are not closed, and those with an answer the trader has not read. */
         TraderSupportSummaryResponse: {
@@ -8525,6 +8924,7 @@ export interface components {
          *     it was not approved. SubmitProblem says why the application cannot be sent now, and
          *     Problems what is missing or wrong in each field of the saved application, while it can be changed.
          *     EuCountries are where the application gives a VAT number or says the company has none.
+         *     Identity is whether the firm's KYC is ready, which going live waits for once we have approved the firm.
          */
         VerificationResponse: {
             status: components["schemas"]["ReviewStatus"];
@@ -8544,6 +8944,7 @@ export interface components {
             maxDocumentBytes: number;
             euCountries: string[];
             problems: components["schemas"]["FieldProblem"][];
+            identity: components["schemas"]["IdentityReadiness"];
         };
         VerifySignupRequest: {
             token: null | string;

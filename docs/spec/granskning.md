@@ -15,7 +15,8 @@ sandlådan -> /admin/go-live, steg 1: bolagets uppgifter, ägare, länkar och fr
 -> steg 2: handpenning på en betalsida (Stripe Checkout eller testsidan), med moms, sparar kortet
 -> handpenningen betald -> ansökan skickad, firman mejlas kvittot och att vi har fått den, vår personal mejlas
 -> steg 3, vår adminvy /ops: granska
-   godkänn -> firman mejlas -> steg 4: betala startavgiften minus handpenningen och platserna -> live
+   godkänn -> firman mejlas -> KYC under /admin/identity, vår inbyggda eller firmans egen när den fungerat hela vägen (ADR 0042)
+      -> steg 4: betala startavgiften minus handpenningen och platserna -> live
    be om ändringar -> firman mejlas -> ändra och skicka igen, utan ny handpenning
    neka -> firman mejlas -> kan inte gå live, handpenningen betalas inte tillbaka
 live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stänger -> slå på igen
@@ -40,6 +41,7 @@ live -> vår adminvy: stäng av med en orsak -> challenges pausas, butiken stän
 | `description` | Frivillig. Vilka firman är och hur den säljer challenges och betalar ut. Högst 2 000 tecken. |
 
 - Ett bolag i EU, Sverige också, anger sitt momsnummer eller kryssar i att det inte har något. Vi är ett svenskt bolag, så ett bolag i ett annat EU-land slipper svensk moms bara med ett giltigt momsnummer. Inget land kräver att alla bolag är momsregistrerade, till exempel inte de under omsättningsgränsen, så numret kan inte krävas. Ett bolag i EU utan momsnummer betalar svensk moms. Tjänsten kontrollerar bara formen: landets prefix (`EL` för Grekland) och 2-12 siffror eller bokstäver efter det. Vi kontrollerar numret i EU:s momsregister (VIES) när vi granskar.
+- Ansökan och vårt godkännande väntar inte på firmans KYC, men firman går live först när den är klar: vald, och för firmans egen tjänst prövad hela vägen. Se [specen för ID-kontroll](id-kontroll.md).
 - Ett utkast sparas med bara de fält som är ifyllda. Fälten kontrolleras när de sparas, och att allt som krävs finns när ansökan skickas.
 - `GET /verification` har `problems`, vad som saknas eller är fel i varje fält av den sparade ansökan, i formulärets ordning. Adminpanelen markerar alla de fälten och listar dem vid knapparna. Ett fält som ändrats sedan det sparades markeras inte, eftersom det som sades gäller det sparade.
 - Dokument är frivilliga, till exempel registreringsbevis. Högst 10 filer per firma, högst 10 MB var, i formaten PDF, PNG och JPEG. Formatet kontrolleras på filens innehåll, inte på namnet. Filerna sparas krypterade.
@@ -93,7 +95,7 @@ Vägarna börjar med `/api/portal/admin` och kräver en administratör.
 
 | Metod och väg | Beskrivning |
 |---|---|
-| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp utan moms, valuta och om den är betald), om ansökan kan ändras, varför den inte kan skickas, vad som saknas i varje fält (`problems`, tomt när den inte kan ändras) och EU-länderna, där firman anger momsnummer eller att den saknar ett (`euCountries`). |
+| `GET /verification` | Granskningens status, ansökan, dokumenten, vårt senaste meddelande, när den skickades och avgjordes, handpenningen (belopp utan moms, valuta och om den är betald), om ansökan kan ändras, varför den inte kan skickas, vad som saknas i varje fält (`problems`, tomt när den inte kan ändras), firmans KYC (`identity`: `NotChosen`, `NotTested` eller `Ready`, som att gå live väntar på) och EU-länderna, där firman anger momsnummer eller att den saknar ett (`euCountries`). |
 | `PUT /verification/application` | Sparar ansökan som utkast. 422 med fältet för ett fel, 409 när den inte kan ändras. Svarar med `GET /verification`. |
 | `POST /verification/documents` | Laddar upp ett dokument som `multipart/form-data` med fältet `file`. 201 med dokumentet. 409 när ansökan inte kan ändras eller firman har 10 dokument, 413 för en för stor fil, 415 för ett annat format. |
 | `GET /verification/documents/{id}` | Hämtar dokumentet. |
@@ -146,7 +148,7 @@ Ett mejl som inte går iväg loggas, och adminpanelen visar samma sak.
 
 | Sida | Adress | Innehåll |
 |---|---|---|
-| `/admin/go-live` | Firmans | I sandlådan, i menyn som Go live. Fyra steg som var och ett visar var det är: bolagets uppgifter (alla fält som saknas markerade och listade, dokumenten på en släppyta som loggans, vår begäran om ändringar överst), handpenningen (varför, beloppet med moms, fakturan och knappen som betalar och skickar, eller skickar ändringarna igen), vårt svar, och platser och betalning, med avdraget för handpenningen i priset. `?step=` väljer steg, annars öppnas det som väntar på firman eller oss. |
+| `/admin/go-live` | Firmans | I sandlådan, i menyn som Go live. Fyra steg som var och ett visar var det är: bolagets uppgifter (alla fält som saknas markerade och listade, dokumenten på en släppyta som loggans, vår begäran om ändringar överst), handpenningen (varför, beloppet med moms, fakturan och knappen som betalar och skickar, eller skickar ändringarna igen), vårt svar, och platser och betalning, med avdraget för handpenningen i priset och KYC bland det att kontrollera innan betalningen. `?step=` väljer steg, annars öppnas det som väntar på firman eller oss. |
 | `/admin/billing?tab=company` | Firmans | Live: bolagets uppgifter som de godkändes, och dokumenten. |
 | `/admin/verification` | Firmans | Skickar vidare till `/admin/go-live` i sandlådan och till bolagets uppgifter när firman är live, för länkar från tidigare. |
 | `/ops/login` | Vår adminvy | Inloggning för personalen, med "Forgot password?". |
@@ -192,7 +194,7 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 
 ## Tester
 
-- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras med alla fält som saknas, kvittot och mejlet om att vi har fått ansökan, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att handpenningen dras av från startavgiften, att villkoren är en adress för butiken och ansökan, och att adminvyn bara finns på sin adress och kräver personal.
+- `prop/tests/Prop.Api.Tests/ReviewTests`: ansökan som sparas och kontrolleras med alla fält som saknas, kvittot och mejlet om att vi har fått ansökan, momsnumret eller svaret att bolaget saknar ett, som bara behövs i EU, och momsnumret som sparas utan mellanslag, dokument med fel format och för stora filer, handpenningen på en betalsida, en ansökan som skickas utan handpenning, personalen som mejlas, godkännande, begäran om ändringar som skickas igen utan ny handpenning, nekad firma, att en firma bara går live när den är godkänd, att ansökan och godkännandet inte väntar på firmans KYC men betalningen för att gå live gör det, att handpenningen dras av från startavgiften, att villkoren är en adress för butiken och ansökan, och att adminvyn bara finns på sin adress och kräver personal.
 - `prop/tests/Prop.Api.Tests/SuspensionTests`: en avstängd firma kan inte starta challenges, dess challenges pausas och återupptas, butiken stänger, och en obetald månad håller challengerna pausade när firman slås på igen.
 - `prop/tests/Prop.Api.Tests/OpsPanelTests`: översikten med det som väntar på oss och hur långt firmorna kommit, sökningen och grupperna bland firmorna, kontrollerna som sparas med beslutet, en firmas utbetalningar utan traderns e-post, vad firmorna betalar och har nekats, och att bara personalen når vyerna.
 - `prop/portal/src/lib/ops.test.ts`: det som väntar på oss i ord, firmans senaste steg och challenges, händelserna, sena utbetalningar och mejl till administratörerna.
@@ -200,4 +202,4 @@ Varje sida i firmans adminpanel visar en rad när firman är avstängd, med orsa
 - `prop/tests/Prop.Api.Tests/VatNumbersTests`: att ett bolag i EU anger momsnummer eller att det saknar ett, hur numret skrivs och vilka former som tas emot och nekas.
 - `prop/portal/src/lib/verification.test.ts`: ansökans fält, ägarna och fälten som markeras, men inte ett som ändrats sedan.
 - `prop/portal/src/lib/goLivePage.test.ts`: de fyra stegen till live och vilket sidan öppnar på.
-- `prop/portal/e2e/verification.spec.ts`: en ny firma ser alla fält som saknas, fyller i ansökan, släpper in ett dokument, ser handpenningen med moms och betalar den, hittas bland firmorna att granska, får en kontroll bockad och en begäran om ändringar, godkänns i vår adminvy, går live, syns bland firmorna som betalar och stängs av och slås på igen.
+- `prop/portal/e2e/verification.spec.ts`: en ny firma ser alla fält som saknas, fyller i ansökan, släpper in ett dokument, ser handpenningen med moms och betalar den, hittas bland firmorna att granska, får en kontroll bockad och en begäran om ändringar, godkänns i vår adminvy, kan inte betala för att gå live förrän den valt KYC, väljer den inbyggda, går live, syns bland firmorna som betalar och stängs av och slås på igen.

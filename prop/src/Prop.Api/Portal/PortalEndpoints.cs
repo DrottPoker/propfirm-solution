@@ -15,6 +15,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
+using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Api.Review;
 using Prop.Api.Support;
@@ -63,6 +64,7 @@ internal static class PortalEndpoints
         portal.MapGet("/payout-method", GetMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapPut("/payout-method", SaveMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapTraderSupport();
+        portal.MapTraderIdentity();
 
         portal.MapPost(
                 "/admin/login",
@@ -93,6 +95,7 @@ internal static class PortalEndpoints
         admin.MapAdminBilling();
         admin.MapAdminVerification();
         admin.MapAdminSupport();
+        admin.MapAdminIdentity();
         return app;
     }
 
@@ -312,7 +315,7 @@ internal static class PortalEndpoints
 
     /// <summary>
     /// The trader asks for a payout of the funded account's profit. 409 with the reason when one cannot be had now, for
-    /// example before the trader has said how to be paid.
+    /// example before the trader has said how to be paid, or verified their identity when the firm wants that first.
     /// </summary>
     private static async Task<Results<Created<PayoutResponse>, ProblemHttpResult>> RequestPayoutAsync(
         Guid accountId,
@@ -323,6 +326,7 @@ internal static class PortalEndpoints
         PayoutQueries payouts,
         PayoutMethods methods,
         PortalUsers users,
+        IdentityService identity,
         TimeProvider time,
         CancellationToken cancellationToken)
     {
@@ -335,6 +339,11 @@ internal static class PortalEndpoints
         if (await methods.GetAsync(traderId, cancellationToken) is null)
         {
             return AccountActions.Problem(StatusCodes.Status409Conflict, "Add how you want to be paid under Payouts first.");
+        }
+
+        if (await identity.ProblemAsync(PortalFirmFilter.FirmOf(context), traderId, IdentityRequirement.FirstPayout, cancellationToken) is { } unverified)
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, unverified);
         }
 
         return await PayoutActions.RequestAsync(
@@ -436,9 +445,10 @@ internal static class PortalEndpoints
         HttpContext context,
         ChallengeService challenges,
         ChallengeQueries queries,
+        IdentityService identity,
         TimeProvider time,
         CancellationToken cancellationToken) =>
-        AccountActions.ApplyAsync(PortalFirmFilter.FirmOf(context), accountId, new ApproveFunding(time.GetUtcNow()), challenges, queries, cancellationToken);
+        AccountActions.ApproveFundingAsync(PortalFirmFilter.FirmOf(context), accountId, challenges, queries, identity, time, cancellationToken);
 
     private static Task<Results<Ok<AccountResponse>, ProblemHttpResult>> CancelAsync(
         Guid accountId,

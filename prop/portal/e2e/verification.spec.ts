@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { opsUrl, platformUrl } from "../playwright.config";
 
-import { approveAsStaff, fillApplication, openAsStaff, payDeposit, signUp, waitForSandbox } from "./support";
+import { approveAsStaff, chooseBuiltInKyc, fillApplication, openAsStaff, payDeposit, signUp, waitForSandbox } from "./support";
 
 const pdf = Buffer.from("%PDF-1.7\nA certificate of registration\n%%EOF");
 
@@ -65,6 +65,12 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   // Our staff approve it.
   await review.reload();
   await approveAsStaff(review);
+
+  // Approved without KYC, the firm cannot go live until it has chosen how its traders are checked.
+  await page.goto(new URL("/admin/go-live", page.url()).href);
+  await expect(page.getByText("Choose how your traders are checked. You need it before you go live.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /and go live$/ })).toBeDisabled();
+  await chooseBuiltInKyc(page);
 
   // The firm comes back and goes live, with the deposit taken off the startup fee.
   await page.goto(new URL("/admin/go-live", page.url()).href);

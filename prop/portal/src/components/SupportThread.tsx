@@ -2,18 +2,18 @@
 
 import { useId, useRef, useState } from "react";
 
-import type { SupportTicket, SupportTicketStatus } from "@/lib/api/types";
+import type { SupportTicket } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { useWriteInTicket } from "@/lib/queries";
-import { acceptedFiles, attachmentUrl, authorName, charactersLeft, filesProblem, isImage, supportLimits, ticketStatus, type SupportViewer } from "@/lib/support";
+import { acceptedFiles, attachmentUrl, authorName, charactersLeft, filesProblem, isImage, supportLimits, ticketStatus, type SupportViewer, type TicketState } from "@/lib/support";
 import { fileSize } from "@/lib/verification";
 
 import { CloseIcon, FileIcon, PaperclipIcon } from "./icons";
 import { Badge, buttonClass, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
 
 /** Where a ticket is, as a badge, worded for whoever looks at it. */
-export function TicketStatusBadge({ status, viewer, firmName }: { status: SupportTicketStatus; viewer: SupportViewer; firmName: string }) {
-  const { label, tone } = ticketStatus(status, viewer, firmName);
+export function TicketStatusBadge({ ticket, viewer, firmName }: { ticket: TicketState; viewer: SupportViewer; firmName: string }) {
+  const { label, tone } = ticketStatus(ticket, viewer, firmName);
   return <Badge tone={tone}>{label}</Badge>;
 }
 
@@ -184,7 +184,7 @@ export function MessageForm({ ticket, viewer }: { ticket: SupportTicket; viewer:
 
   return (
     <form
-      aria-label={viewer === "admin" ? "Answer" : "Write back"}
+      aria-label={viewer === "admin" ? "Answer the trader" : "Write in the ticket"}
       onSubmit={(event) => {
         event.preventDefault();
         send(false);

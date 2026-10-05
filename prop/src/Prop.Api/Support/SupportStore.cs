@@ -12,7 +12,7 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
     private const string TicketColumns =
         """
         t.id, t.firm_id, t.number, t.trader_id, tr.email, tr.name, t.account_id, a.number, a.state -> 'definition' ->> 'name',
-        t.subject, t.status, t.created_at, t.updated_at, t.waiting_since, t.answered_at, t.trader_read_at, t.closed_at, t.closed_by, t.messages
+        t.subject, t.status, t.created_at, t.updated_at, t.waiting_since, t.answered_at, t.trader_read_at, t.closed_at, t.closed_by, t.messages, t.opened_by
         """;
 
     private const string TicketJoins =
@@ -83,7 +83,7 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
         var items = new List<SupportTicketItem>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            items.Add(new SupportTicketItem(ReadTicket(reader), Enum.Parse<SupportAuthor>(reader.GetString(19)), reader.GetString(20)));
+            items.Add(new SupportTicketItem(ReadTicket(reader), Enum.Parse<SupportAuthor>(reader.GetString(20)), reader.GetString(21)));
         }
 
         return items;
@@ -202,10 +202,13 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
     public static Task<int> LockTraderAsync(NpgsqlConnection connection, Guid traderId, CancellationToken cancellationToken) =>
         ExecuteAsync(connection, "select 1 from traders where id = $1 for update", [traderId], cancellationToken);
 
-    /// <summary>The trader's tickets that are not closed.</summary>
+    /// <summary>The tickets the trader opened that are not closed. Those the firm opened do not count.</summary>
     public static async Task<int> CountActiveAsync(NpgsqlConnection connection, string firmId, Guid traderId, CancellationToken cancellationToken)
     {
-        await using var command = Command(connection, "select count(*) from support_tickets where firm_id = $1 and trader_id = $2 and status <> 'Closed'", [firmId, traderId]);
+        await using var command = Command(
+            connection,
+            "select count(*) from support_tickets where firm_id = $1 and trader_id = $2 and status <> 'Closed' and opened_by = 'Trader'",
+            [firmId, traderId]);
         return (int)(long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
@@ -223,7 +226,10 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
         return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
-    /// <summary>A new ticket from the trader, waiting for the firm, without messages yet.</summary>
+    /// <summary>
+    /// A new ticket without messages yet. One the trader opened waits for the firm and is read by the trader; one the firm
+    /// opened waits for the trader, who has not read it.
+    /// </summary>
     public static Task<int> InsertTicketAsync(
         NpgsqlConnection connection,
         Guid ticketId,
@@ -232,16 +238,31 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
         Guid traderId,
         Guid? accountId,
         string subject,
+        SupportAuthor openedBy,
         DateTimeOffset now,
-        CancellationToken cancellationToken) =>
-        ExecuteAsync(
+        CancellationToken cancellationToken)
+    {
+        var byTrader = openedBy == SupportAuthor.Trader;
+        return ExecuteAsync(
             connection,
             """
-            insert into support_tickets (id, firm_id, number, trader_id, account_id, subject, status, created_at, updated_at, waiting_since, trader_read_at)
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $8, $8)
+            insert into support_tickets (id, firm_id, number, trader_id, account_id, subject, status, opened_by, created_at, updated_at, waiting_since, trader_read_at)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9, $10, $10)
             """,
-            [ticketId, firmId, number, traderId, Nullable(accountId, NpgsqlDbType.Uuid), subject, SupportTicketStatus.Open.ToString(), now],
+            [
+                ticketId,
+                firmId,
+                number,
+                traderId,
+                Nullable(accountId, NpgsqlDbType.Uuid),
+                subject,
+                (byTrader ? SupportTicketStatus.Open : SupportTicketStatus.Answered).ToString(),
+                openedBy.ToString(),
+                now,
+                Nullable(byTrader ? now : null, NpgsqlDbType.TimestampTz),
+            ],
             cancellationToken);
+    }
 
     /// <summary>Adds the message as the ticket's next, with its files encrypted by <paramref name="protect"/>. Returns the message's id.</summary>
     public static async Task<Guid> AddMessageAsync(
@@ -354,7 +375,8 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
             NullableTime(reader, 15),
             NullableTime(reader, 16),
             reader.IsDBNull(17) ? null : reader.GetString(17),
-            reader.GetInt32(18));
+            reader.GetInt32(18),
+            Enum.Parse<SupportAuthor>(reader.GetString(19)));
 
     // The search in capitals, as emails are kept, and as a ticket number, with or without #.
     private static object[] SearchValues(string? search)

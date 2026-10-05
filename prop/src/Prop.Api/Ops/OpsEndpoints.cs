@@ -197,6 +197,7 @@ internal sealed class OpsFirms(
     FirmCatalog firms,
     ReviewService reviews,
     ReviewStore store,
+    Identity.IdentityStore identities,
     BillingService billing,
     BillingStore billingStore,
     SlotService slots,
@@ -251,6 +252,7 @@ internal sealed class OpsFirms(
             review.DecidedBy,
             ReviewCheckResponse.From(checks),
             await SandboxUseAsync(firm.Id, cancellationToken),
+            OpsIdentityResponse.From(await identities.GetSettingsAsync(firm.Id, cancellationToken)),
             new OpsBillingResponse(
                 view.Plan,
                 view.Slots,

@@ -47,13 +47,16 @@ internal static class NotificationKinds
     /// <summary>To the administrators: a trader opened a support ticket, or wrote in one that did not wait for the firm (ADR 0041).</summary>
     public const string FirmSupport = "firmSupport";
 
-    /// <summary>To the trader: the firm answered a support ticket.</summary>
+    /// <summary>To the trader: the firm answered a support ticket, or opened one with the trader.</summary>
     public const string TraderSupportAnswers = "traderSupportAnswers";
+
+    /// <summary>To the trader: our built-in ID check was approved or declined (ADR 0042).</summary>
+    public const string TraderIdentity = "traderIdentity";
 
     public static readonly IReadOnlyList<string> All =
     [
         FirmSale, FirmFundingAwaited, FirmPayoutRequested, FirmSupport, TraderStagePassed, TraderPassed, TraderFunded, TraderEnded, TraderPayouts, TraderInactivity,
-        TraderSupportAnswers,
+        TraderSupportAnswers, TraderIdentity,
     ];
 
     /// <summary>Whether the firm sends the kind. Kinds the firm never set are on.</summary>
@@ -171,20 +174,39 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
         CancellationToken cancellationToken) =>
         ToAdminsAsync(connection, firm, NotificationKinds.FirmSupport, to => SupportTicketEmail(firm, ticket, message, files, opened, to), now, cancellationToken);
 
-    /// <summary>The firm answered the ticket, and closed it with <paramref name="closed"/>: the trader gets the answer.</summary>
-    public static Task QueueSupportAnswerAsync(
+    /// <summary>
+    /// The firm wrote to the trader: it <paramref name="opened"/> the ticket, or answered it and with <paramref name="closed"/>
+    /// closed it. The trader gets the message.
+    /// </summary>
+    public static Task QueueSupportToTraderAsync(
         NpgsqlConnection connection,
         Firm firm,
         SupportTicket ticket,
-        string answer,
+        string text,
         int files,
+        bool opened,
         bool closed,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var message = TraderEmails.SupportAnswer(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, answer, files, closed, new Uri(firm.Portal.Url, $"support/{ticket.Id}"));
+        var link = new Uri(firm.Portal.Url, $"support/{ticket.Id}");
+        var message = opened
+            ? TraderEmails.SupportOpened(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, link)
+            : TraderEmails.SupportAnswer(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, closed, link);
         return NotificationKinds.IsOn(firm, NotificationKinds.TraderSupportAnswers)
             ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderSupportAnswers, firm.Id, now, cancellationToken)
+            : Task.CompletedTask;
+    }
+
+    /// <summary>Our built-in ID check of the trader was approved or declined: the trader is told, with why it was declined.</summary>
+    public static Task QueueIdentityAsync(NpgsqlConnection connection, Firm firm, string to, Identity.TraderIdentity identity, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var page = new Uri(firm.Portal.Url, "identity");
+        var message = identity.Status == Identity.IdentityStatus.Approved
+            ? TraderEmails.IdentityVerified(firm, to, page)
+            : TraderEmails.IdentityDeclined(firm, to, identity.Reason ?? "The check did not pass.", page);
+        return NotificationKinds.IsOn(firm, NotificationKinds.TraderIdentity)
+            ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderIdentity, firm.Id, now, cancellationToken)
             : Task.CompletedTask;
     }
 

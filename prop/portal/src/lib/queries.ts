@@ -12,6 +12,7 @@ import type {
   PaymentProvider,
   PayoutMethod,
   PayoutStatus,
+  IdentitySettings,
   SupportTicket,
   SupportTicketGroup,
   TraderSummary,
@@ -1431,4 +1432,84 @@ async function sendSupportForm(path: string, fields: Record<string, string | und
   }
 
   return answer as SupportTicket;
+}
+
+/** An administrator writes to one of the firm's traders first. The answer is the new ticket, which waits for the trader. */
+export function useOpenTicketWithTrader() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ticket: { traderEmail: string; subject: string; body: string; accountId: string | null; files: File[] }) =>
+      sendSupportForm(
+        "/api/portal/admin/support/tickets",
+        { traderEmail: ticket.traderEmail, subject: ticket.subject, body: ticket.body, accountId: ticket.accountId ?? undefined },
+        ticket.files,
+        "the ticket",
+      ),
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(ticketKey("admin", ticket.id), ticket);
+      return refreshTickets(queryClient, "admin");
+    },
+  });
+}
+
+// ID checks (ADR 0042).
+
+/** The trader's own ID check. Asked again while it waits for the provider, so the outcome shows by itself. */
+export function useMyIdentity(enabled = true) {
+  return useQuery({
+    queryKey: ["identity", "mine"],
+    enabled,
+    queryFn: async () => resultOf(await api.GET("/api/portal/identity"), "your ID check"),
+    refetchInterval: (query) => (query.state.data?.status === "Pending" || query.state.data?.status === "InReview" ? 10_000 : false),
+  });
+}
+
+/** Starts the trader's check, or opens the one started a moment ago. The answer is the page where the trader does it. */
+export function useStartIdentity() {
+  return useMutation({
+    mutationFn: async () => resultOf(await api.POST("/api/portal/identity/start"), "the ID check").url,
+  });
+}
+
+/** The test page's outcome for the trader's own test check. */
+export function useDecideTestIdentity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (decision: { sessionId: string; approve: boolean }) =>
+      ensureOk(
+        await api.POST("/api/portal/identity/test/{sessionId}", { params: { path: { sessionId: decision.sessionId } }, body: { approve: decision.approve } }),
+        "the test check",
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["identity"] }),
+  });
+}
+
+/** How the firm checks its traders, our prices for the built-in checks and the checks since the firm was last charged. */
+/** The firm's KYC. While its own service waits for the whole flow to work, they are asked for again now and then. */
+export function useIdentitySettings() {
+  return useQuery({
+    queryKey: ["identity-settings"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/identity"), "your KYC"),
+    refetchInterval: (query) => (query.state.data?.readiness === "NotTested" ? 10_000 : false),
+  });
+}
+
+export function useSaveIdentitySettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: { mode: IdentitySettings["mode"]; requiredBefore: IdentitySettings["requiredBefore"]; checkAddress: boolean; checkSanctions: boolean; externalUrl: string | null }) => {
+      const result = await api.PUT("/api/portal/admin/identity", { body: settings });
+      if (result.data) {
+        return result.data;
+      }
+
+      throw fieldErrorOf(result.error, result.response.status, "your KYC");
+    },
+    onSuccess: (settings) => {
+      queryClient.setQueryData(["identity-settings"], settings);
+      // The application and going live wait for the KYC.
+      void queryClient.invalidateQueries({ queryKey: ["verification"] });
+      void queryClient.invalidateQueries({ queryKey: ["billing"] });
+    },
+  });
 }

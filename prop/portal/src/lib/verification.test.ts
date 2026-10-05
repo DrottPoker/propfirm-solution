@@ -37,6 +37,7 @@ const verification: Verification = {
   maxDocumentBytes: 10 * 1024 * 1024,
   euCountries: ["DE", "SE"],
   problems: [],
+  identity: "Ready",
 };
 
 describe("the application form", () => {

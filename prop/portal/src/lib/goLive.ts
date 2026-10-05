@@ -1,4 +1,4 @@
-import type { Billing, ChallengeDefinition, ChallengePrice, FirmSettings } from "./api/types";
+import type { Billing, ChallengeDefinition, ChallengePrice, FirmSettings, IdentityReadiness } from "./api/types";
 import { formatMoney } from "./format";
 
 /** Where a step to live is: done, the next to do, still to do, waiting for us, or not possible yet. */
@@ -23,8 +23,9 @@ export function goLiveSteps(input: {
   prices: ChallengePrice[];
   billing: Billing;
   accounts: number;
+  identity: IdentityReadiness;
 }): GoLiveStep[] {
-  const { settings, challenges, prices, billing, accounts } = input;
+  const { settings, challenges, prices, billing, accounts, identity } = input;
   const forSale = prices.filter((p) => p.forSale).length;
   const provider = settings.payments.provider;
   const review = billing.review;
@@ -91,25 +92,27 @@ export function goLiveSteps(input: {
       action: { label: "Open your shop", href: "/buy", external: true },
     },
     reviewStep(review, deposit > 0 && billing.depositPaid === 0 ? `${formatMoney(deposit)} ${billing.prices.currency}` : null),
-    liveStep(settings, review, billing.shopProblem),
+    identityStep(identity),
+    liveStep(settings, review, billing.shopProblem, identity),
   ];
 
   const next = steps.findIndex((s) => s.status === "todo");
   return steps.map((s, i) => (i === next ? { ...s, status: "current" } : s));
 }
 
-/** Going live, once we have approved the firm and its shop takes real payments. */
-function liveStep(settings: FirmSettings, review: Billing["review"], shopProblem: string | null): GoLiveStep {
+/** Going live, once we have approved the firm, its KYC is set up and its shop takes real payments. */
+function liveStep(settings: FirmSettings, review: Billing["review"], shopProblem: string | null, identity: IdentityReadiness): GoLiveStep {
   const step = { key: "live", title: "Go live" };
   if (settings.status === "Live") {
     return { ...step, status: "done", detail: "Your firm is live.", action: null };
   }
 
-  if (review !== "Approved") {
+  const waits = [review !== "Approved" && "we have approved your firm", identity !== "Ready" && "you have set up KYC", shopProblem !== null && "your shop takes real payments"];
+  if (review !== "Approved" || identity !== "Ready") {
     return {
       ...step,
       status: "locked",
-      detail: `After we have approved your firm${shopProblem ? ", and your shop takes real payments" : ""}: choose your slots, and pay the startup fee less the deposit, and your first month.`,
+      detail: `After ${names(waits.filter((w): w is string => w !== false))}: choose your slots, and pay the startup fee less the deposit, and your first month.`,
       action: null,
     };
   }
@@ -117,6 +120,19 @@ function liveStep(settings: FirmSettings, review: Billing["review"], shopProblem
   return shopProblem
     ? { ...step, status: "todo", detail: shopProblem, action: { label: "Set up checkout", href: "/admin/checkout" } }
     : { ...step, status: "todo", detail: "Choose your slots, and pay the startup fee less the deposit, and your first month.", action: { label: "Go live", href: "/admin/go-live?step=payment" } };
+}
+
+/** The firm's KYC: our built-in check, or the firm's own service once it has worked through the whole flow. */
+function identityStep(readiness: IdentityReadiness): GoLiveStep {
+  const step = { key: "identity", title: "Set up KYC", action: { label: "KYC", href: "/admin/identity" } };
+  switch (readiness) {
+    case "Ready":
+      return { ...step, status: "done", detail: "Your traders' IDs are checked before they are paid or funded, as you chose." };
+    case "NotTested":
+      return { ...step, status: "todo", detail: "Your own KYC service must work through the whole flow once before you go live." };
+    default:
+      return { ...step, status: "todo", detail: "Our built-in KYC, or your own KYC service. You need it before you go live, not for our review." };
+  }
 }
 
 function reviewStep(review: Billing["review"], deposit: string | null): GoLiveStep {

@@ -40,7 +40,7 @@ internal static class SupportRules
 
     public const int MaxAttachmentBytes = 5 * 1024 * 1024;
 
-    /// <summary>Open and answered tickets a trader can have at once, so one trader cannot flood the firm.</summary>
+    /// <summary>Open and answered tickets a trader can have opened at once, so one trader cannot flood the firm. Those the firm opened do not count.</summary>
     public const int MaxOpenTicketsPerTrader = 10;
 
     public const int MaxTicketsPerPage = 100;
@@ -56,6 +56,7 @@ internal static class SupportRules
 /// A ticket with its trader and the account it is about. <paramref name="WaitingSince"/> is set while it waits for the
 /// firm, and the trader has an unread answer while <paramref name="AnsweredAt"/> is after <paramref name="TraderReadAt"/>.
 /// <paramref name="ClosedBy"/> is <see cref="SupportRules.ClosedByTrader"/> or an administrator's email.
+/// <paramref name="OpenedBy"/> is the trader, or the firm when it wrote to the trader first.
 /// </summary>
 internal sealed record SupportTicket(
     Guid Id,
@@ -74,7 +75,8 @@ internal sealed record SupportTicket(
     DateTimeOffset? TraderReadAt,
     DateTimeOffset? ClosedAt,
     string? ClosedBy,
-    int Messages)
+    int Messages,
+    SupportAuthor OpenedBy)
 {
     public bool UnreadByTrader => AnsweredAt is { } answered && (TraderReadAt is not { } read || answered > read);
 }
@@ -160,8 +162,8 @@ public sealed record SupportMessageResponse(Guid Id, SupportAuthor Author, strin
 }
 
 /// <summary>
-/// A ticket in a list: its trader and account, when it was last written in, since when it has waited for the firm, how
-/// many messages it has and the start of the latest, and whether the trader has an answer to read.
+/// A ticket in a list: its trader and account, who opened it, when it was last written in, since when it has waited for
+/// the firm, how many messages it has and the start of the latest, and whether the trader has an answer to read.
 /// </summary>
 public sealed record SupportTicketSummaryResponse(
     Guid Id,
@@ -176,7 +178,8 @@ public sealed record SupportTicketSummaryResponse(
     int Messages,
     SupportAuthor LastAuthor,
     string Preview,
-    bool Unread)
+    bool Unread,
+    SupportAuthor OpenedBy)
 {
     internal static SupportTicketSummaryResponse From(SupportTicketItem item)
     {
@@ -194,7 +197,8 @@ public sealed record SupportTicketSummaryResponse(
             ticket.Messages,
             item.LastAuthor,
             PreviewOf(item.LastBody),
-            ticket.UnreadByTrader);
+            ticket.UnreadByTrader,
+            ticket.OpenedBy);
     }
 
     // The start of a message on one line.
@@ -208,7 +212,8 @@ public sealed record SupportTicketSummaryResponse(
 /// <summary>
 /// A ticket with every message, oldest first. <paramref name="ClosedBy"/> is who closed it, and
 /// <paramref name="ClosedByAdmin"/> which administrator, which only the admin panel sees. <paramref name="Unread"/> is
-/// whether the trader has an answer to read, and is always false in the admin panel.
+/// whether the trader has an answer to read, and is always false in the admin panel. <paramref name="OpenedBy"/> is who
+/// wrote first.
 /// </summary>
 public sealed record SupportTicketResponse(
     Guid Id,
@@ -225,6 +230,7 @@ public sealed record SupportTicketResponse(
     SupportAuthor? ClosedBy,
     string? ClosedByAdmin,
     bool Unread,
+    SupportAuthor OpenedBy,
     IReadOnlyList<SupportMessageResponse> Messages)
 {
     internal static SupportTicketResponse From(SupportTicket ticket, IReadOnlyList<SupportMessage> messages, bool forAdmin)
@@ -250,6 +256,7 @@ public sealed record SupportTicketResponse(
             closedBy,
             forAdmin && closedBy == SupportAuthor.Firm ? ticket.ClosedBy : null,
             !forAdmin && ticket.UnreadByTrader,
+            ticket.OpenedBy,
             [.. messages.Select(m => SupportMessageResponse.From(m, forAdmin))]);
     }
 }

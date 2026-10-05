@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { Billing, ChallengePrice, FirmSettings } from "./api/types";
-import { goLiveSteps } from "./goLive";
+import type { Billing, ChallengePrice, FirmSettings, IdentityReadiness } from "./api/types";
+import { goLiveSteps, type GoLiveStep } from "./goLive";
 import { testChallenge } from "./testAccounts";
 
 const settings: FirmSettings = {
@@ -43,18 +43,19 @@ const billing = {
 
 const price: ChallengePrice = { challengeId: testChallenge.id, amount: 99, currency: "USD", forSale: true };
 
-function steps(changes: { settings?: Partial<FirmSettings>; billing?: Partial<Billing>; prices?: ChallengePrice[]; accounts?: number } = {}) {
+function steps(changes: { settings?: Partial<FirmSettings>; billing?: Partial<Billing>; prices?: ChallengePrice[]; accounts?: number; identity?: IdentityReadiness } = {}) {
   return goLiveSteps({
     settings: { ...settings, ...changes.settings },
     challenges: [testChallenge],
     prices: changes.prices ?? [],
     billing: { ...billing, ...changes.billing },
     accounts: changes.accounts ?? 0,
+    identity: changes.identity ?? "NotChosen",
   });
 }
 
 describe("goLiveSteps", () => {
-  it("has eight steps with the first one still to do as the current one", () => {
+  it("has nine steps with the first one still to do as the current one", () => {
     const list = steps();
 
     expect(list.map((s) => [s.key, s.status])).toEqual([
@@ -65,9 +66,13 @@ describe("goLiveSteps", () => {
       ["design", "todo"],
       ["try", "todo"],
       ["review", "todo"],
+      ["identity", "todo"],
       ["live", "locked"],
     ]);
     expect(list[1].detail).toBe("Two-step 100K. Change the rules or add more whenever you like.");
+    expect(list[8].detail).toBe(
+      "After we have approved your firm and you have set up KYC: choose your slots, and pay the startup fee less the deposit, and your first month.",
+    );
     expect(list[6].detail).toBe("Company details, owners and links. You pay a 200.00 USD deposit when you send it, taken off the startup fee. We usually answer within a day.");
   });
 
@@ -76,7 +81,7 @@ describe("goLiveSteps", () => {
     const testPayments = { payments: { ...settings.payments, provider: "Test" as const, active: true } };
 
     const trying = steps({ prices: [price], settings: testPayments, billing: { shopProblem: problem } });
-    const approved = steps({ prices: [price], settings: testPayments, billing: { shopProblem: problem, review: "Approved" } });
+    const approved = steps({ prices: [price], settings: testPayments, billing: { shopProblem: problem, review: "Approved" }, identity: "Ready" });
 
     expect(trying.find((s) => s.key === "checkout")).toMatchObject({ status: "done", detail: expect.stringContaining("enough to try") });
     expect(trying.find((s) => s.key === "live")).toMatchObject({ status: "locked", detail: expect.stringContaining("takes real payments") });
@@ -90,14 +95,35 @@ describe("goLiveSteps", () => {
   });
 
   it("waits for our review, and opens going live once we have approved the firm", () => {
-    const done = { prices: [price], settings: { logoUrl: "/api/portal/logo/ab", payments: { ...settings.payments, provider: "Stripe" as const, active: true } }, accounts: 1 };
+    const done = {
+      prices: [price],
+      settings: { logoUrl: "/api/portal/logo/ab", payments: { ...settings.payments, provider: "Stripe" as const, active: true } },
+      accounts: 1,
+      identity: "Ready" as const,
+    };
 
     const waiting = steps({ ...done, billing: { review: "Submitted", depositPaid: 200 } });
     const approved = steps({ ...done, billing: { review: "Approved", depositPaid: 200 } });
 
-    expect(waiting.slice(-2).map((s) => s.status)).toEqual(["waiting", "locked"]);
-    expect(approved.slice(-2).map((s) => s.status)).toEqual(["done", "current"]);
-    expect(approved[7].action).toEqual({ label: "Go live", href: "/admin/go-live?step=payment" });
+    const statuses = (list: GoLiveStep[]) => ["review", "identity", "live"].map((key) => list.find((s) => s.key === key)?.status);
+    expect(statuses(waiting)).toEqual(["waiting", "done", "locked"]);
+    expect(statuses(approved)).toEqual(["done", "done", "current"]);
+    expect(approved.find((s) => s.key === "live")?.action).toEqual({ label: "Go live", href: "/admin/go-live?step=payment" });
+  });
+
+  it("waits for the firm's KYC, and for its own service to work through the whole flow", () => {
+    const identity = (readiness: IdentityReadiness) => steps({ identity: readiness }).find((s) => s.key === "identity");
+
+    expect(identity("NotChosen")).toMatchObject({ status: "todo", detail: expect.stringContaining("before you go live, not for our review"), action: { href: "/admin/identity" } });
+    expect(identity("NotTested")).toMatchObject({ status: "todo", detail: expect.stringContaining("whole flow") });
+    expect(identity("Ready")).toMatchObject({ status: "done" });
+  });
+
+  it("waits for KYC after we have approved the firm, and goes live once it is set up", () => {
+    const approved = steps({ prices: [price], billing: { review: "Approved", depositPaid: 200 } });
+
+    expect(approved.find((s) => s.key === "identity")?.status).toBe("todo");
+    expect(approved.find((s) => s.key === "live")).toMatchObject({ status: "locked", detail: expect.stringMatching(/^After you have set up KYC: /), action: null });
   });
 
   it("asks for the changes we requested", () => {

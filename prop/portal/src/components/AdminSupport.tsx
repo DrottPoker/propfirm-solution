@@ -1,20 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useState } from "react";
 
 import { useBranding } from "@/app/providers";
 
 import { whenText } from "@/lib/admin";
 import type { SupportTicketCounts, SupportTicketGroup, SupportTicketSummary } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
-import { useCloseTicket, useFirmTicket, useFirmTickets, useMe } from "@/lib/queries";
-import { lastAuthorName, supportGroupLabels, supportGroups, waitingText } from "@/lib/support";
+import { FieldError, useChallenges, useCloseTicket, useFirmTicket, useFirmTickets, useMe, useOpenTicketWithTrader, useTraderAccounts } from "@/lib/queries";
+import { filesProblem, lastAuthorName, supportGroupLabels, supportGroups, supportLimits, waitingText } from "@/lib/support";
 import { useDebounced } from "@/lib/useDebounced";
 
-import { SearchIcon } from "./icons";
-import { Conversation, MessageForm, TicketStatusBadge } from "./SupportThread";
-import { AdminPage, ErrorText, FilterTabs, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { PlusIcon, SearchIcon } from "./icons";
+import { Conversation, FilePicker, MessageField, MessageForm, TicketStatusBadge } from "./SupportThread";
+import { AdminPage, buttonClass, ErrorText, fieldClass, FilterTabs, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /** A ticket that has waited this long for the firm is marked. */
 const lateAfterMs = 24 * 60 * 60 * 1000;
@@ -54,6 +55,12 @@ export function AdminTickets({ initialGroup, initialSearch }: { initialGroup: Su
       <PageHeader
         title="Support"
         description={`Questions from your traders. Answer them here, and the trader gets your answer by email in ${branding.name}'s name.`}
+        actions={
+          <Link href="/admin/support/new" className={`${buttonClass} flex items-center gap-1.5`}>
+            <PlusIcon className="size-4" />
+            Write to a trader
+          </Link>
+        }
       />
 
       <FilterTabs
@@ -122,7 +129,7 @@ function TicketRow({ ticket, now, firmName }: { ticket: SupportTicketSummary; no
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <span className="font-mono text-sm text-accent">#{ticket.number}</span>
             <span className="min-w-0 truncate font-medium">{ticket.subject}</span>
-            <TicketStatusBadge status={ticket.status} viewer="admin" firmName={firmName} />
+            <TicketStatusBadge ticket={ticket} viewer="admin" firmName={firmName} />
           </span>
           <span className="truncate text-sm text-muted">
             {lastAuthorName(ticket, "admin", firmName)}: {ticket.preview}
@@ -130,6 +137,7 @@ function TicketRow({ ticket, now, firmName }: { ticket: SupportTicketSummary; no
           <span className="text-xs text-muted">
             {ticket.traderEmail}
             {ticket.account && <> · Account #{ticket.account.number}</>} · {ticket.messages} {ticket.messages === 1 ? "message" : "messages"}
+            {ticket.openedBy === "Firm" && <> · Opened by your team</>}
           </span>
         </span>
         <span className={`shrink-0 text-xs sm:pt-1 sm:text-right ${late ? "text-warning" : "text-muted"}`}>
@@ -158,6 +166,151 @@ function emptyText(group: SupportTicketGroup, searched: boolean): string {
 }
 
 const countKey = { Open: "open", Answered: "answered", Closed: "closed", All: "all" } as const satisfies Record<SupportTicketGroup, keyof SupportTicketCounts>;
+
+/**
+ * The firm writes to one of its traders first: who, optionally about which of the trader's accounts, and the message.
+ * The trader gets it by email and answers in the portal.
+ */
+export function AdminNewTicket({ initialEmail, initialAccountId }: { initialEmail: string; initialAccountId: string | null }) {
+  const branding = useBranding();
+  const open = useOpenTicketWithTrader();
+  const router = useRouter();
+  const challenges = useChallenges();
+  const emailId = useId();
+  const subjectId = useId();
+  const accountFieldId = useId();
+  const [email, setEmail] = useState(initialEmail);
+  const [accountId, setAccountId] = useState(initialAccountId ?? "");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [problem, setProblem] = useState<{ field: string; text: string } | null>(null);
+
+  // The trader's accounts, once the email is a whole address. The search finds parts of emails, so only exact ones count.
+  const lookup = useDebounced(email.trim(), 300);
+  const accounts = useTraderAccounts(lookup.includes("@") ? lookup : "");
+  const tradersAccounts = (accounts.data?.accounts ?? []).filter((a) => a.email.toLowerCase() === lookup.toLowerCase());
+  const chosen = tradersAccounts.some((a) => a.id === accountId) ? accountId : "";
+  const unknown = lookup.includes("@") && accounts.isSuccess && tradersAccounts.length === 0;
+  const challengeName = (id: string) => challenges.data?.find((c) => c.id === id)?.name ?? id;
+  const field = problem?.field ?? (open.error instanceof FieldError ? open.error.field : null);
+
+  return (
+    <AdminPage narrow>
+      <PageHeader
+        back={
+          <nav aria-label="Breadcrumb" className="text-sm text-muted">
+            <Link href="/admin/support" className="hover:text-foreground">
+              Support
+            </Link>{" "}
+            <span aria-hidden="true">/</span> <span className="text-foreground">Write to a trader</span>
+          </nav>
+        }
+        title="Write to a trader"
+        description={`The trader gets your message by email in ${branding.name}'s name, and answers in the portal. Never ask for ID documents or passwords in a ticket.`}
+      />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const subjectText = subject.trim();
+          const filesWrong = filesProblem(files);
+          const found =
+            email.trim().length === 0
+              ? { field: "traderEmail", text: "Write the trader's email." }
+              : subjectText.length === 0
+                ? { field: "subject", text: "Write what the ticket is about." }
+                : subjectText.length > supportLimits.subject
+                  ? { field: "subject", text: `Keep the subject to ${supportLimits.subject} characters.` }
+                  : body.trim().length === 0
+                    ? { field: "body", text: "Write a message." }
+                    : body.length > supportLimits.message
+                      ? { field: "body", text: `Keep the message to ${supportLimits.message.toLocaleString("en-GB")} characters.` }
+                      : filesWrong
+                        ? { field: "files", text: filesWrong }
+                        : null;
+          setProblem(found);
+          if (!found) {
+            open.mutate(
+              { traderEmail: email.trim(), subject: subjectText, body, accountId: chosen || null, files },
+              { onSuccess: (ticket) => router.replace(`/admin/support/${ticket.id}`) },
+            );
+          }
+        }}
+        className="flex flex-col gap-4 rounded-lg border border-border bg-panel p-5"
+      >
+        <div className="flex flex-col gap-1 text-sm">
+          <label htmlFor={emailId} className="text-muted">
+            Trader&apos;s email
+          </label>
+          <input
+            id={emailId}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="trader@example.com"
+            aria-invalid={field === "traderEmail" || undefined}
+            disabled={open.isPending}
+            className={fieldClass}
+          />
+          {unknown && <span className="text-xs text-warning">No accounts at your firm have this email.</span>}
+        </div>
+        <div className="flex flex-col gap-1 text-sm">
+          <label htmlFor={accountFieldId} className="text-muted">
+            About
+          </label>
+          <select
+            id={accountFieldId}
+            value={chosen}
+            onChange={(e) => setAccountId(e.target.value)}
+            aria-invalid={field === "accountId" || undefined}
+            disabled={open.isPending}
+            className={fieldClass}
+          >
+            <option value="">No account in particular</option>
+            {[...tradersAccounts]
+              .sort((a, b) => b.number - a.number)
+              .map((account) => (
+                <option key={account.id} value={account.id}>
+                  Account #{account.number} · {challengeName(account.challengeId)} · {account.stageName}
+                </option>
+              ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1 text-sm">
+          <label htmlFor={subjectId} className="text-muted">
+            Subject
+          </label>
+          <input
+            id={subjectId}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            maxLength={supportLimits.subject}
+            placeholder="For example: Your EURUSD trade on 3 October"
+            aria-invalid={field === "subject" || undefined}
+            disabled={open.isPending}
+            className={fieldClass}
+          />
+        </div>
+        <MessageField value={body} onChange={setBody} label="Message" rows={7} invalid={field === "body"} disabled={open.isPending} />
+        <FilePicker files={files} onChange={setFiles} disabled={open.isPending} />
+        {problem && (
+          <p role="alert" className="text-sm text-loss">
+            {problem.text}
+          </p>
+        )}
+        <ErrorText error={open.error} />
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <Link href="/admin/support" className={secondaryButtonClass}>
+            Cancel
+          </Link>
+          <button type="submit" disabled={open.isPending} className={buttonClass}>
+            {open.isPending ? "Sending..." : "Send"}
+          </button>
+        </div>
+      </form>
+    </AdminPage>
+  );
+}
 
 /** One of the firm's tickets: the trader and the account, the conversation, and the firm's answer. */
 export function AdminTicket({ ticketId }: { ticketId: string }) {
@@ -190,12 +343,12 @@ export function AdminTicket({ ticketId }: { ticketId: string }) {
         title={data.subject}
         description={
           <>
-            Ticket #{data.number} from {trader} · Opened {formatDateTime(data.createdAt)}
+            {data.openedBy === "Firm" ? `Ticket #${data.number} to ${trader}` : `Ticket #${data.number} from ${trader}`} · Opened {formatDateTime(data.createdAt)}
           </>
         }
         actions={
           <>
-            <TicketStatusBadge status={data.status} viewer="admin" firmName={branding.name} />
+            <TicketStatusBadge ticket={data} viewer="admin" firmName={branding.name} />
             {data.status !== "Closed" && (
               <button type="button" disabled={close.isPending} onClick={() => close.mutate()} className={secondaryButtonClass}>
                 {close.isPending ? "Closing..." : "Close without answering"}

@@ -43,12 +43,51 @@ test("a trader asks about an account in a ticket, and the firm answers and close
 
   // The trader sees the unread answer in the menu and reads it. Writing again opens the ticket again.
   await trader.goto("/support");
-  await expect(trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /Support.*1 new answer/ })).toBeVisible();
+  await expect(trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /Support.*1 unread message/ })).toBeVisible();
   await trader.getByRole("link", { name: new RegExp(subject.replace(/[?]/g, "\\?")) }).click();
   await expect(trader.getByText("Choose the server Demo Firm in the terminal, then the prices show.")).toBeVisible();
   await expect(trader.getByText("Closed", { exact: true })).toBeVisible();
-  await expect(trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /Support.*new answer/ })).toHaveCount(0);
+  await expect(trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /Support.*unread/ })).toHaveCount(0);
   await trader.getByLabel("Write to open the ticket again").fill("Thanks, it works now.");
   await trader.getByRole("button", { name: "Send", exact: true }).click();
   await expect(trader.getByText(`Waiting for ${firmName}`)).toBeVisible();
+});
+
+test("the firm writes to a trader first from the trader's card, and the trader answers", async ({ context, page }) => {
+  const email = `notice-${test.info().testId.slice(0, 8)}@e2e.example`;
+  const subject = `Your EURUSD trade ${test.info().testId.slice(0, 8)}`;
+
+  await logIn(page, "/admin/login", admin.email, admin.password);
+  await startChallenge(page, email);
+  await page.getByRole("button", { name: "Create invitation link" }).click();
+  const invitation = await page.getByLabel(/Invitation link/).inputValue();
+  const trader = await context.newPage();
+  await acceptInvitation(trader, invitation);
+
+  // From the trader's card the form knows the trader and the account.
+  await page.getByRole("link", { name: "Write to the trader" }).click();
+  await expect(page).toHaveURL(/\/admin\/support\/new\?/);
+  await expect(page.getByLabel("Trader's email")).toHaveValue(email);
+  await expect(page.getByLabel("About").locator("option:checked")).toHaveText(/^Account #\d+/);
+  await page.getByLabel("Subject").fill(subject);
+  await page.getByLabel("Message").fill("Did the terminal show a gap before your EURUSD trade closed?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/support\/[0-9a-f-]+$/);
+  await expect(page.getByText("Waiting for the trader")).toBeVisible();
+
+  // The trader sees the message unread, as a message from the firm, and answers it.
+  await trader.goto("/support");
+  await expect(trader.getByRole("navigation", { name: "Main" }).getByRole("link", { name: /Support.*1 unread message/ })).toBeVisible();
+  await trader.getByRole("link", { name: new RegExp(subject) }).click();
+  await expect(trader.getByText(`Message from ${firmName}`)).toBeVisible();
+  await expect(trader.getByText("Did the terminal show a gap before your EURUSD trade closed?")).toBeVisible();
+  await trader.getByLabel("Write back").fill("Yes, here is a screenshot.");
+  await trader.getByLabel("Add files").setInputFiles(screenshot);
+  await trader.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(trader.getByText(`Waiting for ${firmName}`)).toBeVisible();
+
+  // The firm sees the answer waiting for it.
+  await page.reload();
+  await expect(page.getByText("Yes, here is a screenshot.")).toBeVisible();
+  await expect(adminLink(page, "Support")).toContainText(/\d+ waiting for you/);
 });

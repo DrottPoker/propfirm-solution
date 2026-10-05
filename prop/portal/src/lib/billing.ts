@@ -6,6 +6,7 @@ export const chargeKindLabels: Record<ChargeKind, string> = {
   Renewal: "Month",
   Slots: "More slots",
   Deposit: "Deposit",
+  IdentityChecks: "KYC checks",
 };
 
 export const chargeStatusLabels: Record<ChargeStatus, string> = {
@@ -88,6 +89,8 @@ export function chargeLabel(charge: Charge): string {
       return `Slots for ${monthName(charge.month)}`;
     case "Deposit":
       return "Deposit for the review, taken off the startup fee";
+    case "IdentityChecks":
+      return `KYC checks for ${monthName(charge.month)}`;
     default:
       return `More slots, ${monthName(charge.month)}`;
   }

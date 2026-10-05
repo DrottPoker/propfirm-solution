@@ -9,6 +9,7 @@ using Prop.Api.Configuration;
 using Prop.Api.Email;
 using Prop.Api.Files;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Json;
 using Prop.Api.Ops;
 using Prop.Api.Portal;
@@ -34,6 +35,7 @@ internal abstract record ReviewResult
 /// </summary>
 internal sealed partial class ReviewService(
     ReviewStore store,
+    IdentityStore identities,
     BillingService billing,
     FirmStore firmStore,
     FirmCatalog firms,
@@ -82,6 +84,10 @@ internal sealed partial class ReviewService(
         EditProblem(firm, review)
         ?? (firm.Suspension is not null ? "The firm is suspended." : null)
         ?? ApplicationRules.Problem(review.Application, complete: true)?.Problem;
+
+    /// <summary>Whether the firm's KYC is ready, which going live waits for, though our review does not (ADR 0042).</summary>
+    public async Task<IdentityReadiness> IdentityReadinessAsync(string firmId, CancellationToken cancellationToken) =>
+        IdentitySettings.ReadinessOf(await identities.GetSettingsAsync(firmId, cancellationToken));
 
     /// <summary>Saves the application as a draft. Only the fields that are filled in are checked.</summary>
     public async Task<ReviewResult> SaveApplicationAsync(Firm firm, FirmApplication application, string adminEmail, CancellationToken cancellationToken)
@@ -252,7 +258,7 @@ internal sealed partial class ReviewService(
         };
     }
 
-    /// <summary>Approves an application that waits for us. The firm can go live by paying.</summary>
+    /// <summary>Approves an application that waits for us. The firm can go live by paying, once its KYC is ready.</summary>
     public Task<ReviewResult> ApproveAsync(string firmId, string staffEmail, string? message, CancellationToken cancellationToken) =>
         DecideAsync(
             firmId,

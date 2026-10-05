@@ -5,9 +5,10 @@ import { useState } from "react";
 
 import { accountStatus, formatTotals } from "@/lib/admin";
 import { countryName } from "@/lib/countries";
-import type { Account, TraderSummary } from "@/lib/api/types";
+import type { Account, TraderIdentity, TraderSummary } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { birthDate, countryText, identityStatus } from "@/lib/identity";
 import { providerLabels } from "@/lib/orders";
 import { useEmailTrader, useInvite, useSetTraderCheck, useTraderEmailPreview, useTraderSummary } from "@/lib/queries";
 
@@ -48,9 +49,14 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
           <span className="text-xs text-muted">
             {data.country ? `${countryName(data.country)} · ` : ""}Trader since {formatDate(data.since)}
           </span>
-          <Link href={`/admin/support?group=All&search=${encodeURIComponent(data.email)}`} className="text-xs text-accent hover:underline">
-            Support tickets
-          </Link>
+          <span className="flex flex-wrap gap-x-3 text-xs">
+            <Link href={`/admin/support/new?email=${encodeURIComponent(data.email)}&account=${account.id}`} className="text-accent hover:underline">
+              Write to the trader
+            </Link>
+            <Link href={`/admin/support?group=All&search=${encodeURIComponent(data.email)}`} className="text-accent hover:underline">
+              Support tickets
+            </Link>
+          </span>
         </div>
       </div>
 
@@ -64,6 +70,8 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
           <dd className="font-mono text-sm">{formatTotals(data.paidOut, account.currency)}</dd>
         </div>
       </dl>
+
+      {data.identity && <IdentityCheck identity={data.identity} />}
 
       <Checks account={account} trader={data} />
 
@@ -147,6 +155,35 @@ function Checks({ account, trader }: { account: Account; trader: TraderSummary }
       ))}
       <ErrorText error={setCheck.error} />
     </fieldset>
+  );
+}
+
+/** The trader's KYC (ADR 0042): where the ID check is, who checked, what the document said, or why it was declined. */
+function IdentityCheck({ identity }: { identity: TraderIdentity }) {
+  const status = identityStatus(identity.status);
+  const by = identity.provider === "External" ? "your KYC service" : identity.provider === "Test" ? "a test check" : identity.provider;
+  return (
+    <section aria-label="KYC" className="flex flex-col gap-2 rounded-lg border border-border p-3.5 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium">KYC</span>
+        <Badge tone={status.tone}>{status.label}</Badge>
+      </div>
+      {identity.status === "Approved" ? (
+        <dl className="flex flex-col gap-1.5">
+          {identity.fullName && <Row label="Name on ID">{identity.fullName}</Row>}
+          {identity.dateOfBirth && <Row label="Born">{birthDate(identity.dateOfBirth)}</Row>}
+          {identity.country && <Row label="Country">{countryText(identity.country, countryName)}</Row>}
+          {identity.sanctionsChecked && <Row label="Sanctions lists">Not on any</Row>}
+        </dl>
+      ) : (
+        identity.reason && <p className="text-loss">{identity.reason}</p>
+      )}
+      {identity.decidedAt && (
+        <span className="text-xs text-muted">
+          {identity.status === "Approved" ? "Verified" : "Decided"} {formatDate(identity.decidedAt)} by {by}
+        </span>
+      )}
+    </section>
   );
 }
 

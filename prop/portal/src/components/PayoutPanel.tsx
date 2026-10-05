@@ -5,8 +5,9 @@ import { useState } from "react";
 
 import type { AccountDetails, Payout, PayoutStatus } from "@/lib/api/types";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
+import { payoutWaitsForIdentity } from "@/lib/identity";
 import { payoutNote, payoutStatusLabels } from "@/lib/payouts";
-import { useMyPayoutMethod, useRequestPayout } from "@/lib/queries";
+import { useMyIdentity, useMyPayoutMethod, useRequestPayout } from "@/lib/queries";
 
 import { ConfirmDialog } from "./Dialog";
 import { PayoutBadge } from "./Payouts";
@@ -22,6 +23,7 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
   const { account, payouts } = details;
   const request = useRequestPayout(account.id);
   const method = useMyPayoutMethod();
+  const waitsForIdentity = payoutWaitsForIdentity(useMyIdentity().data);
   const [asking, setAsking] = useState(false);
   const quote = account.nextPayout;
   if (!quote || account.status !== "Active") {
@@ -80,7 +82,7 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
       <div className="flex max-w-sm flex-col items-start gap-2 sm:items-end">
         <button
           type="button"
-          disabled={!quote.canRequest || method.data === null || request.isPending}
+          disabled={!quote.canRequest || method.data === null || waitsForIdentity || request.isPending}
           onClick={() => setAsking(true)}
           className={`${buttonClass} px-5 py-2.5`}
         >
@@ -104,6 +106,13 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
               Add how you want to be paid
             </Link>{" "}
             first, so your firm knows where to send the money.
+          </span>
+        ) : quote.canRequest && waitsForIdentity ? (
+          <span className="text-xs sm:text-right">
+            <Link href="/identity" className="text-accent hover:underline">
+              Verify your identity
+            </Link>{" "}
+            first. Your firm needs to know who you are before your first payout.
           </span>
         ) : (
           <span className="text-xs text-muted sm:text-right">

@@ -44,6 +44,19 @@ internal sealed class TraderChecks(NpgsqlDataSource dataSource, DatabaseSchema s
         return checks.ToLookup(c => c.TraderId);
     }
 
+    /// <summary>Ticks the check in the caller's transaction, keeping who ticked it first, for checks a service made.</summary>
+    public static async Task SetAsync(NpgsqlConnection connection, Guid traderId, string item, string checkedBy, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "insert into trader_checks (trader_id, item, checked_at, checked_by) values ($1, $2, $3, $4) on conflict (trader_id, item) do nothing",
+            connection);
+        command.Parameters.AddWithValue(traderId);
+        command.Parameters.AddWithValue(item);
+        command.Parameters.AddWithValue(now);
+        command.Parameters.AddWithValue(checkedBy);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     /// <summary>Ticks the check, or takes the tick away. A check ticked again keeps who ticked it first.</summary>
     public async Task SetAsync(Guid traderId, string item, bool isChecked, string checkedBy, DateTimeOffset now, CancellationToken cancellationToken)
     {

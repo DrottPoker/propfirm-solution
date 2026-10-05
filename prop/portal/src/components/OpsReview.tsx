@@ -24,6 +24,7 @@ export function OpsReview({ firm }: { firm: OpsFirm }) {
         <Application firm={firm} />
         <Documents firm={firm} />
         <SandboxUse firm={firm} />
+        <IdentityChecks firm={firm} />
       </div>
       <div className="flex min-w-0 flex-col gap-5">
         <Checks firm={firm} />
@@ -168,6 +169,46 @@ function SandboxUse({ firm }: { firm: OpsFirm }) {
   );
 }
 
+/** What the firm's KYC still needs before the firm can go live. Null when it is ready. Our approval does not wait for it. */
+function identityProblem(firm: OpsFirm): string | null {
+  switch (firm.identity.readiness) {
+    case "NotChosen":
+      return "The firm has not chosen its KYC.";
+    case "NotTested":
+      return "The firm's own KYC service has not worked through the whole flow yet.";
+    default:
+      return null;
+  }
+}
+
+/**
+ * How the firm checks its traders' IDs (ADR 0042). We approve it once they are ready: our built-in check, or its own
+ * service once a trader was sent to its page and the service reported the outcome.
+ */
+function IdentityChecks({ firm }: { firm: OpsFirm }) {
+  const { mode, externalUrl, externalTestedAt } = firm.identity;
+  const problem = identityProblem(firm);
+  return (
+    <Panel title="KYC of traders">
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2">
+        <Item label="How" value={mode === "BuiltIn" ? "Our built-in KYC" : mode === "External" ? "Their own KYC service" : "Not chosen yet"} />
+        {mode === "External" && (
+          <>
+            <Item label="Their page">{externalUrl ? <span className="font-mono text-xs break-all">{externalUrl}</span> : "-"}</Item>
+            <Item label="The whole flow" value={externalTestedAt ? `Worked on ${formatDateTime(externalTestedAt)}` : "Has not worked yet"} />
+          </>
+        )}
+      </dl>
+      {problem && (
+        <p role="note" className="flex gap-2.5 rounded-md border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm">
+          <AlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+          {problem} It can be approved without it, but it cannot go live until it has.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
 /**
  * Our checks, ticked while the application waits for us or for its changes. Each tick is saved with who made it. A tick
  * shows at once while it is saved, and goes back if it cannot be.
@@ -289,6 +330,12 @@ function ApproveDialog({ firm, open, onClose }: { firm: OpsFirm; open: boolean; 
       confirm={`Approve ${firm.name}`}
       confirmClass={buttonClass}
     >
+      {identityProblem(firm) && (
+        <p role="note" className="flex gap-2.5 rounded-md border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm">
+          <AlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />
+          {identityProblem(firm)} The firm cannot go live until it has.
+        </p>
+      )}
       {missing.length > 0 && (
         <div role="note" className="flex gap-2.5 rounded-md border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm">
           <AlertIcon className="mt-0.5 size-4 shrink-0 text-warning" />

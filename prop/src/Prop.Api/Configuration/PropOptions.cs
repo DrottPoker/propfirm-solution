@@ -172,6 +172,66 @@ public sealed class BillingOptions
 
     /// <summary>Who we are on the firms' invoices.</summary>
     public SellerOptions Seller { get; init; } = new();
+
+    /// <summary>What firms pay for our built-in ID checks (ADR 0042).</summary>
+    public IdentityCheckPriceOptions IdentityChecks { get; init; } = new();
+}
+
+/// <summary>
+/// The built-in ID checks as an addition to the monthly package: a monthly price with some checks included, and a
+/// price for each check beyond them and for the extra checks a firm turns on. Without VAT, like every price.
+/// </summary>
+public sealed class IdentityCheckPriceOptions
+{
+    /// <summary>Charged for each month the built-in checks are on when the month is charged.</summary>
+    public decimal MonthlyPrice { get; init; } = 15m;
+
+    /// <summary>The checks each monthly charge includes.</summary>
+    public int Included { get; init; } = 25;
+
+    /// <summary>Each check beyond those included.</summary>
+    public decimal PerCheck { get; init; } = 0.8m;
+
+    /// <summary>Each check that also checked the trader's address.</summary>
+    public decimal Address { get; init; } = 0.3m;
+
+    /// <summary>Each check that also screened the trader against sanctions and PEP lists.</summary>
+    public decimal Sanctions { get; init; } = 0.3m;
+}
+
+/// <summary>
+/// Who checks traders' IDs for the firms that use our built-in checks (ADR 0042): Didit, or Test for a page in the
+/// portal that approves or declines without a real check, for development. Firms in the sandbox always get Test.
+/// </summary>
+public sealed class IdentityCheckOptions
+{
+    public const string SectionName = "Identity";
+
+    public string Provider { get; init; } = "Didit";
+
+    public DiditOptions Didit { get; init; } = new();
+}
+
+/// <summary>
+/// Our Didit application: its API, the key, the secret that signs its webhooks, and the workflow for each set of
+/// checks a firm can choose. Each workflow has the ID document, liveness and face match; the others add proof of address,
+/// sanctions screening or both. The key and the secret are secrets.
+/// </summary>
+public sealed class DiditOptions
+{
+    public Uri ApiUrl { get; init; } = new("https://verification.didit.me/");
+
+    public string ApiKey { get; init; } = "";
+
+    public string WebhookSecret { get; init; } = "";
+
+    public string Workflow { get; init; } = "";
+
+    public string WorkflowWithAddress { get; init; } = "";
+
+    public string WorkflowWithSanctions { get; init; } = "";
+
+    public string WorkflowWithAddressAndSanctions { get; init; } = "";
 }
 
 /// <summary>Our company as invoices name it. Required outside development.</summary>

@@ -2,6 +2,7 @@ using System.Text.Json;
 
 using Prop.Api.Billing;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Portal;
 using Prop.Rules;
 
@@ -22,6 +23,7 @@ public sealed record DepositResponse(decimal Amount, string Currency, bool Paid)
 /// it was not approved. <paramref name="SubmitProblem"/> says why the application cannot be sent now, and
 /// <paramref name="Problems"/> what is missing or wrong in each field of the saved application, while it can be changed.
 /// <paramref name="EuCountries"/> are where the application gives a VAT number or says the company has none.
+/// <paramref name="Identity"/> is whether the firm's KYC is ready, which going live waits for once we have approved the firm.
 /// </summary>
 public sealed record VerificationResponse(
     ReviewStatus Status,
@@ -36,7 +38,8 @@ public sealed record VerificationResponse(
     int MaxDocuments,
     int MaxDocumentBytes,
     IReadOnlyList<string> EuCountries,
-    IReadOnlyList<FieldProblem> Problems);
+    IReadOnlyList<FieldProblem> Problems,
+    IdentityReadiness Identity);
 
 /// <summary>Where the firm pays the deposit, or null when the application was sent at once.</summary>
 public sealed record SubmitResponse(Uri? CheckoutUrl);
@@ -86,6 +89,16 @@ public sealed record ReviewCheckRequest(bool Done);
 /// <summary>What the firm has tried: challenges started, purchases in its portal, payouts and challenges it has.</summary>
 public sealed record OpsSandboxUseResponse(int Challenges, int Purchases, int Payouts, int OwnChallenges);
 
+/// <summary>
+/// How the firm checks its traders' IDs, its KYC: not chosen, our built-in checks, or its own service at the address and
+/// when that first worked through the whole flow. The firm goes live only once it is ready; our approval does not wait.
+/// </summary>
+public sealed record OpsIdentityResponse(IdentityMode? Mode, string? ExternalUrl, DateTimeOffset? ExternalTestedAt, IdentityReadiness Readiness)
+{
+    internal static OpsIdentityResponse From(IdentitySettings? settings) =>
+        new(settings?.Mode, settings?.ExternalUrl, settings?.ExternalTestedAt, IdentitySettings.ReadinessOf(settings));
+}
+
 /// <summary>A payout the trader waits for, without who the trader is.</summary>
 public sealed record OpsWaitingPayoutResponse(long AccountNumber, PayoutStatus Status, DateTimeOffset RequestedAt, DateTimeOffset? ApprovedAt, decimal Amount, string Currency);
 
@@ -125,7 +138,7 @@ public sealed record OpsEventResponse(long Id, string Type, DateTimeOffset Recor
 
 /// <summary>
 /// A firm for our staff: who it is and its administrators, its application and documents, our review and checks, what it
-/// tried in the sandbox, how it pays us, how it is doing and pays its traders, its suspension and its events.
+/// tried in the sandbox, its ID checks, how it pays us, how it is doing and pays its traders, its suspension and its events.
 /// </summary>
 public sealed record OpsFirmResponse(
     string Id,
@@ -144,6 +157,7 @@ public sealed record OpsFirmResponse(
     string? DecidedBy,
     IReadOnlyList<ReviewCheckResponse> Checks,
     OpsSandboxUseResponse SandboxUse,
+    OpsIdentityResponse Identity,
     OpsBillingResponse Billing,
     OpsFirmFiguresResponse Figures,
     SuspensionResponse? Suspension,

@@ -4,6 +4,8 @@
     <!-- The OpenAPI document is generated on build and committed. The portal generates its TypeScript types from it. -->
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/../../portal/openapi</OpenApiDocumentsDirectory>
     <OpenApiGenerateDocumentsOptions>--file-name prop-api</OpenApiGenerateDocumentsOptions>
+    <!-- Secrets for development, such as Didit's key, stay outside the repo. -->
+    <UserSecretsId>prop-api-3b9e7c1a-5d24-4f86-a0c3-7e1b2d9f6a58</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

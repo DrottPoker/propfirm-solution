@@ -6,6 +6,7 @@ using System.Text.Json;
 
 using Npgsql;
 
+using Prop.Api.Identity;
 using Prop.Api.Tests.Support;
 
 namespace Prop.Api.Tests;
@@ -55,6 +56,60 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "website"), (badWebsite.StatusCode, await FieldOfAsync(badWebsite)));
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "owners"), (badShares.StatusCode, await FieldOfAsync(badShares)));
         Assert.Equal((HttpStatusCode.UnprocessableEntity, "registrationNumber"), (incomplete.StatusCode, await FieldOfAsync(incomplete)));
+    }
+
+    [Fact]
+    public async Task TheFirmIsReviewedWithoutKycButGoesLiveOnlyWithKycThatWorks()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await factory.SignUpAsync("acme");
+        await PropFactory.WaitUntilProvisionedAsync(admin);
+        await SaveApplicationAsync(admin);
+
+        // Nothing is chosen for the firm, and choosing nothing is refused. The application is sent and approved without it.
+        var settings = await GetAsync(admin, "admin/identity");
+        using var nothing = await admin.PutAsJsonAsync(Url("admin/identity"), new { requiredBefore = "FirstPayout", checkAddress = false, checkSanctions = false }, TestContext.Current.CancellationToken);
+        var notChosen = await GetAsync(admin, "admin/verification");
+        using var sent = await PostAsync(admin, "admin/verification/submit", null);
+        using var ops = await factory.LogInAsStaffAsync();
+        var firm = await GetAsync(ops, "ops/firms/acme");
+        using var approved = await PostAsync(ops, "ops/firms/acme/approve", new { message = (string?)null });
+        Assert.Equal(JsonValueKind.Null, settings.GetProperty("mode").ValueKind);
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, "mode"), (nothing.StatusCode, await FieldOfAsync(nothing)));
+        Assert.Equal(("NotChosen", JsonValueKind.Null), (notChosen.GetProperty("identity").GetString(), notChosen.GetProperty("submitProblem").ValueKind));
+        Assert.Equal((HttpStatusCode.OK, HttpStatusCode.OK), (sent.StatusCode, approved.StatusCode));
+        Assert.Equal((JsonValueKind.Null, "NotChosen"), (firm.GetProperty("identity").GetProperty("mode").ValueKind, firm.GetProperty("identity").GetProperty("readiness").GetString()));
+
+        // Going live waits for the choice, and for the firm's own service to work through the whole flow.
+        Assert.Equal(IdentityService.ReadinessProblem(IdentityReadiness.NotChosen), await GoLiveProblemAsync(admin));
+        await SaveIdentityAsync(admin, "https://kyc.acme.test/start");
+        Assert.Equal(IdentityService.ReadinessProblem(IdentityReadiness.NotTested), await GoLiveProblemAsync(admin));
+        using (var refused = await PostAsync(admin, "admin/billing/activate", new { slots = 25 }))
+        {
+            Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        }
+
+        await factory.ScalarAsync("update firm_identity_settings set external_tested_at = external_since where firm_id = 'acme'");
+        Assert.Null(await GoLiveProblemAsync(admin));
+
+        // A new address must work again.
+        await SaveIdentityAsync(admin, "https://kyc2.acme.test/start");
+        Assert.Equal(IdentityService.ReadinessProblem(IdentityReadiness.NotTested), await GoLiveProblemAsync(admin));
+        await factory.ScalarAsync("update firm_identity_settings set external_tested_at = external_since where firm_id = 'acme'");
+        using var activate = await PostAsync(admin, "admin/billing/activate", new { slots = 25 });
+        Assert.Equal(HttpStatusCode.OK, activate.StatusCode);
+    }
+
+    private static async Task<string?> GoLiveProblemAsync(HttpClient admin) =>
+        (await GetAsync(admin, "admin/billing")).GetProperty("goLiveProblem").GetString();
+
+    private static async Task SaveIdentityAsync(HttpClient admin, string externalUrl)
+    {
+        using var saved = await admin.PutAsJsonAsync(
+            Url("admin/identity"),
+            new { mode = "External", requiredBefore = "FirstPayout", checkAddress = false, checkSanctions = false, externalUrl },
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
     }
 
     // One address for the firm's terms: saved with the application it is the shop's, and saved under Checkout the application's.
@@ -352,10 +407,12 @@ public sealed class ReviewTests(PostgresFixture postgres) : IClassFixture<Postgr
     }
 
     /// <summary>A firm that signed up and has its server. Returns its administrator's browser.</summary>
+    /// <summary>A firm in the sandbox that chose its KYC, so it can go live once we approve it.</summary>
     private static async Task<HttpClient> SandboxFirmAsync(PropFactory factory, string firmId, string email = Owner)
     {
         var admin = await factory.SignUpAsync(firmId, email);
         await PropFactory.WaitUntilProvisionedAsync(admin);
+        await factory.ChooseIdentityChecksAsync(admin, firmId);
         return admin;
     }
 

@@ -8,6 +8,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { useMe, useMyAccounts, useSendEmailConfirmation, useShop } from "@/lib/queries";
 
 import { AccountCard } from "./AccountCard";
+import { VerifyIdentityNotice } from "./TraderIdentity";
 import { buttonClass, ErrorText, Message, SectionLabel } from "./ui";
 
 /**
@@ -47,6 +48,7 @@ export function AccountsOverview() {
       </div>
 
       <ConfirmEmailNotice />
+      <VerifyIdentityNotice accounts={current} />
 
       {current.length === 0 && (
         <section className="flex flex-col items-start gap-3 rounded-lg border border-border bg-panel p-6">

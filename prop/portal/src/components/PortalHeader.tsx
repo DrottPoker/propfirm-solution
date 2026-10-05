@@ -18,7 +18,7 @@ const traderLinks = [
   { href: "/support", label: "Support", matches: (path: string) => path.startsWith("/support") },
 ];
 
-/** How many answers the trader has not read, beside Support. */
+/** How many tickets have a message from the firm the trader has not read, beside Support. */
 function UnreadBadge({ href, unread }: { href: string; unread: number }) {
   if (href !== "/support" || unread === 0) {
     return null;
@@ -27,7 +27,7 @@ function UnreadBadge({ href, unread }: { href: string; unread: number }) {
   return (
     <span className="ml-1.5 min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-[11px] font-medium text-accent-foreground tabular-nums">
       {unread}
-      <span className="sr-only"> {unread === 1 ? "new answer" : "new answers"}</span>
+      <span className="sr-only"> {unread === 1 ? "unread message" : "unread messages"}</span>
     </span>
   );
 }

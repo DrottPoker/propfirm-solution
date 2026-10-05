@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
+using Prop.Api.Identity;
 using Prop.Api.Portal;
 using Prop.Api.Trading;
 using Prop.Rules;
@@ -47,6 +48,28 @@ internal static class AccountActions
 
         var response = AccountResponse.From((await queries.GetAsync(firm.Id, account.Id, cancellationToken))!);
         return result.Created ? TypedResults.Created($"{locationPrefix}/{account.Id}", response) : TypedResults.Ok(response);
+    }
+
+    /// <summary>
+    /// Approves the funded account. 409 when the account has not passed its evaluation, or when the firm wants the trader's
+    /// identity verified first and it is not (ADR 0042).
+    /// </summary>
+    public static async Task<Results<Ok<AccountResponse>, ProblemHttpResult>> ApproveFundingAsync(
+        Firm firm,
+        Guid accountId,
+        ChallengeService challenges,
+        ChallengeQueries queries,
+        IdentityService identity,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (await queries.GetAsync(firm.Id, accountId, cancellationToken) is { } view
+            && await identity.ProblemAsync(firm, view.Account.TraderId, IdentityRequirement.Funding, cancellationToken) is { } unverified)
+        {
+            return Problem(StatusCodes.Status409Conflict, unverified);
+        }
+
+        return await ApplyAsync(firm, accountId, new ApproveFunding(time.GetUtcNow()), challenges, queries, cancellationToken);
     }
 
     /// <summary>Applies the firm's input, such as approving funding or cancelling. 409 when it does not fit the account's state.</summary>

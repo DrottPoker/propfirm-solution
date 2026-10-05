@@ -154,6 +154,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `firm_signups`, `admin_invites`, `admin_login_links` | Registreringar som väntar på bekräftelse, inbjudningar till administratörer och engångslänkar som loggar in en administratör. |
 | `firm_billing`, `billing_periods`, `billing_charges`, `billing_checkouts`, `billing_events` | Hur firman betalar oss och dess kort, betalda månader med platser, debiteringar, betalsidor och allt som hänt. Se [specen för platser och betalning](platser-och-betalning.md). |
 | `firm_reviews`, `firm_documents`, `firm_events`, `firm_review_checks`, `staff_users` | Vår granskning av firmorna, deras dokument, allt som hänt i granskningen och med avstängningen, våra bockade kontroller och vår personal. Se [specen för granskning och avstängning](granskning.md). |
+| `firm_identity_settings`, `identity_sessions`, `trader_identity` | Hur firman kontrollerar sina traders, varje kontroll hos Didit eller testkontrollen och varje traders resultat. Se [specen för ID-kontroll](id-kontroll.md). |
 | `support_tickets`, `support_ticket_counters`, `support_messages`, `support_attachments` | Supportärenden mellan traders och firman, nästa ärendenummer per firma, meddelandena och filerna, krypterade. Se [specen för supportärenden](support.md). |
 | `challenge_prices` | Vad challengerna kostar i portalen och om de säljs där. |
 | `discount_codes` | Firmans rabattkoder: procent eller belopp i en valuta, vilka challenges, högst hur många gånger, sista dag, om koden är för nya försök och om den är på. |
@@ -172,7 +173,7 @@ Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-A
 | `GET /accounts?email=` | Traderns konton. |
 | `GET /accounts/{id}` | Status, fas, konto på handelsplattformen, startsaldo och valuta, handelsdagar, vinstmål, saldo, golvens nivåer, om challengen är pausad, och handelsdagen då fasen tar slut på tid (`stageDeadline`) och då challengen tar slut utan en ny position (`inactivityDeadline`). |
 | `GET /accounts/{id}/history` | Varje indata och beslut, med bevisen vid brott. |
-| `POST /accounts/{id}/approve-funding` | Firman har gjort sina kontroller, och tradern får funded-kontot. 409 innan faserna är klara. |
+| `POST /accounts/{id}/approve-funding` | Firman har gjort sina kontroller, och tradern får funded-kontot. 409 innan faserna är klara, och när firman vill ha traderns ID kontrollerat först och det inte är. |
 | `POST /accounts/{id}/cancel` | Avbryter med `{ "reason" }` och stänger kontot på handelsplattformen. |
 | `POST /accounts/{id}/login-link` | En engångslänk som loggar in tradern i terminalen på fasens konto. |
 | `POST /accounts/{id}/invite` | En inbjudningslänk till portalen, för firman att skicka till tradern. Gäller en gång i 7 dagar och ersätter traderns äldre oanvända. |
@@ -186,6 +187,7 @@ Alla vägar börjar med `/api/firm/v1` och kräver firmans nyckel i headern `X-A
 | `GET /prices`, `PUT /challenges/{challengeId}/price` | Priserna i portalen, och ett pris med `{ "amount", "currency", "forSale" }`. |
 | `GET /orders?status=&limit=`, `GET /orders/{orderId}` | Firmans ordrar från portalen, och en order med allt som hänt den. |
 | `POST /orders/{orderId}/mark-paid`, `POST /orders/{orderId}/mark-refunded` | Firmans egen betalsida har fått betalt, och kontot startar, eller har betalat tillbaka. Se [specen för köp i portalen](kop.md). |
+| `GET /traders/identity?email=`, `PUT /traders/identity` | Traderns ID-kontroll, och resultatet från firmans egen tjänst. Se [specen för ID-kontroll](id-kontroll.md). |
 
 `AccountResponse` har `nextPayout` för funded-konton: vinsten, vinstandelen, traderns belopp, handelsdagar sedan förra utbetalningen, med en konsistensregel den bästa dagens resultat och regelns andel, och om en utbetalning kan begäras nu, annars varför inte. Se [specen för regelmotorn](regelmotor.md). Utbetalningarna har `profitReturned` och `timeZone`, challengens tidszon.
 
@@ -207,6 +209,7 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `payout.paid` | Firman markerade utbetalningen som betald. |
 | `payout.rejected` | Firman nekade utbetalningen. Innehåller orsaken och om vinsten lades tillbaka (`profitReturned`). |
 | `order.paid`, `order.refunded`, `order.disputed` | En order i portalen är betald, återbetald eller bestridd. `data.order` är ordern och `account` kontot den startade. |
+| `trader.identity_verified`, `trader.identity_declined` | Vår inbyggda ID-kontroll godkände eller nekade en trader. `account` är tomt, `data.trader` är traderns id och e-post och `data.identity` resultatet, utan handlingen. |
 | `webhook.test` | En test som firman skickade från adminpanelen. `account` är tomt, och `data.message` säger vad det är. |
 
 - Kroppen är `{ "id", "type", "createdAt", "account": { "id", "number", "email", "challengeId", "reference" }, "data": { ... } }`, där `data` är regelmotorns beslut. För utbetalningar har `data.payout` utbetalningens id, vinst, vinstandel, belopp och status.
@@ -225,6 +228,7 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `Platform:ApiUrl`, `Payments`, `Firms:N:Payments`, `Firms:N:SeedChallenges:M:Price` | Köp i portalen. Se [specen för köp i portalen](kop.md). |
 | `Billing`, `Firms:N:Slots` | Platser och vad firman betalar oss. Se [specen för platser och betalning](platser-och-betalning.md). |
 | `Platform:OpsUrl`, `Billing:ReviewDeposit`, `Staff` | Vår granskning och vår adminvy. Se [specen för granskning och avstängning](granskning.md). |
+| `Identity`, `Billing:IdentityChecks` | ID-kontrollen genom Didit och vad den kostar firman. Se [specen för ID-kontroll](id-kontroll.md). |
 | `Domains` | Firmornas egna domäner: `CnameTarget`, värdnamnet de pekar på, tomt för att stänga av egna domäner, `CheckInterval`, hur ofta väntande domäner slås upp (standard 5 minuter), och `DnsOverHttpsUrl`, resolvern med JSON-API (standard Cloudflare). Se ADR 0039. |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
@@ -257,6 +261,7 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `OrderFlowTests`: köp i portalen med testbetalning, Stripe och firmans egen betalsida. Se [specen för köp i portalen](kop.md).
 - `DiscountTests`: rabattkoder i butiken, att en kod inte används oftare än firman tillåter, kontrollen av nya koder, koder för nya försök, "Try again" på ett underkänt konto och vad ett brott stängde.
 - `SupportTests`: supportärenden mellan traders och firman, se [specen för supportärenden](support.md).
+- `IdentityTests` och `DiditDecisionTests`: ID-kontrollen med testkontrollen, Didit och firmans egen tjänst, och debiteringen, se [specen för ID-kontroll](id-kontroll.md).
 - `DomainTests`: en egen domän som blir portalens adress när posterna finns, också med samma adresser i stället för CNAME, DNS som inte svarar, domäner som nekas, att en domän hör till en firma, att den kan tas bort och att konfigurerade firmor inte kan byta.
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).

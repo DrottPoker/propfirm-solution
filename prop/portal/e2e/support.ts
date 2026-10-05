@@ -73,6 +73,15 @@ export async function acceptInvitation(page: Page, invitation: string) {
   await expect(page).toHaveURL(/\/$/);
 }
 
+/** The firm chooses our built-in KYC before the first payout, which nothing chooses for it and going live waits for. */
+export async function chooseBuiltInKyc(page: Page) {
+  await adminLink(page, "KYC").click();
+  await page.getByRole("radio", { name: /^Our built-in KYC/ }).check();
+  await page.getByRole("radio", { name: /^Before the first payout/ }).check();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+}
+
 /** The firm fills in its company's details, the first step on the Go live page. */
 export async function fillApplication(page: Page, companyName: string) {
   await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Go live" }).click();
@@ -132,11 +141,12 @@ export async function approveAsStaff(ops: Page) {
   await expect(ops.getByRole("button", { name: "Approve", exact: true })).toHaveCount(0);
 }
 
-/** The firm sends a complete application with the deposit, and our staff approve it, so it can go live. */
+/** The firm sends a complete application with the deposit, our staff approve it, and the firm sets up its KYC, so it can go live. */
 export async function getApproved(page: Page, shortName: string) {
   await fillApplication(page, `${shortName} Ltd`);
   await sendApplication(page);
   const ops = await openAsStaff(page, shortName);
   await approveAsStaff(ops);
   await ops.close();
+  await chooseBuiltInKyc(page);
 }
