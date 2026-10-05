@@ -46,6 +46,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0038](0038-en-tidszon-for-kontots-tider.md) | Ett kontos tider visas i challengens tidszon | Föreslagen |
 | [0039](0039-egen-doman-for-firmans-portal.md) | Egen domän för firmans portal | Föreslagen |
 | [0040](0040-driften-pa-en-vps.md) | Driften på en VPS i Sverige med Postgres i Docker | Föreslagen |
+| [0041](0041-supportarenden-mellan-traders-och-firman.md) | Supportärenden mellan traders och firman i portalen | Föreslagen |
 
 ## Så skriver du en ny ADR
 

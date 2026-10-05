@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, type QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, ensureOk, resultOf } from "./api/client";
 import type {
@@ -12,11 +12,14 @@ import type {
   PaymentProvider,
   PayoutMethod,
   PayoutStatus,
+  SupportTicket,
+  SupportTicketGroup,
   TraderSummary,
   TradingSymbolRequest,
   Verification,
   VerificationResponse,
 } from "./api/types";
+import type { SupportViewer } from "./support";
 
 export type Role = "trader" | "admin";
 
@@ -1266,4 +1269,166 @@ export function fieldErrorOf(error: unknown, status: number, what: string): Fiel
     status,
     typeof problem.field === "string" ? problem.field : null,
   );
+}
+
+// Support tickets (ADR 0041). The trader's are under "mine" and the firm's under "firm", so a change to one refreshes
+// only the lists, counts and ticket that show it.
+const supportScope = (viewer: SupportViewer) => (viewer === "admin" ? "firm" : "mine");
+const ticketKey = (viewer: SupportViewer, ticketId: string) => ["support", supportScope(viewer), "ticket", ticketId];
+
+const ticketsPerPage = 50;
+
+function refreshTickets(queryClient: QueryClient, viewer: SupportViewer) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["support", supportScope(viewer), "tickets"] }),
+    queryClient.invalidateQueries({ queryKey: ["support", supportScope(viewer), "summary"] }),
+  ]);
+}
+
+/** The trader's tickets that are not closed, and those with an answer the trader has not read, for the portal's menu. */
+export function useMySupportSummary() {
+  return useQuery({
+    queryKey: ["support", "mine", "summary"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/support/summary"), "your tickets"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** The trader's tickets, the latest written in first, a page at a time. */
+export function useMyTickets() {
+  return useInfiniteQuery({
+    queryKey: ["support", "mine", "tickets"],
+    queryFn: async ({ pageParam }) =>
+      resultOf(await api.GET("/api/portal/support/tickets", { params: { query: { cursor: pageParam ?? undefined, limit: ticketsPerPage } } }), "your tickets"),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next,
+    refetchInterval: 30_000,
+  });
+}
+
+/** One of the trader's tickets with every message. Asked again while it is shown, so an answer appears by itself. */
+export function useMyTicket(ticketId: string) {
+  return useQuery({
+    queryKey: ticketKey("trader", ticketId),
+    queryFn: async () => resultOf(await api.GET("/api/portal/support/tickets/{ticketId}", { params: { path: { ticketId } } }), "the ticket"),
+    refetchInterval: 15_000,
+  });
+}
+
+/** The firm's tickets that wait for it, since when the oldest has waited, and those that wait for the trader. */
+export function useFirmSupportSummary() {
+  return useQuery({
+    queryKey: ["support", "firm", "summary"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/support/summary"), "the support tickets"),
+    refetchInterval: 30_000,
+  });
+}
+
+/** The firm's tickets in a group, found by the search, a page at a time, with the counts in every group. */
+export function useFirmTickets(query: { group: SupportTicketGroup; search: string }) {
+  return useInfiniteQuery({
+    queryKey: ["support", "firm", "tickets", query],
+    queryFn: async ({ pageParam }) =>
+      resultOf(
+        await api.GET("/api/portal/admin/support/tickets", {
+          params: { query: { group: query.group, search: query.search.trim() || undefined, cursor: pageParam ?? undefined, limit: ticketsPerPage } },
+        }),
+        "the support tickets",
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (page) => page.next,
+    placeholderData: keepPreviousData,
+    refetchInterval: 30_000,
+  });
+}
+
+/** One of the firm's tickets with every message and who answered. */
+export function useFirmTicket(ticketId: string) {
+  return useQuery({
+    queryKey: ticketKey("admin", ticketId),
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/support/tickets/{ticketId}", { params: { path: { ticketId } } }), "the ticket"),
+    refetchInterval: 15_000,
+  });
+}
+
+/** The trader opens a ticket. The answer is the new ticket. */
+export function useOpenTicket() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ticket: { subject: string; body: string; accountId: string | null; files: File[] }) =>
+      sendSupportForm("/api/portal/support/tickets", { subject: ticket.subject, body: ticket.body, accountId: ticket.accountId ?? undefined }, ticket.files, "the ticket"),
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(ticketKey("trader", ticket.id), ticket);
+      return refreshTickets(queryClient, "trader");
+    },
+  });
+}
+
+/** The trader writes in a ticket, or an administrator answers it and with close closes it too. */
+export function useWriteInTicket(viewer: SupportViewer, ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (message: { body: string; files: File[]; close?: boolean }) =>
+      sendSupportForm(
+        viewer === "admin" ? `/api/portal/admin/support/tickets/${ticketId}/messages` : `/api/portal/support/tickets/${ticketId}/messages`,
+        { body: message.body, close: message.close ? "true" : undefined },
+        message.files,
+        "the message",
+      ),
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(ticketKey(viewer, ticketId), ticket);
+      return refreshTickets(queryClient, viewer);
+    },
+  });
+}
+
+export function useCloseTicket(viewer: SupportViewer, ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const path = { params: { path: { ticketId } } };
+      return viewer === "admin"
+        ? resultOf(await api.POST("/api/portal/admin/support/tickets/{ticketId}/close", path), "the ticket")
+        : resultOf(await api.POST("/api/portal/support/tickets/{ticketId}/close", path), "the ticket");
+    },
+    onSuccess: (ticket) => {
+      queryClient.setQueryData(ticketKey(viewer, ticketId), ticket);
+      return refreshTickets(queryClient, viewer);
+    },
+  });
+}
+
+/** The trader has read the ticket's answers, so the menu no longer counts it. */
+export function useMarkTicketRead(ticketId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => ensureOk(await api.POST("/api/portal/support/tickets/{ticketId}/read", { params: { path: { ticketId } } }), "that you read the ticket"),
+    onSuccess: () => refreshTickets(queryClient, "trader"),
+  });
+}
+
+// A message and its files go as a form, in one request. The service names the field a problem is about.
+async function sendSupportForm(path: string, fields: Record<string, string | undefined>, files: File[], what: string): Promise<SupportTicket> {
+  const body = new FormData();
+  for (const [name, value] of Object.entries(fields)) {
+    if (value !== undefined) {
+      body.append(name, value);
+    }
+  }
+
+  for (const file of files) {
+    body.append("files", file);
+  }
+
+  const response = await fetch(path, { method: "POST", body, credentials: "same-origin" });
+  const answer: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    // A request far too large is refused before the service sees it, without a problem to read.
+    const isProblem = typeof answer === "object" && answer !== null && "title" in answer;
+    throw response.status === 413 && !isProblem
+      ? new FieldError("The files are too large. A file can be at most 5 MB.", 413, "files")
+      : fieldErrorOf(answer, response.status, what);
+  }
+
+  return answer as SupportTicket;
 }

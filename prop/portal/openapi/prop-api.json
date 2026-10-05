@@ -1817,6 +1817,288 @@
         }
       }
     },
+    "/api/portal/support/summary": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TraderSupportSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/support/tickets": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "subject": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "accountId": {
+                        "type": "string",
+                        "format": "uuid"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/components/schemas/IFormFileCollection"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/support/tickets/{ticketId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/support/tickets/{ticketId}/messages": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/components/schemas/IFormFileCollection"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/support/tickets/{ticketId}/close": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/support/tickets/{ticketId}/read": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/support/attachments/{attachmentId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/portal/admin/me": {
       "get": {
         "tags": [
@@ -3934,6 +4216,226 @@
         }
       }
     },
+    "/api/portal/admin/support/summary": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSupportSummaryResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/tickets": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "default": "Open",
+              "$ref": "#/components/schemas/SupportTicketGroup"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSupportTicketsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/tickets/{ticketId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/tickets/{ticketId}/messages": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "allOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "close": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "files": {
+                        "$ref": "#/components/schemas/IFormFileCollection"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/tickets/{ticketId}/close": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "ticketId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/attachments/{attachmentId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/portal/platform": {
       "get": {
         "tags": [
@@ -5228,6 +5730,32 @@
           }
         },
         "description": "The firm's administrators, and the invitations that wait for a password."
+      },
+      "AdminSupportTicketsResponse": {
+        "required": [
+          "tickets",
+          "counts",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportTicketSummaryResponse"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/SupportTicketCountsResponse"
+          },
+          "next": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A page of the firm's tickets in a group, the counts in every group, and Next for the next page."
       },
       "ApiKeyResponse": {
         "required": [
@@ -6909,6 +7437,32 @@
         ],
         "description": "Where a firm is on its way from sign-up to live (ADR 0017)."
       },
+      "FirmSupportSummaryResponse": {
+        "required": [
+          "open",
+          "oldestWaiting",
+          "answered"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "oldestWaiting": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "answered": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The firm's tickets that wait for it, since when the oldest has waited, and those that wait for the trader."
+      },
       "FloorFigure": {
         "required": [
           "floorId",
@@ -6960,6 +7514,12 @@
       "IFormFile": {
         "type": "string",
         "format": "binary"
+      },
+      "IFormFileCollection": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/IFormFile"
+        }
       },
       "InviteResponse": {
         "required": [
@@ -10196,6 +10756,61 @@
         },
         "description": "Where the firm pays the deposit, or null when the application was sent at once."
       },
+      "SupportAccountResponse": {
+        "required": [
+          "id",
+          "number",
+          "challengeName"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "challengeName": {
+            "type": "string"
+          }
+        },
+        "description": "The account a ticket is about, as the portal shows it."
+      },
+      "SupportAttachmentResponse": {
+        "required": [
+          "id",
+          "fileName",
+          "contentType",
+          "size"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A file added to a message, fetched from the attachments path of the trader's or the admin panel's API."
+      },
+      "SupportAuthor": {
+        "enum": [
+          "Trader",
+          "Firm"
+        ],
+        "description": "Who wrote a message: the trader, or the firm. Traders never see which of the firm's administrators wrote."
+      },
       "SupportEmailRequest": {
         "required": [
           "email"
@@ -10210,6 +10825,292 @@
           }
         },
         "description": "Where replies to the emails to the firm's traders go. Empty for nowhere."
+      },
+      "SupportMessageResponse": {
+        "required": [
+          "id",
+          "author",
+          "adminEmail",
+          "body",
+          "createdAt",
+          "attachments"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "author": {
+            "$ref": "#/components/schemas/SupportAuthor"
+          },
+          "adminEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportAttachmentResponse"
+            }
+          }
+        },
+        "description": "A message of a ticket. AdminEmail is who wrote for the firm, and only the admin panel sees it."
+      },
+      "SupportTicketCountsResponse": {
+        "required": [
+          "open",
+          "answered",
+          "closed",
+          "all"
+        ],
+        "type": "object",
+        "properties": {
+          "open": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "answered": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "all": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "How many of the firm's tickets the search finds in each group."
+      },
+      "SupportTicketGroup": {
+        "enum": [
+          "Open",
+          "Answered",
+          "Closed",
+          "All"
+        ],
+        "description": "Which of the firm's tickets the admin panel lists."
+      },
+      "SupportTicketResponse": {
+        "required": [
+          "id",
+          "number",
+          "subject",
+          "status",
+          "traderEmail",
+          "traderName",
+          "account",
+          "createdAt",
+          "updatedAt",
+          "waitingSince",
+          "closedAt",
+          "closedBy",
+          "closedByAdmin",
+          "unread",
+          "messages"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupportTicketStatus"
+          },
+          "traderEmail": {
+            "type": "string"
+          },
+          "traderName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupportAccountResponse"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "waitingSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "closedBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupportAuthor"
+              }
+            ]
+          },
+          "closedByAdmin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportMessageResponse"
+            }
+          }
+        },
+        "description": "A ticket with every message, oldest first. ClosedBy is who closed it, and\nClosedByAdmin which administrator, which only the admin panel sees. Unread is\nwhether the trader has an answer to read, and is always false in the admin panel."
+      },
+      "SupportTicketsResponse": {
+        "required": [
+          "tickets",
+          "next"
+        ],
+        "type": "object",
+        "properties": {
+          "tickets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupportTicketSummaryResponse"
+            }
+          },
+          "next": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A page of tickets, and Next to ask for the next page with, if there is one."
+      },
+      "SupportTicketStatus": {
+        "enum": [
+          "Open",
+          "Answered",
+          "Closed"
+        ],
+        "description": "Where a support ticket is (ADR 0041)."
+      },
+      "SupportTicketSummaryResponse": {
+        "required": [
+          "id",
+          "number",
+          "subject",
+          "status",
+          "traderEmail",
+          "account",
+          "createdAt",
+          "updatedAt",
+          "waitingSince",
+          "messages",
+          "lastAuthor",
+          "preview",
+          "unread"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupportTicketStatus"
+          },
+          "traderEmail": {
+            "type": "string"
+          },
+          "account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SupportAccountResponse"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "waitingSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "messages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastAuthor": {
+            "$ref": "#/components/schemas/SupportAuthor"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          }
+        },
+        "description": "A ticket in a list: its trader and account, when it was last written in, since when it has waited for the firm, how\nmany messages it has and the start of the latest, and whether the trader has an answer to read."
       },
       "SuspendRequest": {
         "required": [
@@ -10556,6 +11457,24 @@
           }
         },
         "description": "An account's trader as the firm sees them, with the name and country given when buying: since when, whether they have\nchosen a password for the portal, their\naccounts at the firm, newest first, their paid orders and what they bought for and were paid out, per currency,\nOrder, the order that started the account asked about, and the firm's Checks of them."
+      },
+      "TraderSupportSummaryResponse": {
+        "required": [
+          "active",
+          "unread"
+        ],
+        "type": "object",
+        "properties": {
+          "active": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unread": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The trader's tickets that are not closed, and those with an answer the trader has not read."
       },
       "TradeSide": {
         "enum": [

@@ -7,10 +7,10 @@ import type { AdminOverview, Billing, FirmSettings } from "@/lib/api/types";
 import { monthName, monthlyPrices } from "@/lib/billing";
 import { formatDate, formatMoney } from "@/lib/format";
 import { goLiveSteps, type GoLiveStep, type StepStatus } from "@/lib/goLive";
-import { useAdminOverview, useBilling, useChallenges, useFirmSettings, usePrices, useWaitingAccounts } from "@/lib/queries";
+import { useAdminOverview, useBilling, useChallenges, useFirmSettings, useFirmSupportSummary, usePrices, useWaitingAccounts } from "@/lib/queries";
 
 import { ActivityList, toneMarks } from "./ActivityList";
-import { AlertIcon, BagIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon } from "./icons";
+import { AlertIcon, BagIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon, SupportIcon } from "./icons";
 import { StartChallengeButton } from "./StartChallenge";
 import { AdminPage, buttonClass, Message, PageHeader, Panel, ProgressBar, secondaryButtonClass, StatTile } from "./ui";
 import { WeeklyChart } from "./WeeklyChart";
@@ -50,6 +50,7 @@ function LiveOverview({ settings }: { settings: FirmSettings }) {
   const billing = useBilling();
   const waiting = useWaitingAccounts(namedWaitingAccounts);
   const challenges = useChallenges();
+  const support = useFirmSupportSummary();
 
   if (overview.isError) {
     return <Message text={overview.error.message} />;
@@ -71,6 +72,7 @@ function LiveOverview({ settings }: { settings: FirmSettings }) {
     currency,
     now,
     shopProblem: settings.status === "Live" ? (billing.data?.shopProblem ?? null) : null,
+    support: support.data ?? null,
   });
 
   return (
@@ -108,6 +110,7 @@ const needsYouIcons: Record<NeedsYouIcon, (props: { className?: string }) => Rea
   approve: ShieldCheckIcon,
   slots: AlertIcon,
   shop: BagIcon,
+  support: SupportIcon,
 };
 
 /** What the firm has to do, the most urgent first, each with a way to do it. */

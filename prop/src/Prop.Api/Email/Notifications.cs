@@ -6,6 +6,7 @@ using Npgsql;
 
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Support;
 using Prop.Rules;
 
 namespace Prop.Api.Email;
@@ -43,9 +44,16 @@ internal static class NotificationKinds
     /// <summary>To the trader: the challenge ends soon unless a trade is opened.</summary>
     public const string TraderInactivity = "traderInactivity";
 
+    /// <summary>To the administrators: a trader opened a support ticket, or wrote in one that did not wait for the firm (ADR 0041).</summary>
+    public const string FirmSupport = "firmSupport";
+
+    /// <summary>To the trader: the firm answered a support ticket.</summary>
+    public const string TraderSupportAnswers = "traderSupportAnswers";
+
     public static readonly IReadOnlyList<string> All =
     [
-        FirmSale, FirmFundingAwaited, FirmPayoutRequested, TraderStagePassed, TraderPassed, TraderFunded, TraderEnded, TraderPayouts, TraderInactivity,
+        FirmSale, FirmFundingAwaited, FirmPayoutRequested, FirmSupport, TraderStagePassed, TraderPassed, TraderFunded, TraderEnded, TraderPayouts, TraderInactivity,
+        TraderSupportAnswers,
     ];
 
     /// <summary>Whether the firm sends the kind. Kinds the firm never set are on.</summary>
@@ -145,6 +153,38 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             new Uri(firm.Portal.Url, $"accounts/{account.Id}"));
         return NotificationKinds.IsOn(firm, NotificationKinds.TraderInactivity)
             ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderInactivity, firm.Id, now, cancellationToken, $"inactivity:{account.Id}:{endsOn:yyyy-MM-dd}")
+            : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// The trader opened the ticket, or wrote in it when it did not wait for the firm: the administrators get the message.
+    /// More messages while the ticket waits send nothing more, so a trader who writes several times sends one email.
+    /// </summary>
+    public Task QueueSupportTicketAsync(
+        NpgsqlConnection connection,
+        Firm firm,
+        SupportTicket ticket,
+        string message,
+        int files,
+        bool opened,
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        ToAdminsAsync(connection, firm, NotificationKinds.FirmSupport, to => SupportTicketEmail(firm, ticket, message, files, opened, to), now, cancellationToken);
+
+    /// <summary>The firm answered the ticket, and closed it with <paramref name="closed"/>: the trader gets the answer.</summary>
+    public static Task QueueSupportAnswerAsync(
+        NpgsqlConnection connection,
+        Firm firm,
+        SupportTicket ticket,
+        string answer,
+        int files,
+        bool closed,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var message = TraderEmails.SupportAnswer(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, answer, files, closed, new Uri(firm.Portal.Url, $"support/{ticket.Id}"));
+        return NotificationKinds.IsOn(firm, NotificationKinds.TraderSupportAnswers)
+            ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderSupportAnswers, firm.Id, now, cancellationToken)
             : Task.CompletedTask;
     }
 
@@ -309,6 +349,25 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             $"New sale: {challengeName} for {Money(amount, currency)}",
             $"{buyer} bought {challengeName} for {Money(amount, currency)} in your portal (order #{orderNumber}).{(accountId is null ? " No account could be started for it, so see the order in your admin panel." : " The challenge has started.")}",
             new Uri(firm.Portal.Url, accountId is { } id ? $"admin/accounts/{id}" : "admin/orders"));
+
+    private EmailMessage SupportTicketEmail(Firm firm, SupportTicket ticket, string message, int files, bool opened, string to)
+    {
+        var about = ticket.Account is { } account ? $" about account #{account.Number}" : "";
+        var attached = files > 0 ? $"{TraderEmails.FilesNote(files)}\n\n" : "";
+        return ToAdmin(
+            to,
+            opened ? $"New support ticket #{ticket.Number} from {ticket.TraderEmail}" : $"{ticket.TraderEmail} wrote in support ticket #{ticket.Number}",
+            $"{ticket.TraderEmail} {(opened ? "opened" : "wrote in")} support ticket #{ticket.Number}{about}, \"{ticket.Subject}\":\n\n{Quote(message)}\n\n{attached}Answer in your admin panel:",
+            new Uri(firm.Portal.Url, $"admin/support/{ticket.Id}"));
+    }
+
+    // A message someone wrote, quoted line by line, and shortened when it is long. The whole message is in the portal.
+    private static string Quote(string message)
+    {
+        const int MaxLength = 2_000;
+        var text = message.Length <= MaxLength ? message : string.Concat(message.AsSpan(0, MaxLength).TrimEnd(), "...");
+        return string.Join('\n', text.Split('\n').Select(line => line.Length == 0 ? ">" : $"> {line}"));
+    }
 
     private EmailMessage ToAdmin(string to, string subject, string text, Uri link) =>
         new(

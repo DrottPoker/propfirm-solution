@@ -154,6 +154,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `firm_signups`, `admin_invites`, `admin_login_links` | Registreringar som väntar på bekräftelse, inbjudningar till administratörer och engångslänkar som loggar in en administratör. |
 | `firm_billing`, `billing_periods`, `billing_charges`, `billing_checkouts`, `billing_events` | Hur firman betalar oss och dess kort, betalda månader med platser, debiteringar, betalsidor och allt som hänt. Se [specen för platser och betalning](platser-och-betalning.md). |
 | `firm_reviews`, `firm_documents`, `firm_events`, `firm_review_checks`, `staff_users` | Vår granskning av firmorna, deras dokument, allt som hänt i granskningen och med avstängningen, våra bockade kontroller och vår personal. Se [specen för granskning och avstängning](granskning.md). |
+| `support_tickets`, `support_ticket_counters`, `support_messages`, `support_attachments` | Supportärenden mellan traders och firman, nästa ärendenummer per firma, meddelandena och filerna, krypterade. Se [specen för supportärenden](support.md). |
 | `challenge_prices` | Vad challengerna kostar i portalen och om de säljs där. |
 | `discount_codes` | Firmans rabattkoder: procent eller belopp i en valuta, vilka challenges, högst hur många gånger, sista dag, om koden är för nya försök och om den är på. |
 | `orders`, `order_events`, `order_counters` | Köp i portalen med status, pris, leverantör, betalning, kontot de startade, om ordern gjordes i sandlådan och rabattkoden med priset före den, allt som hänt varje order och nästa ordernummer per firma. Firmans val av leverantör, krypterade Stripe-nycklar, betalsida och villkor ligger i `firms`. Se [specen för köp i portalen](kop.md). |
@@ -255,6 +256,7 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `AdminPanelTests`: adminpanelens översikt, sökningen bland kontona, kontots trader, firmans kontroller av tradern, mejlet till tradern och förhandsvisningen av det, historiken för firmans konton, utbetalningskön och challengernas siffror. Se [specen för portalen](portal.md).
 - `OrderFlowTests`: köp i portalen med testbetalning, Stripe och firmans egen betalsida. Se [specen för köp i portalen](kop.md).
 - `DiscountTests`: rabattkoder i butiken, att en kod inte används oftare än firman tillåter, kontrollen av nya koder, koder för nya försök, "Try again" på ett underkänt konto och vad ett brott stängde.
+- `SupportTests`: supportärenden mellan traders och firman, se [specen för supportärenden](support.md).
 - `DomainTests`: en egen domän som blir portalens adress när posterna finns, också med samma adresser i stället för CNAME, DNS som inte svarar, domäner som nekas, att en domän hör till en firma, att den kan tas bort och att konfigurerade firmor inte kan byta.
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).

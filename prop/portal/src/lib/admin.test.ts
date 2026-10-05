@@ -124,6 +124,24 @@ describe("needsYouItems", () => {
     expect(items[3]).toMatchObject({ title: "2 more accounts wait for a funded account", href: "/admin/accounts?group=AwaitingFunding" });
   });
 
+  it("puts support tickets to answer after the payouts and before the waiting accounts", () => {
+    const items = needsYouItems({
+      ...input,
+      payouts: { ...noPayouts, toApprove: { count: 1, totals: [{ currency: "USD", amount: 800 }], oldest: "2026-10-07T09:00:00Z" } },
+      waitingAccounts: [{ ...testAccount, status: "AwaitingFunding" }],
+      waitingCount: 1,
+      support: { open: 2, oldestWaiting: "2026-10-07T07:00:00Z", answered: 4 },
+    });
+
+    expect(items.map((i) => i.key)).toEqual(["approve-payouts", "support", `approve-${testAccount.id}`]);
+    expect(items[1]).toMatchObject({ title: "2 support tickets wait for your answer", detail: "The longest waiting wrote 5 hours ago.", href: "/admin/support" });
+    expect(needsYouItems({ ...input, support: { open: 1, oldestWaiting: "2026-10-07T11:50:00Z", answered: 0 } })[0]).toMatchObject({
+      title: "A support ticket waits for your answer",
+      detail: "The trader wrote 10 min ago.",
+    });
+    expect(needsYouItems({ ...input, support: { open: 0, oldestWaiting: null, answered: 3 } })).toEqual([]);
+  });
+
   it("puts a live shop that sells nothing first", () => {
     const items = needsYouItems({ ...input, slots, shopProblem: "Your shop sells nothing, since your Stripe keys are test keys." });
 

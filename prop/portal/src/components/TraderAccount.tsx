@@ -15,7 +15,7 @@ import { ChallengeRules } from "./ChallengeRules";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { PayoutHistory, PayoutPanel } from "./PayoutPanel";
 import { StageTiles } from "./StageSteps";
-import { Badge, buttonClass, Message, ProgressBar, StepBar, type BadgeTone } from "./ui";
+import { Badge, buttonClass, Message, ProgressBar, secondaryButtonClass, StepBar, type BadgeTone } from "./ui";
 
 type Section = { id: string; shows: (details: AccountDetails) => boolean; render: (details: AccountDetails, now: number) => React.ReactNode };
 
@@ -86,12 +86,17 @@ function Header({ details }: { details: AccountDetails }) {
           {timeZoneName(timeZone)}
         </p>
       </div>
-      {isTrading(details) && <OpenTerminalButton account={account} className="px-5 py-2.5" />}
-      {retry && (
-        <Link href={retry.href} className={`${buttonClass} px-5 py-2.5`}>
-          {retry.label}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Link href={`/support/new?account=${account.id}`} className={`${secondaryButtonClass} py-2.5`}>
+          Ask about this account
         </Link>
-      )}
+        {isTrading(details) && <OpenTerminalButton account={account} className="px-5 py-2.5" />}
+        {retry && (
+          <Link href={retry.href} className={`${buttonClass} px-5 py-2.5`}>
+            {retry.label}
+          </Link>
+        )}
+      </div>
     </div>
   );
 }

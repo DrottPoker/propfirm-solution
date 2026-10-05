@@ -233,6 +233,18 @@ Challengen `quick-test-100k` finns bara lokalt. Den har vinstmål på 0,1 % (100
 
 Challenges i `SeedChallenges` skapas eller ersätts vid varje start. Konton som startades innan har kvar sina regler, och ett funded-konto utan vinstandel kan inte få utbetalningar. Börja om från noll med `docker compose -f deploy/docker-compose.yml down -v` om du vill. Se [specen för regelmotorn](docs/spec/regelmotor.md) och [ADR 0015](docs/adr/0015-utbetalningar-tar-ut-vinsten-direkt.md).
 
+## Prova support
+
+Traders skriver till sin firma i portalen, och firman svarar i adminpanelen. Starta handelstjänsten, propfirm-tjänsten och portalen enligt ovan, och Mailpit med docker compose.
+
+1. Logga in som trader på http://localhost:3002/login, till exempel `test@test.com` med `test`, och klicka på Support. Klicka på New ticket, skriv en rubrik och ett meddelande, välj gärna ett konto och lägg till en skärmbild (PDF, PNG eller JPEG, högst 5 MB och tre filer). På ett kontos sida gör knappen Ask about this account samma sak med kontot valt.
+2. Administratören får ett mejl i Mailpit på http://localhost:8025. Logga in som administratör på http://localhost:3002/admin/login. Vid Support i menyn och i Needs you på översikten står hur många ärenden som väntar.
+3. Öppna ärendet under Support och svara. Send and close svarar och stänger på en gång, och Close without answering stänger utan mejl.
+4. Tradern får svaret per mejl i firmans namn, och ser det som oläst vid Support i portalen tills ärendet öppnas. Tradern skriver tillbaka eller stänger ärendet med Close ticket, och ett nytt meddelande öppnar ett stängt ärende igen.
+5. Under Notifications stänger firman av mejlen om ärenden, till teamet och till traderna, var för sig.
+
+Se [specen för supportärenden](docs/spec/support.md) och [ADR 0041](docs/adr/0041-supportarenden-mellan-traders-och-firman.md).
+
 ## Riktiga priser från Tiingo
 
 Tjänsten använder syntetiska priser som standard. För riktiga priser under utvecklingen (ADR 0010):

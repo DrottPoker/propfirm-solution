@@ -18,6 +18,12 @@ export const notificationKinds: NotificationKind[] = [
     description: "A trader passed every phase, and the funded account waits for you.",
   },
   { kind: "firmPayoutRequested", audience: "team", label: "Payout requested", description: "A funded trader asked for a payout." },
+  {
+    kind: "firmSupport",
+    audience: "team",
+    label: "Support ticket",
+    description: "A trader opened a support ticket, or wrote in one that waited for the trader or was closed.",
+  },
   { kind: "traderStagePassed", audience: "trader", label: "Phase passed", description: "The trader passed a phase, and the next one starts." },
   { kind: "traderPassed", audience: "trader", label: "Challenge passed", description: "Every phase is passed, and you review the funded account." },
   { kind: "traderFunded", audience: "trader", label: "Funded account ready", description: "The funded account is open." },
@@ -29,6 +35,7 @@ export const notificationKinds: NotificationKind[] = [
     label: "Trade soon reminder",
     description: "The challenge ends in a few days unless the trader opens a trade.",
   },
+  { kind: "traderSupportAnswers", audience: "trader", label: "Support answer", description: "You answered the trader's support ticket. The email has your answer." },
 ];
 
 /** Whether the firm sends the email. One it never chose is sent. */

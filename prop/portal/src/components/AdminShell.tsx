@@ -8,18 +8,18 @@ import { useBranding } from "@/app/providers";
 
 import type { FirmStatus, Me } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
-import { useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
+import { useFirmSupportSummary, useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
 
 import { BillingNotice } from "./BillingNotice";
 import { FirmName } from "./FirmName";
-import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, TagIcon, TeamIcon } from "./icons";
+import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, SupportIcon, TagIcon, TeamIcon } from "./icons";
 
 type NavLink = {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
   matches: (path: string) => boolean;
-  badge?: "accounts" | "payouts";
+  badge?: "accounts" | "payouts" | "support";
 };
 
 const startsWith = (prefix: string) => (path: string) => path === prefix || path.startsWith(`${prefix}/`);
@@ -33,6 +33,7 @@ function navigation(status: FirmStatus): { label: string | null; links: NavLink[
         { href: "/admin", label: "Overview", icon: OverviewIcon, matches: (path) => path === "/admin" },
         { href: "/admin/accounts", label: "Accounts", icon: AccountsIcon, matches: startsWith("/admin/accounts"), badge: "accounts" },
         { href: "/admin/payouts", label: "Payouts", icon: PayoutIcon, matches: startsWith("/admin/payouts"), badge: "payouts" },
+        { href: "/admin/support", label: "Support", icon: SupportIcon, matches: startsWith("/admin/support"), badge: "support" },
         { href: "/admin/orders", label: "Orders", icon: BagIcon, matches: startsWith("/admin/orders") },
         { href: "/admin/discounts", label: "Discount codes", icon: TagIcon, matches: startsWith("/admin/discounts") },
         { href: "/admin/challenges", label: "Challenges", icon: FlagIcon, matches: startsWith("/admin/challenges") },
@@ -152,7 +153,8 @@ function Navigation({ path }: { path: string }) {
   const { status } = useBranding();
   const payouts = usePayoutSummary();
   const waiting = useWaitingAccounts(3);
-  const badges = { payouts: payouts.data?.toApprove.count ?? 0, accounts: waiting.data?.counts.awaitingFunding ?? 0 };
+  const support = useFirmSupportSummary();
+  const badges = { payouts: payouts.data?.toApprove.count ?? 0, accounts: waiting.data?.counts.awaitingFunding ?? 0, support: support.data?.open ?? 0 };
 
   return (
     <nav aria-label="Admin" className="flex flex-col gap-0.5 text-sm">

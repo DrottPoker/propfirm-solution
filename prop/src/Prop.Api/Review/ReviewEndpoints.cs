@@ -2,6 +2,7 @@ using System.Security.Claims;
 
 using Microsoft.AspNetCore.Http.HttpResults;
 
+using Prop.Api.Files;
 using Prop.Api.Firms;
 using Prop.Api.Portal;
 
@@ -137,9 +138,7 @@ internal static class ReviewEndpoints
             return ProblemOf(new ReviewResult.Refused(StatusCodes.Status404NotFound, "The firm has no such document."));
         }
 
-        context.Response.Headers.XContentTypeOptions = "nosniff";
-        context.Response.Headers.CacheControl = "private, no-store";
-        return TypedResults.File(found.Content, found.Document.ContentType, found.Document.FileName);
+        return UploadedFiles.Download(context, found.Content, found.Document.ContentType, found.Document.FileName);
     }
 
     internal static ProblemHttpResult ProblemOf(ReviewResult.Refused refused) =>

@@ -17,9 +17,19 @@ internal static class TraderEmails
 
     /// <summary>
     /// An email to a trader: paragraphs of text and, with <paramref name="link"/>, a button to it. <paramref name="note"/>
-    /// is a line in small print under the button, for example how long the link works.
+    /// is a line in small print under the button, for example how long the link works. Without
+    /// <paramref name="askForReplies"/> the email does not ask the trader to reply to it, for example when the answer
+    /// belongs in the portal, though a reply still goes to the firm's support address.
     /// </summary>
-    public static EmailMessage Create(Firm firm, string to, string subject, IReadOnlyList<string> paragraphs, string? button, Uri? link, string? note = null)
+    public static EmailMessage Create(
+        Firm firm,
+        string to,
+        string subject,
+        IReadOnlyList<string> paragraphs,
+        string? button,
+        Uri? link,
+        string? note = null,
+        bool askForReplies = true)
     {
         var text = new StringBuilder("Hi,\n\n");
         foreach (var paragraph in paragraphs)
@@ -37,13 +47,13 @@ internal static class TraderEmails
             text.Append(note).Append("\n\n");
         }
 
-        if (firm.SupportEmail is not null)
+        if (firm.SupportEmail is not null && askForReplies)
         {
             text.Append("Questions? Reply to this email.\n\n");
         }
 
         text.Append(firm.Name);
-        return new EmailMessage(to, subject, text.ToString(), firm.Name, Html(firm, paragraphs, button, link, note), firm.SupportEmail);
+        return new EmailMessage(to, subject, text.ToString(), firm.Name, Html(firm, paragraphs, button, link, note, askForReplies), firm.SupportEmail);
     }
 
     /// <summary>After paying for a challenge in the portal: a link that confirms the email and lets the buyer choose a password.</summary>
@@ -116,8 +126,32 @@ internal static class TraderEmails
             firm.Payments.Provider is null ? "Go to the portal" : "Go to the shop",
             new Uri(firm.Portal.Url, firm.Payments.Provider is null ? "" : "buy"));
 
+    /// <summary>
+    /// The firm answered the trader's support ticket (ADR 0041), with the answer. The email asks the trader to answer in the
+    /// portal, so the conversation stays in one place.
+    /// </summary>
+    public static EmailMessage SupportAnswer(Firm firm, string to, long ticketNumber, string subject, string answer, int files, bool closed, Uri ticketUrl) =>
+        Create(
+            firm,
+            to,
+            $"{firm.Name} answered your ticket #{ticketNumber.ToString(CultureInfo.InvariantCulture)}",
+            [
+                $"{firm.Name} answered your support ticket \"{subject}\":",
+                answer,
+                .. files > 0 ? [FilesNote(files)] : Array.Empty<string>(),
+                closed
+                    ? $"{firm.Name} has closed the ticket. If you need more help, write in it again in the portal."
+                    : "Answer in the portal, so the whole conversation stays in one place.",
+            ],
+            "Open the ticket",
+            ticketUrl,
+            askForReplies: false);
+
+    /// <summary>That a message has files, which are only in the portal, for example "1 file is attached in the ticket."</summary>
+    public static string FilesNote(int files) => files == 1 ? "1 file is attached in the ticket." : $"{files.ToString(CultureInfo.InvariantCulture)} files are attached in the ticket.";
+
     // Tables and inline styles, which mail programs show the same.
-    private static string Html(Firm firm, IReadOnlyList<string> paragraphs, string? button, Uri? link, string? note)
+    private static string Html(Firm firm, IReadOnlyList<string> paragraphs, string? button, Uri? link, string? note, bool askForReplies)
     {
         var colors = firm.Portal.Branding.Colors;
         var accent = colors.TryGetValue("accent", out var a) ? a : DefaultAccent;
@@ -139,7 +173,8 @@ internal static class TraderEmails
             """);
         foreach (var paragraph in paragraphs)
         {
-            html.Append(CultureInfo.InvariantCulture, $"""<p style="margin:0 0 14px">{Encode(paragraph)}</p>""").Append('\n');
+            // A paragraph can be a message someone wrote, with lines of its own.
+            html.Append(CultureInfo.InvariantCulture, $"""<p style="margin:0 0 14px">{Encode(paragraph).Replace("\n", "<br>", StringComparison.Ordinal)}</p>""").Append('\n');
         }
 
         if (link is not null)
@@ -156,7 +191,7 @@ internal static class TraderEmails
             html.Append(CultureInfo.InvariantCulture, $"""<p style="margin:0 0 14px;font-size:13px;color:#71717a">{Encode(note)}</p>""").Append('\n');
         }
 
-        var reply = firm.SupportEmail is not null ? " Questions? Reply to this email." : "";
+        var reply = firm.SupportEmail is not null && askForReplies ? " Questions? Reply to this email." : "";
         html.Append(CultureInfo.InvariantCulture, $"""
             </td></tr>
             <tr><td style="padding:16px 28px 24px;border-top:1px solid #e4e4e7;font-size:13px;color:#71717a">{name}.{Encode(reply)}</td></tr>

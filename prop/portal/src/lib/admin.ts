@@ -1,4 +1,4 @@
-import type { Account, AccountGroup, Activity, MoneyTotal, PassRate, PayoutSummary, Slots, Week } from "./api/types";
+import type { Account, AccountGroup, Activity, FirmSupportSummary, MoneyTotal, PassRate, PayoutSummary, Slots, Week } from "./api/types";
 import { niceTicks } from "./chart";
 import { failureLabels } from "./challenge";
 import { formatMoney, formatSignedMoney } from "./format";
@@ -82,7 +82,7 @@ export function whenText(iso: string, now: number): string {
   return sameDay(time, yesterday) ? "Yesterday" : time.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
-export type NeedsYouIcon = "payout" | "approve" | "slots" | "shop";
+export type NeedsYouIcon = "payout" | "approve" | "slots" | "shop" | "support";
 
 /** Something the firm has to do, with where to do it. */
 export type NeedsYouItem = {
@@ -99,8 +99,9 @@ export type NeedsYouItem = {
 export const namedWaitingAccounts = 3;
 
 /**
- * What the firm has to do, the most urgent first: a live shop that sells nothing, payouts to approve and to pay, accounts
- * that passed every stage and wait for the firm, and slots that run out. Billing problems are said on every page instead.
+ * What the firm has to do, the most urgent first: a live shop that sells nothing, payouts to approve and to pay, support
+ * tickets to answer, accounts that passed every stage and wait for the firm, and slots that run out. Billing problems are
+ * said on every page instead.
  */
 export function needsYouItems(input: {
   payouts: PayoutSummary;
@@ -112,8 +113,10 @@ export function needsYouItems(input: {
   now: number;
   /** Why the live firm's shop takes no payment, or null. */
   shopProblem?: string | null;
+  /** The support tickets that wait for the firm, or null before they are known. */
+  support?: FirmSupportSummary | null;
 }): NeedsYouItem[] {
-  const { payouts, waitingAccounts, waitingCount, slots, currency, now, shopProblem } = input;
+  const { payouts, waitingAccounts, waitingCount, slots, currency, now, shopProblem, support } = input;
   const items: NeedsYouItem[] = [];
   if (shopProblem) {
     items.push({
@@ -150,6 +153,18 @@ export function needsYouItems(input: {
       detail: `${formatTotals(toPay.totals, currency)}. Send the money, then mark ${toPay.count === 1 ? "it" : "them"} as paid.`,
       href: "/admin/payouts?view=to-pay",
       action: "Pay",
+    });
+  }
+
+  if (support && support.open > 0) {
+    items.push({
+      key: "support",
+      icon: "support",
+      tone: "accent",
+      title: support.open === 1 ? "A support ticket waits for your answer" : `${support.open} support tickets wait for your answer`,
+      detail: support.oldestWaiting ? `${support.open === 1 ? "The trader" : "The longest waiting"} wrote ${ageText(support.oldestWaiting, now)}.` : "A trader wrote to you.",
+      href: "/admin/support",
+      action: "Answer",
     });
   }
 

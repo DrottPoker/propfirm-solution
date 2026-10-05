@@ -2270,6 +2270,300 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/support/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TraderSupportSummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    cursor?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        subject?: string;
+                    } & {
+                        body?: string;
+                    } & {
+                        /** Format: uuid */
+                        accountId?: string;
+                    } & {
+                        files?: components["schemas"]["IFormFileCollection"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/tickets/{ticketId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/tickets/{ticketId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        body?: string;
+                    } & {
+                        files?: components["schemas"]["IFormFileCollection"];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/tickets/{ticketId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/tickets/{ticketId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/support/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/me": {
         parameters: {
             query?: never;
@@ -4902,6 +5196,237 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/support/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSupportSummaryResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/tickets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    group?: components["schemas"]["SupportTicketGroup"];
+                    search?: string;
+                    cursor?: string;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminSupportTicketsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/tickets/{ticketId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/tickets/{ticketId}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        body?: string;
+                    } & {
+                        close?: boolean;
+                    } & {
+                        files?: components["schemas"]["IFormFileCollection"];
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/tickets/{ticketId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    ticketId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SupportTicketResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/platform": {
         parameters: {
             query?: never;
@@ -6005,6 +6530,12 @@ export interface components {
             admins: components["schemas"]["AdminResponse"][];
             invites: components["schemas"]["AdminInviteResponse"][];
         };
+        /** @description A page of the firm's tickets in a group, the counts in every group, and Next for the next page. */
+        AdminSupportTicketsResponse: {
+            tickets: components["schemas"]["SupportTicketSummaryResponse"][];
+            counts: components["schemas"]["SupportTicketCountsResponse"];
+            next: null | string;
+        };
         /** @description The key for the firm API. It is shown only once. */
         ApiKeyResponse: {
             apiKey: string;
@@ -6553,6 +7084,15 @@ export interface components {
          * @enum {unknown}
          */
         FirmStatus: "Provisioning" | "Sandbox" | "Live";
+        /** @description The firm's tickets that wait for it, since when the oldest has waited, and those that wait for the trader. */
+        FirmSupportSummaryResponse: {
+            /** Format: int32 */
+            open: number;
+            /** Format: date-time */
+            oldestWaiting: null | string;
+            /** Format: int32 */
+            answered: number;
+        };
         /**
          * @description A loss limit and how far equity can fall before it is breached. Distance is the whole loss the
          *     limit allows, from the challenge's rules, so the room left can be judged against it. Null for floors the rule
@@ -6576,6 +7116,7 @@ export interface components {
         };
         /** Format: binary */
         IFormFile: string;
+        IFormFileCollection: components["schemas"]["IFormFile"][];
         /** @description Open Url once before ExpiresAt to choose a password for the portal. */
         InviteResponse: {
             /** Format: uri */
@@ -7646,9 +8187,121 @@ export interface components {
             /** Format: uri */
             checkoutUrl: null | string;
         };
+        /** @description The account a ticket is about, as the portal shows it. */
+        SupportAccountResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            challengeName: string;
+        };
+        /** @description A file added to a message, fetched from the attachments path of the trader's or the admin panel's API. */
+        SupportAttachmentResponse: {
+            /** Format: uuid */
+            id: string;
+            fileName: string;
+            contentType: string;
+            /** Format: int32 */
+            size: number;
+        };
+        /**
+         * @description Who wrote a message: the trader, or the firm. Traders never see which of the firm's administrators wrote.
+         * @enum {unknown}
+         */
+        SupportAuthor: "Trader" | "Firm";
         /** @description Where replies to the emails to the firm's traders go. Empty for nowhere. */
         SupportEmailRequest: {
             email: null | string;
+        };
+        /** @description A message of a ticket. AdminEmail is who wrote for the firm, and only the admin panel sees it. */
+        SupportMessageResponse: {
+            /** Format: uuid */
+            id: string;
+            author: components["schemas"]["SupportAuthor"];
+            adminEmail: null | string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+            attachments: components["schemas"]["SupportAttachmentResponse"][];
+        };
+        /** @description How many of the firm's tickets the search finds in each group. */
+        SupportTicketCountsResponse: {
+            /** Format: int32 */
+            open: number;
+            /** Format: int32 */
+            answered: number;
+            /** Format: int32 */
+            closed: number;
+            /** Format: int32 */
+            all: number;
+        };
+        /**
+         * @description Which of the firm's tickets the admin panel lists.
+         * @enum {unknown}
+         */
+        SupportTicketGroup: "Open" | "Answered" | "Closed" | "All";
+        /**
+         * @description A ticket with every message, oldest first. ClosedBy is who closed it, and
+         *     ClosedByAdmin which administrator, which only the admin panel sees. Unread is
+         *     whether the trader has an answer to read, and is always false in the admin panel.
+         */
+        SupportTicketResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            subject: string;
+            status: components["schemas"]["SupportTicketStatus"];
+            traderEmail: string;
+            traderName: null | string;
+            account: null | components["schemas"]["SupportAccountResponse"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            waitingSince: null | string;
+            /** Format: date-time */
+            closedAt: null | string;
+            closedBy: null | components["schemas"]["SupportAuthor"];
+            closedByAdmin: null | string;
+            unread: boolean;
+            messages: components["schemas"]["SupportMessageResponse"][];
+        };
+        /** @description A page of tickets, and Next to ask for the next page with, if there is one. */
+        SupportTicketsResponse: {
+            tickets: components["schemas"]["SupportTicketSummaryResponse"][];
+            next: null | string;
+        };
+        /**
+         * @description Where a support ticket is (ADR 0041).
+         * @enum {unknown}
+         */
+        SupportTicketStatus: "Open" | "Answered" | "Closed";
+        /**
+         * @description A ticket in a list: its trader and account, when it was last written in, since when it has waited for the firm, how
+         *     many messages it has and the start of the latest, and whether the trader has an answer to read.
+         */
+        SupportTicketSummaryResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            subject: string;
+            status: components["schemas"]["SupportTicketStatus"];
+            traderEmail: string;
+            account: null | components["schemas"]["SupportAccountResponse"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            waitingSince: null | string;
+            /** Format: int32 */
+            messages: number;
+            lastAuthor: components["schemas"]["SupportAuthor"];
+            preview: string;
+            unread: boolean;
         };
         /** @description Why we suspend the firm. Its administrators see it. */
         SuspendRequest: {
@@ -7760,6 +8413,13 @@ export interface components {
             paidOut: components["schemas"]["MoneyTotalResponse"][];
             order: null | components["schemas"]["OrderSummaryResponse"];
             checks: components["schemas"]["TraderCheckResponse"][];
+        };
+        /** @description The trader's tickets that are not closed, and those with an answer the trader has not read. */
+        TraderSupportSummaryResponse: {
+            /** Format: int32 */
+            active: number;
+            /** Format: int32 */
+            unread: number;
         };
         /**
          * @description Whether a position was a buy or a sell.

@@ -26,6 +26,7 @@ using Prop.Api.Persistence;
 using Prop.Api.Portal;
 using Prop.Api.Review;
 using Prop.Api.Signup;
+using Prop.Api.Support;
 using Prop.Api.Trading;
 
 // The build-time OpenAPI generator loads the app only to read its endpoints.
@@ -162,6 +163,8 @@ builder.Services.AddSingleton<ReviewStore>();
 builder.Services.AddSingleton<ReviewService>();
 builder.Services.AddSingleton<OpsFirms>();
 builder.Services.AddSingleton<OpsFigures>();
+builder.Services.AddSingleton<SupportStore>();
+builder.Services.AddSingleton<SupportService>();
 
 // Portal sessions survive restarts and work across instances, since the keys that protect them are in the database.
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();

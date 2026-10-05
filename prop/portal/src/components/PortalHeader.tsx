@@ -6,7 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import type { Me } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
-import { useLogout, useShop } from "@/lib/queries";
+import { useLogout, useMySupportSummary, useShop } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
 import { CloseIcon, MenuIcon } from "./icons";
@@ -15,16 +15,34 @@ import { buttonClass } from "./ui";
 const traderLinks = [
   { href: "/", label: "Accounts", matches: (path: string) => path === "/" || path.startsWith("/accounts") },
   { href: "/payouts", label: "Payouts", matches: (path: string) => path.startsWith("/payouts") },
+  { href: "/support", label: "Support", matches: (path: string) => path.startsWith("/support") },
 ];
 
+/** How many answers the trader has not read, beside Support. */
+function UnreadBadge({ href, unread }: { href: string; unread: number }) {
+  if (href !== "/support" || unread === 0) {
+    return null;
+  }
+
+  return (
+    <span className="ml-1.5 min-w-5 rounded-full bg-accent px-1.5 text-center font-mono text-[11px] font-medium text-accent-foreground tabular-nums">
+      {unread}
+      <span className="sr-only"> {unread === 1 ? "new answer" : "new answers"}</span>
+    </span>
+  );
+}
+
 /**
- * The firm's name and the trader's way around: accounts and payouts, the firm's shop, and a menu with the email and log
- * out. On a phone the links move into the menu. Administrators have the admin panel's menu instead.
+ * The firm's name and the trader's way around: accounts, payouts and support with the answers not read yet, the firm's
+ * shop, and a menu with the email and log out. On a phone the links move into the menu. Administrators have the admin
+ * panel's menu instead.
  */
 export function PortalHeader({ me }: { me: Me }) {
   const shop = useShop(true);
+  const support = useMySupportSummary();
   const path = usePathname();
   const canBuy = shop.data?.open === true;
+  const unread = support.data?.unread ?? 0;
 
   return (
     <header className="border-b border-border bg-panel text-sm">
@@ -38,9 +56,10 @@ export function PortalHeader({ me }: { me: Me }) {
               key={link.href}
               href={link.href}
               aria-current={link.matches(path) ? "page" : undefined}
-              className={`rounded-md px-3 py-2 ${link.matches(path) ? "bg-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+              className={`flex items-center rounded-md px-3 py-2 ${link.matches(path) ? "bg-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
             >
               {link.label}
+              <UnreadBadge href={link.href} unread={unread} />
             </Link>
           ))}
         </nav>
@@ -50,14 +69,14 @@ export function PortalHeader({ me }: { me: Me }) {
               Buy a challenge
             </Link>
           )}
-          <TraderMenu me={me} path={path} canBuy={canBuy} />
+          <TraderMenu me={me} path={path} canBuy={canBuy} unread={unread} />
         </div>
       </div>
     </header>
   );
 }
 
-function TraderMenu({ me, path, canBuy }: { me: Me; path: string; canBuy: boolean }) {
+function TraderMenu({ me, path, canBuy, unread }: { me: Me; path: string; canBuy: boolean; unread: number }) {
   const [open, setOpen] = useState(false);
   const logout = useLogout("trader");
   const router = useRouter();
@@ -109,6 +128,7 @@ function TraderMenu({ me, path, canBuy }: { me: Me; path: string; canBuy: boolea
         <span className="flex items-center gap-1.5 sm:hidden">
           {open ? <CloseIcon className="size-5" /> : <MenuIcon className="size-5" />}
           <span className="text-sm">Menu</span>
+          {unread > 0 && <span aria-hidden="true" className="size-2 rounded-full bg-accent" />}
         </span>
         <span aria-hidden="true" className="hidden text-xs font-semibold sm:inline">
           {initials(me.email)}
@@ -123,9 +143,10 @@ function TraderMenu({ me, path, canBuy }: { me: Me; path: string; canBuy: boolea
                 key={link.href}
                 href={link.href}
                 aria-current={link.matches(path) ? "page" : undefined}
-                className="rounded-md px-3 py-2.5 hover:bg-background"
+                className="flex items-center rounded-md px-3 py-2.5 hover:bg-background"
               >
                 {link.label}
+                <UnreadBadge href={link.href} unread={unread} />
               </Link>
             ))}
             {canBuy && (

@@ -48,6 +48,9 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
           <span className="text-xs text-muted">
             {data.country ? `${countryName(data.country)} · ` : ""}Trader since {formatDate(data.since)}
           </span>
+          <Link href={`/admin/support?group=All&search=${encodeURIComponent(data.email)}`} className="text-xs text-accent hover:underline">
+            Support tickets
+          </Link>
         </div>
       </div>
 

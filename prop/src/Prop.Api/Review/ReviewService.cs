@@ -7,6 +7,7 @@ using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Email;
+using Prop.Api.Files;
 using Prop.Api.Firms;
 using Prop.Api.Json;
 using Prop.Api.Ops;
@@ -50,8 +51,6 @@ internal sealed partial class ReviewService(
     public const int MaxDocumentBytes = 10 * 1024 * 1024;
 
     public const int MaxMessageLength = 2_000;
-
-    public const int MaxFileNameLength = 200;
 
     /// <summary>The firm's review. A firm without one has an empty draft, and a live firm without one needs none.</summary>
     public async Task<FirmReview> GetAsync(Firm firm, CancellationToken cancellationToken)
@@ -141,13 +140,13 @@ internal sealed partial class ReviewService(
             return (new ReviewResult.Refused(StatusCodes.Status413PayloadTooLarge, "A document can be at most 10 MB."), null);
         }
 
-        if (ContentTypeOf(content) is not { } contentType)
+        if (UploadedFiles.ContentTypeOf(content) is not { } contentType)
         {
             return (new ReviewResult.Refused(StatusCodes.Status415UnsupportedMediaType, "Add a PDF, PNG or JPEG file."), null);
         }
 
         var now = time.GetUtcNow();
-        var document = new FirmDocument(Guid.CreateVersion7(now), firm.Id, CleanFileName(fileName), contentType, content.Length, adminEmail, now);
+        var document = new FirmDocument(Guid.CreateVersion7(now), firm.Id, UploadedFiles.CleanFileName(fileName, "document"), contentType, content.Length, adminEmail, now);
         await using var connection = await store.OpenAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         var review = await ReviewStore.LockAsync(connection, firm.Id, now, cancellationToken);
@@ -349,26 +348,6 @@ internal sealed partial class ReviewService(
     /// <summary>Lifts the firm's suspension. Its challenges go on unless its month is unpaid.</summary>
     public Task<ReviewResult> UnsuspendAsync(string firmId, string staffEmail, CancellationToken cancellationToken) =>
         firms.ById(firmId) is null ? Task.FromResult<ReviewResult>(UnknownFirm()) : SetSuspensionAsync(firmId, staffEmail, null, cancellationToken);
-
-    /// <summary>The PDF, PNG or JPEG content type of the file, known from its first bytes. Null for anything else.</summary>
-    public static string? ContentTypeOf(ReadOnlySpan<byte> content) =>
-        content.StartsWith("%PDF-"u8) ? "application/pdf"
-        : content.StartsWith((ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) ? "image/png"
-        : content.StartsWith((ReadOnlySpan<byte>)[0xFF, 0xD8, 0xFF]) ? "image/jpeg"
-        : null;
-
-    /// <summary>The name without folders or control characters, shortened to <see cref="MaxFileNameLength"/>.</summary>
-    public static string CleanFileName(string? fileName)
-    {
-        var name = new string(Path.GetFileName((fileName ?? "").Replace('\\', '/')).Where(c => !char.IsControl(c)).ToArray()).Trim();
-        if (name.Length > MaxFileNameLength)
-        {
-            var extension = Path.GetExtension(name);
-            name = extension.Length < 20 ? name[..(MaxFileNameLength - extension.Length)] + extension : name[..MaxFileNameLength];
-        }
-
-        return name.Length == 0 ? "document" : name;
-    }
 
     // Why the firm cannot change its application now. Null when it can.
     private static string? EditProblem(Firm firm, FirmReview review) =>

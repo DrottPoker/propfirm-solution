@@ -17,6 +17,7 @@ using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Payments;
 using Prop.Api.Review;
+using Prop.Api.Support;
 using Prop.Api.Trading;
 using Prop.Rules;
 
@@ -61,6 +62,7 @@ internal static class PortalEndpoints
         portal.MapGet("/payouts", ListMyPayoutsAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapGet("/payout-method", GetMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapPut("/payout-method", SaveMyPayoutMethodAsync).RequireAuthorization(PortalAuth.TraderPolicy);
+        portal.MapTraderSupport();
 
         portal.MapPost(
                 "/admin/login",
@@ -90,6 +92,7 @@ internal static class PortalEndpoints
         admin.MapAdminDomain();
         admin.MapAdminBilling();
         admin.MapAdminVerification();
+        admin.MapAdminSupport();
         return app;
     }
 
