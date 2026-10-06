@@ -1,5 +1,5 @@
 import type { EngineEvent, EventEnvelope } from "./api/types";
-import { closedBecause, netResult, type DigitsOf } from "./events";
+import { closedBecause, netResult, partResult, type DigitsOf } from "./events";
 import { formatPrice, formatVolume } from "./format";
 
 /** A short note about a trade that comes and goes in a corner: an order filled, a pending order placed, or a close. */
@@ -29,6 +29,19 @@ export function tradeNotice(event: EngineEvent, digitsOf: DigitsOf, events: read
         id: `placed-${event.orderId}`,
         kind: "placed",
         title: `${event.side} ${event.type.toLowerCase()} ${formatVolume(event.volume)} ${event.symbol} placed at ${formatPrice(event.price, digitsOf(event.symbol))}`,
+      };
+    case "OrderModified":
+      return {
+        id: `modified-${event.orderId}-${event.timestamp}`,
+        kind: "placed",
+        title: `${event.symbol} order moved to ${formatPrice(event.price, digitsOf(event.symbol))}`,
+      };
+    case "PositionPartiallyClosed":
+      return {
+        id: `part-${event.positionId}-${event.timestamp}`,
+        kind: "closed",
+        title: `${formatVolume(event.volume)} of ${event.side} ${event.symbol} closed at ${formatPrice(event.closePrice, digitsOf(event.symbol))}, ${formatVolume(event.remainingVolume)} still open`,
+        result: partResult(event),
       };
     case "PositionClosed":
       return {

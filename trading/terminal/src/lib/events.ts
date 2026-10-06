@@ -1,6 +1,7 @@
 import { floorLabel } from "./account";
 import type { EngineEvent } from "./api/types";
 import { formatMoney, formatPercent, formatPrice, formatVolume } from "./format";
+import { trailingPips } from "./orderTools";
 
 /** Price decimals for a symbol. Falls back to 5 for symbols the terminal does not know. */
 export type DigitsOf = (symbol: string) => number;
@@ -67,10 +68,12 @@ const rejections: Record<RejectReason, string> = {
   InvalidTakeProfit: "the take profit is on the wrong side of the price",
   NoPrice: "there is no price for the symbol yet",
   StalePrice: "the price is too old, wait for the next one",
+  MarketClosed: "the market is closed",
   NoConversionRate: "the result cannot be converted to the account currency right now",
   InsufficientMargin: "not enough free margin",
   UnknownOrder: "the order no longer exists",
   UnknownPosition: "the position no longer exists",
+  NoStopLoss: "a trailing stop needs a stop loss to follow",
   InvalidFloor: "the loss limit is not valid",
   UnknownFloor: "the loss limit is unknown",
   InsufficientFunds: "the balance is too low",
@@ -88,10 +91,15 @@ export function rejectionText(reason: string): string {
 
 const inputNames: Record<string, string> = {
   PlaceOrder: "Order",
+  ModifyOrder: "Changing the order",
   CancelOrder: "Cancelling the order",
   ClosePosition: "Closing the position",
+  CloseAllPositions: "Closing all positions",
   ModifyPosition: "Changing the stops",
 };
+
+// ", trailing 10.0 pips" after the stops of a position or order with a trailing stop.
+const trailing = (distance: number | null | undefined, digits: number) => (distance == null ? "" : `, trailing ${trailingPips(distance, digits)} pips`);
 
 /** One line of text describing an engine event for the trader, in plain words. */
 export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
@@ -99,13 +107,17 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
     case "AccountCreated":
       return `Account opened with ${formatMoney(event.balance)} ${event.currency}`;
     case "OrderPlaced":
-      return `Placed ${event.side} ${event.type} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.price, digitsOf(event.symbol))}`;
+      return `Placed ${event.side} ${event.type} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.price, digitsOf(event.symbol))}${trailing(event.trailingDistance, digitsOf(event.symbol))}`;
+    case "OrderModified":
+      return `Moved order ${shortId(event.orderId)} on ${event.symbol} to ${formatPrice(event.price, digitsOf(event.symbol))}: SL ${event.stopLoss ?? "-"}, TP ${event.takeProfit ?? "-"}${trailing(event.trailingDistance, digitsOf(event.symbol))}`;
     case "OrderCancelled":
       return `Order ${shortId(event.orderId)} cancelled${cancelledBecause[event.reason]}`;
     case "PositionOpened":
-      return `Opened ${event.side} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.openPrice, digitsOf(event.symbol))}`;
+      return `Opened ${event.side} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.openPrice, digitsOf(event.symbol))}${trailing(event.trailingDistance, digitsOf(event.symbol))}`;
     case "PositionModified":
-      return `Changed stops on ${shortId(event.positionId)}: SL ${event.stopLoss ?? "-"}, TP ${event.takeProfit ?? "-"}`;
+      return `Changed stops on ${shortId(event.positionId)}: SL ${event.stopLoss ?? "-"}, TP ${event.takeProfit ?? "-"}${event.trailingDistance == null ? "" : ", trailing"}`;
+    case "PositionPartiallyClosed":
+      return `Closed ${formatVolume(event.volume)} of ${event.side} ${event.symbol} at ${formatPrice(event.closePrice, digitsOf(event.symbol))}, ${formatVolume(event.remainingVolume)} left open, profit ${formatMoney(event.profit)} before commission`;
     case "PositionClosed":
       return `Closed ${event.side} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.closePrice, digitsOf(event.symbol))}${closedBecause[event.reason]}, profit ${formatMoney(event.profit)} before commission`;
     case "EquityFloorSet":
@@ -133,6 +145,15 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
 
 type ClosedPosition = Extract<EngineEvent, { kind?: "PositionClosed" }>;
 type OpenedPosition = Extract<EngineEvent, { kind?: "PositionOpened" }>;
+type ClosedPart = Extract<EngineEvent, { kind?: "PositionPartiallyClosed" }>;
+
+/**
+ * What a closed part of a position made after the commission for closing it. The commission for opening the position
+ * is counted with its last close, so the parts and the last close add up to the whole position.
+ */
+export function partResult(part: ClosedPart): number {
+  return Math.round((part.profit - part.commission) * 100) / 100;
+}
 
 /**
  * Commission charged for a closed position, on open and on close. The opening commission comes from the position's

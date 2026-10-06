@@ -13,6 +13,8 @@ export interface ChartTrade {
   /** Null when the opening is older than the events the terminal has. */
   open: TradePoint | null;
   close: TradePoint | null;
+  /** Where parts of the position closed before the rest. */
+  parts: TradePoint[];
 }
 
 /** The symbol's open and closed positions, from the account's events and its open positions. */
@@ -21,7 +23,7 @@ export function chartTrades(events: readonly EngineEvent[], positions: readonly 
   const tradeOf = (positionId: string, side: Side) => {
     let trade = trades.get(positionId);
     if (!trade) {
-      trade = { positionId, side, open: null, close: null };
+      trade = { positionId, side, open: null, close: null, parts: [] };
       trades.set(positionId, trade);
     }
     return trade;
@@ -39,6 +41,8 @@ export function chartTrades(events: readonly EngineEvent[], positions: readonly 
       tradeOf(event.positionId, event.side).open = pointOf(event.timestamp, event.openPrice);
     } else if (event.kind === "PositionClosed" && event.symbol === symbol) {
       tradeOf(event.positionId, event.side).close = pointOf(event.timestamp, event.closePrice);
+    } else if (event.kind === "PositionPartiallyClosed" && event.symbol === symbol) {
+      tradeOf(event.positionId, event.side).parts.push(pointOf(event.timestamp, event.closePrice));
     }
   }
 

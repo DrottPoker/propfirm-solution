@@ -114,11 +114,13 @@ internal sealed partial class TradingHistoryRecorder(
                     connection,
                     """
                     insert into trading_positions
-                        (account_id, position_id, symbol, side, volume, open_price, close_price, closed_at, close_commission, profit, close_reason, close_sequence)
-                    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        (account_id, position_id, symbol, side, volume, open_price, close_price, closed_at, close_commission, profit, close_reason, close_sequence,
+                         close_volume)
+                    values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $5)
                     on conflict (account_id, position_id) do update set
                         close_price = excluded.close_price, closed_at = excluded.closed_at, close_commission = excluded.close_commission,
-                        profit = excluded.profit, close_reason = excluded.close_reason, close_sequence = excluded.close_sequence
+                        profit = excluded.profit, close_reason = excluded.close_reason, close_sequence = excluded.close_sequence,
+                        close_volume = excluded.close_volume
                     """,
                     [
                         account, closed.PositionId, closed.Symbol, closed.Side.ToString(), closed.Volume, closed.OpenPrice, closed.ClosePrice, time,
@@ -127,6 +129,19 @@ internal sealed partial class TradingHistoryRecorder(
                     cancellationToken);
                 await BalanceChangedAsync(
                     connection, account, sequence, time, BalanceChangeKind.Closed, closed.Profit - closed.Commission, closed.BalanceAfter, cancellationToken);
+                break;
+            case TradingPositionPartiallyClosed part:
+                await ExecuteAsync(
+                    connection,
+                    """
+                    insert into trading_partial_closes (account_id, sequence, position_id, time, volume, close_price, profit, commission)
+                    values ($1, $2, $3, $4, $5, $6, $7, $8)
+                    on conflict (account_id, sequence) do nothing
+                    """,
+                    [account, sequence, part.PositionId, time, part.Volume, part.ClosePrice, part.Profit, part.Commission],
+                    cancellationToken);
+                await BalanceChangedAsync(
+                    connection, account, sequence, time, BalanceChangeKind.Closed, part.Profit - part.Commission, part.BalanceAfter, cancellationToken);
                 break;
             case TradingBalanceAdjusted adjusted:
                 await BalanceChangedAsync(connection, account, sequence, time, BalanceChangeKind.Adjusted, adjusted.Amount, adjusted.BalanceAfter, cancellationToken);

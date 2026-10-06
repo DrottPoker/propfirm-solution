@@ -6,9 +6,9 @@ using Trading.Service.Persistence;
 namespace Trading.Service.Candles;
 
 /// <summary>
-/// The charts' history (ADR 0048). The charts show only the current feed's prices: its history for the last 30 days,
-/// loaded when the service switches to the feed, and minute bars made from its live prices, stored as they finish. At
-/// start the stored bars fill the charts and the prices after them are replayed from the journal.
+/// The charts' history (ADR 0048, ADR 0051). The charts show only the current feed's prices: its history, loaded when the
+/// service switches to the feed or the charts are set to reach further back, and minute bars made from its live prices,
+/// stored as they finish. At start the stored bars fill the charts and the prices after them are replayed from the journal.
 /// </summary>
 internal sealed partial class ChartHistory(
     IPriceFeed feed,
@@ -41,7 +41,8 @@ internal sealed partial class ChartHistory(
             await store.ForgetHistoryAsync(feed.Name, cancellationToken);
         }
 
-        if (!await store.HasHistoryAsync(feed.Name, cancellationToken))
+        // Loaded again when the history is set to reach further back than it does.
+        if (await store.GetHistoryReachAsync(feed.Name, cancellationToken) is not { } reach || reach > from)
         {
             await LoadFeedHistoryAsync(from, now, cancellationToken);
         }
@@ -89,15 +90,24 @@ internal sealed partial class ChartHistory(
 
     private static DateTimeOffset Today(DateTimeOffset now) => CandleStore.BarStart(Timeframe.D1, now);
 
-    // Minute bars for the latest days, 15 minute bars before them.
+    // Minute bars for the latest days, 15 minute bars before them and hour bars before those.
     private async Task LoadFeedHistoryAsync(DateTimeOffset from, DateTimeOffset now, CancellationToken cancellationToken)
     {
+        var quartersFrom = Today(now) - options.Value.QuarterHourHistory;
         var minutesFrom = Today(now) - options.Value.MinuteHistory;
-        HistorySpan[] spans = [.. new[] { new HistorySpan(Timeframe.M15, from, minutesFrom), new HistorySpan(Timeframe.M1, minutesFrom, now) }.Where(s => s.From < s.Until)];
+        HistorySpan[] spans =
+        [
+            .. new[]
+            {
+                new HistorySpan(Timeframe.H1, from, quartersFrom),
+                new HistorySpan(Timeframe.M15, quartersFrom, minutesFrom),
+                new HistorySpan(Timeframe.M1, minutesFrom, now),
+            }.Where(s => s.From < s.Until),
+        ];
         try
         {
             var bars = await feed.GetHistoryAsync(spans, cancellationToken);
-            await store.ReplaceHistoryAsync(feed.Name, now, bars, cancellationToken);
+            await store.ReplaceHistoryAsync(feed.Name, from, now, bars, cancellationToken);
             LogHistoryLoaded(logger, bars.Count, feed.Name);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested)

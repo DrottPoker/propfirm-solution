@@ -2,17 +2,19 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 
 import { accountName, backLink, floorLabel, floorLeftText, floorRisk, initials, suspendedHelp, targetText, type FloorRisk } from "@/lib/account";
 import type { AccountDetails, AccountStatus, FloorSnapshot, ServerInfo } from "@/lib/api/types";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { useLogout } from "@/lib/queries";
-import { useSettings } from "@/lib/settings";
-import { playFillSound, unlockSound } from "@/lib/sound";
+import { useSettings, type Setting } from "@/lib/settings";
+import { playFillSound, playWarningSound, unlockSound } from "@/lib/sound";
 import { useTradingStore, type ConnectionState } from "@/lib/store";
 
-import { ArrowLeftIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SoundIcon } from "./icons";
+import { ArrowLeftIcon, BellIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SoundIcon } from "./icons";
+import { RulesMenu } from "./RulesMenu";
+import { useDismiss } from "./useDismiss";
 
 // "Live prices", not "Live": the accounts are practice accounts, and "Live" could be read as a real money account.
 // The dot pulses while prices stream in.
@@ -27,8 +29,9 @@ const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text
 
 /**
  * The firm, the account as the firm's portal names it, its figures and the distance to every loss limit and to the
- * profit target, so the trader always sees them. A trader with several accounts, such as one per challenge stage,
- * switches between them here. On a phone the figures take a row of their own under the firm, scrolled sideways.
+ * profit target, so the trader always sees them, and the whole rulebook behind a button. A trader with several
+ * accounts, such as one per challenge stage, switches between them here. On a phone the figures take a row of their
+ * own under the firm, scrolled sideways.
  */
 export function AccountBar({
   accounts,
@@ -96,7 +99,15 @@ export function AccountBar({
         )}
       </div>
 
-      <div className="max-lg:ml-auto">
+      <div className="flex items-center gap-2 max-lg:ml-auto">
+        {account && (
+          <RulesMenu
+            accountId={account.accountId}
+            profitTarget={current?.profitTarget ?? null}
+            firmName={server.name}
+            detailsUrl={current?.detailsUrl ?? null}
+          />
+        )}
         <UserMenu email={email} serverName={server.name} />
       </div>
     </header>
@@ -215,40 +226,8 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
   const panelId = useId();
   const logout = useLogout();
   const router = useRouter();
-  const sound = useSettings((s) => s.fillSound);
-  const changeSetting = useSettings((s) => s.change);
-
-  // Turning the sound on plays it once, so the trader hears what it is, and lets the browser play it later.
-  const toggleSound = () => {
-    changeSetting("fillSound", !sound);
-    if (!sound) {
-      unlockSound();
-      playFillSound();
-    }
-  };
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    const onPointerDown = (e: PointerEvent) => {
-      if (!ref.current?.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, ref, close);
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -271,21 +250,10 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
             <p className="truncate font-medium">{email}</p>
             <p className="text-xs text-muted">Server {serverName}</p>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={sound}
-            onClick={toggleSound}
-            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
-          >
-            <SoundIcon />
-            <span className="flex-1">Sound on fills</span>
-            <span aria-hidden="true" className={`relative h-4 w-7 rounded-full transition-colors duration-150 ${sound ? "bg-accent" : "bg-border"}`}>
-              <span
-                className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${sound ? "translate-x-3" : ""}`}
-              />
-            </span>
-          </button>
+          <div className="mt-1">
+            <SoundSwitch setting="fillSound" label="Sound on fills" icon={<SoundIcon />} play={playFillSound} />
+            <SoundSwitch setting="warningSound" label="Sound on warnings" icon={<BellIcon />} play={playWarningSound} />
+          </div>
           <button
             type="button"
             disabled={logout.isPending}
@@ -298,5 +266,39 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Turns a sound on or off, on every device the trader uses. Turning it on plays it once, so the trader hears what it
+ * is, and lets the browser play it later.
+ */
+function SoundSwitch({ setting, label, icon, play }: { setting: Setting; label: string; icon: React.ReactNode; play: () => void }) {
+  const on = useSettings((s) => s[setting]);
+  const change = useSettings((s) => s.change);
+  const toggle = () => {
+    change(setting, !on);
+    if (!on) {
+      unlockSound();
+      play();
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={toggle}
+      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+    >
+      {icon}
+      <span className="flex-1">{label}</span>
+      <span aria-hidden="true" className={`relative h-4 w-7 rounded-full transition-colors duration-150 ${on ? "bg-accent" : "bg-border"}`}>
+        <span
+          className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${on ? "translate-x-3" : ""}`}
+        />
+      </span>
+    </button>
   );
 }

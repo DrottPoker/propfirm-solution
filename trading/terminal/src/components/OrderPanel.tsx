@@ -4,18 +4,21 @@ import { useEffect, useId, useState } from "react";
 
 import { suspendedHelp } from "@/lib/account";
 import { CommandRejectedError } from "@/lib/api/client";
-import type { InstrumentInfo, OrderType, PointValue, Side } from "@/lib/api/types";
+import type { InstrumentInfo, MarketPeriod, OrderType, PointValue, Side } from "@/lib/api/types";
 import { rejectionText } from "@/lib/events";
-import { formatMoney, formatPrice, formatSignedMoney, formatUnits } from "@/lib/format";
+import { formatMoney, formatPrice, formatSignedMoney, formatUnits, formatVolume, timeZoneName } from "@/lib/format";
+import { closingSoon, isClosed, opensText, sessionLines, useNow } from "@/lib/marketHours";
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
 import { estimatedMargin, nearestLimit, pipValue, riskText, shareOfRoom, shareRisk, stopLossRisk } from "@/lib/orderSummary";
-import { usePlaceOrder, usePointValue } from "@/lib/queries";
+import { useMarket, usePlaceOrder, usePointValue } from "@/lib/queries";
+import { loadSizing, riskAmount, saveSizing, sizeForRisk, stepRisk, type RiskSize, type RiskUnit, type Sizing } from "@/lib/riskSize";
 import { estimatedProfit, resolveStops, stepAmount, type ResolvedStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
+import { useTimeZone } from "@/lib/timeZone";
 import { loadVolumes, rememberVolume, startVolume } from "@/lib/volumes";
 
-import { MinusIcon, PlusIcon } from "./icons";
+import { ChevronDownIcon, MinusIcon, PlusIcon } from "./icons";
 import { StopUnitToggle } from "./StopUnitToggle";
 import { showError } from "./TradeNotices";
 
@@ -27,6 +30,9 @@ type StopFields = Record<StopKind, string>;
 const noStops: StopFields = { stopLoss: "", takeProfit: "" };
 
 const panelClass = "rounded-xl border border-border bg-panel shadow-card";
+
+/** A size from risk, or why there is none. A prompt asks for something not typed yet, rather than a problem. */
+type Sized = RiskSize | { ok: false; reason: string; prompt: true };
 
 export function OrderPanel({ accountId, instrument }: { accountId: string; instrument: InstrumentInfo | null }) {
   // Nothing to preview without a symbol.
@@ -47,6 +53,10 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const [stops, setStops] = useState<Record<StopUnit, StopFields>>({ price: noStops, money: noStops });
   // The side the trader points at or has focused, which the chart preview and the summary follow.
   const [pointedSide, setPointedSide] = useState<Side | null>(null);
+  // Kept between orders, like the unit of the stops.
+  const [trailing, setTrailing] = useState(false);
+  // In lots, or from what the order risks at its stop loss. Kept between orders and on every device (ADR 0052).
+  const [sizing, setSizing] = useState(loadSizing);
 
   if (volumeSymbol !== instrument.symbol) {
     setVolumeSymbol(instrument.symbol);
@@ -58,15 +68,30 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const suspended = useTradingStore((s) => s.account?.status === "Suspended");
   const ended = useTradingStore((s) => s.account?.status === "Disabled");
   const accountCurrency = useTradingStore((s) => s.account?.currency);
+  const balance = useTradingStore((s) => s.account?.balance);
+  const room = useTradingStore((s) => (s.account ? nearestLimit(s.account.floors)?.headroom : undefined));
   const placeOrder = usePlaceOrder(accountId);
   const pointValue = usePointValue(accountId, instrument.symbol).data ?? undefined;
+  const market = useMarket(accountId, instrument.symbol);
+  const closed = isClosed(market);
+  const timeZone = useTimeZone();
+  const closing = closingSoon(market, useNow(15_000), timeZone);
 
   const digits = instrument.digits;
+  const riskMode = sizing.mode === "risk";
   const parsedVolume = parseVolume(volume, instrument);
-  const lots = parsedVolume.ok ? (parsedVolume.value ?? undefined) : undefined;
+  const typedLots = parsedVolume.ok ? (parsedVolume.value ?? undefined) : undefined;
   const typedPrice = type === "Market" ? null : parsePrice(price, digits);
   const orderPrice = typedPrice?.ok ? (typedPrice.value ?? undefined) : undefined;
-  const fields = stops[unit];
+  // Sizing from risk needs the stop loss as a price, since an amount would already be the risk.
+  const stopUnit: StopUnit = riskMode ? "price" : unit;
+  const fields = stops[stopUnit];
+
+  const changeSizing = (next: Sizing) => {
+    setSizing(next);
+    saveSizing(next);
+  };
+  const changeRisk = (risk: string) => changeSizing({ ...sizing, risks: { ...sizing.risks, [sizing.unit]: risk } });
 
   const changeVolume = (next: string) => {
     setVolume(next);
@@ -77,19 +102,66 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
 
   // Amounts are counted from where the order opens: the ask for a market buy, the bid for a market sell.
   const entryFor = (side: Side) => (type === "Market" ? (side === "Buy" ? quote?.ask : quote?.bid) : orderPrice);
+
+  // The volume that loses the risk at the stop loss, per side, since each side opens at its own price.
+  const amount = riskMode ? riskAmount(sizing.risks[sizing.unit], sizing.unit, balance, room) : null;
+  const sizeFor = (side: Side): Sized => {
+    const stopLoss = parsePrice(stops.price.stopLoss, digits);
+    const entry = entryFor(side);
+    if (amount === null) {
+      return {
+        ok: false,
+        reason:
+          sizing.unit === "room" && room === undefined
+            ? "The account has no loss limit to take a share of."
+            : sizing.unit === "money"
+              ? "Enter the risk as an amount with at most 2 decimals."
+              : "Enter the risk as a percent from 0.01 to 100.",
+      };
+    }
+
+    if (!stopLoss.ok) {
+      return { ok: false, reason: `Enter the stop loss with at most ${digits} decimals.` };
+    }
+
+    if (stopLoss.value === null) {
+      return { ok: false, reason: "Set a stop loss to size the order from the risk.", prompt: true };
+    }
+
+    if (entry === undefined || !pointValue) {
+      return { ok: false, reason: type === "Market" ? "Waiting for a price." : `Enter a ${type.toLowerCase()} price.`, prompt: true };
+    }
+
+    return sizeForRisk({ amount, side, entry, stopLoss: stopLoss.value, digits, pointValuePerLot: pointValue.perLot, limits: instrument });
+  };
+  const lotsFor = (side: Side): number | undefined => {
+    if (!riskMode) {
+      return typedLots;
+    }
+
+    const size = sizeFor(side);
+    return size.ok ? size.lots : undefined;
+  };
+
   const resolve = (side: Side) =>
-    resolveStops(unit, fields.stopLoss, fields.takeProfit, side, entryFor(side), lots ?? 0, digits, pointValue?.perLot);
+    resolveStops(stopUnit, fields.stopLoss, fields.takeProfit, side, entryFor(side), lotsFor(side) ?? 0, digits, pointValue?.perLot);
 
   // What the trader asked for comes back as a note in the corner: the fill from the trading service, or why not.
   const submit = (side: Side) => {
     const resolved = resolve(side);
-    const error = !parsedVolume.ok
-      ? `Volume must be between ${instrument.volumeMin} and ${instrument.volumeMax} in steps of ${instrument.volumeStep}.`
-      : type !== "Market" && orderPrice === undefined
-        ? `Enter a ${type.toLowerCase()} price with at most ${digits} decimals.`
-        : !resolved.ok
-          ? resolved.error
-          : null;
+    const size = riskMode ? sizeFor(side) : null;
+    const lots = lotsFor(side);
+    const error = size && !size.ok
+      ? size.reason
+      : !riskMode && !parsedVolume.ok
+        ? `Volume must be between ${instrument.volumeMin} and ${instrument.volumeMax} in steps of ${instrument.volumeStep}.`
+        : type !== "Market" && orderPrice === undefined
+          ? `Enter a ${type.toLowerCase()} price with at most ${digits} decimals.`
+          : !resolved.ok
+            ? resolved.error
+            : trailing && resolved.stopLoss === null
+              ? "Set a stop loss for the trailing stop to follow."
+              : null;
     if (error || !resolved.ok) {
       showError(error ?? "Invalid order.");
       return;
@@ -105,6 +177,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         price: type === "Market" ? null : orderPrice,
         stopLoss: resolved.stopLoss,
         takeProfit: resolved.takeProfit,
+        trailingStop: trailing,
       },
       {
         onSuccess: () => {
@@ -121,6 +194,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const preview = (side: Side): string[] => {
     const resolved = resolve(side);
     const entry = entryFor(side);
+    const lots = lotsFor(side);
     if (!resolved.ok) {
       return [];
     }
@@ -130,7 +204,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         return null;
       }
 
-      if (unit === "money") {
+      if (stopUnit === "money") {
         return `${label} ${formatPrice(stop, digits)}`;
       }
 
@@ -143,16 +217,16 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const previews = sides.map(preview);
 
   // A price step is one pip. An amount step is what one pip is worth at the volume.
-  const pipAmount = pointValue && lots ? pipValue(lots, digits, pointValue.perLot) : 10;
+  const pipAmount = pointValue && typedLots ? pipValue(typedLots, digits, pointValue.perLot) : 10;
   const startPrice = orderPrice ?? quote?.bid;
-  const setStop = (kind: StopKind, value: string) => setStops((s) => ({ ...s, [unit]: { ...s[unit], [kind]: value } }));
+  const setStop = (kind: StopKind, value: string) => setStops((s) => ({ ...s, [stopUnit]: { ...s[stopUnit], [kind]: value } }));
   const stepStop = (kind: StopKind, direction: 1 | -1) =>
-    setStop(kind, unit === "price" ? stepPrice(fields[kind], direction, digits, startPrice) : stepAmount(fields[kind], direction, pipAmount));
+    setStop(kind, stopUnit === "price" ? stepPrice(fields[kind], direction, digits, startPrice) : stepAmount(fields[kind], direction, pipAmount));
 
   // Typed prices fit one side at most, and amounts fit both. Without a side to go by, the chart shows a buy.
   const typedStops = resolveStops("price", stops.price.stopLoss, stops.price.takeProfit, "Buy", undefined, 0, digits, undefined);
   const fittingSide =
-    unit === "price" && typedStops.ok && quote
+    stopUnit === "price" && typedStops.ok && quote
       ? sideOfStops(typedStops.stopLoss, typedStops.takeProfit, orderPrice ?? quote.bid, orderPrice ?? quote.ask)
       : null;
   const ghostSide = pointedSide ?? fittingSide ?? "Buy";
@@ -162,7 +236,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
       side: ghostSide,
       entry: entryFor(ghostSide),
       stops: resolve(ghostSide),
-      lots,
+      lots: lotsFor(ghostSide),
       digits,
       pointValuePerLot: pointValue?.perLot,
     }),
@@ -195,7 +269,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
     [instrument.symbol, instrument.digits],
   );
 
-  const disabled = !canTrade || !quote || placeOrder.isPending;
+  const disabled = !canTrade || !quote || closed || placeOrder.isPending;
   // A pending order's margin is counted at its price, a market order's at the middle of bid and ask.
   const marginPrice = orderPrice ?? (quote ? (quote.bid + quote.ask) / 2 : undefined);
 
@@ -220,21 +294,37 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         ))}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Stepper
-          label="Volume (lots)"
-          value={volume}
-          onChange={changeVolume}
-          onStep={(direction) => changeVolume(stepVolume(volume, direction, instrument))}
-        />
-        {lots !== undefined ? (
-          <span className="text-xs text-muted">
-            = {formatUnits(lots * instrument.contractSize)} {instrument.baseCurrency}
-          </span>
+      <div className="flex flex-col gap-1.5">
+        <SizeToggle sizing={sizing} currency={accountCurrency ?? "Money"} onChange={changeSizing} />
+        {riskMode ? (
+          <div className="flex flex-col gap-1">
+            <Stepper
+              label={`Risk (${riskUnitNames(accountCurrency ?? "money")[sizing.unit]})`}
+              value={sizing.risks[sizing.unit]}
+              onChange={changeRisk}
+              placeholder={sizing.unit === "money" ? "Amount" : "Percent"}
+              onStep={(direction) => changeRisk(stepRisk(sizing.risks[sizing.unit], direction, sizing.unit))}
+            />
+            <RiskResult size={sizeFor(ghostSide)} currency={pointValue?.currency ?? accountCurrency ?? ""} />
+          </div>
         ) : (
-          <span className="text-xs text-loss">
-            {instrument.volumeMin} to {instrument.volumeMax} lots in steps of {instrument.volumeStep}
-          </span>
+          <div className="flex flex-col gap-1">
+            <Stepper
+              label="Volume (lots)"
+              value={volume}
+              onChange={changeVolume}
+              onStep={(direction) => changeVolume(stepVolume(volume, direction, instrument))}
+            />
+            {typedLots !== undefined ? (
+              <span className="text-xs text-muted">
+                = {formatUnits(typedLots * instrument.contractSize)} {instrument.baseCurrency}
+              </span>
+            ) : (
+              <span className="text-xs text-loss">
+                {instrument.volumeMin} to {instrument.volumeMax} lots in steps of {instrument.volumeStep}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -249,10 +339,16 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-muted">Stop loss and take profit in</span>
-          <StopUnitToggle unit={unit} currency={pointValue?.currency ?? accountCurrency ?? "Money"} onChange={setUnit} />
-        </div>
+        {riskMode ? (
+          <span className="text-xs text-muted" title="The volume is worked out from the risk at the stop loss price.">
+            Stop loss and take profit as prices
+          </span>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted">Stop loss and take profit in</span>
+            <StopUnitToggle unit={unit} currency={pointValue?.currency ?? accountCurrency ?? "Money"} onChange={setUnit} />
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Stepper
             label="Stop loss"
@@ -271,6 +367,13 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
             onStep={(direction) => stepStop("takeProfit", direction)}
           />
         </div>
+        <label
+          className="flex w-fit items-center gap-1.5 text-xs text-muted"
+          title="The stop loss follows the price at the distance it is set at, and never moves back. The engine moves it, also when the terminal is closed."
+        >
+          <input type="checkbox" checked={trailing} onChange={(e) => setTrailing(e.target.checked)} className="accent-[var(--accent)]" />
+          Trailing stop
+        </label>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -282,6 +385,16 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         {ended && (
           <p role="note" className="rounded-md bg-loss/10 px-3 py-2 text-xs text-loss">
             Trading on this account has ended, so no new orders are taken.
+          </p>
+        )}
+        {!ended && closed && market && (
+          <p role="note" className="rounded-md bg-raised px-3 py-2 text-xs text-muted">
+            The {instrument.symbol} market is closed. {opensText(market, timeZone, timeZoneName(timeZone))}.
+          </p>
+        )}
+        {!ended && closing && (
+          <p role="note" className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+            The market closes in {closing.minutes} min, at {closing.at}. Open positions stay open over the close.
           </p>
         )}
         <div className="grid grid-cols-2 gap-2">
@@ -311,7 +424,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
 
       <OrderSummary
         instrument={instrument}
-        lots={lots}
+        lots={lotsFor(ghostSide)}
         price={marginPrice}
         pointValue={pointValue}
         side={ghostSide}
@@ -319,7 +432,8 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         stops={resolve(ghostSide)}
       />
 
-      <dl className="mt-auto grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
+      <div className="mt-auto flex flex-col gap-1.5 border-t border-border pt-3 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
         <dt className="text-muted">Leverage</dt>
         <dd className="text-right font-mono tabular-nums">1:{instrument.leverage}</dd>
         <dt className="text-muted">Spread markup</dt>
@@ -333,7 +447,101 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
           <span className="font-mono tabular-nums">{formatUnits(instrument.contractSize)}</span> {instrument.baseCurrency}
         </dd>
       </dl>
+      <TradingHours sessions={market?.sessions ?? null} known={market !== undefined} closed={closed} timeZone={timeZone} />
+      </div>
     </aside>
+  );
+}
+
+/**
+ * Whether the market is open, and the periods it is open this week in the account's time zone, behind a click. A
+ * market that never closes, like crypto, says so.
+ */
+function TradingHours({ sessions, known, closed, timeZone }: { sessions: MarketPeriod[] | null; known: boolean; closed: boolean; timeZone: string }) {
+  const state = !known ? "-" : sessions === null ? "Around the clock" : closed ? "Closed" : "Open";
+  if (sessions === null || sessions.length === 0) {
+    return (
+      <p className="flex justify-between gap-3">
+        <span className="text-muted">Trading hours</span>
+        <span>{state}</span>
+      </p>
+    );
+  }
+
+  return (
+    <details className="group">
+      <summary className="flex cursor-pointer list-none justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <span className="text-muted">Trading hours</span>
+        <span className="flex items-center gap-1">
+          {state}
+          <ChevronDownIcon className="size-3 text-muted transition-transform duration-150 group-open:rotate-180" />
+        </span>
+      </summary>
+      <ul className="mt-1.5 flex flex-col gap-0.5 text-right font-mono text-[11px] text-muted tabular-nums" aria-label={`Open periods, ${timeZoneName(timeZone)}`}>
+        {sessionLines(sessions, timeZone).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** What the risk is typed in, for the field's label. */
+function riskUnitNames(currency: string): Record<RiskUnit, string> {
+  return { money: currency, balance: "% of balance", room: "% of room" };
+}
+
+/**
+ * Chooses how the order is sized: in lots, or from what it risks at its stop loss, as an amount, a percent of the
+ * balance or a percent of the room left to the nearest loss limit.
+ */
+function SizeToggle({ sizing, currency, onChange }: { sizing: Sizing; currency: string; onChange: (sizing: Sizing) => void }) {
+  const selected = sizing.mode === "lots" ? "lots" : sizing.unit;
+  const options: { id: "lots" | RiskUnit; label: string; title: string }[] = [
+    { id: "lots", label: "Lots", title: "Type the volume in lots" },
+    { id: "money", label: currency, title: `Risk an amount in ${currency} at the stop loss` },
+    { id: "balance", label: "% balance", title: "Risk a percent of the balance at the stop loss" },
+    { id: "room", label: "% room", title: "Risk a percent of the room left to the nearest loss limit, usually today's" },
+  ];
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-xs text-muted">Size in</span>
+      <div role="group" aria-label="Size in" className="flex shrink-0 rounded-lg bg-background p-0.5 text-[11px]">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            aria-pressed={o.id === selected}
+            title={o.title}
+            onClick={() => onChange(o.id === "lots" ? { ...sizing, mode: "lots" } : { ...sizing, mode: "risk", unit: o.id })}
+            className={`rounded-md px-2 py-0.5 font-medium whitespace-nowrap transition duration-150 active:translate-y-px ${o.id === selected ? "bg-raised text-foreground shadow-card" : "text-muted hover:text-foreground"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The volume the risk gives and what it then risks, or why there is none. */
+function RiskResult({ size, currency }: { size: Sized; currency: string }) {
+  if (!size.ok) {
+    return (
+      <span role="status" className={`text-xs ${"prompt" in size ? "text-muted" : "text-warning"}`}>
+        {size.reason}
+      </span>
+    );
+  }
+
+  return (
+    <span role="status" className="text-xs text-muted" title="Estimated at the stop loss, before commission">
+      = <span className="font-mono text-foreground tabular-nums">{formatVolume(size.lots)}</span> lots, risks{" "}
+      <span className="font-mono tabular-nums">
+        {formatMoney(size.risk)} {currency}
+      </span>
+      {size.atMost && ", the largest volume allowed"}
+    </span>
   );
 }
 

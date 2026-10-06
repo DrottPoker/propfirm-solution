@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 using Trading.Engine;
 using Trading.Engine.Inputs;
@@ -27,11 +29,15 @@ internal static class TradingEndpoints
         account.MapGet("", GetAccountAsync);
         account.MapGet("/instruments", GetInstrumentsAsync);
         account.MapGet("/instruments/{symbol}/point-value", GetPointValueAsync);
+        account.MapGet("/market-hours", GetMarketHoursAsync);
+        account.MapGet("/rules", GetRulesAsync);
         account.MapGet("/prices", GetPricesAsync);
         account.MapGet("/candles/{symbol}", GetCandlesAsync);
         account.MapGet("/events", GetEventsAsync);
         account.MapPost("/orders", PlaceOrderAsync);
+        account.MapPut("/orders/{orderId}", ModifyOrderAsync);
         account.MapDelete("/orders/{orderId}", CancelOrderAsync);
+        account.MapPost("/positions/close-all", CloseAllPositionsAsync);
         account.MapPost("/positions/{positionId}/close", ClosePositionAsync);
         account.MapPut("/positions/{positionId}/stops", ModifyStopsAsync);
         return app;
@@ -50,6 +56,24 @@ internal static class TradingEndpoints
         await GroupConditionsOfAsync(engine, accountId, cancellationToken) is { } group
             ? TypedResults.Ok(catalog.InstrumentsFor(group))
             : TypedResults.NotFound();
+
+    /// <summary>When each of the account's symbols can be traded, from now on. Orders, closes and stop changes are refused while a market is closed.</summary>
+    private static async Task<Results<Ok<IReadOnlyList<MarketHours>>, NotFound>> GetMarketHoursAsync(
+        string accountId,
+        EngineHost engine,
+        MarketCatalog catalog,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        await GroupConditionsOfAsync(engine, accountId, cancellationToken) is { } group
+            ? TypedResults.Ok(catalog.MarketHoursFor(group, time.GetUtcNow()))
+            : TypedResults.NotFound();
+
+    /// <summary>
+    /// The account's rules as the firm's system last told them: trading days, deadlines and the consistency rule. Every
+    /// field is null when it has told none. Changes arrive in realtime as Rules (ADR 0052).
+    /// </summary>
+    private static async Task<Ok<AccountRules>> GetRulesAsync(string accountId, IUserStore users, CancellationToken cancellationToken) =>
+        TypedResults.Ok(await users.AccountRulesOfAsync(accountId, cancellationToken) ?? AccountRules.None);
 
     // Not found also when the symbol has no conversion rate yet, which a price soon brings.
     private static async Task<Results<Ok<PointValue>, NotFound>> GetPointValueAsync(
@@ -71,12 +95,16 @@ internal static class TradingEndpoints
         return TypedResults.Ok(await engine.QueryAsync(e => e.GetPrices(groupId) ?? [], cancellationToken));
     }
 
-    /// <summary>Bid candles as the account's group sees them, oldest first. Waits until the history is loaded after a start.</summary>
+    /// <summary>
+    /// Bid candles as the account's group sees them, oldest first: the latest, or with <c>before</c> the latest that start
+    /// before that time, to scroll back. Waits until the history is loaded after a start.
+    /// </summary>
     private static async Task<Results<Ok<IReadOnlyList<Candle>>, NotFound>> GetCandlesAsync(
         string accountId,
         string symbol,
         Timeframe timeframe,
         int? count,
+        DateTimeOffset? before,
         EngineHost engine,
         MarketCatalog catalog,
         CandleStore candles,
@@ -90,7 +118,7 @@ internal static class TradingEndpoints
 
         await candles.Ready.WaitAsync(cancellationToken);
         var shift = -conditions.BidMarkupPoints * instrument.Point;
-        return TypedResults.Ok(candles.Get(symbol, timeframe, Math.Clamp(count ?? DefaultCandles, 1, MaxCandles), shift));
+        return TypedResults.Ok(candles.Get(symbol, timeframe, Math.Clamp(count ?? DefaultCandles, 1, MaxCandles), shift, before));
     }
 
     /// <summary>
@@ -128,7 +156,29 @@ internal static class TradingEndpoints
         EngineHost engine,
         CancellationToken cancellationToken) =>
         CommandResults.From(await engine.SendAsync(
-            t => new PlaceOrder(t, accountId, request.OrderId, request.Symbol, request.Side, request.Type, request.Volume, request.Price, request.StopLoss, request.TakeProfit),
+            t => new PlaceOrder(
+                t,
+                accountId,
+                request.OrderId,
+                request.Symbol,
+                request.Side,
+                request.Type,
+                request.Volume,
+                request.Price,
+                request.StopLoss,
+                request.TakeProfit,
+                request.TrailingStop),
+            cancellationToken));
+
+    /// <summary>Moves a pending order to a new price and sets its stops.</summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ModifyOrderAsync(
+        string accountId,
+        string orderId,
+        ModifyOrderRequest request,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        CommandResults.From(await engine.SendAsync(
+            t => new ModifyOrder(t, accountId, orderId, request.Price, request.StopLoss, request.TakeProfit, request.TrailingStop),
             cancellationToken));
 
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> CancelOrderAsync(
@@ -138,12 +188,22 @@ internal static class TradingEndpoints
         CancellationToken cancellationToken) =>
         CommandResults.From(await engine.SendAsync(t => new CancelOrder(t, accountId, orderId), cancellationToken));
 
+    /// <summary>Closes the position, or with a volume only that part of it.</summary>
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ClosePositionAsync(
         string accountId,
         string positionId,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] ClosePositionRequest? request,
         EngineHost engine,
         CancellationToken cancellationToken) =>
-        CommandResults.From(await engine.SendAsync(t => new ClosePosition(t, accountId, positionId), cancellationToken));
+        CommandResults.From(await engine.SendAsync(t => new ClosePosition(t, accountId, positionId, request?.Volume), cancellationToken));
+
+    /// <summary>Closes every position, or those in a symbol, at the same moment. Positions whose market is closed stay open.</summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> CloseAllPositionsAsync(
+        string accountId,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CloseAllPositionsRequest? request,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        CommandResults.From(await engine.SendAsync(t => new CloseAllPositions(t, accountId, request?.Symbol), cancellationToken));
 
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ModifyStopsAsync(
         string accountId,
@@ -152,7 +212,7 @@ internal static class TradingEndpoints
         EngineHost engine,
         CancellationToken cancellationToken) =>
         CommandResults.From(await engine.SendAsync(
-            t => new ModifyPosition(t, accountId, positionId, request.StopLoss, request.TakeProfit),
+            t => new ModifyPosition(t, accountId, positionId, request.StopLoss, request.TakeProfit, request.TrailingStop),
             cancellationToken));
 
     private static Task<string?> GroupOfAsync(EngineHost engine, string accountId, CancellationToken cancellationToken) =>

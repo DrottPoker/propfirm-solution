@@ -12,6 +12,12 @@ public interface IPriceFeed
     string Name { get; }
 
     /// <summary>
+    /// Whether the prices come from markets that open and close. The engine then follows the instruments' trading hours.
+    /// Made-up prices run around the clock, so with them every market is always open (ADR 0050).
+    /// </summary>
+    bool FollowsTradingHours { get; }
+
+    /// <summary>
     /// Bars of bid for every instrument, at each span's resolution, oldest first. Only whole bars inside the spans.
     /// Loaded into the charts when the service switches to the feed, and never sent to the engine.
     /// </summary>

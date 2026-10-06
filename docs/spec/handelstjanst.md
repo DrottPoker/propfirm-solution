@@ -1,8 +1,8 @@
 # Spec: handelstjänsten
 
-- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6, pausade konton i 7, handelsvillkor, listning, inloggning genom firmans portal och kontonas uppgifter för terminalen efter genomgången som ny firma
+- Fas: 2a, 2b och 3b, insättningar och uttag i 5, firmor i databasen och partner-API i 6, pausade konton i 7, handelsvillkor, listning, inloggning genom firmans portal och kontonas uppgifter för terminalen efter genomgången som ny firma, öppettider, orderverktygen och längre historik efter jämförelsen med konkurrenterna
 - Status: Implementerad i `trading/src/Trading.Service`
-- Datum: 2026-10-05
+- Datum: 2026-10-06
 
 ## Syfte
 
@@ -16,8 +16,8 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 | `IEngineJournal`, `PostgresEngineJournal` | Journalen: indata, händelser och ögonblicksbilder i Postgres. |
 | `EventLog` | Skickar sparade händelser vidare till realtidsdelen. |
 | `EngineHealthCheck` | `/health` är friskt först när journalen är uppspelad, och bara så länge den går att skriva. |
-| `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. Ger livepriser och historik för graferna. Flödets namn sparas med varje pris det ger. |
-| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Historiken går bakåt från det senaste priset, så den slutar där livepriserna fortsätter. Standard. |
+| `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. Ger livepriser och historik för graferna. Flödets namn sparas med varje pris det ger. `FollowsTradingHours` säger om priserna kommer från marknader som öppnar och stänger. Bara då får motorn instrumentens öppettider (ADR 0050). |
+| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Historiken går bakåt från det senaste priset, så den slutar där livepriserna fortsätter. Går dygnet runt, så med det är alla marknader alltid öppna. Standard. |
 | `TiingoPriceFeed` | Riktiga priser för valutor och metaller från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. Historiken kommer från Tiingos staplar av mittpriset, sänkta med halva spreaden till bid (ADR 0048). Tiingo har inga index, råvaror eller krypto, så de instrumenten får inga priser. |
 | `CapitalComPriceFeed` | Riktiga priser för alla instrumentets kategorier från ett gratis demokonto hos Capital.com, för utveckling (ADR 0049). Öppnar en session, hämtar de senaste priserna, prenumererar på högst 40 instrument och pingar strömmen var fjärde minut. Historiken kommer från Capital.com:s staplar av bid, högst 950 per anrop. Capital.com:s namn (epic) skiljer sig för några symboler, till exempel GOLD för XAUUSD och J225 för JP225. |
 | `PriceFeedPump` | Flyttar priser från flödet till candles och motorn, när graferna är fyllda. |
@@ -67,9 +67,9 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 4. Kontrollera att uppspelningen gav lika många händelser som journalen har. Vägra starta annars.
 5. Spara en ny ögonblicksbild med den aktuella konfigurationen.
 6. Låt det syntetiska flödet fortsätta från de senaste priserna.
-7. Fyll graferna med det aktuella flödets priser (ADR 0048). Kommer det senaste sparade priset från ett annat flöde, eller finns inget, har tjänsten bytt flöde, och flödets historik för 30 dagar laddas först. Därefter läses flödets sparade staplar, och priserna efter den sista spelas upp från journalen. Ett annat flödes priser kommer aldrig med. `GET /candles` väntar tills graferna är fyllda.
+7. Fyll graferna med det aktuella flödets priser (ADR 0048). Kommer det senaste sparade priset från ett annat flöde, eller finns inget, har tjänsten bytt flöde, och flödets historik laddas först. Den laddas också när den sparade historiken inte når så långt bakåt som `Charts:History` säger (ADR 0051). Därefter läses flödets sparade staplar, och priserna efter den sista spelas upp från journalen. Ett annat flödes priser kommer aldrig med. `GET /candles` väntar tills graferna är fyllda.
 
-**Grafernas historik:** de senaste 2 dagarna och i dag laddas i minutstaplar, som ger M1 och M5. Resten laddas i staplar på 15 minuter, som ger M15 och längre. Lägre tidsramar får alltså kortare historik, vilket räcker eftersom terminalen visar 500 staplar. Varje färdig minutstapel sparas några sekunder efter att minuten slutat, och de sista när tjänsten stängs. Går historiken inte att ladda startar tjänsten ändå, och nästa start försöker igen.
+**Grafernas historik:** de senaste 2 dagarna och i dag laddas i minutstaplar, som ger M1 och M5. De senaste 30 dagarna laddas i staplar på 15 minuter, som ger M15 och M30, och resten av de 180 dagarna i timstaplar, som ger H1 och längre (ADR 0051). Lägre tidsramar får alltså kortare historik. Terminalen visar 500 staplar och hämtar äldre när tradern bläddrar bakåt. Varje färdig minutstapel sparas några sekunder efter att minuten slutat, och de sista när tjänsten stängs. Går historiken inte att ladda startar tjänsten ändå, och nästa start försöker igen.
 
 **Avstängning:** Arbete som inte hunnit köras avbryts. Den sista batchen sparas tillsammans med en ögonblicksbild, så att nästa start inte behöver spela upp något.
 
@@ -89,6 +89,9 @@ Tjänsten publicerar ett OpenAPI-dokument på `/openapi/v1.json`. Samma dokument
 | `GET /api/auth/me` | Den inloggade tradern, firmans server med `logoUrl`, kontona tradern äger och deras uppgifter för terminalen i `accountDetails`: `label`, `profitTarget`, `timeZone` och `detailsUrl` (ADR 0035). |
 | `GET /api/servers` | Servrarna som listas, med id, firmans namn, `loginUrl` och `logoUrl`, sorterade efter namn. `loginUrl` är firmans portal när firmans traders loggar in där i stället för med ett lösenord här (ADR 0027). Firmor som en partner har skapat listas när partnern säger att de är live, men går att logga in på innan. Kräver ingen inloggning. |
 | `GET /api/servers/{id}` | En server, listad eller inte, med samma fält. 404 för en okänd. Terminalen hittar så en firma i sandlådan och dess portal. |
+| `GET /api/me/settings` | Den inloggades inställningar i terminalen, som `{ "settings": { "nyckel": värde } }` (ADR 0052). |
+| `PUT /api/me/settings/{key}` | Sparar vilket JSON-värde som helst under nyckeln och ersätter det förra. Nycklar har bokstäver, siffror, punkter, bindestreck och understreck, högst 120 tecken, annars 422. Ett värde över 64 KB svarar 413, och en ny nyckel när tradern redan har 200 svarar 422. Terminalen bestämmer vad varje nyckel innehåller. |
+| `DELETE /api/me/settings/{key}` | Tar bort inställningen. |
 
 ### För tradern
 
@@ -98,14 +101,18 @@ Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är 
 |---|---|
 | `GET` | Kontot värderat till senaste priser. Varje golv har `headroom`: hur långt equity kan falla innan golvet bryts. |
 | `GET /instruments` | Gruppens instrument med kategori (`Forex`, `Metals`, `Indices`, `Commodities` eller `Crypto`) och villkor: hävstång, påslag och provision. |
+| `GET /market-hours` | När varje symbol i gruppen går att handla, sett från nu (ADR 0050): `isOpen`, `nextChange`, när marknaden stänger om den är öppen eller öppnar om den är stängd, och `sessions`, perioderna den är öppen från nu och en vecka framåt i UTC, med den pågående först. En marknad som aldrig stänger, som krypto eller alla med det syntetiska flödet, är öppen med `nextChange` och `sessions` som null. `nextChange` är också null om marknaden inte öppnar inom en månad. |
+| `GET /rules` | Kontots regler som firmans system senast berättade dem (ADR 0052): `funded`, `tradingDaysRequired`, `tradingDaysCounted`, `passBy`, `openPositionBy`, `consistencyPercent` och `bestDayPercent`. Alla fält är tomma när firman inte har berättat några. Nya regler kommer i realtid som `Rules`. |
 | `GET /instruments/{symbol}/point-value` | Vad en punkt på en lot är värd i kontots valuta vid senaste växelkurs (`perLot`). Vinsten är punkter gånger volym gånger `perLot`, före avrundning och provision. Terminalen använder det för att sätta stop loss och take profit med belopp. 404 om gruppen inte handlar symbolen eller växelkursen saknas än. |
 | `GET /prices` | Senaste priser efter påslag. |
-| `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. Väntar tills graferna är byggda efter en start. |
+| `GET /candles/{symbol}?timeframe=M1&count=500&before=` | Candles av bid som kontot ser det, äldst först. Högst 5 000. Med `before` de senaste som börjar före den tiden, för att bläddra bakåt. Väntar tills graferna är byggda efter en start. |
 | `GET /events?limit=500` | Kontots senaste händelser, äldst först. Med `after={sequence}` i stället de första efter sekvensnumret, för att hämta ikapp efter en återanslutning. Med `before={sequence}` de sista före sekvensnumret, för att bläddra bakåt. `after` och `before` tillsammans svarar 422. Högst 1 000 per anrop. |
-| `POST /orders` | Lägger en order. Klienten skapar order-id:t. |
+| `POST /orders` | Lägger en order. Klienten skapar order-id:t. Med `trailingStop` följer stop lossen priset. Medan marknaden är stängd svarar order, stängningar och ändrade stoppar 422 med `reason` `MarketClosed`. |
+| `PUT /orders/{orderId}` | Ger en väntande order nytt pris (`price`), `stopLoss`, `takeProfit` och `trailingStop` (ADR 0051). |
 | `DELETE /orders/{orderId}` | Tar bort en väntande order. |
-| `POST /positions/{positionId}/close` | Stänger en position. |
-| `PUT /positions/{positionId}/stops` | Sätter eller tar bort stop loss och take profit. |
+| `POST /positions/{positionId}/close` | Stänger en position. Med `{ "volume": 0.4 }` bara den delen. |
+| `POST /positions/close-all` | Stänger alla positioner, eller med `{ "symbol": "EURUSD" }` en symbols, i samma ögonblick. De som inte går att stänga nu ligger kvar. 404 utan positioner. |
+| `PUT /positions/{positionId}/stops` | Sätter eller tar bort stop loss och take profit, och slår på eller av trailing stop med `trailingStop`. |
 
 ### Administration
 
@@ -125,6 +132,7 @@ För firmans egna system, till exempel propfirm-plattformen (ADR 0012). Alla vä
 | `POST /accounts/{accountId}/suspend` | Pausar kontot: väntande ordrar tas bort och nya tas inte emot, men tradern kan stänga positioner och ändra stoppar. Ett konto som redan är pausat svarar 200 utan händelser, och ett avstängt 422 med `AccountDisabled`. |
 | `POST /accounts/{accountId}/resume` | Låter ett pausat konto handla igen. Ett konto som inte är pausat svarar 200 utan händelser. |
 | `PUT /accounts/{accountId}/details` | Hur terminalen visar kontot (ADR 0035): `{ "label", "profitTarget", "timeZone", "detailsUrl" }`. `label` är namnet, högst 100 tecken, `profitTarget` saldot som klarar fasen, `timeZone` handelsdagens zon (IANA, till exempel `Europe/Stockholm`) och `detailsUrl` kontot i firmans portal, en absolut http- eller https-adress. Tomt tar bort ett fält. Uppgifterna ligger utanför motorn och journalen, eftersom de bara är för visning. 422 för ett ogiltigt fält. |
+| `PUT /accounts/{accountId}/rules` | Kontots regler som firmans system ser dem nu, som terminalen visar och varnar för (ADR 0052): `{ "funded", "tradingDaysRequired", "tradingDaysCounted", "passBy", "openPositionBy", "consistencyPercent", "bestDayPercent" }`. `funded` säger att handelsdagarna räknas mot en utbetalning, `passBy` när steget måste vara klart och `openPositionBy` när en ny position senast måste öppnas, och `bestDayPercent` är bästa handelsdagens andel av vinsten, som konsekvensregeln tillåter upp till `consistencyPercent`. Varje fält ersätts, och ett som utelämnas tas bort. En trader med terminalen öppen får dem direkt. 422 för handelsdagar under 1 eller över 1 000, negativa räknade dagar eller andelar, och en konsekvensregel över 100. Reglerna ligger utanför motorn och journalen, eftersom de bara är för visning. |
 | `POST /accounts/{accountId}/balance-operations` | Sätter in eller tar ut pengar med `{ "operationId", "amount", "minBalance" }`. Ett negativt belopp är ett uttag. Samma `operationId` igen svarar 409 med `DuplicateId`, så ett nytt försök dras aldrig två gånger. Ett uttag som skulle lämna mindre än `minBalance`, ta mer än den fria marginalen eller bryta ett golv svarar 422 med `InsufficientFunds`. Golv som mäts från kontot följer med saldot (se [specen för handelsmotorn](handelsmotor.md)). |
 | `GET /events?after=0&limit=100&wait=0` | Firmans händelser efter ett löpnummer, äldst först, med `cursor` för nästa anrop. Högst 1 000 per anrop. Med `wait` väntar anropet upp till 30 sekunder på nya händelser. Bara sparade händelser visas, så ingen händelse kan försvinna vid en omstart. |
 | `GET /instruments` | Alla instrument på plattformen: symbol, kategori, bas- och kursvaluta, kontraktsstorlek och decimaler. |
@@ -159,6 +167,7 @@ SignalR-hubben ligger på `/hubs/trading` och kräver inloggning. Klienten anrop
 | `Account` | Kontot som i `GET /api/accounts/{accountId}` | Direkt vid prenumeration, därefter högst var 250:e ms när det ändrats |
 | `Prices` | Priser som ändrats för kontots grupp | Direkt vid prenumeration, därefter högst var 100:e ms |
 | `Events` | Nya händelser för kontot | Direkt när de inträffar |
+| `Rules` | Kontots regler som i `GET /api/accounts/{accountId}/rules` | Direkt när firmans system berättar nya (ADR 0052) |
 
 Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid omladdning och efter en återanslutning hämtas historiken från `GET /candles`.
 
@@ -167,8 +176,10 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | Sektion | Innehåll |
 |---|---|
 | `Trading` | Instrument, grupper, max ålder på priser och utvecklingskonton (`SeedAccounts`). Varje instrument har en kategori (`Category`), annars startar inte tjänsten. Index, råvaror och krypto har sig själva som basvaluta, till exempel US100 mot USD, på samma sätt som guld har XAU (ADR 0049). |
+| `Trading:TradingHours` | Öppettider per namn (ADR 0050): `TimeZone` (IANA, till exempel `America/New_York`), `Sessions` som `Sun 17:00 - Fri 17:00` och `Closures` som `2026-12-25` eller `2026-12-24 13:15 - 2026-12-27 18:00`, i marknadens tidszon. Ett instrument pekar på sina med `TradingHours`, och ett instrument utan är alltid öppet. Konfigurationen har börsernas tider `Forex`, `Globex`, `IceBrent`, `IceFtse` och `EurexDax`, och krypto har inga. Fel i öppettiderna eller ett namn som saknas stoppar starten, med alla prisflöden. |
+| `Trading:TradingHoursByFeed` | Ett prisflödes egna öppettider per symbol, där de skiljer sig från börsens (ADR 0050), till exempel `CapitalCom:UK100 = CapitalComIndices`. Ett tomt namn betyder dygnet runt. Capital.com har egna tider för valutor, metaller, index, Brent och krypto, hämtade från deras API. Ett okänt flöde, en okänd symbol eller okända öppettider stoppar starten. |
 | `SyntheticFeed` | Frö, intervall och startpriser per symbol. |
-| `Charts` | Hur många hela dagar historiken når bakåt (`History`, 30) och hur många av dem som laddas i minutstaplar (`MinuteHistory`, 2). |
+| `Charts` | Hur många hela dagar historiken når bakåt (`History`, 180), hur många av dem som laddas i staplar på 15 minuter (`QuarterHourHistory`, 30) och i minutstaplar (`MinuteHistory`, 2). Resten laddas i timstaplar. |
 | `Realtime` | Takt för priser och konto. |
 | `Journal` | Antal indata mellan ögonblicksbilder och hur många som behålls. |
 | `Tenants` | Firmor som sparas i databasen vid varje start, för utveckling och tester: id (servern, till exempel `nordic-prop`), namn, grupper i `Trading:Groups`, SHA-256 av API-nyckeln och valfri `LoginUrl`, firmans portal där traderna loggar in. De listas alltid. |
@@ -187,7 +198,7 @@ I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och f
 
 - Tjänsten startar bara i miljön Development. Före produktion behövs HTTPS, hantering av hemligheter och ett prisflöde med licens.
 - Tiingo- och Capital.com-flödena får inte visas för andra. En leverantör för produktionen väntar på licensvillkoren, och Nasdaq-100 och andra index kräver en egen licens.
-- Det finns inga handelstider. Med Tiingo och Capital.com kommer inga nya priser när marknaden är stängd, så ordrar avvisas med `StalePrice` efter `MaxQuoteAge`. Det gäller också index och råvaror i deras dagliga pauser. Det syntetiska flödet går dygnet runt.
+- Öppettiderna har bara helgdagarna jul och nyår 2026-2027. Hela kalendern, med till exempel långfredagen och dagar med tidig stängning, ska läggas in från prisleverantören eller börserna innan terminalen går i drift. Kommer inga priser fast öppettiderna säger öppet, till exempel en helgdag som saknas, avvisas ordrar som förut med `StalePrice` efter `MaxQuoteAge`.
 - Kontraktsstorlek, decimaler och villkor för index, råvaror och krypto är exempelvärden. Firmor som skapats före ADR 0049 har kvar sina grupper utan de nya instrumenten.
 - Tradern kan inte själv byta eller återställa lösenordet än. Firmans system kan byta det via admin-API:t.
 - Händelser skickas inte till firmor som webhooks, utan hämtas från händelseströmmen.
@@ -202,7 +213,13 @@ Testerna ligger i `trading/tests/Trading.Service.Tests`. De kör den riktiga tj�
 
 De flesta tester använder en journal i minnet som går via JSON som i Postgres. Den kan hålla inne eller fälla skrivningar, så att testerna kan visa att inget släpps innan det är sparat, att fel stoppar tjänsten, att omstart efter krasch och efter vanlig avstängning ger samma tillstånd och att skadad journal eller ändrad konfiguration stoppar starten.
 
-`ChartHistoryTests` täcker graferna vid omstarter och byten av flöde: historiken laddas vid ett byte och bara då, den sparas och används vid nästa start, ett flödes grafer visar aldrig ett annat flödes priser, historik som inte gick att ladda försöks igen vid nästa start, och färdiga minuter sparas medan resten spelas upp från journalen efter en krasch. `CandleStoreTests` visar att staplar går in i sin egen tidsram och längre, men aldrig kortare. `SyntheticPriceFeedTests` visar att den påhittade historiken är hela staplar som följer på varandra och slutar där livepriserna fortsätter.
+`ChartHistoryTests` täcker graferna vid omstarter och byten av flöde: historiken laddas vid ett byte och bara då, och igen när graferna ska nå längre bakåt, i tim-, kvarts- och minutstaplar, äldre candles läses före en tid, den sparas och används vid nästa start, ett flödes grafer visar aldrig ett annat flödes priser, historik som inte gick att ladda försöks igen vid nästa start, och färdiga minuter sparas medan resten spelas upp från journalen efter en krasch. `CandleStoreTests` visar att staplar går in i sin egen tidsram och längre, men aldrig kortare. `SyntheticPriceFeedTests` visar att den påhittade historiken är hela staplar som följer på varandra och slutar där livepriserna fortsätter.
+
+`OrderToolsApiTests` täcker orderverktygen genom API:t: delstängning med en volym och en tom kropp som stänger resten, stäng allt och en symbols positioner, en väntande order som flyttas och en som avvisas, och trailing stop med ordern och stopparna.
+
+`RulesAndSettingsTests` täcker regler och inställningar (ADR 0052): firmans regler som tradern får direkt i realtid och med `GET /rules`, kontrollen av dem och att en firma bara når sina egna konton, inställningar som följer tradern till en ny inloggning men inte når en annan trader, borttagning, och gränserna för nycklar, storlek och antal. `PostgresIdentityTests` visar att reglerna och inställningarna kommer tillbaka exakt ur databasen.
+
+`MarketHoursTests` täcker öppettiderna: vad tradern ser för valutor, DAX och krypto, att en order på lördagen avvisas med `MarketClosed` medan krypto går att handla, att Capital.com:s egna tider gäller med det flödet så att UK100 är öppet efter börsens stängning, att ett flöde kan ge en symbol dygnet runt, att det syntetiska flödet alltid är öppet, att fel i öppettiderna och i flödenas tider stoppar starten och att stängda dagar kan vara hela eller delar.
 
 `TradingConditionsTests` täcker instrumenten, firmans grupper med villkor, ändrade villkor som gäller direkt, en symbol i bruk, en konfigurerad grupp som inte kan ändras och ändrade villkor som finns kvar efter en krasch. `RecoveryTests` visar också att en konfiguration med fler instrument godtas efter en krasch, och att en som ändrar händelserna stoppar starten.
 

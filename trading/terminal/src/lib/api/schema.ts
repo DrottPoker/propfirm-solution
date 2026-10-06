@@ -362,6 +362,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{accountId}/market-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MarketHours"][];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{accountId}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountRules"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{accountId}/prices": {
         parameters: {
             query?: never;
@@ -418,6 +499,7 @@ export interface paths {
                 query: {
                     timeframe: components["schemas"]["Timeframe"];
                     count?: number;
+                    before?: string;
                 };
                 header?: never;
                 path: {
@@ -551,7 +633,33 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ModifyOrderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete: {
             parameters: {
@@ -581,6 +689,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{accountId}/positions/close-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["CloseAllPositionsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{accountId}/positions/{positionId}/close": {
         parameters: {
             query?: never;
@@ -600,7 +749,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["ClosePositionRequest"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -656,6 +809,99 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SettingsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/me/settings/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonElement"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1134,6 +1380,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AccountRulesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AccountRules"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/events": {
         parameters: {
             query?: never;
@@ -1490,6 +1777,49 @@ export interface components {
             timeZone: null | string;
             detailsUrl: null | string;
         };
+        /**
+         * @description The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each
+         *     is null when the account has no such rule. Funded tells a funded account, whose trading days
+         *     count toward a payout rather than passing the stage. PassBy is when the stage fails unless it was
+         *     passed, and OpenPositionBy when the account ends unless a position is opened before.
+         *     ConsistencyPercent is the most of the profit the best trading day may have made for a payout,
+         *     and BestDayPercent what it has made now.
+         */
+        AccountRules: {
+            funded: boolean;
+            /** Format: int32 */
+            tradingDaysRequired: null | number;
+            /** Format: int32 */
+            tradingDaysCounted: null | number;
+            /** Format: date-time */
+            passBy: null | string;
+            /** Format: date-time */
+            openPositionBy: null | string;
+            /** Format: double */
+            consistencyPercent: null | number;
+            /** Format: double */
+            bestDayPercent: null | number;
+        };
+        /**
+         * @description The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every
+         *     field is replaced, and one left out is cleared. See AccountRules.
+         */
+        AccountRulesRequest: {
+            /** @default false */
+            funded: boolean;
+            /** Format: int32 */
+            tradingDaysRequired?: null | number;
+            /** Format: int32 */
+            tradingDaysCounted?: null | number;
+            /** Format: date-time */
+            passBy?: null | string;
+            /** Format: date-time */
+            openPositionBy?: null | string;
+            /** Format: double */
+            consistencyPercent?: null | number;
+            /** Format: double */
+            bestDayPercent?: null | number;
+        };
         /** @description Account state valued at the latest prices. Amounts are in account currency. */
         AccountSnapshot: {
             accountId: string;
@@ -1548,6 +1878,15 @@ export interface components {
         ChangeGroupSymbolsRequest: {
             symbols: null | components["schemas"]["GroupSymbol"][];
         };
+        /** @description Closes the positions in Symbol. Without it, every position. */
+        CloseAllPositionsRequest: {
+            symbol?: null | string;
+        };
+        /** @description Closes only Volume of the position. Without it, the whole position. */
+        ClosePositionRequest: {
+            /** Format: double */
+            volume?: null | number;
+        };
         /** @enum {unknown} */
         CloseReason: "Manual" | "StopLoss" | "TakeProfit" | "StopOut" | "EquityFloor" | "AccountClosed";
         /** @description The events a command caused, in order. */
@@ -1593,7 +1932,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderModified"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventPositionPartiallyClosed"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1708,7 +2047,25 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description A limit or stop order was accepted and waits for its price. */
+        /** @description A pending order got a new price, stop loss, take profit or trailing stop. */
+        EngineEventOrderModified: {
+            /** @enum {string} */
+            kind?: "OrderModified";
+            accountId: string;
+            orderId: string;
+            symbol: string;
+            /** Format: double */
+            price: number;
+            /** Format: double */
+            stopLoss: null | number;
+            /** Format: double */
+            takeProfit: null | number;
+            /** Format: double */
+            trailingDistance: null | number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description A limit or stop order was accepted and waits for its price. TrailingDistance is set for a trailing stop. */
         EngineEventOrderPlaced: {
             /** @enum {string} */
             kind?: "OrderPlaced";
@@ -1725,6 +2082,8 @@ export interface components {
             stopLoss: null | number;
             /** Format: double */
             takeProfit: null | number;
+            /** Format: double */
+            trailingDistance?: null | number;
             /** Format: date-time */
             timestamp: string;
         };
@@ -1752,6 +2111,10 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /**
+         * @description The trader set a position's stops. The moves a trailing stop makes on its own give no event: like a trailing floor's,
+         *     they follow from the prices, and the account shows where the stop loss is.
+         */
         EngineEventPositionModified: {
             /** @enum {string} */
             kind?: "PositionModified";
@@ -1761,10 +2124,15 @@ export interface components {
             stopLoss: null | number;
             /** Format: double */
             takeProfit: null | number;
+            /** Format: double */
+            trailingDistance?: null | number;
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description A position was opened. The position id is the id of the order that opened it. */
+        /**
+         * @description A position was opened. The position id is the id of the order that opened it. TrailingDistance is
+         *     set for a trailing stop.
+         */
         EngineEventPositionOpened: {
             /** @enum {string} */
             kind?: "PositionOpened";
@@ -1782,6 +2150,37 @@ export interface components {
             takeProfit: null | number;
             /** Format: double */
             commission: number;
+            /** Format: double */
+            balanceAfter: number;
+            /** Format: double */
+            trailingDistance?: null | number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Part of a position was closed. Volume is the part closed, and RemainingVolume
+         *     stays open with the same id. Profit and commission are for the part, in account currency.
+         */
+        EngineEventPositionPartiallyClosed: {
+            /** @enum {string} */
+            kind?: "PositionPartiallyClosed";
+            accountId: string;
+            positionId: string;
+            symbol: string;
+            side: components["schemas"]["Side"];
+            /** Format: double */
+            volume: number;
+            /** Format: double */
+            remainingVolume: number;
+            /** Format: double */
+            openPrice: number;
+            /** Format: double */
+            closePrice: number;
+            /** Format: double */
+            profit: number;
+            /** Format: double */
+            commission: number;
+            reason: components["schemas"]["CloseReason"];
             /** Format: double */
             balanceAfter: number;
             /** Format: date-time */
@@ -1805,7 +2204,7 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputCloseAllPositions"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyOrder"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -1854,11 +2253,26 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /**
+         * @description Closes every position on the account, or only those in Symbol, at the same moment. Positions whose
+         *     market is closed or has no fresh price stay open. Pending orders stay.
+         */
+        EngineInputCloseAllPositions: {
+            /** @enum {string} */
+            kind?: "CloseAllPositions";
+            accountId: string;
+            symbol?: null | string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description Closes a position, or only Volume of it. The rest stays open with the same id. */
         EngineInputClosePosition: {
             /** @enum {string} */
             kind?: "ClosePosition";
             accountId: string;
             positionId: string;
+            /** Format: double */
+            volume?: null | number;
             /** Format: date-time */
             timestamp: string;
         };
@@ -1883,7 +2297,27 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description Sets stop loss and take profit. An empty value removes it. */
+        /** @description Moves a pending order to a new price, and sets its stop loss, take profit and trailing stop as for PlaceOrder. */
+        EngineInputModifyOrder: {
+            /** @enum {string} */
+            kind?: "ModifyOrder";
+            accountId: string;
+            orderId: string;
+            /** Format: double */
+            price: number;
+            /** Format: double */
+            stopLoss: null | number;
+            /** Format: double */
+            takeProfit: null | number;
+            /** @default false */
+            trailingStop: boolean;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Sets stop loss and take profit. An empty value removes it. With TrailingStop the stop loss
+         *     follows the price at the distance it is set at from the price the position closes at now.
+         */
         EngineInputModifyPosition: {
             /** @enum {string} */
             kind?: "ModifyPosition";
@@ -1893,10 +2327,16 @@ export interface components {
             stopLoss: null | number;
             /** Format: double */
             takeProfit: null | number;
+            /** @default false */
+            trailingStop: boolean;
             /** Format: date-time */
             timestamp: string;
         };
-        /** @description Places an order. Price is required for limit and stop orders and must be empty for market orders. */
+        /**
+         * @description Places an order. Price is required for limit and stop orders and must be empty for market orders.
+         *     With TrailingStop the stop loss follows the price at the distance it is set at: from the price the
+         *     position closes at now for a market order, and from the order price for a limit or stop order.
+         */
         EngineInputPlaceOrder: {
             /** @enum {string} */
             kind?: "PlaceOrder";
@@ -1913,6 +2353,8 @@ export interface components {
             stopLoss?: null | number;
             /** Format: double */
             takeProfit?: null | number;
+            /** @default false */
+            trailingStop: boolean;
             /** Format: date-time */
             timestamp: string;
         };
@@ -2077,6 +2519,7 @@ export interface components {
             /** Format: double */
             commissionPerLotPerSide: number;
         };
+        JsonElement: unknown;
         /** @description The token from a login link. */
         LinkLoginRequest: {
             token: null | string;
@@ -2094,6 +2537,25 @@ export interface components {
             email: null | string;
             password: null | string;
         };
+        /** @description When a symbol's market is open, seen from the moment it was asked. A market that never closes has no next change and no sessions. */
+        MarketHours: {
+            symbol: string;
+            isOpen: boolean;
+            /**
+             * Format: date-time
+             * @description When the market closes if it is open, or opens if it is closed. Null if it never closes, or does not open within a month.
+             */
+            nextChange: null | string;
+            /** @description The periods the market is open from now and a week on, in UTC, the current one first. Null if it never closes. */
+            sessions: null | components["schemas"]["MarketPeriod"][];
+        };
+        /** @description A period when a market is open, in UTC. */
+        MarketPeriod: {
+            /** Format: date-time */
+            opens: string;
+            /** Format: date-time */
+            closes: string;
+        };
         /**
          * @description The logged in trader, their firm's server and the accounts they own, with what the firm says about each in
          *     AccountDetails, in the same order.
@@ -2106,12 +2568,27 @@ export interface components {
             accounts: string[];
             accountDetails: components["schemas"]["AccountDetails"][];
         };
+        /** @description A pending order's new price and stops. */
+        ModifyOrderRequest: {
+            /** Format: double */
+            price: number;
+            /** Format: double */
+            stopLoss: null | number;
+            /** Format: double */
+            takeProfit: null | number;
+            /** @default false */
+            trailingStop: boolean;
+        };
+        /** @description A position's stops. With TrailingStop the stop loss follows the price at the distance it is set at. */
         ModifyStopsRequest: {
             /** Format: double */
             stopLoss: null | number;
             /** Format: double */
             takeProfit: null | number;
+            /** @default false */
+            trailingStop: boolean;
         };
+        /** @description A pending order. TrailingDistance is set when the position it opens gets a trailing stop. */
         OrderSnapshot: {
             orderId: string;
             symbol: string;
@@ -2127,10 +2604,15 @@ export interface components {
             takeProfit: null | number;
             /** Format: date-time */
             placedTime: string;
+            /** Format: double */
+            trailingDistance: null | number;
         };
         /** @enum {unknown} */
         OrderType: "Market" | "Limit" | "Stop";
-        /** @description Places an order. The client creates the order id, so a retry can never place the order twice. */
+        /**
+         * @description Places an order. The client creates the order id, so a retry can never place the order twice. With
+         *     TrailingStop the stop loss follows the price at the distance it is set at.
+         */
         PlaceOrderRequest: {
             orderId: string;
             symbol: string;
@@ -2144,6 +2626,8 @@ export interface components {
             stopLoss?: null | number;
             /** Format: double */
             takeProfit?: null | number;
+            /** @default false */
+            trailingStop: boolean;
         };
         /** @description An instrument on the platform. ContractSize is the units of the base currency in one lot. */
         PlatformInstrument: {
@@ -2172,7 +2656,10 @@ export interface components {
             /** Format: double */
             perLot: number;
         };
-        /** @description An open position. CurrentPrice is the price it would close at now. */
+        /**
+         * @description An open position. CurrentPrice is the price it would close at now. TrailingDistance is set when the stop loss trails
+         *     the price at that distance.
+         */
         PositionSnapshot: {
             positionId: string;
             symbol: string;
@@ -2193,9 +2680,11 @@ export interface components {
             profit: number;
             /** Format: double */
             margin: number;
+            /** Format: double */
+            trailingDistance: null | number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "MarketClosed" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "NoStopLoss" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
         /**
          * @description A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's
          *     traders log in there, for example on the firm's portal, which opens the terminal with a one-time link.
@@ -2218,6 +2707,10 @@ export interface components {
         };
         SetPasswordRequest: {
             password: null | string;
+        };
+        /** @description The trader's settings in the terminal, by key. */
+        SettingsResponse: {
+            settings: Record<string, unknown>;
         };
         /** @enum {unknown} */
         Side: "Buy" | "Sell";

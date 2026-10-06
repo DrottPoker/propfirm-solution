@@ -58,6 +58,19 @@ export function clampStop(kind: StopKind, side: Side, price: number, closePrice:
 }
 
 /**
+ * Where a pending order's price can be, one point inside the market: a buy limit below the ask and a buy stop above
+ * it, a sell limit above the bid and a sell stop below it, as the engine wants.
+ */
+export function clampEntry(type: "Limit" | "Stop", side: Side, price: number, quote: { bid: number; ask: number }, digits: number): number {
+  const scale = 10 ** digits;
+  const wanted = Math.round(price * scale);
+  const reference = Math.round((side === "Buy" ? quote.ask : quote.bid) * scale);
+  const above = (type === "Stop") === (side === "Buy");
+  const clamped = above ? Math.max(wanted, reference + 1) : Math.min(wanted, reference - 1);
+  return Math.max(1, clamped) / scale;
+}
+
+/**
  * What a level can be for an open position: a stop loss on the losing side of the price it closes at, the bid for a
  * buy and the ask for a sell, and a take profit on the winning side. Null at the price itself.
  */

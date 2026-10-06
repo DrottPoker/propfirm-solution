@@ -80,6 +80,31 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
     }
 
     [Fact]
+    public async Task RulesAndSettingsComeBackExactly()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
+        var user = (await users.CreateAsync("firm-a", "a@test.example", "hash", cancellationToken))!;
+        var rules = new AccountRules(true, 5, 2, null, new DateTimeOffset(2026, 11, 4, 21, 0, 0, TimeSpan.Zero), 40m, 32.5m);
+
+        await users.SetAccountRulesAsync("A1", AccountRules.None, DateTimeOffset.UtcNow, cancellationToken);
+        await users.SetAccountRulesAsync("A1", rules, DateTimeOffset.UtcNow, cancellationToken);
+        await users.SetSettingAsync(user.Id, "trading.favorites", "\"[\\\"EURUSD\\\"]\"", 2, DateTimeOffset.UtcNow, cancellationToken);
+        await users.SetSettingAsync(user.Id, "trading.volumes", "{\"EURUSD\": \"0.50\"}", 2, DateTimeOffset.UtcNow, cancellationToken);
+        var full = await users.SetSettingAsync(user.Id, "trading.indicators", "[]", 2, DateTimeOffset.UtcNow, cancellationToken);
+        var replaced = await users.SetSettingAsync(user.Id, "trading.volumes", "{}", 2, DateTimeOffset.UtcNow, cancellationToken);
+
+        Assert.Equal(rules, await users.AccountRulesOfAsync("A1", cancellationToken));
+        Assert.Null(await users.AccountRulesOfAsync("A2", cancellationToken));
+        Assert.False(full);
+        Assert.True(replaced);
+        var settings = await users.SettingsOfAsync(user.Id, cancellationToken);
+        Assert.Equal("\"[\\\"EURUSD\\\"]\"", settings["trading.favorites"]);
+        Assert.Equal("{}", settings["trading.volumes"]);
+    }
+
+    [Fact]
     public async Task CookieKeysAreKept()
     {
         await using var dataSource = await CreateDatabaseAsync();

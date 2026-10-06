@@ -84,10 +84,16 @@ public enum RejectReason
     InvalidTakeProfit,
     NoPrice,
     StalePrice,
+
+    /// <summary>The instrument's market is closed (see <see cref="TradingHours"/>).</summary>
+    MarketClosed,
     NoConversionRate,
     InsufficientMargin,
     UnknownOrder,
     UnknownPosition,
+
+    /// <summary>A trailing stop follows a stop loss, so it needs one.</summary>
+    NoStopLoss,
     InvalidFloor,
     UnknownFloor,
 

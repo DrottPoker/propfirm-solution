@@ -1,26 +1,22 @@
 import type { InstrumentInfo } from "./api/types";
 import { parseVolume } from "./orderInput";
+import { readSetting, writeSetting } from "./syncedSettings";
 
 const storageKey = "trading.volumes";
 
 /** The volume an order ticket starts with when the trader has not chosen one for the symbol. */
 export const defaultVolume = "1.00";
 
-/** The volume the trader last chose for each symbol on this device, if the browser allows storage. */
+/** The volume the trader last chose for each symbol, kept in the browser and on their login (ADR 0052). */
 export function loadVolumes(): Record<string, string> {
-  try {
-    return typeof window === "undefined" ? {} : parseVolumes(window.localStorage.getItem(storageKey));
-  } catch {
-    return {};
-  }
+  return parseVolumes(readSetting(storageKey));
 }
 
 /** Remembers the volume for the symbol, so the next ticket for it starts there. */
 export function rememberVolume(symbol: string, volume: string) {
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify({ ...loadVolumes(), [symbol]: volume }));
-  } catch {
-    // Private windows may refuse storage. The volume is only a convenience.
+  const volumes = loadVolumes();
+  if (volumes[symbol] !== volume) {
+    writeSetting(storageKey, JSON.stringify({ ...volumes, [symbol]: volume }));
   }
 }
 

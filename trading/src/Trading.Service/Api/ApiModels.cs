@@ -1,10 +1,14 @@
 using Trading.Engine;
 using Trading.Service.Configuration;
 using Trading.Service.Engine;
+using Trading.Service.Identity;
 
 namespace Trading.Service.Api;
 
-/// <summary>Places an order. The client creates the order id, so a retry can never place the order twice.</summary>
+/// <summary>
+/// Places an order. The client creates the order id, so a retry can never place the order twice. With
+/// <paramref name="TrailingStop"/> the stop loss follows the price at the distance it is set at.
+/// </summary>
 public sealed record PlaceOrderRequest(
     string OrderId,
     string Symbol,
@@ -13,9 +17,20 @@ public sealed record PlaceOrderRequest(
     decimal Volume,
     decimal? Price = null,
     decimal? StopLoss = null,
-    decimal? TakeProfit = null);
+    decimal? TakeProfit = null,
+    bool TrailingStop = false);
 
-public sealed record ModifyStopsRequest(decimal? StopLoss, decimal? TakeProfit);
+/// <summary>A position's stops. With <paramref name="TrailingStop"/> the stop loss follows the price at the distance it is set at.</summary>
+public sealed record ModifyStopsRequest(decimal? StopLoss, decimal? TakeProfit, bool TrailingStop = false);
+
+/// <summary>A pending order's new price and stops.</summary>
+public sealed record ModifyOrderRequest(decimal Price, decimal? StopLoss, decimal? TakeProfit, bool TrailingStop = false);
+
+/// <summary>Closes only <paramref name="Volume"/> of the position. Without it, the whole position.</summary>
+public sealed record ClosePositionRequest(decimal? Volume = null);
+
+/// <summary>Closes the positions in <paramref name="Symbol"/>. Without it, every position.</summary>
+public sealed record CloseAllPositionsRequest(string? Symbol = null);
 
 /// <summary>Creates a trading account owned by a user of the same firm.</summary>
 public sealed record CreateAccountRequest(string AccountId, string GroupId, decimal InitialBalance, Guid OwnerUserId);
@@ -34,6 +49,31 @@ public sealed record SetFloorRequest(EquityFloorRule Rule);
 public sealed record BalanceOperationRequest(string? OperationId, decimal Amount, decimal? MinBalance = null);
 
 public sealed record SetPasswordRequest(string? Password);
+
+/// <summary>
+/// The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every
+/// field is replaced, and one left out is cleared. See <see cref="AccountRules"/>.
+/// </summary>
+public sealed record AccountRulesRequest(
+    bool Funded = false,
+    int? TradingDaysRequired = null,
+    int? TradingDaysCounted = null,
+    DateTimeOffset? PassBy = null,
+    DateTimeOffset? OpenPositionBy = null,
+    decimal? ConsistencyPercent = null,
+    decimal? BestDayPercent = null)
+{
+    /// <summary>What is wrong with the rules, or null.</summary>
+    public string? Problem() =>
+        TradingDaysRequired is < 1 or > 1_000 ? "The trading days required must be 1 to 1000, or empty for no minimum."
+        : TradingDaysCounted is < 0 ? "The trading days counted cannot be negative."
+        : ConsistencyPercent is <= 0 or > 100 ? "The consistency rule must be above 0 and at most 100 percent, or empty for no rule."
+        : BestDayPercent is < 0 ? "The best day's share cannot be negative."
+        : null;
+
+    public AccountRules ToRules() =>
+        new(Funded, TradingDaysRequired, TradingDaysCounted, PassBy?.ToUniversalTime(), OpenPositionBy?.ToUniversalTime(), ConsistencyPercent, BestDayPercent);
+}
 
 /// <summary>
 /// What the terminal shows about an account: <paramref name="Label"/> names it for the trader, <paramref name="ProfitTarget"/>

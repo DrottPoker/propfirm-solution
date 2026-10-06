@@ -16,6 +16,9 @@ internal class ManualPriceFeed(string name = ManualPriceFeed.DefaultName) : IPri
 
     public string Name => name;
 
+    /// <summary>True by default, like a real feed. The test clock starts on a Monday morning, when every market is open.</summary>
+    public bool FollowsTradingHours { get; init; } = true;
+
     /// <summary>Returned for every history request, whatever the spans.</summary>
     public IReadOnlyList<ChartBar> History { get; set; } = [];
 

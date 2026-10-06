@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyPrice, barStart, toBar } from "./candles";
+import { applyPrice, barStart, mergeOlder, secondsOf, toBar } from "./candles";
 
 // 2026-10-05 08:00:00 UTC
 const eight = Date.UTC(2026, 9, 5, 8, 0, 0) / 1000;
@@ -39,5 +39,21 @@ describe("toBar", () => {
   it("converts the candle time to UTC seconds", () => {
     const candle = { time: "2026-10-05T08:00:00+00:00", open: 1, high: 2, low: 0.5, close: 1.5, tickCount: 3 };
     expect(toBar(candle)).toEqual({ time: eight, open: 1, high: 2, low: 0.5, close: 1.5, ticks: 3 });
+  });
+});
+
+describe("mergeOlder", () => {
+  const bar = (time: number) => ({ time, open: 1, high: 1, low: 1, close: 1, ticks: 1 });
+
+  it("puts older bars in front and leaves out those the chart already has", () => {
+    expect(mergeOlder([bar(60), bar(120), bar(180)], [bar(180), bar(240)]).map((b) => b.time)).toEqual([60, 120, 180, 240]);
+    expect(mergeOlder([], [bar(180)]).map((b) => b.time)).toEqual([180]);
+  });
+});
+
+describe("secondsOf", () => {
+  it("gives the length of a bar", () => {
+    expect(secondsOf("M15")).toBe(900);
+    expect(secondsOf("D1")).toBe(86_400);
   });
 });

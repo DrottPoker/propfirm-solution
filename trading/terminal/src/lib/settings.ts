@@ -1,9 +1,15 @@
 import { create } from "zustand";
 
-/** Choices the trader turns on or off on this device: the volume under the chart, and a sound when an order fills. */
+import { onSettingsLoaded, readSetting, writeSetting } from "./syncedSettings";
+
+/**
+ * Choices the trader turns on or off: the volume under the chart, a sound when an order fills and a sound with the
+ * warnings about the account's rules.
+ */
 const settings = {
   chartVolume: { key: "trading.chartVolume", fallback: true },
   fillSound: { key: "trading.fillSound", fallback: false },
+  warningSound: { key: "trading.warningSound", fallback: true },
 } as const;
 
 export type Setting = keyof typeof settings;
@@ -15,27 +21,24 @@ export function parseSetting(raw: string | null, fallback: boolean): boolean {
 
 function load(setting: Setting): boolean {
   const { key, fallback } = settings[setting];
-  try {
-    return typeof window === "undefined" ? fallback : parseSetting(window.localStorage.getItem(key), fallback);
-  } catch {
-    return fallback;
-  }
+  return parseSetting(readSetting(key), fallback);
+}
+
+function loadAll(): Record<Setting, boolean> {
+  return { chartVolume: load("chartVolume"), fillSound: load("fillSound"), warningSound: load("warningSound") };
 }
 
 interface SettingsState extends Record<Setting, boolean> {
   change: (setting: Setting, on: boolean) => void;
 }
 
-/** The trader's choices, kept in the browser when it allows storage. */
+/** The trader's choices, kept in the browser and on their login (ADR 0052). */
 export const useSettings = create<SettingsState>()((set) => ({
-  chartVolume: load("chartVolume"),
-  fillSound: load("fillSound"),
+  ...loadAll(),
   change: (setting, on) => {
-    try {
-      window.localStorage.setItem(settings[setting].key, on ? "on" : "off");
-    } catch {
-      // Private windows may refuse storage. The choice then lasts until the page is closed.
-    }
+    writeSetting(settings[setting].key, on ? "on" : "off");
     set({ [setting]: on } as Pick<SettingsState, Setting>);
   },
 }));
+
+onSettingsLoaded(() => useSettings.setState(loadAll()));

@@ -33,12 +33,15 @@ builder.Services.AddOptions<TradingOptions>()
     .Bind(builder.Configuration.GetSection(TradingOptions.SectionName))
     .Validate(o => o.Instruments.All(i => i.Category is not null), "Every instrument in Trading:Instruments needs a Category: Forex, Metals, Indices, Commodities or Crypto.")
     .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<TradingOptions>, TradingHoursValidation>();
 builder.Services.AddOptions<SyntheticFeedOptions>().Bind(builder.Configuration.GetSection(SyntheticFeedOptions.SectionName));
 builder.Services.AddOptions<RealtimeOptions>().Bind(builder.Configuration.GetSection(RealtimeOptions.SectionName));
 builder.Services.AddOptions<JournalOptions>().Bind(builder.Configuration.GetSection(JournalOptions.SectionName));
 builder.Services.AddOptions<ChartOptions>()
     .Bind(builder.Configuration.GetSection(ChartOptions.SectionName))
-    .Validate(o => o.IsValid(), "Charts:History and Charts:MinuteHistory must be whole days, with the minute history no longer than the history.")
+    .Validate(
+        o => o.IsValid(),
+        "Charts:History, Charts:QuarterHourHistory and Charts:MinuteHistory must be whole days, each no longer than the one before.")
     .ValidateOnStart();
 var terminalOptions = builder.Services.AddOptions<TerminalOptions>()
     .Bind(builder.Configuration.GetSection(TerminalOptions.SectionName))
@@ -70,7 +73,12 @@ builder.Services.AddOptions<PriceFeedOptions>()
     .ValidateOnStart();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<TradingOptions>>().Value.ToEngineConfiguration());
+// The hours the feed quotes in. Made-up prices run around the clock, so with them every market is always open (ADR 0050).
+builder.Services.AddSingleton(sp =>
+{
+    var feed = sp.GetRequiredService<IPriceFeed>();
+    return sp.GetRequiredService<IOptions<TradingOptions>>().Value.ToEngineConfiguration(feed.FollowsTradingHours ? feed.Name : null);
+});
 builder.Services.AddSingleton<MarketCatalog>();
 builder.Services.AddSingleton<EventLog>();
 
@@ -190,6 +198,7 @@ app.MapOpenApi();
 app.MapHealthChecks("/health");
 app.MapAuthApi();
 app.MapTradingApi();
+app.MapSettingsApi();
 app.MapAdminApi();
 app.MapPartnerApi();
 app.MapHub<TradingHub>("/hubs/trading").RequireAuthorization();

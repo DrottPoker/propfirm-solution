@@ -12,6 +12,9 @@ namespace Trading.Service.Configuration;
 /// </summary>
 internal sealed class MarketCatalog(EngineConfiguration configuration, IOptions<TradingOptions> trading)
 {
+    // How far ahead the sessions of a market are listed for the terminal.
+    private static readonly TimeSpan SessionsAhead = TimeSpan.FromDays(7);
+
     private readonly Dictionary<string, Instrument> _instruments =
         configuration.Instruments.ToDictionary(i => i.Symbol, StringComparer.Ordinal);
 
@@ -36,7 +39,21 @@ internal sealed class MarketCatalog(EngineConfiguration configuration, IOptions<
             .OrderBy(s => s.Symbol, StringComparer.Ordinal)
             .Select(s => InstrumentInfo.From(_instruments[s.Symbol], _categories[s.Symbol], s))
             .ToList();
+
+    /// <summary>When each of the group's symbols can be traded, seen from <paramref name="now"/>, by symbol (ADR 0050).</summary>
+    public IReadOnlyList<MarketHours> MarketHoursFor(TradingGroup group, DateTimeOffset now) =>
+        group.Symbols
+            .OrderBy(s => s.Symbol, StringComparer.Ordinal)
+            .Select(s => _instruments[s.Symbol].TradingHours is { } hours
+                ? new MarketHours(s.Symbol, hours.IsOpen(now), hours.NextChange(now), hours.PeriodsBetween(now, now + SessionsAhead))
+                : new MarketHours(s.Symbol, true, null, null))
+            .ToList();
 }
+
+/// <summary>When a symbol's market is open, seen from the moment it was asked. A market that never closes has no next change and no sessions.</summary>
+/// <param name="NextChange">When the market closes if it is open, or opens if it is closed. Null if it never closes, or does not open within a month.</param>
+/// <param name="Sessions">The periods the market is open from now and a week on, in UTC, the current one first. Null if it never closes.</param>
+public sealed record MarketHours(string Symbol, bool IsOpen, DateTimeOffset? NextChange, IReadOnlyList<MarketPeriod>? Sessions);
 
 /// <summary>An instrument as one group trades it.</summary>
 public sealed record InstrumentInfo(

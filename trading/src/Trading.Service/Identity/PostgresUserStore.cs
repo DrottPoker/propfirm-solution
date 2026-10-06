@@ -1,12 +1,18 @@
+using System.Text.Json;
+
 using Common.Postgres;
 
 using Npgsql;
+
+using NpgsqlTypes;
 
 namespace Trading.Service.Identity;
 
 internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSchema schema) : IUserStore
 {
     private const string UniqueViolation = "23505";
+
+    private static readonly JsonSerializerOptions RulesJson = new(JsonSerializerDefaults.Web);
 
     public async Task<User?> CreateAsync(string tenantId, string email, string passwordHash, CancellationToken cancellationToken)
     {
@@ -132,6 +138,72 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
         }
 
         return details;
+    }
+
+    public async Task SetAccountRulesAsync(string accountId, AccountRules rules, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            insert into account_rules (account_id, rules, updated_at) values ($1, $2, $3)
+            on conflict (account_id) do update set rules = excluded.rules, updated_at = excluded.updated_at
+            """);
+        command.Parameters.AddWithValue(accountId);
+        command.Parameters.Add(new NpgsqlParameter { Value = JsonSerializer.Serialize(rules, RulesJson), NpgsqlDbType = NpgsqlDbType.Jsonb });
+        command.Parameters.AddWithValue(now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<AccountRules?> AccountRulesOfAsync(string accountId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("select rules::text from account_rules where account_id = $1");
+        command.Parameters.AddWithValue(accountId);
+        return await command.ExecuteScalarAsync(cancellationToken) is string json ? JsonSerializer.Deserialize<AccountRules>(json, RulesJson) : null;
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> SettingsOfAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("select key, value::text from user_settings where user_id = $1 order by key");
+        command.Parameters.AddWithValue(userId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var settings = new Dictionary<string, string>(StringComparer.Ordinal);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            settings[reader.GetString(0)] = reader.GetString(1);
+        }
+
+        return settings;
+    }
+
+    public async Task<bool> SetSettingAsync(Guid userId, string key, string? json, int maxSettings, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        if (json is null)
+        {
+            await using var delete = dataSource.CreateCommand("delete from user_settings where user_id = $1 and key = $2");
+            delete.Parameters.AddWithValue(userId);
+            delete.Parameters.AddWithValue(key);
+            await delete.ExecuteNonQueryAsync(cancellationToken);
+            return true;
+        }
+
+        // A key already stored is always replaced. A new one is added only while the user has room for it.
+        await using var command = dataSource.CreateCommand(
+            """
+            insert into user_settings (user_id, key, value, updated_at)
+            select $1, $2, $3, $4
+            where exists (select 1 from user_settings where user_id = $1 and key = $2)
+               or (select count(*) from user_settings where user_id = $1) < $5
+            on conflict (user_id, key) do update set value = excluded.value, updated_at = excluded.updated_at
+            """);
+        command.Parameters.AddWithValue(userId);
+        command.Parameters.AddWithValue(key);
+        command.Parameters.Add(new NpgsqlParameter { Value = json, NpgsqlDbType = NpgsqlDbType.Jsonb });
+        command.Parameters.AddWithValue(now);
+        command.Parameters.AddWithValue(maxSettings);
+        return await command.ExecuteNonQueryAsync(cancellationToken) > 0;
     }
 
     private async Task<User?> FindAsync(string sql, object[] parameters, CancellationToken cancellationToken)

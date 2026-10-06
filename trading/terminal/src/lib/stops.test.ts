@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampStop, estimatedProfit, priceForAmount, resolveStops, stepAmount, stopKindAt } from "./stops";
+import { clampEntry, clampStop, estimatedProfit, priceForAmount, resolveStops, stepAmount, stopKindAt } from "./stops";
 
 describe("stopKindAt", () => {
   it("is a stop loss below a buy and a take profit above it", () => {
@@ -112,5 +112,17 @@ describe("stepAmount", () => {
     ["", 1, 0.001, "0.01"],
   ] as const)("steps %j by %i with step %d to %j", (input, direction, step, expected) => {
     expect(stepAmount(input, direction, step)).toBe(expected);
+  });
+});
+
+describe("clampEntry", () => {
+  const quote = { bid: 1.08, ask: 1.0801 };
+
+  it("keeps a limit order on the better side of the market and a stop order on the worse", () => {
+    expect(clampEntry("Limit", "Buy", 1.081, quote, 5)).toBe(1.08009);
+    expect(clampEntry("Limit", "Buy", 1.07, quote, 5)).toBe(1.07);
+    expect(clampEntry("Stop", "Buy", 1.07, quote, 5)).toBe(1.08011);
+    expect(clampEntry("Limit", "Sell", 1.07, quote, 5)).toBe(1.08001);
+    expect(clampEntry("Stop", "Sell", 1.09, quote, 5)).toBe(1.07999);
   });
 });

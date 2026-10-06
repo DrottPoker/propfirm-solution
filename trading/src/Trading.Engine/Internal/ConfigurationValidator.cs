@@ -23,6 +23,8 @@ internal static class ConfigurationValidator
             Require(instrument.ContractSize > 0m, $"{instrument.Symbol}: contract size must be positive.");
             Require(instrument.Digits is >= 0 and <= MaxDigits, $"{instrument.Symbol}: digits must be between 0 and {MaxDigits}.");
             Require(instrument.VolumeMin > 0m && instrument.VolumeStep > 0m && instrument.VolumeMax >= instrument.VolumeMin, $"{instrument.Symbol}: invalid volume limits.");
+            var hoursProblem = instrument.TradingHours?.FindProblem();
+            Require(hoursProblem is null, $"{instrument.Symbol}: trading hours: {hoursProblem}");
         }
 
         var groupIds = new HashSet<string>(StringComparer.Ordinal);

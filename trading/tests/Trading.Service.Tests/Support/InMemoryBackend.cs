@@ -100,6 +100,8 @@ internal sealed class InMemoryUserStore : IUserStore
     private readonly List<User> _users = [];
     private readonly Dictionary<string, Guid> _owners = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AccountDetails> _details = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, AccountRules> _rules = new(StringComparer.Ordinal);
+    private readonly Dictionary<(Guid UserId, string Key), string> _settings = [];
 
     public Task<User?> CreateAsync(string tenantId, string email, string passwordHash, CancellationToken cancellationToken)
     {
@@ -196,6 +198,53 @@ internal sealed class InMemoryUserStore : IUserStore
         lock (_lock)
         {
             return [.. accounts.Select(a => _details.TryGetValue(a, out var details) ? details : new AccountDetails(a, null, null, null, null))];
+        }
+    }
+
+    public Task SetAccountRulesAsync(string accountId, AccountRules rules, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _rules[accountId] = rules;
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<AccountRules?> AccountRulesOfAsync(string accountId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_rules.GetValueOrDefault(accountId));
+        }
+    }
+
+    public Task<IReadOnlyDictionary<string, string>> SettingsOfAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult<IReadOnlyDictionary<string, string>>(
+                _settings.Where(s => s.Key.UserId == userId).ToDictionary(s => s.Key.Key, s => s.Value, StringComparer.Ordinal));
+        }
+    }
+
+    // The value goes through JSON as in Postgres, which keeps it as jsonb.
+    public Task<bool> SetSettingAsync(Guid userId, string key, string? json, int maxSettings, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (json is null)
+            {
+                _settings.Remove((userId, key));
+                return Task.FromResult(true);
+            }
+
+            if (!_settings.ContainsKey((userId, key)) && _settings.Keys.Count(k => k.UserId == userId) >= maxSettings)
+            {
+                return Task.FromResult(false);
+            }
+
+            _settings[(userId, key)] = System.Text.Json.JsonDocument.Parse(json).RootElement.GetRawText();
+            return Task.FromResult(true);
         }
     }
 

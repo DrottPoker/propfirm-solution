@@ -22,6 +22,17 @@ const barSeconds: Record<Timeframe, number> = {
 
 export const timeframes = Object.keys(barSeconds) as Timeframe[];
 
+/** How long a bar of the timeframe is, in seconds. */
+export function secondsOf(timeframe: Timeframe): number {
+  return barSeconds[timeframe];
+}
+
+/** Older bars put in front of the ones on the chart. Bars at or after the chart's first are left out. */
+export function mergeOlder(older: readonly Bar[], bars: readonly Bar[]): Bar[] {
+  const first = bars[0]?.time ?? Infinity;
+  return [...older.filter((b) => b.time < first), ...bars];
+}
+
 /** Bar start in UTC seconds, the same rule as the service uses. */
 export function barStart(timeSeconds: number, timeframe: Timeframe): number {
   return timeSeconds - (timeSeconds % barSeconds[timeframe]);

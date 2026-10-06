@@ -1,4 +1,5 @@
-// A short chime when an order fills, made with the Web Audio API, so there is no sound file to load.
+// Short sounds made with the Web Audio API, so there is no sound file to load: a chime when an order fills and a
+// signal with a warning about the account's rules.
 
 let context: AudioContext | null = null;
 
@@ -19,6 +20,15 @@ export function unlockSound() {
 
 /** Two quick, soft tones a fifth apart, rising: an order filled. */
 export function playFillSound() {
+  playTones([880, 1320], { gap: 0.08, length: 0.16, wave: "sine", volume: 0.12 });
+}
+
+/** Two longer tones falling a fifth, a little louder: a rule needs the trader's attention. */
+export function playWarningSound() {
+  playTones([784, 523], { gap: 0.16, length: 0.26, wave: "triangle", volume: 0.18 });
+}
+
+function playTones(frequencies: readonly number[], { gap, length, wave, volume: peak }: { gap: number; length: number; wave: OscillatorType; volume: number }) {
   const ctx = audio();
   if (!ctx) {
     return;
@@ -29,17 +39,17 @@ export function playFillSound() {
   }
 
   const start = ctx.currentTime + 0.01;
-  [880, 1320].forEach((frequency, i) => {
-    const at = start + i * 0.08;
+  frequencies.forEach((frequency, i) => {
+    const at = start + i * gap;
     const tone = ctx.createOscillator();
     const volume = ctx.createGain();
-    tone.type = "sine";
+    tone.type = wave;
     tone.frequency.value = frequency;
     volume.gain.setValueAtTime(0.0001, at);
-    volume.gain.exponentialRampToValueAtTime(0.12, at + 0.012);
-    volume.gain.exponentialRampToValueAtTime(0.0001, at + 0.16);
+    volume.gain.exponentialRampToValueAtTime(peak, at + 0.012);
+    volume.gain.exponentialRampToValueAtTime(0.0001, at + length);
     tone.connect(volume).connect(ctx.destination);
     tone.start(at);
-    tone.stop(at + 0.18);
+    tone.stop(at + length + 0.02);
   });
 }

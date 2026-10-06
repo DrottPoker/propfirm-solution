@@ -77,6 +77,8 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
 
     public string Name => PriceFeedOptions.TiingoProvider;
 
+    public bool FollowsTradingHours => true;
+
     /// <summary>
     /// Tiingo's bars of mid prices, moved down by half the current spread so they are bid like the live prices, and
     /// rounded down to the instrument's digits. Tiingo takes whole days and answers at most 10 000 bars a call, so the

@@ -68,8 +68,10 @@ public sealed partial class TradingEngine
             ChangeGroupSymbols command => ApplyChangeGroupSymbols(command, events),
             CreateAccount command => ApplyCreateAccount(command, events),
             PlaceOrder command => ApplyPlaceOrder(command, events),
+            ModifyOrder command => ApplyModifyOrder(command, events),
             CancelOrder command => ApplyCancelOrder(command, events),
             ClosePosition command => ApplyClosePosition(command, events),
+            CloseAllPositions command => ApplyCloseAllPositions(command, events),
             ModifyPosition command => ApplyModifyPosition(command, events),
             SetEquityFloor command => ApplySetEquityFloor(command, events),
             RemoveEquityFloor command => ApplyRemoveEquityFloor(command, events),
@@ -172,7 +174,7 @@ public sealed partial class TradingEngine
             figures.MarginLevelPercent,
             PositionsOf(account),
             account.Orders
-                .Select(o => new OrderSnapshot(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime))
+                .Select(o => new OrderSnapshot(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime, o.TrailingDistance))
                 .ToList(),
             account.Floors.Values
                 .Select(f => new FloorSnapshot(f.Id, f.Rule, f.Level, f.HighWaterMark, figures.Equity - f.Level))
@@ -197,7 +199,8 @@ public sealed partial class TradingEngine
                     p.OpenTime,
                     closePrice,
                     _valuation.Profit(p, closePrice, currency),
-                    _valuation.Margin(p.Instrument, p.Conditions, p.Volume, currency));
+                    _valuation.Margin(p.Instrument, p.Conditions, p.Volume, currency),
+                    p.TrailingDistance);
             })
             .ToList();
     }

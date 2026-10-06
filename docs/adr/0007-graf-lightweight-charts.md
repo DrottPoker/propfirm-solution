@@ -2,6 +2,7 @@
 
 - Status: Beslutad
 - Datum: 2026-10-02
+- Kompletterad av [0051](0051-orderverktyg-och-grafens-verktyg.md): egna indikatorer och ritverktyg på Lightweight Charts i stället för att vänta på Advanced Charts.
 
 ## Sammanhang
 

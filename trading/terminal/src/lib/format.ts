@@ -101,6 +101,21 @@ export function formatChartTick(seconds: number, tick: ChartTick, timeZone: stri
   }
 }
 
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** A day and time to the minute in the time zone, for example Mon 12 Oct 00:00. */
+export function formatDayTime(value: string | Date, timeZone: string): string {
+  let format = dayFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-GB", { timeZone, weekday: "short", day: "numeric", month: "short" });
+    dayFormats.set(timeZone, format);
+  }
+
+  const day = Object.fromEntries(format.formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+  const p = partsIn(value, timeZone);
+  return `${day.weekday} ${day.day} ${day.month} ${p.hour}:${p.minute}`;
+}
+
 /** The time zone's name for the trader: "Stockholm time" for Europe/Stockholm, "UTC" for UTC. */
 export function timeZoneName(timeZone: string): string {
   if (timeZone === "UTC" || timeZone === "Etc/UTC") {

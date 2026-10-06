@@ -62,6 +62,8 @@ internal sealed class SyntheticPriceFeed : IContinuablePriceFeed
 
     public string Name => PriceFeedOptions.SyntheticProvider;
 
+    public bool FollowsTradingHours => false;
+
     /// <summary>
     /// Made-up bars that end where the live prices continue, so the charts never jump. Walks backwards in time from the
     /// current price, the newest span first.

@@ -1,8 +1,8 @@
 # Spec: handelsmotorns kärna
 
-- Fas: 1, insättningar och uttag i 5, grupper under drift i 6, pausade konton i 7, ändrade villkor i skapade grupper och omräkning genom USD efter genomgången som ny firma
+- Fas: 1, insättningar och uttag i 5, grupper under drift i 6, pausade konton i 7, ändrade villkor i skapade grupper och omräkning genom USD efter genomgången som ny firma, öppettider och orderverktygen efter jämförelsen med konkurrenterna
 - Status: Implementerad i `trading/src/Trading.Engine`
-- Datum: 2026-10-02
+- Datum: 2026-10-06
 
 ## Syfte
 
@@ -28,10 +28,12 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `CreateGroup` | Skapar en grupp med sina villkor, till exempel för en firma som registrerat sig (ADR 0016). |
 | `ChangeGroupSymbols` | Ersätter symbolerna och villkoren i en grupp som skapats med `CreateGroup` (ADR 0027). Valutan och nivån för stop out ändras inte. |
 | `CreateAccount` | Skapar ett konto i en grupp med ett startsaldo. |
-| `PlaceOrder` | Marknads-, limit- eller stoporder med valfri stop loss och take profit. |
+| `PlaceOrder` | Marknads-, limit- eller stoporder med valfri stop loss, take profit och trailing stop. |
+| `ModifyOrder` | Ger en väntande order nytt pris, stop loss, take profit och trailing stop (ADR 0051). |
 | `CancelOrder` | Tar bort en väntande order. |
-| `ClosePosition` | Stänger en position till aktuellt pris. |
-| `ModifyPosition` | Sätter eller tar bort stop loss och take profit. |
+| `ClosePosition` | Stänger en position till aktuellt pris, eller med en volym bara en del av den. |
+| `CloseAllPositions` | Stänger alla positioner, eller en symbols, i samma ögonblick. De som inte går att stänga nu ligger kvar. |
+| `ModifyPosition` | Sätter eller tar bort stop loss och take profit, och slår på eller av trailing stop. |
 | `SetEquityFloor` | Lägger till eller ersätter ett namngivet golv för equity. |
 | `RemoveEquityFloor` | Tar bort ett golv. |
 | `CloseAccount` | Stänger alla positioner, tar bort alla ordrar och stänger av kontot. |
@@ -47,10 +49,12 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `GroupSymbolsChanged` | Gruppens symboler och villkor ändrades. Innehåller gruppen som den är nu. |
 | `AccountCreated` | Kontot skapades. |
 | `OrderPlaced` | En limit- eller stoporder väntar på sitt pris. |
+| `OrderModified` | En väntande order fick nytt pris, stop loss, take profit eller trailing stop. |
 | `OrderCancelled` | En order togs bort: manuellt, saknad marginal vid utlösning, brott mot golvet, stängt konto eller pausat konto. |
 | `PositionOpened` | En position öppnades. Innehåller pris, provision och saldo efteråt. |
 | `PositionModified` | Stop loss eller take profit ändrades. |
 | `PositionClosed` | En position stängdes. Innehåller pris, vinst, provision, orsak och saldo efteråt. |
+| `PositionPartiallyClosed` | En del av en position stängdes. Innehåller delens volym, den volym som ligger kvar, pris, vinst, provision för delen och saldo efteråt. |
 | `EquityFloorSet`, `EquityFloorRemoved` | Ett golv sattes eller togs bort. |
 | `EquityFloorBreached` | Equity föll under ett golv. Innehåller bevisen: golvets nivå, equity, priser och öppna positioner innan de stängdes. |
 | `StopOutTriggered` | Marginalnivån föll under gränsen för stop out. |
@@ -158,9 +162,27 @@ Belopp i kontovalutan avrundas till valutans decimaler med `MidpointRounding.Awa
 
 Provisionen anges per lot och sida i kontovalutan. Den dras från saldot både när positionen öppnas och när den stängs.
 
+### Orderverktyg
+
+Se [ADR 0051](../adr/0051-orderverktyg-och-grafens-verktyg.md).
+
+- **Delstängning:** `ClosePosition` med en volym stänger bara den delen. Delen ska vara en volym som instrumentet tillåter och lämna minst den minsta volymen, annars `InvalidVolume`. Hela volymen är en vanlig stängning. Resten behåller id, stoppar och trailing stop. Vinst och provision räknas för delen.
+- **Stäng allt:** `CloseAllPositions` stänger varje position, eller en symbols, till sitt eget pris i den ordning de öppnades. Positioner vars marknad är stängd eller saknar färskt pris ligger kvar. Går ingen att stänga avvisas kommandot med skälet för den första, och utan positioner med `UnknownPosition`. Golven och stop out kontrolleras en gång efteråt.
+- **Ändrad order:** `ModifyOrder` kontrolleras som en ny order: pris på rätt sida om marknaden för ordertypen, stoppar på rätt sida om orderpriset, öppen marknad och färskt pris.
+- **Trailing stop:** avståndet är det mellan stop lossen och priset positionen stänger till när ordern läggs eller stopparna ändras, eller orderpriset för en limit- eller stoporder. Utan stop loss avvisas valet med `NoStopLoss`. Vid varje pris flyttas stop lossen till det priset minus avståndet för ett köp, plus för en sälj, om det är bättre, före kontrollen av stop loss och take profit. Flytten ger ingen händelse. Ändrade stoppar utan valet stänger av trailing stop.
+
+### Öppettider
+
+- Ett instrument kan ha öppettider (`TradingHours`, se [ADR 0050](../adr/0050-oppettider-per-instrument.md)): marknadens tidszon, öppna perioder varje vecka, till exempel söndag 17:00 till fredag 17:00, och stängda perioder i marknadens lokala tid, till exempel en helgdag. Ett instrument utan öppettider är alltid öppet.
+- Perioderna följer marknadens klocka, också när den byter till eller från sommartid. En tid i timmen som klockan hoppar över flyttas till den första tiden som finns, och en tid i timmen som upprepas är den första av de två. Perioder som möts blir en.
+- Medan marknaden är stängd avvisas marknadsordrar, väntande ordrar, stängningar och ändringar av stop loss och take profit med `MarketClosed`, före kontrollen av priset. Väntande ordrar kan tas bort.
+- Priser som kommer medan marknaden är stängd tillämpas som vanligt: de flyttar equity och kan utlösa stop loss, take profit, väntande ordrar, golv och stop out.
+- `TradingHours.IsOpen(tid)`, `NextChange(tid)` och `PeriodsBetween(från, till)` säger om marknaden är öppen, när den nästa gång öppnar eller stänger, och vilka perioder den är öppen. Tjänsten använder dem för att visa öppettiderna.
+- Konfigurationen avvisas om tidszonen är okänd, perioder saknas eller överlappar, marknaden aldrig stänger eller en stängd period slutar innan den börjar.
+
 ### Skydd mot gamla priser
 
-Marknadsordrar, väntande ordrar, stängningar och ändringar avvisas med `StalePrice` när det senaste priset för symbolen är äldre än den konfigurerade gränsen jämfört med kommandots tidsstämpel. De avvisas med `NoPrice` om inget pris finns. Stängningar som motorn själv gör, vid brott mot golvet eller stängt konto, använder senaste pris även om det är gammalt.
+Marknadsordrar, väntande ordrar, stängningar och ändringar avvisas med `StalePrice` när det senaste priset för symbolen är äldre än den konfigurerade gränsen jämfört med kommandots tidsstämpel. De avvisas med `NoPrice` om inget pris finns. Stängningar som motorn själv gör, vid brott mot golvet eller stängt konto, använder senaste pris även om det är gammalt, också när marknaden är stängd.
 
 ### Tid och ordning
 
@@ -181,7 +203,7 @@ Konton behandlas i den ordning de skapades. För varje konto med positioner elle
 
 - Swap och rollover.
 - Slippage utöver prisgap, och bredare spread vid nyheter och nattetid.
-- Delstängning av positioner, netting, giltighetstid för ordrar (alla gäller tills de tas bort) och minsta avstånd till priset för stop loss.
+- Netting, giltighetstid för ordrar (alla gäller tills de tas bort), att ändra volymen på en väntande order och minsta avstånd till priset för stop loss.
 - Kontroll av att växelkurser är färska.
 - Index per symbol. Varje pris utvärderar alla konton med positioner eller ordrar, vilket räcker för små och medelstora firmor.
 
@@ -195,6 +217,8 @@ Testerna ligger i `trading/tests/Trading.Engine.Tests`.
 - **Facit:** en uppspelning av 3 000 syntetiska EURUSD-priser jämförs med `Golden/replay-eurusd.jsonl`. Uppspelningen innehåller ordrar, stop loss, take profit, golv, en insättning, ett uttag och ett upprepat uttag, brott mot golvet, stop out och stängning av konto. Varje ändring i motorns utdata syns som en diff i facitfilen.
 - **Pausade konton (`SuspensionTests`):** väntande ordrar tas bort och positioner ligger kvar, inga nya ordrar, positioner kan stängas och få nya stoppar, stoppar och golv gäller, pengar kan flyttas och kontot stängas, kontot handlar igen efter återupptagandet, upprepade och avstängda konton avvisas, och pausen följer med en återställning.
 - **Valutor (`ConversionTests`):** vinst och marginal i en annan valuta än kontots, ett konto i EUR som handlar guld genom USD, ett konto i USD som handlar ett index i EUR genom EUR, och ordrar utan kurs, också genom USD och EUR.
+- **Öppettider (`TradingHoursTests` och `MarketClosedTests`):** valutaveckan, CME:s dagliga paus, byte till vintertid i New York och Berlin vid olika datum, timmen som hoppas över och timmen som upprepas, helgdagar som kortar eller delar en period, perioder som möts, när marknaden nästa gång ändras, ogiltiga öppettider, och att stängda marknader avvisar ordrar, stängningar och stoppar med `MarketClosed` före `StalePrice` medan väntande ordrar kan tas bort, priser fortfarande utlöser stop loss, ett stängt konto stängs till senaste pris och instrument utan öppettider alltid är öppna.
+- **Orderverktyg (`OrderToolsTests`):** en del stängs och resten ligger kvar, hela volymen är en vanlig stängning, ogiltiga delar och en del som lämnar för lite, delarna summerar till hela positionen, alla positioner eller en symbols stängs på en gång, positioner i en stängd marknad ligger kvar, en ändrad order fylls till sitt nya pris och kontrolleras som en ny, trailing stop för köp och sälj som aldrig går bakåt, som kräver stop loss, som slås på och av, som följer en väntande order från dess pris, och att trailing stop och delar följer med en återställning.
 - **Grupper (`GroupTests`):** en skapad grupp handlar med sina egna villkor, id är unika, ogiltiga grupper avvisas, skapade grupper följer med en återställning, ögonblicksbilder från innan grupper kunde skapas går att läsa, en skapad grupp som blivit konfigurerad stoppar återställningen, och ändrade villkor: nya symboler och villkor som gäller öppna positioner direkt, högre hävstång som sänker marginalen, en symbol i bruk som inte kan tas bort, konfigurerade grupper som inte kan ändras, ogiltiga villkor och att ändringen följer med en återställning.
 - **Arkitektur:** `BannedSymbols.txt` stoppar klocka, slump och I/O vid bygget, och ett test kontrollerar att kärnan aldrig använder flyttal.
 

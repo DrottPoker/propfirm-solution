@@ -197,7 +197,7 @@ test("stops are set as amounts, and the stop loss is dragged on the chart", asyn
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue("9.00000");
 
   // 100 USD of loss and 200 USD of profit become prices for each side before the order is sent.
-  await page.getByRole("button", { name: "USD", exact: true }).click();
+  await page.getByRole("group", { name: "Stops in" }).getByRole("button", { name: "USD", exact: true }).click();
   await page.getByLabel("Stop loss", { exact: true }).fill("100");
   await page.getByLabel("Take profit", { exact: true }).fill("200");
   await expect(page.getByText(/^SL \d\.\d{5}$/)).toHaveCount(2);
@@ -416,4 +416,174 @@ test("a link from the firm's portal logs the trader straight in, once", async ({
   await page.goto(url);
   // Next.js has an alert of its own for route announcements, so look inside the page.
   await expect(page.locator("main").getByRole("alert")).toContainText("This link has expired or was already used.");
+});
+
+test("a position closes in parts with a trailing stop, and every position closes at once", async ({ page, request }) => {
+  const trader = await createTrader(request, "parts");
+  await logIn(page, trader.email);
+  const buy = page.getByRole("button", { name: /^buy/i });
+  await expect(buy).toBeEnabled();
+
+  // A trailing stop follows a stop loss, so it needs one.
+  await page.getByLabel("Trailing stop").check();
+  await buy.click();
+  await expect(page.getByText("Set a stop loss for the trailing stop to follow.")).toBeVisible();
+
+  await lowerStopLoss(page);
+  await buy.click();
+  await expect(page.getByText(boughtNote)).toBeVisible();
+  const position = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Close", exact: true }) });
+  await expect(position.getByText("Trail", { exact: true })).toBeVisible();
+
+  // A part starts from half the position, and the rest stays open.
+  await position.getByRole("button", { name: "Close part" }).click();
+  await expect(page.getByLabel("Close", { exact: true })).toHaveValue("0.50");
+  await page.getByRole("button", { name: "Close part" }).click();
+  await expect(page.getByText(/^0\.50 of Buy EURUSD closed at \d\.\d{5}, 0\.50 still open$/)).toBeVisible();
+  await expect(position.getByRole("cell").nth(2)).toHaveText("0.50");
+
+  // A second position, and both close at once on a second click.
+  await page.getByLabel("Trailing stop").uncheck();
+  await buy.click();
+  await expect(page.getByRole("tab", { name: "Positions (2)" })).toBeVisible();
+  await page.getByRole("button", { name: "Close all" }).click();
+  await page.getByRole("button", { name: "Close all 2?" }).click();
+  await expect(page.getByRole("tab", { name: "Positions", exact: true })).toBeVisible();
+
+  await page.getByRole("tab", { name: "History" }).click();
+  await expect(page.getByRole("cell", { name: "Part closed" })).toBeVisible();
+});
+
+test("a pending order is moved in the orders tab", async ({ page, request }) => {
+  const trader = await createTrader(request, "pending");
+  await logIn(page, trader.email);
+  await expect(page.getByRole("button", { name: /^buy/i })).toBeEnabled();
+
+  // A buy limit 20 pips below the bid.
+  await page.getByRole("button", { name: "Limit", exact: true }).click();
+  const lower = page.getByRole("button", { name: "Lower limit price" });
+  for (let pip = 0; pip < 20; pip++) {
+    await lower.click();
+  }
+  await page.getByRole("button", { name: /^buy/i }).click();
+  await expect(page.getByText(/^Buy limit 1\.00 EURUSD placed at \d\.\d{5}$/)).toBeVisible();
+
+  await page.getByRole("tab", { name: "Orders (1)" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const price = page.getByLabel("Limit price", { exact: true }).last();
+  const moved = (Number(await price.inputValue()) - 0.001).toFixed(5);
+  await price.fill(moved);
+  await page.getByRole("button", { name: "Save" }).click();
+
+  await expect(page.getByText(`EURUSD order moved to ${moved}`)).toBeVisible();
+  await expect(page.getByRole("cell", { name: moved, exact: true })).toBeVisible();
+});
+
+test("indicators and drawings stay on the chart", async ({ page, request }) => {
+  const trader = await createTrader(request, "studies");
+  await logIn(page, trader.email);
+
+  await page.getByRole("button", { name: "Indicators" }).click();
+  const menu = page.getByRole("dialog", { name: "Indicators" });
+  await menu.getByRole("button", { name: "Moving average", exact: true }).click();
+  await menu.getByRole("button", { name: "RSI", exact: true }).click();
+  await menu.getByLabel("Moving average period").fill("50");
+  await menu.getByLabel("Moving average period").press("Enter");
+  await expect(menu.getByText("SMA 50")).toBeVisible();
+  await expect(menu.getByText("RSI 14")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Indicators (2)" })).toBeVisible();
+
+  // A horizontal line where the trader clicks on the candles.
+  const chart = page.locator("section").filter({ has: page.getByRole("button", { name: "Full screen" }) }).locator("canvas").first();
+  const box = await chart.boundingBox();
+  expect(box).not.toBeNull();
+  await page.getByRole("button", { name: "Horizontal line" }).click();
+  await expect(page.getByText(/^Horizontal line: Click where the line goes\./)).toBeVisible();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 3);
+  await expect(page.getByRole("button", { name: "Remove the selected drawing" })).toBeEnabled();
+
+  // Both are kept on the device.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Indicators (2)" })).toBeVisible();
+  const removeAll = page.getByRole("button", { name: "Remove all drawings" });
+  await expect(removeAll).toBeEnabled();
+
+  // Removing every drawing takes a second click.
+  await removeAll.click();
+  await removeAll.click();
+  await expect(removeAll).toBeDisabled();
+});
+
+test("the rulebook shows the firm's rules and warns as a deadline comes close", async ({ page, request }) => {
+  const trader = await createTrader(request, "rules");
+  await setFloor(request, trader.accountId, "daily", 95_000);
+  const hour = 3_600_000;
+  const tellRules = async (passBy: number) => {
+    const response = await request.put(`${serviceUrl}/api/admin/v1/accounts/${trader.accountId}/rules`, {
+      headers: adminHeaders,
+      data: { tradingDaysRequired: 4, tradingDaysCounted: 1, passBy: new Date(passBy).toISOString(), openPositionBy: new Date(Date.now() + 480 * hour).toISOString() },
+    });
+    expect(response.ok()).toBeTruthy();
+  };
+  await tellRules(Date.now() + 240 * hour);
+
+  await logIn(page, trader.email);
+  await page.getByRole("button", { name: "Rules" }).click();
+  const rulebook = page.getByRole("dialog", { name: "Rules" });
+  await expect(rulebook.locator("[data-rule='floor-daily']")).toContainText("5,000.00 left");
+  await expect(rulebook.locator("[data-rule='trading-days']")).toContainText("1 of 4");
+  await expect(rulebook.locator("[data-rule='pass-by']")).toContainText(/\d+ days left/);
+  await expect(rulebook.locator("[data-rule='open-by']")).toContainText(/\d+ days left/);
+  await expect(page.getByTestId("rules-attention")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // The firm's system tells a deadline less than a day away, and the trader is warned at once.
+  await tellRules(Date.now() + 20 * hour);
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Pass the stage by" })).toContainText(/\d+ h left\. After that the stage fails\./);
+  await expect(page.getByTestId("rules-attention")).toBeVisible();
+});
+
+test("an order is sized from what it risks at its stop loss", async ({ page, request }) => {
+  const trader = await createTrader(request, "risk");
+  await logIn(page, trader.email);
+  await expect(page.getByRole("button", { name: /^buy/i })).toBeEnabled();
+
+  await page.getByRole("group", { name: "Size in" }).getByRole("button", { name: "USD" }).click();
+  await page.getByLabel("Risk (USD)", { exact: true }).fill("200");
+  await expect(page.getByRole("status").filter({ hasText: "Set a stop loss to size the order from the risk." })).toBeVisible();
+
+  // 20 pips and the spread on EURUSD are worth about 210 USD on a lot, so 200 USD is a little less than a lot.
+  await lowerStopLoss(page);
+  await expect(page.getByRole("status").filter({ hasText: "lots, risks" })).toContainText(/^= 0\.\d\d lots, risks 1\d\d\.\d\d USD$/);
+  await page.getByRole("button", { name: /^buy/i }).click();
+  await expect(page.getByText(/^Bought 0\.\d\d EURUSD at \d\.\d{5}$/)).toBeVisible();
+
+  // The ticket keeps sizing from risk.
+  await page.reload();
+  await expect(page.getByLabel("Risk (USD)", { exact: true })).toHaveValue("200");
+});
+
+test("the trader's choices follow them to another device", async ({ page, request, browser }) => {
+  const trader = await createTrader(request, "devices");
+  await logIn(page, trader.email);
+  const watchlist = page.getByRole("complementary").filter({ has: page.getByRole("heading", { name: "Watchlist" }) });
+  await watchlist.getByRole("button", { name: "Add XAUUSD to favorites" }).first().click();
+  await page.getByRole("button", { name: "Indicators" }).click();
+  await page.getByRole("dialog", { name: "Indicators" }).getByRole("button", { name: "RSI", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "User menu" }).click();
+  await page.getByRole("switch", { name: "Sound on warnings" }).click();
+  // Logging out sends what is not sent yet.
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+
+  const other = await browser.newContext({ baseURL: test.info().project.use.baseURL });
+  const device = await other.newPage();
+  await logIn(device, trader.email);
+  await expect(device.getByRole("button", { name: "Remove XAUUSD from favorites" }).first()).toBeVisible();
+  await expect(device.getByRole("button", { name: "Indicators (1)" })).toBeVisible();
+  await device.getByRole("button", { name: "User menu" }).click();
+  await expect(device.getByRole("switch", { name: "Sound on warnings" })).toHaveAttribute("aria-checked", "false");
+  await other.close();
 });

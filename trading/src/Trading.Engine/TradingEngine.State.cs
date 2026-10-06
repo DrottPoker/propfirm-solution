@@ -18,10 +18,10 @@ public sealed partial class TradingEngine
                     a.Balance,
                     a.Status,
                     a.Positions
-                        .Select(p => new PositionRecord(p.Id, p.Instrument.Symbol, p.Side, p.Volume, p.OpenPrice, p.StopLoss, p.TakeProfit, p.OpenTime))
+                        .Select(p => new PositionRecord(p.Id, p.Instrument.Symbol, p.Side, p.Volume, p.OpenPrice, p.StopLoss, p.TakeProfit, p.OpenTime, p.TrailingDistance))
                         .ToList(),
                     a.Orders
-                        .Select(o => new OrderRecord(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime))
+                        .Select(o => new OrderRecord(o.Id, o.Instrument.Symbol, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime, o.TrailingDistance))
                         .ToList(),
                     a.Floors.Values.Select(f => new FloorRecord(f.Id, f.Rule, f.HighWaterMark, f.Anchor)).ToList(),
                     a.UsedOrderIds.Order(StringComparer.Ordinal).ToList(),
@@ -76,13 +76,13 @@ public sealed partial class TradingEngine
             {
                 var (instrument, conditions) = Tradable(account, p.Symbol);
                 Require(_valuation.CanValue(instrument, group.Currency), $"Position {p.PositionId} cannot be valued without prices.");
-                account.Positions.Add(new PositionState(p.PositionId, instrument, conditions, p.Side, p.Volume, p.OpenPrice, p.StopLoss, p.TakeProfit, p.OpenTime));
+                account.Positions.Add(new PositionState(p.PositionId, instrument, conditions, p.Side, p.Volume, p.OpenPrice, p.StopLoss, p.TakeProfit, p.OpenTime, p.TrailingDistance));
             }
 
             foreach (var o in record.Orders)
             {
                 var (instrument, conditions) = Tradable(account, o.Symbol);
-                account.Orders.Add(new OrderState(o.OrderId, instrument, conditions, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime));
+                account.Orders.Add(new OrderState(o.OrderId, instrument, conditions, o.Side, o.Type, o.Volume, o.Price, o.StopLoss, o.TakeProfit, o.PlacedTime, o.TrailingDistance));
             }
 
             foreach (var f in record.Floors)

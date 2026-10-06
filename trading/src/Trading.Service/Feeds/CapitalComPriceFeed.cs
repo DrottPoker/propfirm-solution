@@ -104,6 +104,8 @@ internal sealed partial class CapitalComPriceFeed : IPriceFeed
 
     public string Name => PriceFeedOptions.CapitalComProvider;
 
+    public bool FollowsTradingHours => true;
+
     /// <summary>Capital.com's bars of bid prices, rounded down to the instrument's digits. Calls are spaced to stay within Capital.com's limit.</summary>
     public async Task<IReadOnlyList<ChartBar>> GetHistoryAsync(IReadOnlyList<HistorySpan> spans, CancellationToken cancellationToken)
     {

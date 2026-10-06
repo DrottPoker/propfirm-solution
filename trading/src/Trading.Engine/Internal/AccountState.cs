@@ -35,7 +35,8 @@ internal sealed class PositionState(
     decimal openPrice,
     decimal? stopLoss,
     decimal? takeProfit,
-    DateTimeOffset openTime)
+    DateTimeOffset openTime,
+    decimal? trailingDistance)
 {
     public string Id { get; } = id;
 
@@ -46,7 +47,8 @@ internal sealed class PositionState(
 
     public Side Side { get; } = side;
 
-    public decimal Volume { get; } = volume;
+    // Smaller after a partial close.
+    public decimal Volume { get; set; } = volume;
 
     public decimal OpenPrice { get; } = openPrice;
 
@@ -55,6 +57,9 @@ internal sealed class PositionState(
     public decimal? TakeProfit { get; set; } = takeProfit;
 
     public DateTimeOffset OpenTime { get; } = openTime;
+
+    // Set when the stop loss trails the price at this distance.
+    public decimal? TrailingDistance { get; set; } = trailingDistance;
 }
 
 internal sealed class OrderState(
@@ -67,7 +72,8 @@ internal sealed class OrderState(
     decimal price,
     decimal? stopLoss,
     decimal? takeProfit,
-    DateTimeOffset placedTime)
+    DateTimeOffset placedTime,
+    decimal? trailingDistance)
 {
     public string Id { get; } = id;
 
@@ -82,13 +88,17 @@ internal sealed class OrderState(
 
     public decimal Volume { get; } = volume;
 
-    public decimal Price { get; } = price;
+    // The price, stops and trailing stop change when the trader modifies the order.
+    public decimal Price { get; set; } = price;
 
-    public decimal? StopLoss { get; } = stopLoss;
+    public decimal? StopLoss { get; set; } = stopLoss;
 
-    public decimal? TakeProfit { get; } = takeProfit;
+    public decimal? TakeProfit { get; set; } = takeProfit;
 
     public DateTimeOffset PlacedTime { get; } = placedTime;
+
+    // The distance the stop loss of the position it opens will trail at.
+    public decimal? TrailingDistance { get; set; } = trailingDistance;
 }
 
 /// <summary><paramref name="anchor"/> is the starting point of an <see cref="AnchoredFloor"/>, taken when it was set.</summary>

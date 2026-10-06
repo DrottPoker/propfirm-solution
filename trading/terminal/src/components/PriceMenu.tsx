@@ -52,6 +52,7 @@ export function PriceMenu({
   line,
   ghost,
   pointValue,
+  marketOpen,
   onModify,
   onResetChart,
   onClose,
@@ -62,6 +63,7 @@ export function PriceMenu({
   line: StopLineRef | null;
   ghost: GhostLine["kind"] | null;
   pointValue: PointValue | null | undefined;
+  marketOpen: boolean;
   onModify: (positionId: string, stopLoss: number | null, takeProfit: number | null) => void;
   onResetChart: () => void;
   onClose: () => void;
@@ -105,7 +107,8 @@ export function PriceMenu({
   ];
 
   // A level is a stop loss on one side of the price a position closes at and a take profit on the other.
-  for (const position of canTrade ? (positions ?? []).filter((p) => p.symbol === symbol) : []) {
+  // Stops are not moved while the market is closed, since the engine refuses it.
+  for (const position of canTrade && marketOpen ? (positions ?? []).filter((p) => p.symbol === symbol) : []) {
     const closePrice = quote ? (position.side === "Buy" ? quote.bid : quote.ask) : position.currentPrice;
     const kind = stopKindAt(position.side, price, closePrice, digits);
     if (!kind) {

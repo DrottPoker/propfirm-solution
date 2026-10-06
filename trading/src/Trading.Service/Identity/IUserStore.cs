@@ -28,6 +28,42 @@ public interface IUserStore
 
     /// <summary>What the terminal shows about each of the user's accounts, in the order of <see cref="AccountsOfAsync"/>.</summary>
     Task<IReadOnlyList<AccountDetails>> AccountDetailsOfAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>Replaces the account's rules as the firm's system sees them.</summary>
+    Task SetAccountRulesAsync(string accountId, AccountRules rules, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>The account's rules, or null when the firm's system has not told them.</summary>
+    Task<AccountRules?> AccountRulesOfAsync(string accountId, CancellationToken cancellationToken);
+
+    /// <summary>The user's settings in the terminal, by key, each the JSON the terminal stored.</summary>
+    Task<IReadOnlyDictionary<string, string>> SettingsOfAsync(Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores the setting, or removes it when <paramref name="json"/> is null. A new key is refused, and false
+    /// returned, when the user already has <paramref name="maxSettings"/>.
+    /// </summary>
+    Task<bool> SetSettingAsync(Guid userId, string key, string? json, int maxSettings, DateTimeOffset now, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each
+/// is null when the account has no such rule. <paramref name="Funded"/> tells a funded account, whose trading days
+/// count toward a payout rather than passing the stage. <paramref name="PassBy"/> is when the stage fails unless it was
+/// passed, and <paramref name="OpenPositionBy"/> when the account ends unless a position is opened before.
+/// <paramref name="ConsistencyPercent"/> is the most of the profit the best trading day may have made for a payout,
+/// and <paramref name="BestDayPercent"/> what it has made now.
+/// </summary>
+public sealed record AccountRules(
+    bool Funded,
+    int? TradingDaysRequired,
+    int? TradingDaysCounted,
+    DateTimeOffset? PassBy,
+    DateTimeOffset? OpenPositionBy,
+    decimal? ConsistencyPercent,
+    decimal? BestDayPercent)
+{
+    /// <summary>An account the firm's system has told nothing about.</summary>
+    public static readonly AccountRules None = new(false, null, null, null, null, null, null);
 }
 
 /// <summary>

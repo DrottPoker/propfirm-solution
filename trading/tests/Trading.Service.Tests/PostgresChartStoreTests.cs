@@ -22,19 +22,19 @@ public sealed class PostgresChartStoreTests(PostgresFixture postgres) : IClassFi
         await using var store = await CreateStoreAsync();
         await store.Value.SaveAsync("Tiingo", [Minute(T, 1.08000m), Minute(T.AddMinutes(1), 1.08100m)], TestContext.Current.CancellationToken);
         await store.Value.SaveAsync("Synthetic", [Minute(T, 1.07000m)], TestContext.Current.CancellationToken);
-        var before = await store.Value.HasHistoryAsync("Tiingo", TestContext.Current.CancellationToken);
+        var before = await store.Value.GetHistoryReachAsync("Tiingo", TestContext.Current.CancellationToken);
 
         var history = new ChartBar("EURUSD", Timeframe.M15, new Candle(T.AddMinutes(-15), 1.07900m, 1.08050m, 1.07850m, 1.08000m, 0));
-        await store.Value.ReplaceHistoryAsync("Tiingo", T.AddMinutes(1), [history], TestContext.Current.CancellationToken);
+        await store.Value.ReplaceHistoryAsync("Tiingo", T.AddDays(-180), T.AddMinutes(1), [history], TestContext.Current.CancellationToken);
 
-        Assert.False(before);
-        Assert.True(await store.Value.HasHistoryAsync("Tiingo", TestContext.Current.CancellationToken));
-        Assert.False(await store.Value.HasHistoryAsync("Synthetic", TestContext.Current.CancellationToken));
+        Assert.Null(before);
+        Assert.Equal(T.AddDays(-180), await store.Value.GetHistoryReachAsync("Tiingo", TestContext.Current.CancellationToken));
+        Assert.Null(await store.Value.GetHistoryReachAsync("Synthetic", TestContext.Current.CancellationToken));
         Assert.Equal([history, Minute(T.AddMinutes(1), 1.08100m)], await ReadAsync(store.Value, "Tiingo", T.AddHours(-1)));
         Assert.Equal([Minute(T, 1.07000m)], await ReadAsync(store.Value, "Synthetic", T.AddHours(-1)));
 
         await store.Value.ForgetHistoryAsync("Tiingo", TestContext.Current.CancellationToken);
-        Assert.False(await store.Value.HasHistoryAsync("Tiingo", TestContext.Current.CancellationToken));
+        Assert.Null(await store.Value.GetHistoryReachAsync("Tiingo", TestContext.Current.CancellationToken));
     }
 
     [Fact]

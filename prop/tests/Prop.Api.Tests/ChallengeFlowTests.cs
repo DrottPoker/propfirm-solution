@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.Tests.Support;
+using Prop.Api.Trading;
 
 namespace Prop.Api.Tests;
 
@@ -49,6 +50,27 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(new Uri($"http://localhost:3002/accounts/{id}"), details.DetailsUrl);
     }
 
+    // The terminal shows the trading days and deadlines, and is told again only when they change (ADR 0052).
+    [Fact]
+    public async Task TheTerminalKnowsTheRulesAndWhenTheyChange()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        await factory.StartActiveAccountAsync();
+        await Eventually.ThatAsync(() => factory.Trading.RulesOf(Phase1) is not null, "the rules to be told");
+        var started = factory.Trading.RulesOf(Phase1)!;
+
+        // Into the next trading day, which changes nothing the terminal shows, and a position on it.
+        await factory.AdvanceAsync(TimeSpan.FromDays(1));
+        factory.Trading.OpenPosition(Phase1);
+        await Eventually.ThatAsync(() => factory.Trading.RulesOf(Phase1)!.TradingDaysCounted == 1, "the trading day to be told");
+        var traded = factory.Trading.RulesOf(Phase1)!;
+
+        // 31 days after the first day, at midnight in Stockholm, which is on winter time by then.
+        Assert.Equal(new TradingAccountRules(false, 4, 0, null, new DateTimeOffset(2026, 11, 4, 23, 0, 0, TimeSpan.Zero), null, null), started);
+        Assert.Equal(started with { TradingDaysCounted = 1, OpenPositionBy = new DateTimeOffset(2026, 11, 5, 23, 0, 0, TimeSpan.Zero) }, traded);
+        Assert.Equal(2, factory.Trading.Commands.Count(c => c == $"rules {Phase1}"));
+    }
+
     [Fact]
     public async Task AnAccountOpenedBeforeTheTerminalCouldShowItIsDescribedOnce()
     {
@@ -61,10 +83,13 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         var alreadyDescribed = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
         await factory.ScalarAsync("update challenge_accounts set described_account_id = null");
         var describedAgain = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+        await factory.ScalarAsync("update challenge_accounts set described_rules = null");
+        var rulesToldAgain = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
         var thenNot = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
 
-        Assert.Equal((0, 1, 0), (alreadyDescribed, describedAgain, thenNot));
+        Assert.Equal((0, 1, 1, 0), (alreadyDescribed, describedAgain, rulesToldAgain, thenNot));
         await Eventually.ThatAsync(() => factory.Trading.Commands.Count(c => c == $"describe {Phase1}") == 2, "the account to be described again");
+        await Eventually.ThatAsync(() => factory.Trading.Commands.Count(c => c == $"rules {Phase1}") == 2, "the rules to be told again");
     }
 
     [Fact]
@@ -206,7 +231,7 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
             "the account to open after the outage");
 
         Assert.Equal(
-            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily"],
+            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily", "rules demo-firm-1001-1"],
             factory.Trading.Commands);
     }
 

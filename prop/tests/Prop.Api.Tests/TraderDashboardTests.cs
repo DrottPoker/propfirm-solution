@@ -56,6 +56,31 @@ public sealed class TraderDashboardTests(PostgresFixture postgres) : IClassFixtu
         Assert.Equal(JsonValueKind.Null, trades.GetProperty("next").ValueKind);
     }
 
+    // A part is closed first and the rest later (ADR 0051). The rule engine keeps the position open in between.
+    [Fact]
+    public async Task APositionClosedInPartsIsOneTrade()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+        using var portal = await factory.LogInAsTraderAsync(id);
+
+        factory.Trading.OpenPosition(Phase1, "EURUSD", TradeSide.Buy, volume: 1m, openPrice: 1.08m, commission: 3.5m);
+        factory.Trading.ClosePartOfPosition(Phase1, 0.4m, 80m, closePrice: 1.082m, commission: 1.4m);
+        await factory.WaitForAccountAsync(id, a => a.GetProperty("balance").GetDecimal() == 100_075.1m && a.GetProperty("openPositions").GetInt32() == 1);
+        factory.Trading.ClosePosition(Phase1, 240m, closePrice: 1.084m, commission: 2.1m);
+
+        await factory.WaitForAccountAsync(id, a => a.GetProperty("balance").GetDecimal() == 100_313m && a.GetProperty("openPositions").GetInt32() == 0);
+        var performance = await PerformanceAsync(portal, id, p => p.GetProperty("statistics").GetProperty("trades").GetInt32() == 1);
+        var trades = await portal.GetFromJsonAsync<JsonElement>(Url($"accounts/{id}/trades"), TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [("Created", 100_000m), ("Opened", -3.5m), ("Closed", 78.6m), ("Closed", 237.9m)],
+            performance.GetProperty("balance").EnumerateArray().Select(b => (b.GetProperty("kind").GetString(), b.GetProperty("change").GetDecimal())));
+        var trade = Assert.Single(trades.GetProperty("trades").EnumerateArray());
+        Assert.Equal((1m, 1.08m, 1.0832m), (trade.GetProperty("volume").GetDecimal(), trade.GetProperty("openPrice").GetDecimal(), trade.GetProperty("closePrice").GetDecimal()));
+        Assert.Equal((320m, 7m, 313m), (trade.GetProperty("profit").GetDecimal(), trade.GetProperty("commission").GetDecimal(), trade.GetProperty("result").GetDecimal()));
+    }
+
     [Fact]
     public async Task TheHistoryIsBuiltAgainByReadingTheStreamFromTheStart()
     {

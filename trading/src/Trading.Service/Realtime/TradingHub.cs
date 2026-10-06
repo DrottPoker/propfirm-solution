@@ -17,6 +17,9 @@ public interface ITradingClient
 
     /// <summary>New events for the account, as they happen.</summary>
     Task Events(IReadOnlyList<EventEnvelope> events);
+
+    /// <summary>The account's rules, when the firm's system tells new ones (ADR 0052).</summary>
+    Task Rules(AccountRules rules);
 }
 
 /// <summary>Realtime connection for the trading terminal. Commands go through the REST API.</summary>

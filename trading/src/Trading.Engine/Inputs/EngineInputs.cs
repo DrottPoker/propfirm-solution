@@ -35,7 +35,11 @@ public sealed record ChangeGroupSymbols(DateTimeOffset Timestamp, string GroupId
 public sealed record CreateAccount(DateTimeOffset Timestamp, string AccountId, string GroupId, decimal InitialBalance)
     : EngineInput(Timestamp), IAccountCommand;
 
-/// <summary>Places an order. <paramref name="Price"/> is required for limit and stop orders and must be empty for market orders.</summary>
+/// <summary>
+/// Places an order. <paramref name="Price"/> is required for limit and stop orders and must be empty for market orders.
+/// With <paramref name="TrailingStop"/> the stop loss follows the price at the distance it is set at: from the price the
+/// position closes at now for a market order, and from the order price for a limit or stop order.
+/// </summary>
 public sealed record PlaceOrder(
     DateTimeOffset Timestamp,
     string AccountId,
@@ -46,22 +50,46 @@ public sealed record PlaceOrder(
     decimal Volume,
     decimal? Price = null,
     decimal? StopLoss = null,
-    decimal? TakeProfit = null)
+    decimal? TakeProfit = null,
+    bool TrailingStop = false)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>Moves a pending order to a new price, and sets its stop loss, take profit and trailing stop as for <see cref="PlaceOrder"/>.</summary>
+public sealed record ModifyOrder(
+    DateTimeOffset Timestamp,
+    string AccountId,
+    string OrderId,
+    decimal Price,
+    decimal? StopLoss,
+    decimal? TakeProfit,
+    bool TrailingStop = false)
     : EngineInput(Timestamp), IAccountCommand;
 
 public sealed record CancelOrder(DateTimeOffset Timestamp, string AccountId, string OrderId)
     : EngineInput(Timestamp), IAccountCommand;
 
-public sealed record ClosePosition(DateTimeOffset Timestamp, string AccountId, string PositionId)
+/// <summary>Closes a position, or only <paramref name="Volume"/> of it. The rest stays open with the same id.</summary>
+public sealed record ClosePosition(DateTimeOffset Timestamp, string AccountId, string PositionId, decimal? Volume = null)
     : EngineInput(Timestamp), IAccountCommand;
 
-/// <summary>Sets stop loss and take profit. An empty value removes it.</summary>
+/// <summary>
+/// Closes every position on the account, or only those in <paramref name="Symbol"/>, at the same moment. Positions whose
+/// market is closed or has no fresh price stay open. Pending orders stay.
+/// </summary>
+public sealed record CloseAllPositions(DateTimeOffset Timestamp, string AccountId, string? Symbol = null)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
+/// Sets stop loss and take profit. An empty value removes it. With <paramref name="TrailingStop"/> the stop loss
+/// follows the price at the distance it is set at from the price the position closes at now.
+/// </summary>
 public sealed record ModifyPosition(
     DateTimeOffset Timestamp,
     string AccountId,
     string PositionId,
     decimal? StopLoss,
-    decimal? TakeProfit)
+    decimal? TakeProfit,
+    bool TrailingStop = false)
     : EngineInput(Timestamp), IAccountCommand;
 
 /// <summary>Adds or replaces a named equity floor on the account.</summary>

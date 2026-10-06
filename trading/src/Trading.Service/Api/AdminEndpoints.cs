@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 
 using Trading.Engine;
@@ -11,6 +12,7 @@ using Trading.Service.Configuration;
 using Trading.Service.Engine;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
+using Trading.Service.Realtime;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Api;
@@ -42,6 +44,7 @@ internal static class AdminEndpoints
         admin.MapPost("/accounts/{accountId}/resume", ResumeAccountAsync);
         admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
         admin.MapPut("/accounts/{accountId}/details", SetAccountDetailsAsync);
+        admin.MapPut("/accounts/{accountId}/rules", SetAccountRulesAsync);
         admin.MapGet("/events", GetEventsAsync);
         admin.MapGet("/instruments", GetInstruments);
         admin.MapGet("/groups", ListGroupsAsync);
@@ -237,6 +240,37 @@ internal static class AdminEndpoints
         var details = new AccountDetails(accountId, label, request.ProfitTarget, timeZone, detailsUrl);
         await users.SetAccountDetailsAsync(details, time.GetUtcNow(), cancellationToken);
         return TypedResults.Ok(details);
+    }
+
+    /// <summary>
+    /// The account's rules as the firm's system sees them now: trading days, when the stage must be passed by, when a
+    /// new position must be opened by and the consistency rule (ADR 0052). The terminal shows them and warns before a
+    /// deadline. Every field is replaced. A trader with the terminal open gets them at once.
+    /// </summary>
+    private static async Task<Results<Ok<AccountRules>, ProblemHttpResult>> SetAccountRulesAsync(
+        string accountId,
+        AccountRulesRequest request,
+        HttpContext context,
+        EngineHost engine,
+        IUserStore users,
+        IHubContext<TradingHub, ITradingClient> hub,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (!await IsFirmAccountAsync(context, engine, accountId, cancellationToken))
+        {
+            return UnknownAccount();
+        }
+
+        if (request.Problem() is { } problem)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, problem);
+        }
+
+        var rules = request.ToRules();
+        await users.SetAccountRulesAsync(accountId, rules, time.GetUtcNow(), cancellationToken);
+        await hub.Clients.Group(RealtimeGroups.Account(accountId)).Rules(rules);
+        return TypedResults.Ok(rules);
     }
 
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SetFloorAsync(

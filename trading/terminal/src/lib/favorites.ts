@@ -1,20 +1,14 @@
+import { readSetting, writeSetting } from "./syncedSettings";
+
 const storageKey = "trading.favorites";
 
-/** Symbols the trader starred on this device, if the browser allows storage. */
+/** Symbols the trader starred, kept in the browser and on their login (ADR 0052). */
 export function loadFavorites(): string[] {
-  try {
-    return typeof window === "undefined" ? [] : parseFavorites(window.localStorage.getItem(storageKey));
-  } catch {
-    return [];
-  }
+  return parseFavorites(readSetting(storageKey));
 }
 
 export function saveFavorites(symbols: readonly string[]) {
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(symbols));
-  } catch {
-    // Private windows may refuse storage. Favorites are only a convenience.
-  }
+  writeSetting(storageKey, JSON.stringify(symbols));
 }
 
 /** Reads stored favorites, ignoring anything that is not a list of symbols. */

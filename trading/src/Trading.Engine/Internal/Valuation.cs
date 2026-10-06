@@ -23,16 +23,19 @@ internal sealed class Valuation(PriceBook prices, IReadOnlyDictionary<string, in
             ? PriceBook.ToClientPrice(instrument, conditions, quote)
             : throw new InvalidOperationException($"No price for {instrument.Symbol}.");
 
-    public decimal Profit(PositionState position, decimal closePrice, string currency)
+    public decimal Profit(PositionState position, decimal closePrice, string currency) => Profit(position, closePrice, currency, position.Volume);
+
+    /// <summary>The profit of <paramref name="volume"/> of the position, for a partial close.</summary>
+    public decimal Profit(PositionState position, decimal closePrice, string currency, decimal volume)
     {
         var difference = position.Side == Side.Buy ? closePrice - position.OpenPrice : position.OpenPrice - closePrice;
-        var inQuoteCurrency = difference * position.Volume * position.Instrument.ContractSize;
+        var inQuoteCurrency = difference * volume * position.Instrument.ContractSize;
         return Round(inQuoteCurrency * Rate(position.Instrument.QuoteCurrency, currency), currency);
     }
 
     /// <summary>
     /// Profit in <paramref name="currency"/> of a one point move on one lot, at the current conversion rate. Not rounded, since
-    /// it is a rate to multiply with: <see cref="Profit"/> rounds the result.
+    /// it is a rate to multiply with: <see cref="Profit(PositionState, decimal, string)"/> rounds the result.
     /// </summary>
     public bool TryGetPointValue(Instrument instrument, string currency, out decimal value)
     {

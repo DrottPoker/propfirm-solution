@@ -172,6 +172,21 @@ public sealed class TradingPlatformClientTests
     }
 
     [Fact]
+    public async Task APartOfAPositionIsReadWithWhatStaysOpen()
+    {
+        var page = """
+            {"events":[
+              {"sequence":5,"event":{"kind":"PositionPartiallyClosed","accountId":"A1","positionId":"p-1","symbol":"EURUSD","side":"Buy","volume":0.4,"remainingVolume":0.6,"openPrice":1.08,"closePrice":1.082,"profit":80,"commission":1.4,"reason":"Manual","balanceAfter":100075.1,"timestamp":"2026-10-05T08:30:00+00:00"}}
+            ],"cursor":5}
+            """;
+
+        var read = await Client(new StubPlatform((HttpStatusCode.OK, page))).ReadEventsAsync(Firm, 4, 500, 30, TestContext.Current.CancellationToken);
+
+        var e = Assert.Single(read.Events);
+        Assert.Equal(new TradingPositionPartiallyClosed(5, new DateTimeOffset(2026, 10, 5, 8, 30, 0, TimeSpan.Zero), "A1", e.Raw, "p-1", 0.4m, 0.6m, 1.082m, 80m, 1.4m, 100_075.1m), e);
+    }
+
+    [Fact]
     public void TheRuleEnginesFloorsBecomeTheTradingPlatformsRules()
     {
         Assert.Equal(
@@ -231,6 +246,7 @@ public sealed class TradingContractTests
     [InlineData("/api/admin/v1/accounts/{accountId}/suspend", "post")]
     [InlineData("/api/admin/v1/accounts/{accountId}/resume", "post")]
     [InlineData("/api/admin/v1/accounts/{accountId}/balance-operations", "post")]
+    [InlineData("/api/admin/v1/accounts/{accountId}/rules", "put")]
     [InlineData("/api/admin/v1/events", "get")]
     public void EveryPathTheClientUsesIsInTheContract(string path, string method)
     {
@@ -273,6 +289,13 @@ public sealed class TradingContractTests
     [InlineData("PositionClosed", "commission")]
     [InlineData("PositionClosed", "reason")]
     [InlineData("PositionClosed", "balanceAfter")]
+    [InlineData("PositionPartiallyClosed", "positionId")]
+    [InlineData("PositionPartiallyClosed", "volume")]
+    [InlineData("PositionPartiallyClosed", "remainingVolume")]
+    [InlineData("PositionPartiallyClosed", "closePrice")]
+    [InlineData("PositionPartiallyClosed", "profit")]
+    [InlineData("PositionPartiallyClosed", "commission")]
+    [InlineData("PositionPartiallyClosed", "balanceAfter")]
     [InlineData("EquityFloorSet", "level")]
     [InlineData("EquityFloorBreached", "floorId")]
     [InlineData("EquityFloorBreached", "level")]
@@ -286,6 +309,13 @@ public sealed class TradingContractTests
     [InlineData("BalanceAdjusted", "operationId")]
     [InlineData("BalanceAdjusted", "amount")]
     [InlineData("BalanceAdjusted", "balanceAfter")]
+    [InlineData("AccountRulesRequest", "funded")]
+    [InlineData("AccountRulesRequest", "tradingDaysRequired")]
+    [InlineData("AccountRulesRequest", "tradingDaysCounted")]
+    [InlineData("AccountRulesRequest", "passBy")]
+    [InlineData("AccountRulesRequest", "openPositionBy")]
+    [InlineData("AccountRulesRequest", "consistencyPercent")]
+    [InlineData("AccountRulesRequest", "bestDayPercent")]
     public void EveryFieldTheClientUsesIsInTheContract(string schema, string property)
     {
         var schemas = Contract["components"]!["schemas"]!.AsObject();

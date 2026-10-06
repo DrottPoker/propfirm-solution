@@ -125,6 +125,26 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm,
+            HttpMethod.Put,
+            $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/rules",
+            new
+            {
+                funded = rules.Funded,
+                tradingDaysRequired = rules.TradingDaysRequired,
+                tradingDaysCounted = rules.TradingDaysCounted,
+                passBy = rules.PassBy,
+                openPositionBy = rules.OpenPositionBy,
+                consistencyPercent = rules.ConsistencyPercent,
+                bestDayPercent = rules.BestDayPercent,
+            },
+            cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
     public async Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}", null, cancellationToken);
@@ -253,6 +273,18 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                 e.GetProperty("profit").GetDecimal(),
                 e.GetProperty("commission").GetDecimal(),
                 e.GetProperty("reason").GetString()!,
+                e.GetProperty("balanceAfter").GetDecimal()),
+            "PositionPartiallyClosed" => new TradingPositionPartiallyClosed(
+                sequence,
+                time,
+                accountId,
+                raw,
+                e.GetProperty("positionId").GetString()!,
+                e.GetProperty("volume").GetDecimal(),
+                e.GetProperty("remainingVolume").GetDecimal(),
+                e.GetProperty("closePrice").GetDecimal(),
+                e.GetProperty("profit").GetDecimal(),
+                e.GetProperty("commission").GetDecimal(),
                 e.GetProperty("balanceAfter").GetDecimal()),
             "EquityFloorSet" => new TradingFloorSet(sequence, time, accountId, raw, e.GetProperty("floorId").GetString()!, e.GetProperty("level").GetDecimal()),
             "EquityFloorBreached" => new TradingFloorBreached(

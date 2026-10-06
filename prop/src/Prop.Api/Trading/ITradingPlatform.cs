@@ -18,6 +18,9 @@ internal interface ITradingPlatform
     /// <summary>What the terminal shows about the account. Replaces what it showed before.</summary>
     Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken);
 
+    /// <summary>Tells the terminal the account's rules as they stand now (ADR 0052).</summary>
+    Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken);
+
     /// <summary>Sets or replaces the floor. Done if the account is already disabled, since there is nothing left to protect.</summary>
     Task SetFloorAsync(FirmTrading firm, string accountId, string floorId, FloorSpec floor, CancellationToken cancellationToken);
 
@@ -124,6 +127,25 @@ internal sealed record TradingPositionClosed(
     decimal BalanceAfter)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
+/// <summary>
+/// Part of a position was closed, and <paramref name="RemainingVolume"/> stays open with the same id. <paramref name="Profit"/>
+/// is the part's before commission, and <paramref name="Commission"/> was charged for closing the part. Both are in the
+/// balance after.
+/// </summary>
+internal sealed record TradingPositionPartiallyClosed(
+    long Sequence,
+    DateTimeOffset Time,
+    string AccountId,
+    string Raw,
+    string PositionId,
+    decimal Volume,
+    decimal RemainingVolume,
+    decimal ClosePrice,
+    decimal Profit,
+    decimal Commission,
+    decimal BalanceAfter)
+    : TradingEvent(Sequence, Time, AccountId, Raw);
+
 internal sealed record TradingFloorSet(long Sequence, DateTimeOffset Time, string AccountId, string Raw, string FloorId, decimal Level)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
@@ -199,3 +221,18 @@ internal sealed class TradingPlatformRejectedException : Exception
 /// its page in the firm's portal.
 /// </summary>
 internal sealed record TradingAccountDetails(string Label, decimal? ProfitTarget, string TimeZone, Uri DetailsUrl);
+
+/// <summary>
+/// The account's rules as they stand now, for the terminal (ADR 0052). <paramref name="Funded"/> counts the trading days
+/// toward a payout. <paramref name="PassBy"/> is when the stage fails unless passed, and <paramref name="OpenPositionBy"/>
+/// when the challenge ends unless a position is opened. <paramref name="BestDayPercent"/> is the best trading day's share
+/// of the profit, which the consistency rule allows up to <paramref name="ConsistencyPercent"/>. Null for none.
+/// </summary>
+internal sealed record TradingAccountRules(
+    bool Funded,
+    int? TradingDaysRequired,
+    int TradingDaysCounted,
+    DateTimeOffset? PassBy,
+    DateTimeOffset? OpenPositionBy,
+    decimal? ConsistencyPercent,
+    decimal? BestDayPercent);

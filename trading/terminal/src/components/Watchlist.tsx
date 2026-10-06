@@ -7,9 +7,11 @@ import { dayFigures } from "@/lib/daySummary";
 import { loadFavorites, saveFavorites, toggleFavorite } from "@/lib/favorites";
 import { formatPrice, formatSignedPercent } from "@/lib/format";
 import { categoriesOf, categoryOf, type Category } from "@/lib/instruments";
-import { useDaySummary } from "@/lib/queries";
+import { isClosed } from "@/lib/marketHours";
+import { useDaySummary, useMarket } from "@/lib/queries";
 import { useTradingStore, type PriceMove } from "@/lib/store";
 
+import { ClosedTag } from "./ClosedTag";
 import { SearchIcon, StarIcon } from "./icons";
 import { Sparkline } from "./Sparkline";
 
@@ -131,6 +133,9 @@ function Row({
   const price = useTradingStore((s) => s.prices[symbol]);
   const move = useTradingStore((s) => s.moves[symbol]);
   const day = dayFigures(useDaySummary(accountId, symbol).data, price?.bid);
+  const market = useMarket(accountId, symbol);
+  // The prices of a closed market are its last ones, so they are dimmed.
+  const closed = isClosed(market);
 
   return (
     <tr
@@ -154,14 +159,15 @@ function Row({
           <button type="button" className="font-medium" aria-pressed={isSelected}>
             {symbol}
           </button>
+          {market && closed && <ClosedTag market={market} compact />}
         </span>
       </td>
-      <td className={`px-1 py-2 text-right font-mono tabular-nums ${move === "up" ? "text-profit" : move === "down" ? "text-loss" : ""}`}>
+      <td className={`px-1 py-2 text-right font-mono tabular-nums ${closed ? "opacity-60" : ""} ${move === "up" ? "text-profit" : move === "down" ? "text-loss" : ""}`}>
         <Flash bid={price?.bid} move={move}>
           {formatPrice(price?.bid, digits)}
         </Flash>
       </td>
-      <td className="px-1 py-2 text-right font-mono tabular-nums">
+      <td className={`px-1 py-2 text-right font-mono tabular-nums ${closed ? "opacity-60" : ""}`}>
         <Flash bid={price?.bid} move={move}>
           {formatPrice(price?.ask, digits)}
         </Flash>

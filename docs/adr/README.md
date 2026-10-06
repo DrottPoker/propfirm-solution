@@ -55,6 +55,9 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0047](0047-ett-gemensamt-designsystem.md) | Ett gemensamt designsystem med djup och rörelse | Föreslagen |
 | [0048](0048-grafernas-historik-per-prisflode.md) | Graferna visar bara det aktuella prisflödet, med 30 dagars historik från flödet | Beslutad |
 | [0049](0049-capital-com-och-fler-instrument.md) | Capital.com som prisflöde under utvecklingen, med index, råvaror och krypto | Beslutad |
+| [0050](0050-oppettider-per-instrument.md) | Öppettider per instrument | Beslutad |
+| [0051](0051-orderverktyg-och-grafens-verktyg.md) | Orderverktyg i motorn, längre historik och egna verktyg i grafen | Beslutad |
+| [0052](0052-regelboken-varningar-och-storlek-fran-risk.md) | Regelboken i terminalen, varningar, storlek från risk och inställningar på kontot | Beslutad |
 
 ## Så skriver du en ny ADR
 

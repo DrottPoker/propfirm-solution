@@ -94,6 +94,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     /// <summary>What each server created through the partner API was last told: whether it is listed, and where its traders log in.</summary>
     private readonly Dictionary<string, (bool Listed, Uri LoginUrl, Uri? LogoUrl)> _listings = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TradingAccountDetails> _details = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TradingAccountRules> _rules = new(StringComparer.Ordinal);
 
     /// <summary>The symbols and conditions each group trades. Groups start with the standard four.</summary>
     public Dictionary<string, List<TradingSymbolConditions>> GroupSymbols { get; } = new(StringComparer.Ordinal);
@@ -268,6 +269,39 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
                 s, t, id, raw, position.Id, position.Symbol, position.Side, position.Volume, position.OpenPrice, closePrice, profit, commission, reason, a.Balance));
     }
 
+    /// <summary>Closes <paramref name="volume"/> of the oldest open position, with <paramref name="profit"/> before <paramref name="commission"/>.</summary>
+    public void ClosePartOfPosition(string accountId, decimal volume, decimal profit, decimal closePrice = 1.1m, decimal commission = 0m)
+    {
+        Position position;
+        lock (_lock)
+        {
+            var account = _accounts[accountId];
+            var open = account.Positions[0];
+            position = open with { Volume = open.Volume - volume };
+            account.Positions[0] = position;
+            account.Balance += profit - commission;
+        }
+
+        Publish(
+            accountId,
+            "PositionPartiallyClosed",
+            a => new JsonObject
+            {
+                ["positionId"] = position.Id,
+                ["symbol"] = position.Symbol,
+                ["side"] = position.Side.ToString(),
+                ["volume"] = volume,
+                ["remainingVolume"] = position.Volume,
+                ["openPrice"] = position.OpenPrice,
+                ["closePrice"] = closePrice,
+                ["profit"] = profit,
+                ["commission"] = commission,
+                ["reason"] = "Manual",
+                ["balanceAfter"] = a.Balance,
+            },
+            (s, t, id, raw, a) => new TradingPositionPartiallyClosed(s, t, id, raw, position.Id, volume, position.Volume, closePrice, profit, commission, a.Balance));
+    }
+
     /// <summary>The floor is breached, so the platform disables the account, like ours does.</summary>
     public void Breach(string accountId, string floorId, decimal equity)
     {
@@ -413,6 +447,18 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         lock (_lock)
         {
             return _details.GetValueOrDefault(accountId);
+        }
+    }
+
+    public Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken) =>
+        Call($"rules {accountId}", () => _rules[accountId] = rules);
+
+    /// <summary>The account's rules as the terminal shows them, as last told. Null before that.</summary>
+    public TradingAccountRules? RulesOf(string accountId)
+    {
+        lock (_lock)
+        {
+            return _rules.GetValueOrDefault(accountId);
         }
     }
 

@@ -5,24 +5,33 @@
 import {
   ArrowLeftIcon as PhArrowLeftIcon,
   ArrowsDownUpIcon,
+  BellRingingIcon,
   CaretDownIcon,
   ChartBarIcon,
+  ChartLineUpIcon,
   CheckCircleIcon,
   CornersInIcon,
   CornersOutIcon,
   EyeIcon as PhEyeIcon,
   EyeSlashIcon as PhEyeSlashIcon,
   InfoIcon as PhInfoIcon,
+  LineSegmentIcon,
   ListBulletsIcon,
+  ListChecksIcon,
   MagnifyingGlassIcon,
   MinusIcon as PhMinusIcon,
+  MoonIcon,
   PlusIcon as PhPlusIcon,
+  RectangleIcon as PhRectangleIcon,
   SignOutIcon,
   SpeakerHighIcon,
   StackIcon,
   StackMinusIcon,
   StarIcon as PhStarIcon,
+  TrashIcon as PhTrashIcon,
   WarningCircleIcon,
+  WarningIcon as PhWarningIcon,
+  XIcon,
 } from "@phosphor-icons/react/ssr";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
@@ -54,7 +63,26 @@ export const VolumeBarsIcon = icon(ChartBarIcon, "duotone");
 export const SoundIcon = icon(SpeakerHighIcon, "duotone");
 export const SuccessIcon = icon(CheckCircleIcon, "duotone");
 export const ErrorIcon = icon(WarningCircleIcon, "duotone");
+export const WarningIcon = icon(PhWarningIcon, "duotone");
+export const RulesIcon = icon(ListChecksIcon, "duotone");
+export const BellIcon = icon(BellRingingIcon, "duotone");
 export const ClosedIcon = icon(StackMinusIcon, "duotone");
+export const MarketClosedIcon = icon(MoonIcon, "duotone", "size-3.5");
+export const CloseIcon = icon(XIcon, "bold");
+export const IndicatorsIcon = icon(ChartLineUpIcon, "duotone");
+export const TrendLineIcon = icon(LineSegmentIcon, "bold");
+export const RectangleIcon = icon(PhRectangleIcon, "duotone");
+export const TrashIcon = icon(PhTrashIcon, "duotone");
+
+/** A horizontal line across the chart with a level on it. Phosphor has none, so drawn here in its bold style. */
+export function HorizontalLineIcon({ className = "size-4" }: IconProps) {
+  return (
+    <svg viewBox="0 0 256 256" fill="none" stroke="currentColor" strokeWidth={20} strokeLinecap="round" aria-hidden="true" className={`shrink-0 ${className}`}>
+      <path d="M24 128h208" />
+      <circle cx="128" cy="128" r="18" fill="currentColor" />
+    </svg>
+  );
+}
 
 /** A favorite's star: filled when the symbol is a favorite. */
 export function StarIcon({ filled, className = "size-3.5" }: IconProps & { filled: boolean }) {

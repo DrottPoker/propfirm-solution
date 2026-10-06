@@ -1,12 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
-import type { EngineEvent, PositionSnapshot, Side } from "@/lib/api/types";
-import { balanceOperationName, closeReasons, describeEvent, isWarning, netResult, positionCommission, rejectionText, type DigitsOf } from "@/lib/events";
-import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume } from "@/lib/format";
-import { useCancelOrder, useClosePosition, useModifyStops, usePointValue } from "@/lib/queries";
+import type { EngineEvent, InstrumentLimits, OrderSnapshot, PositionSnapshot, Side } from "@/lib/api/types";
+import {
+  balanceOperationName,
+  closeReasons,
+  describeEvent,
+  isWarning,
+  netResult,
+  partResult,
+  positionCommission,
+  rejectionText,
+  type DigitsOf,
+} from "@/lib/events";
+import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume, timeZoneName } from "@/lib/format";
+import { isClosed, opensText } from "@/lib/marketHours";
+import { parsePrice } from "@/lib/orderInput";
+import { breakEvenStop, defaultPart, partProblem, trailingPips } from "@/lib/orderTools";
+import {
+  useCancelOrder,
+  useCloseAllPositions,
+  useClosePosition,
+  useInstruments,
+  useMarketHours,
+  useModifyOrder,
+  useModifyStops,
+  usePointValue,
+} from "@/lib/queries";
 import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
@@ -18,10 +40,13 @@ const tabs = ["Positions", "Orders", "History", "Events"] as const;
 type Tab = (typeof tabs)[number];
 
 type ClosedPosition = Extract<EngineEvent, { kind?: "PositionClosed" }>;
+type ClosedPart = Extract<EngineEvent, { kind?: "PositionPartiallyClosed" }>;
 type BalanceOperation = Extract<EngineEvent, { kind?: "BalanceAdjusted" }>;
+type HistoryRow = ClosedPosition | ClosedPart | BalanceOperation;
 
 // The generated kind is optional, so a plain comparison does not narrow the other branch.
-const isBalanceOperation = (e: ClosedPosition | BalanceOperation): e is BalanceOperation => e.kind === "BalanceAdjusted";
+const isBalanceOperation = (e: HistoryRow): e is BalanceOperation => e.kind === "BalanceAdjusted";
+const isPart = (e: HistoryRow): e is ClosedPart => e.kind === "PositionPartiallyClosed";
 
 // A refusal comes and goes in a corner like a fill, so it is seen wherever the trader looks.
 const onError = (e: Error) => showError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.");
@@ -54,6 +79,7 @@ export function BottomPanel({ accountId, digitsOf }: { accountId: string; digits
             {counts[t] ? ` (${counts[t]})` : ""}
           </button>
         ))}
+        {tab === "Positions" && (account?.positions.length ?? 0) > 0 && <CloseAll accountId={accountId} count={account?.positions.length ?? 0} />}
       </nav>
       <div className="min-h-0 flex-1 overflow-y-auto" role="tabpanel">
         {tab === "Positions" && <Positions accountId={accountId} positions={account?.positions ?? []} digitsOf={digitsOf} onError={onError} />}
@@ -77,7 +103,17 @@ function Positions({
   onError: (e: Error) => void;
 }) {
   const close = useClosePosition(accountId);
-  const [editing, setEditing] = useState<string | null>(null);
+  const modify = useModifyStops(accountId);
+  // The row being edited, and whether its stops or a part to close.
+  const [editing, setEditing] = useState<{ positionId: string; what: "stops" | "part" } | null>(null);
+  const instruments = useInstruments(accountId).data;
+  const markets = useMarketHours(accountId).data;
+  const timeZone = useTimeZone();
+  // Why a position cannot be closed or changed now, or null when it can.
+  const closedNote = (symbol: string) => {
+    const market = markets?.find((m) => m.symbol === symbol);
+    return market && isClosed(market) ? `The market is closed. ${opensText(market, timeZone, timeZoneName(timeZone))}.` : null;
+  };
 
   if (positions.length === 0) {
     return <Empty text="No open positions." />;
@@ -87,9 +123,20 @@ function Positions({
     <Table headers={["Symbol", "Side", "Volume", "Open price", "Current price", "SL", "TP", "Margin", "Unrealized P/L", ""]}>
       {positions.map((p) => {
         const digits = digitsOf(p.symbol);
-        return editing === p.positionId ? (
-          <EditStops key={p.positionId} accountId={accountId} position={p} digits={digits} onDone={() => setEditing(null)} onError={onError} />
-        ) : (
+        const closed = closedNote(p.symbol);
+        const limits = instruments?.find((i) => i.symbol === p.symbol);
+        const part = limits ? defaultPart(p.volume, limits) : null;
+        const breakEven = breakEvenStop(p);
+        const done = () => setEditing(null);
+        if (editing?.positionId === p.positionId && editing.what === "stops") {
+          return <EditStops key={p.positionId} accountId={accountId} position={p} digits={digits} onDone={done} onError={onError} />;
+        }
+
+        if (editing?.positionId === p.positionId && limits && part !== null) {
+          return <ClosePart key={p.positionId} accountId={accountId} position={p} limits={limits} start={part} onDone={done} onError={onError} />;
+        }
+
+        return (
           <tr key={p.positionId} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
             <SymbolCell symbol={p.symbol} title={`Position ${p.positionId}`} />
             <Cell>
@@ -98,7 +145,7 @@ function Positions({
             <Cell number>{formatVolume(p.volume)}</Cell>
             <Cell number>{formatPrice(p.openPrice, digits)}</Cell>
             <Cell number>{formatPrice(p.currentPrice, digits)}</Cell>
-            <StopCell accountId={accountId} position={p} price={p.stopLoss} digits={digits} />
+            <StopCell accountId={accountId} position={p} price={p.stopLoss} digits={digits} trailing={p.trailingDistance} />
             <StopCell accountId={accountId} position={p} price={p.takeProfit} digits={digits} />
             <Cell number>{formatMoney(p.margin)}</Cell>
             <Cell number className={p.profit >= 0 ? "text-profit" : "text-loss"}>
@@ -106,8 +153,39 @@ function Positions({
             </Cell>
             <Cell>
               <span className="flex justify-end gap-2">
-                <ActionButton onClick={() => setEditing(p.positionId)}>Edit</ActionButton>
-                <ActionButton danger disabled={close.isPending} onClick={() => close.mutate(p.positionId, { onError })}>
+                <ActionButton disabled={closed !== null} title={closed ?? undefined} onClick={() => setEditing({ positionId: p.positionId, what: "stops" })}>
+                  Edit
+                </ActionButton>
+                <ActionButton
+                  disabled={closed !== null || breakEven === null || modify.isPending}
+                  title={
+                    closed ??
+                    (breakEven === null
+                      ? "Possible once the price has moved past the open price, unless the stop loss already protects it."
+                      : `Move the stop loss to the open price, ${formatPrice(breakEven, digits)}, so the position cannot lose before commission.`)
+                  }
+                  onClick={() =>
+                    modify.mutate(
+                      { positionId: p.positionId, stopLoss: breakEven, takeProfit: p.takeProfit, trailingStop: p.trailingDistance !== null },
+                      { onError },
+                    )
+                  }
+                >
+                  Break even
+                </ActionButton>
+                <ActionButton
+                  disabled={closed !== null || part === null}
+                  title={closed ?? (part === null ? "The position is too small to close a part of it." : "Close part of the position and keep the rest open.")}
+                  onClick={() => setEditing({ positionId: p.positionId, what: "part" })}
+                >
+                  Close part
+                </ActionButton>
+                <ActionButton
+                  danger
+                  disabled={close.isPending || closed !== null}
+                  title={closed ?? undefined}
+                  onClick={() => close.mutate({ positionId: p.positionId }, { onError })}
+                >
                   Close
                 </ActionButton>
               </span>
@@ -119,13 +197,26 @@ function Positions({
   );
 }
 
-// The stop's price and what the position would make or lose there, before commission.
-function StopCell({ accountId, position, price, digits }: { accountId: string; position: PositionSnapshot; price: number | null; digits: number }) {
+// The stop's price and what the position would make or lose there, before commission. A trailing stop loss says so.
+function StopCell({
+  accountId,
+  position,
+  price,
+  digits,
+  trailing = null,
+}: {
+  accountId: string;
+  position: PositionSnapshot;
+  price: number | null;
+  digits: number;
+  trailing?: number | null;
+}) {
   const pointValue = usePointValue(accountId, position.symbol).data;
   const amount = price !== null && pointValue ? estimatedProfit(position.side, position.volume, position.openPrice, price, digits, pointValue.perLot) : null;
 
   return (
     <Cell number>
+      {trailing !== null && <TrailingTag distance={trailing} digits={digits} />}
       {formatPrice(price, digits)}
       {amount !== null && (
         <>
@@ -160,6 +251,7 @@ function EditStops({
     price: { stopLoss: position.stopLoss?.toFixed(digits) ?? "", takeProfit: position.takeProfit?.toFixed(digits) ?? "" },
     money: { stopLoss: "", takeProfit: "" },
   });
+  const [trailing, setTrailing] = useState(position.trailingDistance !== null);
 
   const amountAt = (price: number | null) =>
     price !== null && pointValue ? estimatedProfit(position.side, position.volume, position.openPrice, price, digits, pointValue.perLot) : null;
@@ -203,7 +295,15 @@ function EditStops({
       return;
     }
 
-    modify.mutate({ positionId: position.positionId, stopLoss: resolved.stopLoss, takeProfit: resolved.takeProfit }, { onSuccess: onDone, onError });
+    if (trailing && resolved.stopLoss === null) {
+      showError("Set a stop loss for the trailing stop to follow.");
+      return;
+    }
+
+    modify.mutate(
+      { positionId: position.positionId, stopLoss: resolved.stopLoss, takeProfit: resolved.takeProfit, trailingStop: trailing },
+      { onSuccess: onDone, onError },
+    );
   };
 
   return (
@@ -214,6 +314,7 @@ function EditStops({
           <StopInput label="SL" value={fields[unit].stopLoss} onChange={(value) => setField("stopLoss", value)} />
           <StopInput label="TP" value={fields[unit].takeProfit} onChange={(value) => setField("takeProfit", value)} />
           <StopUnitToggle unit={unit} currency={pointValue?.currency ?? currency ?? "Money"} onChange={switchUnit} />
+          <TrailingToggle on={trailing} onChange={setTrailing} />
           <button
             type="button"
             className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-foreground transition duration-150 hover:brightness-110 active:translate-y-px disabled:opacity-40"
@@ -230,14 +331,123 @@ function EditStops({
   );
 }
 
-function StopInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+/** A part of the position to close, starting from half of it. The rest stays open with its stops. */
+function ClosePart({
+  accountId,
+  position,
+  limits,
+  start,
+  onDone,
+  onError,
+}: {
+  accountId: string;
+  position: PositionSnapshot;
+  limits: InstrumentLimits;
+  start: number;
+  onDone: () => void;
+  onError: (e: Error) => void;
+}) {
+  const close = useClosePosition(accountId);
+  const [volume, setVolume] = useState(start.toFixed(2));
+
+  const save = () => {
+    const part = Number(volume.trim().replace(",", "."));
+    const problem = partProblem(part, position.volume, limits);
+    if (problem) {
+      showError(problem);
+      return;
+    }
+
+    close.mutate({ positionId: position.positionId, volume: part }, { onSuccess: onDone, onError });
+  };
+
+  return (
+    <tr className="border-t border-border bg-accent/5">
+      <SymbolCell symbol={position.symbol} title={`Position ${position.positionId}`} />
+      <td colSpan={9} className="px-3 py-1">
+        <span className="flex items-center gap-2">
+          <StopInput label="Close" value={volume} onChange={setVolume} placeholder={start.toFixed(2)} />
+          <span className="text-muted">of {formatVolume(position.volume)} lots</span>
+          <button
+            type="button"
+            className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-foreground transition duration-150 hover:brightness-110 active:translate-y-px disabled:opacity-40"
+            disabled={close.isPending}
+            onClick={save}
+          >
+            Close part
+          </button>
+          <ActionButton onClick={onDone}>Cancel</ActionButton>
+        </span>
+      </td>
+    </tr>
+  );
+}
+
+// How long the confirmation of closing everything waits for the second click.
+const confirmCloseAllMs = 4_000;
+
+/** Closes every position at once. The first click asks, and a second click within a few seconds closes. */
+function CloseAll({ accountId, count }: { accountId: string; count: number }) {
+  const closeAll = useCloseAllPositions(accountId);
+  const [asking, setAsking] = useState(false);
+
+  useEffect(() => {
+    if (!asking) {
+      return;
+    }
+
+    const timer = setTimeout(() => setAsking(false), confirmCloseAllMs);
+    return () => clearTimeout(timer);
+  }, [asking]);
+
+  const onClick = () => {
+    if (!asking) {
+      setAsking(true);
+      return;
+    }
+
+    setAsking(false);
+    closeAll.mutate(null, { onError });
+  };
+
+  return (
+    <span className="ml-auto shrink-0 py-1.5">
+      <ActionButton danger disabled={closeAll.isPending} onClick={onClick} title="Close every open position at once. Positions in a closed market stay open.">
+        {asking ? `Close ${count === 1 ? "the position" : `all ${count}`}?` : "Close all"}
+      </ActionButton>
+    </span>
+  );
+}
+
+/** A trailing stop loss: a small tag before the level, with its distance on hover. */
+function TrailingTag({ distance, digits }: { distance: number; digits: number }) {
+  return (
+    <span
+      title={`Trailing stop: the stop loss follows the price ${trailingPips(distance, digits)} pips behind it, and never moves back.`}
+      className="mr-1.5 rounded bg-accent/15 px-1 py-px font-sans text-[10px] font-medium tracking-wide text-accent uppercase"
+    >
+      Trail
+    </span>
+  );
+}
+
+function TrailingToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-1.5 text-xs text-muted" title="The stop loss follows the price at the distance it is set at, and never moves back.">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="accent-[var(--accent)]" />
+      Trailing stop
+    </label>
+  );
+}
+
+function StopInput({ label, value, onChange, placeholder = "None" }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
   return (
     <label className="flex items-center gap-1">
       <span className="text-muted">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="None"
+        placeholder={placeholder}
         inputMode="decimal"
         className="w-28 rounded-md border border-border bg-raised px-2 py-1 font-mono tabular-nums outline-none focus:border-accent"
       />
@@ -249,6 +459,8 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   const orders = useTradingStore((s) => s.account?.orders ?? []);
   const cancel = useCancelOrder(accountId);
   const timeZone = useTimeZone();
+  const markets = useMarketHours(accountId).data;
+  const [editing, setEditing] = useState<string | null>(null);
 
   if (orders.length === 0) {
     return <Empty text="No pending orders." />;
@@ -258,6 +470,12 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
     <Table headers={["Symbol", "Type", "Side", "Volume", "Price", "SL", "TP", "Placed", ""]}>
       {orders.map((o) => {
         const digits = digitsOf(o.symbol);
+        const market = markets?.find((m) => m.symbol === o.symbol);
+        const closed = market && isClosed(market) ? `The market is closed. ${opensText(market, timeZone, timeZoneName(timeZone))}.` : null;
+        if (editing === o.orderId) {
+          return <EditOrder key={o.orderId} accountId={accountId} order={o} digits={digits} onDone={() => setEditing(null)} onError={onError} />;
+        }
+
         return (
           <tr key={o.orderId} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
             <SymbolCell symbol={o.symbol} title={`Order ${o.orderId}`} />
@@ -267,11 +485,17 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
             </Cell>
             <Cell number>{formatVolume(o.volume)}</Cell>
             <Cell number>{formatPrice(o.price, digits)}</Cell>
-            <Cell number>{formatPrice(o.stopLoss, digits)}</Cell>
+            <Cell number>
+              {o.trailingDistance !== null && <TrailingTag distance={o.trailingDistance} digits={digits} />}
+              {formatPrice(o.stopLoss, digits)}
+            </Cell>
             <Cell number>{formatPrice(o.takeProfit, digits)}</Cell>
             <Cell>{formatTime(o.placedTime, timeZone)}</Cell>
             <Cell>
-              <span className="flex justify-end">
+              <span className="flex justify-end gap-2">
+                <ActionButton disabled={closed !== null} title={closed ?? undefined} onClick={() => setEditing(o.orderId)}>
+                  Edit
+                </ActionButton>
                 <ActionButton danger disabled={cancel.isPending} onClick={() => cancel.mutate(o.orderId, { onError })}>
                   Cancel
                 </ActionButton>
@@ -284,12 +508,79 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   );
 }
 
+/** A pending order's price, stop loss, take profit and trailing stop, as prices. */
+function EditOrder({
+  accountId,
+  order,
+  digits,
+  onDone,
+  onError,
+}: {
+  accountId: string;
+  order: OrderSnapshot;
+  digits: number;
+  onDone: () => void;
+  onError: (e: Error) => void;
+}) {
+  const modify = useModifyOrder(accountId);
+  const [fields, setFields] = useState({
+    price: order.price.toFixed(digits),
+    stopLoss: order.stopLoss?.toFixed(digits) ?? "",
+    takeProfit: order.takeProfit?.toFixed(digits) ?? "",
+  });
+  const [trailing, setTrailing] = useState(order.trailingDistance !== null);
+  const set = (field: keyof typeof fields) => (value: string) => setFields((f) => ({ ...f, [field]: value }));
+
+  const save = () => {
+    const price = parsePrice(fields.price, digits);
+    const stopLoss = parsePrice(fields.stopLoss, digits);
+    const takeProfit = parsePrice(fields.takeProfit, digits);
+    if (!price.ok || price.value === null || !stopLoss.ok || !takeProfit.ok) {
+      showError(`Enter prices with at most ${digits} decimals.`);
+      return;
+    }
+
+    if (trailing && stopLoss.value === null) {
+      showError("Set a stop loss for the trailing stop to follow.");
+      return;
+    }
+
+    modify.mutate(
+      { orderId: order.orderId, price: price.value, stopLoss: stopLoss.value, takeProfit: takeProfit.value, trailingStop: trailing },
+      { onSuccess: onDone, onError },
+    );
+  };
+
+  return (
+    <tr className="border-t border-border bg-accent/5">
+      <SymbolCell symbol={order.symbol} title={`Order ${order.orderId}`} />
+      <td colSpan={8} className="px-3 py-1">
+        <span className="flex items-center gap-2">
+          <StopInput label={`${order.type} price`} value={fields.price} onChange={set("price")} placeholder="" />
+          <StopInput label="SL" value={fields.stopLoss} onChange={set("stopLoss")} />
+          <StopInput label="TP" value={fields.takeProfit} onChange={set("takeProfit")} />
+          <TrailingToggle on={trailing} onChange={setTrailing} />
+          <button
+            type="button"
+            className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-foreground transition duration-150 hover:brightness-110 active:translate-y-px disabled:opacity-40"
+            disabled={modify.isPending}
+            onClick={save}
+          >
+            Save
+          </button>
+          <ActionButton onClick={onDone}>Cancel</ActionButton>
+        </span>
+      </td>
+    </tr>
+  );
+}
+
 // Closed positions and balance operations such as payouts, newest first. Commission is for both opening and closing, and
 // the result is after it, as in the firm's portal.
 function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
   const timeZone = useTimeZone();
   const rows = events
-    .filter((e): e is ClosedPosition | BalanceOperation => e.kind === "PositionClosed" || e.kind === "BalanceAdjusted")
+    .filter((e): e is HistoryRow => e.kind === "PositionClosed" || e.kind === "PositionPartiallyClosed" || e.kind === "BalanceAdjusted")
     .reverse();
 
   if (rows.length === 0) {
@@ -314,6 +605,31 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
         }
 
         const digits = digitsOf(c.symbol);
+        if (isPart(c)) {
+          const partOutcome = partResult(c);
+          return (
+            <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
+              <Cell number>{formatTime(c.timestamp, timeZone)}</Cell>
+              <SymbolCell symbol={c.symbol} title={`Position ${c.positionId}`} />
+              <Cell>
+                <SideBadge side={c.side} />
+              </Cell>
+              <Cell number>{formatVolume(c.volume)}</Cell>
+              <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
+              <Cell number>{formatPrice(c.closePrice, digits)}</Cell>
+              <Cell>
+                <span title={`${formatVolume(c.remainingVolume)} lots stayed open`}>Part closed</span>
+              </Cell>
+              <Cell number>{formatMoney(c.commission)}</Cell>
+              <Cell number className={partOutcome >= 0 ? "text-profit" : "text-loss"}>
+                <span title={`${formatSignedMoney(c.profit)} before ${formatMoney(c.commission)} commission for closing the part`}>
+                  {formatSignedMoney(partOutcome)}
+                </span>
+              </Cell>
+            </tr>
+          );
+        }
+
         const commission = positionCommission(c, events);
         const result = netResult(c, events);
         return (
@@ -400,11 +716,13 @@ function ActionButton({
   children,
   onClick,
   disabled,
+  title,
   danger = false,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  title?: string;
   danger?: boolean;
 }) {
   return (
@@ -412,6 +730,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
       className={`rounded-md border border-border px-3 py-1 text-xs font-medium text-muted transition duration-150 hover:bg-raised hover:text-foreground active:translate-y-px disabled:opacity-40 ${danger ? "hover:border-loss/50 hover:text-loss" : "hover:border-muted"}`}
     >
       {children}

@@ -15,7 +15,10 @@ public sealed record AccountSnapshot(
     IReadOnlyList<OrderSnapshot> Orders,
     IReadOnlyList<FloorSnapshot> Floors);
 
-/// <summary>An open position. CurrentPrice is the price it would close at now.</summary>
+/// <summary>
+/// An open position. CurrentPrice is the price it would close at now. TrailingDistance is set when the stop loss trails
+/// the price at that distance.
+/// </summary>
 public sealed record PositionSnapshot(
     string PositionId,
     string Symbol,
@@ -27,8 +30,10 @@ public sealed record PositionSnapshot(
     DateTimeOffset OpenTime,
     decimal CurrentPrice,
     decimal Profit,
-    decimal Margin);
+    decimal Margin,
+    decimal? TrailingDistance);
 
+/// <summary>A pending order. TrailingDistance is set when the position it opens gets a trailing stop.</summary>
 public sealed record OrderSnapshot(
     string OrderId,
     string Symbol,
@@ -38,7 +43,8 @@ public sealed record OrderSnapshot(
     decimal Price,
     decimal? StopLoss,
     decimal? TakeProfit,
-    DateTimeOffset PlacedTime);
+    DateTimeOffset PlacedTime,
+    decimal? TrailingDistance);
 
 /// <summary>An equity floor. Headroom is how far equity can fall before the floor is breached.</summary>
 public sealed record FloorSnapshot(string FloorId, EquityFloorRule Rule, decimal Level, decimal HighWaterMark, decimal Headroom);

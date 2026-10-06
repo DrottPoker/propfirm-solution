@@ -18,7 +18,7 @@ public enum BalanceChangeKind
     /// <summary>A position was opened, and its commission charged.</summary>
     Opened,
 
-    /// <summary>A position was closed, with its profit and commission.</summary>
+    /// <summary>A position was closed, or a part of it, with its profit and commission.</summary>
     Closed,
 
     /// <summary>Money was deposited or withdrawn, for example a payout's profit. Not a trading result.</summary>
@@ -27,7 +27,10 @@ public enum BalanceChangeKind
 
 internal sealed record BalanceChange(long Sequence, DateTimeOffset Time, BalanceChangeKind Kind, decimal Change, decimal BalanceAfter);
 
-/// <summary>A closed position. <see cref="Result"/> is its profit after the commissions for opening and closing it.</summary>
+/// <summary>
+/// A closed position. <see cref="Result"/> is its profit after the commissions for opening and closing it. A position
+/// closed in parts is one trade: the parts' volume, profit and commission are added, and the close price is their average.
+/// </summary>
 internal sealed record ClosedTrade(
     string PositionId,
     string Symbol,
@@ -192,7 +195,7 @@ internal sealed class TradingHistoryQueries(NpgsqlDataSource dataSource, Databas
         var closes = await ReadAsync(
             connection,
             """
-            select account_id, symbol, side, volume, close_price, profit, coalesce(close_commission, 0)
+            select account_id, symbol, side, coalesce(close_volume, volume), close_price, profit, coalesce(close_commission, 0)
             from trading_positions
             where account_id = any($1) and close_reason = 'EquityFloor'
             order by close_sequence
@@ -242,11 +245,19 @@ internal sealed class TradingHistoryQueries(NpgsqlDataSource dataSource, Databas
         ReadAsync(
             connection,
             """
-            select position_id, symbol, side, volume, open_price, opened_at, close_price, closed_at, profit,
-                   open_commission + close_commission, close_reason, close_sequence
-            from trading_positions
-            where account_id = $1 and close_sequence is not null and ($2::bigint is null or close_sequence < $2)
-            order by close_sequence desc
+            select p.position_id, p.symbol, p.side, coalesce(p.close_volume, p.volume) + coalesce(parts.volume, 0), p.open_price, p.opened_at,
+                   case when parts.volume is null then p.close_price else trim_scale(round(
+                       (p.close_price * coalesce(p.close_volume, p.volume) + parts.value) / (coalesce(p.close_volume, p.volume) + parts.volume), 10)) end,
+                   p.closed_at, p.profit + coalesce(parts.profit, 0),
+                   p.open_commission + p.close_commission + coalesce(parts.commission, 0), p.close_reason, p.close_sequence
+            from trading_positions p
+            left join lateral (
+                select sum(c.volume) as volume, sum(c.volume * c.close_price) as value, sum(c.profit) as profit, sum(c.commission) as commission
+                from trading_partial_closes c
+                where c.account_id = p.account_id and c.position_id = p.position_id
+            ) parts on true
+            where p.account_id = $1 and p.close_sequence is not null and ($2::bigint is null or p.close_sequence < $2)
+            order by p.close_sequence desc
             limit $3::int
             """,
             [tradingAccountId, (object?)beforeSequence ?? DBNull.Value, (object?)limit ?? DBNull.Value],

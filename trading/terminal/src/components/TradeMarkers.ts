@@ -112,6 +112,14 @@ export class TradeMarkers implements ISeriesPrimitive<Time> {
         if (closeTip) {
           this.drawArrow(context, closeTip, -1, this.colorOf(trade.side === "Buy" ? "Sell" : "Buy"), hr, vr);
         }
+
+        // A part closed before the rest gets a closing arrow of its own, without a line.
+        for (const part of trade.parts) {
+          const at = coordinateOf(part);
+          if (at) {
+            this.drawArrow(context, { x: at.x + offset, y: at.y }, -1, this.colorOf(trade.side === "Buy" ? "Sell" : "Buy"), hr, vr);
+          }
+        }
       }
     });
   }

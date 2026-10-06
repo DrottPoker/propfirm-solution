@@ -10,6 +10,7 @@ import {
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type LogicalRange,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
@@ -17,7 +18,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
 import type { InstrumentInfo, Timeframe } from "@/lib/api/types";
-import { applyPrice, timeframes, toBar, type Bar } from "@/lib/candles";
+import { applyPrice, mergeOlder, secondsOf, timeframes, toBar, type Bar } from "@/lib/candles";
+import { useChartStudies } from "@/lib/chartStudies";
 import { chartTrades } from "@/lib/chartTrades";
 import { kronant, mix, withAlpha } from "@/lib/colors";
 import { dayFigures } from "@/lib/daySummary";
@@ -25,12 +27,19 @@ import { rejectionText } from "@/lib/events";
 import { formatChartTick, formatMinute, formatPrice, formatSignedPercent, formatSignedPrice, timeZoneName, type ChartTick } from "@/lib/format";
 import { spreadPoints } from "@/lib/instruments";
 import { useOrderDraft, type GhostLine } from "@/lib/orderDraft";
-import { useCandles, useDaySummary, useModifyStops, usePointValue } from "@/lib/queries";
+import { isClosed } from "@/lib/marketHours";
+import { fetchOlderCandles, useCandles, useDaySummary, useMarket, useModifyStops, usePointValue } from "@/lib/queries";
+import type { DrawingTool } from "@/lib/drawings";
 import { useSettings } from "@/lib/settings";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
-import { CollapseIcon, ExpandIcon, VolumeBarsIcon } from "./icons";
+import { ClosedTag } from "./ClosedTag";
+import { useDrawingTools } from "./drawingTools";
+import { DrawingsLayer } from "./DrawingsLayer";
+import { CollapseIcon, ExpandIcon, HorizontalLineIcon, IndicatorsIcon, RectangleIcon, TrashIcon, TrendLineIcon, VolumeBarsIcon } from "./icons";
+import { IndicatorMenu } from "./IndicatorMenu";
+import { IndicatorSeries } from "./IndicatorSeries";
 import { KeepInView } from "./KeepInView";
 import { PriceMenu, type MenuPlacement, type StopLineRef } from "./PriceMenu";
 import { grabDistance, StopHandles, usePositionLines } from "./positionLines";
@@ -49,6 +58,18 @@ const chartTicks: Record<TickMarkType, ChartTick> = {
 const defaultBarSpacing = 6;
 const defaultRightOffset = 0;
 const resetAnimationMs = 150;
+
+// Older candles are loaded when the trader scrolls to within this many candles of the first one.
+const olderThreshold = 20;
+
+// How long removing every drawing waits for the second click.
+const confirmRemoveMs = 4_000;
+
+const drawingTools: { tool: DrawingTool; label: string; hint: string; Icon: (props: { className?: string }) => React.ReactNode }[] = [
+  { tool: "horizontal", label: "Horizontal line", hint: "Click where the line goes.", Icon: HorizontalLineIcon },
+  { tool: "trend", label: "Trend line", hint: "Click where the line starts, then where it ends.", Icon: TrendLineIcon },
+  { tool: "rectangle", label: "Rectangle", hint: "Click one corner, then the opposite one.", Icon: RectangleIcon },
+];
 
 // The volume is a low band under the candles, so it is there to glance at without pulling the eye from the price.
 const volumeBand = 0.13;
@@ -71,10 +92,24 @@ const colors = {
   downVolume: withAlpha(kronant.loss, 0.14),
   last: kronant.brass,
   open: kronant.brass,
+  // A pending order's price, dotted and a little dimmer than an open position's.
+  order: mix(kronant.brass, kronant.panel, 0.25),
   stopLoss: kronant.loss,
   takeProfit: kronant.profit,
   buy: kronant.profit,
   sell: kronant.loss,
+  // The indicators' lines in turn, apart from the candles' green and red and from brass, which marks our own lines.
+  studies: ["#7aa7e0", "#b48ee6", "#5cc8c0", "#e08ab4", "#d9c38c", kronant.foreground],
+  studyGuide: mix(kronant.muted, kronant.panel, 0.6),
+  studyUp: withAlpha(kronant.profit, 0.55),
+  studyDown: withAlpha(kronant.loss, 0.55),
+  drawing: {
+    line: mix(kronant.foreground, kronant.panel, 0.75),
+    fill: withAlpha(kronant.foreground, 0.05),
+    selected: kronant.brass,
+    label: mix(kronant.foreground, kronant.panel, 0.75),
+    labelText: kronant.panel,
+  },
   // 75 % opaque, so the candles show through the line.
   tradeLine: withAlpha(kronant.muted, 0.75),
   // The order being filled in, at half the strength of real lines.
@@ -105,10 +140,17 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   const markersRef = useRef<TradeMarkers | null>(null);
   const handlesRef = useRef<StopHandles | null>(null);
   const keepInViewRef = useRef<KeepInView | null>(null);
+  const studiesRef = useRef<IndicatorSeries | null>(null);
+  const drawingsRef = useRef<DrawingsLayer | null>(null);
+  // Every candle on the chart, the older ones loaded by scrolling back first. Live prices change the last one.
+  const barsRef = useRef<Bar[]>([]);
+  const olderRef = useRef({ loading: false, exhausted: false });
+  const [indicatorsOpen, setIndicatorsOpen] = useState(false);
+  const closeIndicators = useCallback(() => setIndicatorsOpen(false), []);
+  const indicators = useChartStudies((s) => s.indicators);
   const [message, setMessage] = useState<string | null>(null);
   const [menu, setMenu] = useState<OpenMenu | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const lastBarRef = useRef<Bar | undefined>(undefined);
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
   const fullScreen = useFullScreen(sectionRef);
   const showVolume = useSettings((s) => s.chartVolume);
@@ -171,6 +213,9 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     series.attachPrimitive(handles);
     const keepInView = new KeepInView();
     series.attachPrimitive(keepInView);
+    const drawingsLayer = new DrawingsLayer(colors.drawing);
+    series.attachPrimitive(drawingsLayer);
+    const studies = new IndicatorSeries(chart, { lines: colors.studies, up: colors.studyUp, down: colors.studyDown, guide: colors.studyGuide });
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -178,6 +223,8 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     markersRef.current = markers;
     handlesRef.current = handles;
     keepInViewRef.current = keepInView;
+    drawingsRef.current = drawingsLayer;
+    studiesRef.current = studies;
 
     return () => {
       chart.remove();
@@ -187,8 +234,16 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       markersRef.current = null;
       handlesRef.current = null;
       keepInViewRef.current = null;
+      drawingsRef.current = null;
+      studiesRef.current = null;
     };
   }, []);
+
+  // The indicators are the same on every symbol, with the instrument's decimals.
+  const digits = instrument?.digits ?? 5;
+  useEffect(() => {
+    studiesRef.current?.setIndicators(indicators, digits);
+  }, [indicators, digits]);
 
   // Without the volume, the candles take its place.
   useEffect(() => {
@@ -221,11 +276,70 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     }
 
     const bars = candles.data.map(toBar);
+    barsRef.current = bars;
+    olderRef.current = { loading: false, exhausted: false };
     seriesRef.current.setData(bars.map(toCandle));
     volumeRef.current.setData(bars.map(toVolume));
-    lastBarRef.current = bars.at(-1);
+    studiesRef.current?.setBars(bars);
+    drawingsRef.current?.setBars(bars.map((b) => b.time), secondsOf(timeframe), digits);
     chartRef.current?.timeScale().scrollToRealTime();
+    // Only new history redraws: the timeframe and decimals come with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candles.data]);
+
+  // Scrolling near the first candle loads older ones in front of it, keeping the view where it is.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !symbol) {
+      return;
+    }
+
+    let current = true;
+    const onRange = (range: LogicalRange | null) => {
+      const state = olderRef.current;
+      const bars = barsRef.current;
+      if (!range || range.from > olderThreshold || state.loading || state.exhausted || bars.length === 0) {
+        return;
+      }
+
+      state.loading = true;
+      fetchOlderCandles(accountId, symbol, timeframe, bars[0].time)
+        .then((candles) => {
+          // A new history replaced the candles meanwhile.
+          if (!current || barsRef.current !== bars || !seriesRef.current || !volumeRef.current) {
+            return;
+          }
+
+          const merged = mergeOlder(candles.map(toBar), bars);
+          const added = merged.length - bars.length;
+          if (added === 0) {
+            state.exhausted = true;
+            return;
+          }
+
+          const visible = chart.timeScale().getVisibleLogicalRange();
+          barsRef.current = merged;
+          seriesRef.current.setData(merged.map(toCandle));
+          volumeRef.current.setData(merged.map(toVolume));
+          if (visible) {
+            chart.timeScale().setVisibleLogicalRange({ from: visible.from + added, to: visible.to + added });
+          }
+          studiesRef.current?.setBars(merged);
+          drawingsRef.current?.setBars(merged.map((b) => b.time), secondsOf(timeframe), digits);
+        })
+        // Tried again on the next scroll.
+        .catch(() => undefined)
+        .finally(() => {
+          state.loading = false;
+        });
+    };
+
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    return () => {
+      current = false;
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
+    };
+  }, [accountId, symbol, timeframe, digits]);
 
   // Live prices update the latest bar without re-rendering React.
   useEffect(() => {
@@ -239,21 +353,31 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
         return;
       }
 
-      const bar = applyPrice(lastBarRef.current, price.bid, Date.parse(price.timestamp) / 1000, timeframe);
+      const bars = barsRef.current;
+      const last = bars.at(-1);
+      const bar = applyPrice(last, price.bid, Date.parse(price.timestamp) / 1000, timeframe);
       if (bar) {
         seriesRef.current.update(toCandle(bar));
         volumeRef.current.update(toVolume(bar));
-        lastBarRef.current = bar;
+        if (last && bar.time === last.time) {
+          bars[bars.length - 1] = bar;
+        } else {
+          bars.push(bar);
+          drawingsRef.current?.setBars(bars.map((b) => b.time), secondsOf(timeframe), digits);
+        }
+        studiesRef.current?.updateLast(bars);
       }
     });
-  }, [symbol, timeframe]);
+  }, [symbol, timeframe, digits]);
 
   const pointValue = usePointValue(accountId, symbol).data;
+  const marketOpen = !isClosed(useMarket(accountId, symbol));
   const showMessage = useMessage(setMessage);
   usePositionLines({
     accountId,
     instrument,
     pointValue,
+    marketOpen,
     colors,
     chartRef,
     seriesRef,
@@ -263,13 +387,39 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     onError: showMessage,
   });
   useGhostLines(seriesRef, keepInViewRef, symbol);
+  const drawing = useDrawingTools({ containerRef, chartRef, layerRef: drawingsRef, symbol, digits });
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  useEffect(() => {
+    if (!confirmRemove) {
+      return;
+    }
+
+    const timer = setTimeout(() => setConfirmRemove(false), confirmRemoveMs);
+    return () => clearTimeout(timer);
+  }, [confirmRemove]);
+  // The selected drawing goes at once, and all of them on a second click.
+  const removeDrawings = () => {
+    if (drawing.selected || confirmRemove) {
+      setConfirmRemove(false);
+      drawing.remove();
+    } else {
+      setConfirmRemove(true);
+    }
+  };
+  const activeTool = drawingTools.find((t) => t.tool === drawing.tool);
   useRightClick(containerRef, chartRef, seriesRef, handlesRef, instrument, setMenu);
   const resetChart = useResetChart(chartRef);
 
   const modify = useModifyStops(accountId);
+  // A trailing stop keeps trailing at the new level, and ends with the stop loss.
   const modifyStops = (positionId: string, stopLoss: number | null, takeProfit: number | null) =>
     modify.mutate(
-      { positionId, stopLoss, takeProfit },
+      {
+        positionId,
+        stopLoss,
+        takeProfit,
+        trailingStop: stopLoss !== null && useTradingStore.getState().account?.positions.find((p) => p.positionId === positionId)?.trailingDistance != null,
+      },
       { onError: (e) => showMessage(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.") },
     );
   useTradeMarkers(markersRef, symbol, timeframe);
@@ -304,6 +454,46 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
           <VolumeBarsIcon className={`size-3.5 ${showVolume ? "text-accent" : ""}`} />
           <span className="@max-md:sr-only">Volume</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setIndicatorsOpen((open) => !open)}
+          aria-expanded={indicatorsOpen}
+          title="Moving averages, Bollinger Bands, RSI and MACD"
+          className={`${toolClass} flex items-center gap-1.5 px-2 ${indicatorsOpen || indicators.length > 0 ? "text-foreground" : "text-muted hover:bg-raised hover:text-foreground"}`}
+        >
+          <IndicatorsIcon className={`size-3.5 ${indicators.length > 0 ? "text-accent" : ""}`} />
+          <span className="@max-md:sr-only">Indicators{indicators.length > 0 ? ` (${indicators.length})` : ""}</span>
+        </button>
+        <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border" />
+        {drawingTools.map(({ tool, label, Icon }) => (
+          <button
+            key={tool}
+            type="button"
+            onClick={() => drawing.chooseTool(tool)}
+            aria-pressed={drawing.tool === tool}
+            aria-label={label}
+            title={label}
+            className={`${toolClass} p-1.5 ${drawing.tool === tool ? "bg-accent/15 text-accent" : "text-muted hover:bg-raised hover:text-foreground"}`}
+          >
+            <Icon className="size-3.5" />
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={removeDrawings}
+          disabled={drawing.drawings.length === 0}
+          aria-label={drawing.selected ? "Remove the selected drawing" : "Remove all drawings"}
+          title={
+            drawing.selected
+              ? "Remove the selected drawing (Delete)"
+              : confirmRemove
+                ? `Click again to remove all ${drawing.drawings.length} drawings on ${symbol}`
+                : `Remove all drawings on ${symbol}`
+          }
+          className={`${toolClass} p-1.5 disabled:opacity-40 ${confirmRemove ? "bg-loss/15 text-loss" : "text-muted hover:bg-raised hover:text-foreground"}`}
+        >
+          <TrashIcon className="size-3.5" />
+        </button>
         <span
           className="ml-auto shrink-0 pl-2 whitespace-nowrap text-muted @max-xl:hidden"
           title={`Candles show the bid. Times are in ${timeZone}, the time zone of the account's trading day.`}
@@ -323,6 +513,12 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
 
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0" />
+        {indicatorsOpen && <IndicatorMenu colors={colors.studies} onClose={closeIndicators} />}
+        {activeTool && (
+          <p role="status" className="pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 animate-fade rounded-lg border border-border bg-panel px-3 py-1.5 text-xs text-muted shadow-float">
+            {activeTool.label}: {activeTool.hint} Esc to stop.
+          </p>
+        )}
         {candles.isError && (
           <p className="absolute inset-0 flex items-center justify-center text-sm text-muted">Could not load candles.</p>
         )}
@@ -334,6 +530,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
             line={menu.line}
             ghost={menu.ghost}
             pointValue={pointValue}
+            marketOpen={marketOpen}
             onModify={modifyStops}
             onResetChart={resetChart}
             onClose={closeMenu}
@@ -355,6 +552,7 @@ function QuoteHeader({ accountId, instrument }: { accountId: string; instrument:
   const { symbol, digits } = instrument;
   const price = useTradingStore((s) => s.prices[symbol]);
   const day = dayFigures(useDaySummary(accountId, symbol).data, price?.bid);
+  const market = useMarket(accountId, symbol);
   const changeColor = day.change === null ? "text-muted" : day.change >= 0 ? "text-profit" : "text-loss";
 
   return (
@@ -362,6 +560,7 @@ function QuoteHeader({ accountId, instrument }: { accountId: string; instrument:
       <span className="flex shrink-0 items-center gap-2">
         <SymbolIcon base={instrument.baseCurrency} quote={instrument.quoteCurrency} />
         <span className="text-base font-semibold">{symbol}</span>
+        {market && isClosed(market) && <ClosedTag market={market} />}
       </span>
       <span className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
         <span className="font-mono text-xl font-semibold tabular-nums">{formatPrice(price?.bid, digits)}</span>

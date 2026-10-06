@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 
-import { ErrorIcon, InfoIcon, SuccessIcon } from "@/components/icons";
+import { ErrorIcon, InfoIcon, SuccessIcon, WarningIcon } from "@/components/icons";
 import { onSessionEnded } from "@/lib/api/client";
 import { meKey } from "@/lib/queries";
 
@@ -23,8 +23,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The short notes about fills, closes and refusals. They come in over the top of the order ticket, below the account
- * bar, so they never cover the positions and their Close buttons.
+ * The short notes about fills, closes, refusals and the account's rules. They come in over the top of the order
+ * ticket, below the account bar, so they never cover the positions and their Close buttons.
  */
 function Notes() {
   return (
@@ -34,7 +34,12 @@ function Notes() {
       mobileOffset={{ top: "0.5rem", right: "0.5rem", left: "0.5rem" }}
       gap={8}
       style={{ "--width": "18rem" } as React.CSSProperties}
-      icons={{ success: <SuccessIcon className="size-5" />, error: <ErrorIcon className="size-5" />, info: <InfoIcon className="size-5" /> }}
+      icons={{
+        success: <SuccessIcon className="size-5" />,
+        error: <ErrorIcon className="size-5" />,
+        warning: <WarningIcon className="size-5" />,
+        info: <InfoIcon className="size-5" />,
+      }}
       toastOptions={{
         unstyled: true,
         classNames: {
@@ -44,6 +49,7 @@ function Notes() {
           icon: "mt-px",
           success: "[&_[data-icon]]:text-profit",
           error: "border-loss/40 [&_[data-icon]]:text-loss",
+          warning: "border-warning/40 [&_[data-icon]]:text-warning",
           info: "[&_[data-icon]]:text-accent",
         },
       }}

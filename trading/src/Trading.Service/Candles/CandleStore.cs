@@ -47,9 +47,12 @@ internal sealed class CandleStore(int capacityPerSeries)
         }
     }
 
-    /// <summary>The latest candles, oldest first, with every price moved by <paramref name="shift"/>.</summary>
-    public IReadOnlyList<Candle> Get(string symbol, Timeframe timeframe, int count, decimal shift) =>
-        _series.TryGetValue((symbol, timeframe), out var series) ? series.Latest(count, shift) : [];
+    /// <summary>
+    /// The latest candles, or the latest that start before <paramref name="before"/>, oldest first, with every price moved
+    /// by <paramref name="shift"/>.
+    /// </summary>
+    public IReadOnlyList<Candle> Get(string symbol, Timeframe timeframe, int count, decimal shift, DateTimeOffset? before = null) =>
+        _series.TryGetValue((symbol, timeframe), out var series) ? series.Latest(count, shift, before) : [];
 
     /// <summary>Every symbol's bars of the timeframe that start in the period.</summary>
     public IReadOnlyList<ChartBar> GetBars(Timeframe timeframe, DateTimeOffset from, DateTimeOffset until) =>
@@ -119,13 +122,17 @@ internal sealed class CandleStore(int capacityPerSeries)
             }
         }
 
-        public List<Candle> Latest(int count, decimal shift)
+        public List<Candle> Latest(int count, decimal shift, DateTimeOffset? before)
         {
             lock (_lock)
             {
-                var take = Math.Min(Math.Min(count, capacity), _candles.Count);
+                // The candles are in time order, so the ones before a time end where the first one at or after it is.
+                var end = before is { } limit ? _candles.FindIndex(c => c.Time >= limit) : -1;
+                var available = end < 0 ? _candles.Count : end;
+                var take = Math.Min(Math.Min(count, capacity), available);
                 return _candles
-                    .Skip(_candles.Count - take)
+                    .Skip(available - take)
+                    .Take(take)
                     .Select(c => c with { Open = c.Open + shift, High = c.High + shift, Low = c.Low + shift, Close = c.Close + shift })
                     .ToList();
             }

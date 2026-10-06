@@ -125,6 +125,11 @@ internal sealed partial class TradingEventConsumer(
                 await challenges.ApplyAsync(
                     connection, firm, accountId, _ => new AccountUpdated(time, account, sequence, closed.BalanceAfter, openPositions), null, cancellationToken);
                 break;
+            case TradingPositionPartiallyClosed part:
+                var stillOpen = await UpdateAsync(connection, "balance = $2", account, part.BalanceAfter, cancellationToken);
+                await challenges.ApplyAsync(
+                    connection, firm, accountId, _ => new AccountUpdated(time, account, sequence, part.BalanceAfter, stillOpen), null, cancellationToken);
+                break;
             case TradingFloorSet floorSet when floorSet.FloorId is FloorIds.Daily or FloorIds.MaxLoss:
                 var column = floorSet.FloorId == FloorIds.Daily ? "daily_floor" : "max_loss_floor";
                 await UpdateAsync(connection, $"{column} = $2", account, floorSet.Level, cancellationToken);

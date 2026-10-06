@@ -9,7 +9,7 @@ internal sealed class InMemoryChartStore : IChartStore
 {
     private readonly Lock _lock = new();
     private readonly Dictionary<(string Feed, DateTimeOffset Time, string Symbol, Timeframe Resolution), ChartBar> _bars = [];
-    private readonly HashSet<string> _histories = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _histories = new(StringComparer.Ordinal);
 
     public int Saves { get; private set; }
 
@@ -21,11 +21,11 @@ internal sealed class InMemoryChartStore : IChartStore
         }
     }
 
-    public Task<bool> HasHistoryAsync(string feed, CancellationToken cancellationToken)
+    public Task<DateTimeOffset?> GetHistoryReachAsync(string feed, CancellationToken cancellationToken)
     {
         lock (_lock)
         {
-            return Task.FromResult(_histories.Contains(feed));
+            return Task.FromResult<DateTimeOffset?>(_histories.TryGetValue(feed, out var reach) ? reach : null);
         }
     }
 
@@ -38,7 +38,7 @@ internal sealed class InMemoryChartStore : IChartStore
         }
     }
 
-    public Task ReplaceHistoryAsync(string feed, DateTimeOffset until, IReadOnlyList<ChartBar> bars, CancellationToken cancellationToken)
+    public Task ReplaceHistoryAsync(string feed, DateTimeOffset reach, DateTimeOffset until, IReadOnlyList<ChartBar> bars, CancellationToken cancellationToken)
     {
         lock (_lock)
         {
@@ -52,7 +52,7 @@ internal sealed class InMemoryChartStore : IChartStore
                 _bars.Add((feed, bar.Candle.Time, bar.Symbol, bar.Resolution), bar);
             }
 
-            _histories.Add(feed);
+            _histories[feed] = reach;
             return Task.CompletedTask;
         }
     }

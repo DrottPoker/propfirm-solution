@@ -164,7 +164,7 @@ public sealed partial class TradingEngine
             return RejectReason.InvalidTakeProfit;
         }
 
-        if (GetFreshPrice(instrument, conditions, command.Timestamp, out var price) is { } priceRejection)
+        if (GetTradingPrice(instrument, conditions, command.Timestamp, out var price) is { } priceRejection)
         {
             return priceRejection;
         }
@@ -186,7 +186,12 @@ public sealed partial class TradingEngine
                 return stopsRejection;
             }
 
-            var request = new OpenRequest(command.OrderId, instrument, conditions, command.Side, command.Volume, command.StopLoss, command.TakeProfit);
+            if (!TryGetTrailingDistance(command.TrailingStop, price.ClosePrice(command.Side), command.StopLoss, out var marketTrailing))
+            {
+                return RejectReason.NoStopLoss;
+            }
+
+            var request = new OpenRequest(command.OrderId, instrument, conditions, command.Side, command.Volume, command.StopLoss, command.TakeProfit, marketTrailing);
             if (!TryOpenPosition(account, request, price.OpenPrice(command.Side), command.Timestamp, events))
             {
                 return RejectReason.InsufficientMargin;
@@ -208,6 +213,11 @@ public sealed partial class TradingEngine
             return pendingStopsRejection;
         }
 
+        if (!TryGetTrailingDistance(command.TrailingStop, orderPrice, command.StopLoss, out var pendingTrailing))
+        {
+            return RejectReason.NoStopLoss;
+        }
+
         account.Orders.Add(new OrderState(
             command.OrderId,
             instrument,
@@ -218,7 +228,8 @@ public sealed partial class TradingEngine
             orderPrice,
             command.StopLoss,
             command.TakeProfit,
-            command.Timestamp));
+            command.Timestamp,
+            pendingTrailing));
         account.UsedOrderIds.Add(command.OrderId);
         events.Add(new OrderPlaced(
             command.Timestamp,
@@ -230,7 +241,59 @@ public sealed partial class TradingEngine
             command.Volume,
             orderPrice,
             command.StopLoss,
-            command.TakeProfit));
+            command.TakeProfit,
+            pendingTrailing));
+        return null;
+    }
+
+    private RejectReason? ApplyModifyOrder(ModifyOrder command, List<EngineEvent> events)
+    {
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
+        {
+            return accountRejection;
+        }
+
+        var order = account.Orders.Find(o => string.Equals(o.Id, command.OrderId, StringComparison.Ordinal));
+        if (order is null)
+        {
+            return RejectReason.UnknownOrder;
+        }
+
+        if (!IsValidOptionalPrice(order.Instrument, command.StopLoss))
+        {
+            return RejectReason.InvalidStopLoss;
+        }
+
+        if (!IsValidOptionalPrice(order.Instrument, command.TakeProfit))
+        {
+            return RejectReason.InvalidTakeProfit;
+        }
+
+        if (GetTradingPrice(order.Instrument, order.Conditions, command.Timestamp, out var price) is { } priceRejection)
+        {
+            return priceRejection;
+        }
+
+        if (command.Price <= 0m || !order.Instrument.IsOnGrid(command.Price) || !IsValidPendingPrice(order.Type, order.Side, command.Price, price))
+        {
+            return RejectReason.InvalidPrice;
+        }
+
+        if (ValidateStops(order.Side, command.Price, command.StopLoss, command.TakeProfit) is { } stopsRejection)
+        {
+            return stopsRejection;
+        }
+
+        if (!TryGetTrailingDistance(command.TrailingStop, command.Price, command.StopLoss, out var trailing))
+        {
+            return RejectReason.NoStopLoss;
+        }
+
+        order.Price = command.Price;
+        order.StopLoss = command.StopLoss;
+        order.TakeProfit = command.TakeProfit;
+        order.TrailingDistance = trailing;
+        events.Add(new OrderModified(command.Timestamp, account.Id, order.Id, order.Instrument.Symbol, order.Price, order.StopLoss, order.TakeProfit, order.TrailingDistance));
         return null;
     }
 
@@ -265,12 +328,66 @@ public sealed partial class TradingEngine
             return RejectReason.UnknownPosition;
         }
 
-        if (GetFreshPrice(position.Instrument, position.Conditions, command.Timestamp, out var price) is { } priceRejection)
+        // A part must be a volume the instrument allows, and leave one.
+        var part = command.Volume is { } volume && volume != position.Volume ? volume : (decimal?)null;
+        if (part is { } partVolume && (!IsValidVolume(position.Instrument, partVolume) || position.Volume - partVolume < position.Instrument.VolumeMin))
+        {
+            return RejectReason.InvalidVolume;
+        }
+
+        if (GetTradingPrice(position.Instrument, position.Conditions, command.Timestamp, out var price) is { } priceRejection)
         {
             return priceRejection;
         }
 
-        ClosePositionAt(account, position, price.ClosePrice(position.Side), CloseReason.Manual, command.Timestamp, events);
+        if (part is { } closed)
+        {
+            ClosePartAt(account, position, closed, price.ClosePrice(position.Side), CloseReason.Manual, command.Timestamp, events);
+        }
+        else
+        {
+            ClosePositionAt(account, position, price.ClosePrice(position.Side), CloseReason.Manual, command.Timestamp, events);
+        }
+
+        EvaluateRisk(account, command.Timestamp, events);
+        return null;
+    }
+
+    private RejectReason? ApplyCloseAllPositions(CloseAllPositions command, List<EngineEvent> events)
+    {
+        if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))
+        {
+            return accountRejection;
+        }
+
+        var positions = account.Positions
+            .Where(p => command.Symbol is null || string.Equals(p.Instrument.Symbol, command.Symbol, StringComparison.Ordinal))
+            .ToList();
+        if (positions.Count == 0)
+        {
+            return RejectReason.UnknownPosition;
+        }
+
+        // Each position closes at its own price, in the order they opened. One that cannot close now stays open.
+        RejectReason? firstRejection = null;
+        var closedAny = false;
+        foreach (var position in positions)
+        {
+            if (GetTradingPrice(position.Instrument, position.Conditions, command.Timestamp, out var price) is { } rejection)
+            {
+                firstRejection ??= rejection;
+                continue;
+            }
+
+            ClosePositionAt(account, position, price.ClosePrice(position.Side), CloseReason.Manual, command.Timestamp, events);
+            closedAny = true;
+        }
+
+        if (!closedAny)
+        {
+            return firstRejection;
+        }
+
         EvaluateRisk(account, command.Timestamp, events);
         return null;
     }
@@ -298,7 +415,7 @@ public sealed partial class TradingEngine
             return RejectReason.InvalidTakeProfit;
         }
 
-        if (GetFreshPrice(position.Instrument, position.Conditions, command.Timestamp, out var price) is { } priceRejection)
+        if (GetTradingPrice(position.Instrument, position.Conditions, command.Timestamp, out var price) is { } priceRejection)
         {
             return priceRejection;
         }
@@ -308,9 +425,15 @@ public sealed partial class TradingEngine
             return stopsRejection;
         }
 
+        if (!TryGetTrailingDistance(command.TrailingStop, price.ClosePrice(position.Side), command.StopLoss, out var trailing))
+        {
+            return RejectReason.NoStopLoss;
+        }
+
         position.StopLoss = command.StopLoss;
         position.TakeProfit = command.TakeProfit;
-        events.Add(new PositionModified(command.Timestamp, account.Id, position.Id, position.StopLoss, position.TakeProfit));
+        position.TrailingDistance = trailing;
+        events.Add(new PositionModified(command.Timestamp, account.Id, position.Id, position.StopLoss, position.TakeProfit, position.TrailingDistance));
         return null;
     }
 
@@ -454,8 +577,16 @@ public sealed partial class TradingEngine
         return null;
     }
 
-    private RejectReason? GetFreshPrice(Instrument instrument, SymbolConditions conditions, DateTimeOffset now, out ClientPrice price)
+    // The price a trader's order, close or stop change is checked against. None while the market is closed, even if a
+    // price came in after it closed, and none that is too old.
+    private RejectReason? GetTradingPrice(Instrument instrument, SymbolConditions conditions, DateTimeOffset now, out ClientPrice price)
     {
+        if (!instrument.IsOpen(now))
+        {
+            price = default;
+            return RejectReason.MarketClosed;
+        }
+
         if (!_prices.TryGetLatest(instrument.Symbol, out var quote))
         {
             price = default;
@@ -470,6 +601,14 @@ public sealed partial class TradingEngine
 
         price = PriceBook.ToClientPrice(instrument, conditions, quote);
         return null;
+    }
+
+    // A trailing stop keeps the distance from the reference price to the stop loss, so it needs a stop loss. Without
+    // a trailing stop the distance is null.
+    private static bool TryGetTrailingDistance(bool trailingStop, decimal reference, decimal? stopLoss, out decimal? distance)
+    {
+        distance = trailingStop && stopLoss is { } level ? Math.Abs(reference - level) : null;
+        return !trailingStop || stopLoss is not null;
     }
 
     private static PositionState? FindPosition(AccountState account, string? positionId) =>

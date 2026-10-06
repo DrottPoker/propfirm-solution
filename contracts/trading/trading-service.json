@@ -255,6 +255,70 @@
         }
       }
     },
+    "/api/accounts/{accountId}/market-hours": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MarketHours"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/rules": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountRules"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/accounts/{accountId}/prices": {
       "get": {
         "tags": [
@@ -326,6 +390,14 @@
             "schema": {
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
             }
           }
         ],
@@ -448,6 +520,51 @@
       }
     },
     "/api/accounts/{accountId}/orders/{orderId}": {
+      "put": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModifyOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Trading"
@@ -470,6 +587,51 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/positions/close-all": {
+      "post": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CloseAllPositionsRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -507,6 +669,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ClosePositionRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
@@ -564,6 +742,77 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/me/settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/settings/{key}": {
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Settings"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -1007,6 +1256,45 @@
         }
       }
     },
+    "/api/admin/v1/accounts/{accountId}/rules": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountRulesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountRules"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/v1/events": {
       "get": {
         "tags": [
@@ -1373,6 +1661,118 @@
         },
         "description": "What the terminal shows about an account: Label names it for the trader, ProfitTarget\nis the balance that passes it, TimeZone its trading day's (IANA) and DetailsUrl where\nthe trader sees more about it. Empty for none."
       },
+      "AccountRules": {
+        "required": [
+          "funded",
+          "tradingDaysRequired",
+          "tradingDaysCounted",
+          "passBy",
+          "openPositionBy",
+          "consistencyPercent",
+          "bestDayPercent"
+        ],
+        "type": "object",
+        "properties": {
+          "funded": {
+            "type": "boolean"
+          },
+          "tradingDaysRequired": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "tradingDaysCounted": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "passBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "openPositionBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "consistencyPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "bestDayPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each\nis null when the account has no such rule. Funded tells a funded account, whose trading days\ncount toward a payout rather than passing the stage. PassBy is when the stage fails unless it was\npassed, and OpenPositionBy when the account ends unless a position is opened before.\nConsistencyPercent is the most of the profit the best trading day may have made for a payout,\nand BestDayPercent what it has made now."
+      },
+      "AccountRulesRequest": {
+        "type": "object",
+        "properties": {
+          "funded": {
+            "type": "boolean",
+            "default": false
+          },
+          "tradingDaysRequired": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "tradingDaysCounted": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "passBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "openPositionBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "consistencyPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "bestDayPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every\nfield is replaced, and one left out is cleared. See AccountRules."
+      },
       "AccountSnapshot": {
         "required": [
           "accountId",
@@ -1555,6 +1955,31 @@
           }
         },
         "description": "Every symbol the group should trade, with its conditions. Symbols left out are removed."
+      },
+      "CloseAllPositionsRequest": {
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Closes the positions in Symbol. Without it, every position."
+      },
+      "ClosePositionRequest": {
+        "type": "object",
+        "properties": {
+          "volume": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "Closes only Volume of the position. Without it, the whole position."
       },
       "CloseReason": {
         "enum": [
@@ -1759,6 +2184,9 @@
             "$ref": "#/components/schemas/EngineEventOrderCancelled"
           },
           {
+            "$ref": "#/components/schemas/EngineEventOrderModified"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventOrderPlaced"
           },
           {
@@ -1769,6 +2197,9 @@
           },
           {
             "$ref": "#/components/schemas/EngineEventPositionOpened"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventPositionPartiallyClosed"
           },
           {
             "$ref": "#/components/schemas/EngineEventStopOutTriggered"
@@ -1790,10 +2221,12 @@
             "GroupSymbolsChanged": "#/components/schemas/EngineEventGroupSymbolsChanged",
             "InputRejected": "#/components/schemas/EngineEventInputRejected",
             "OrderCancelled": "#/components/schemas/EngineEventOrderCancelled",
+            "OrderModified": "#/components/schemas/EngineEventOrderModified",
             "OrderPlaced": "#/components/schemas/EngineEventOrderPlaced",
             "PositionClosed": "#/components/schemas/EngineEventPositionClosed",
             "PositionModified": "#/components/schemas/EngineEventPositionModified",
             "PositionOpened": "#/components/schemas/EngineEventPositionOpened",
+            "PositionPartiallyClosed": "#/components/schemas/EngineEventPositionPartiallyClosed",
             "StopOutTriggered": "#/components/schemas/EngineEventStopOutTriggered"
           }
         }
@@ -2143,6 +2576,65 @@
           }
         }
       },
+      "EngineEventOrderModified": {
+        "required": [
+          "accountId",
+          "orderId",
+          "symbol",
+          "price",
+          "stopLoss",
+          "takeProfit",
+          "trailingDistance",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "OrderModified"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A pending order got a new price, stop loss, take profit or trailing stop."
+      },
       "EngineEventOrderPlaced": {
         "required": [
           "accountId",
@@ -2200,12 +2692,19 @@
             ],
             "format": "double"
           },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "description": "A limit or stop order was accepted and waits for its price."
+        "description": "A limit or stop order was accepted and waits for its price. TrailingDistance is set for a trailing stop."
       },
       "EngineEventPositionClosed": {
         "required": [
@@ -2310,11 +2809,19 @@
             ],
             "format": "double"
           },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "description": "The trader set a position's stops. The moves a trailing stop makes on its own give no event: like a trailing floor's,\nthey follow from the prices, and the account shows where the stop loss is."
       },
       "EngineEventPositionOpened": {
         "required": [
@@ -2379,12 +2886,92 @@
             "type": "number",
             "format": "double"
           },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "description": "A position was opened. The position id is the id of the order that opened it."
+        "description": "A position was opened. The position id is the id of the order that opened it. TrailingDistance is\nset for a trailing stop."
+      },
+      "EngineEventPositionPartiallyClosed": {
+        "required": [
+          "accountId",
+          "positionId",
+          "symbol",
+          "side",
+          "volume",
+          "remainingVolume",
+          "openPrice",
+          "closePrice",
+          "profit",
+          "commission",
+          "reason",
+          "balanceAfter",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "PositionPartiallyClosed"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "remainingVolume": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "closePrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CloseReason"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Part of a position was closed. Volume is the part closed, and RemainingVolume\nstays open with the same id. Profit and commission are for the part, in account currency."
       },
       "EngineEventStopOutTriggered": {
         "required": [
@@ -2442,6 +3029,9 @@
             "$ref": "#/components/schemas/EngineInputCloseAccount"
           },
           {
+            "$ref": "#/components/schemas/EngineInputCloseAllPositions"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputClosePosition"
           },
           {
@@ -2449,6 +3039,9 @@
           },
           {
             "$ref": "#/components/schemas/EngineInputCreateGroup"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputModifyOrder"
           },
           {
             "$ref": "#/components/schemas/EngineInputModifyPosition"
@@ -2480,9 +3073,11 @@
             "CancelOrder": "#/components/schemas/EngineInputCancelOrder",
             "ChangeGroupSymbols": "#/components/schemas/EngineInputChangeGroupSymbols",
             "CloseAccount": "#/components/schemas/EngineInputCloseAccount",
+            "CloseAllPositions": "#/components/schemas/EngineInputCloseAllPositions",
             "ClosePosition": "#/components/schemas/EngineInputClosePosition",
             "CreateAccount": "#/components/schemas/EngineInputCreateAccount",
             "CreateGroup": "#/components/schemas/EngineInputCreateGroup",
+            "ModifyOrder": "#/components/schemas/EngineInputModifyOrder",
             "ModifyPosition": "#/components/schemas/EngineInputModifyPosition",
             "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
             "Quote": "#/components/schemas/EngineInputQuote",
@@ -2607,6 +3202,34 @@
         },
         "description": "Closes all positions at the latest prices, cancels all orders and disables the account."
       },
+      "EngineInputCloseAllPositions": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "CloseAllPositions"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Closes every position on the account, or only those in Symbol, at the same moment. Positions whose\nmarket is closed or has no fresh price stay open. Pending orders stay."
+      },
       "EngineInputClosePosition": {
         "required": [
           "accountId",
@@ -2626,11 +3249,19 @@
           "positionId": {
             "type": "string"
           },
+          "volume": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "description": "Closes a position, or only Volume of it. The rest stays open with the same id."
       },
       "EngineInputCreateAccount": {
         "required": [
@@ -2684,6 +3315,57 @@
         },
         "description": "Creates a trading group, for example for a firm that signed up. Its currency and stop out level never change\nafterwards, but its symbols can (see ChangeGroupSymbols)."
       },
+      "EngineInputModifyOrder": {
+        "required": [
+          "accountId",
+          "orderId",
+          "price",
+          "stopLoss",
+          "takeProfit",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ModifyOrder"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "orderId": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Moves a pending order to a new price, and sets its stop loss, take profit and trailing stop as for PlaceOrder."
+      },
       "EngineInputModifyPosition": {
         "required": [
           "accountId",
@@ -2719,12 +3401,16 @@
             ],
             "format": "double"
           },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "description": "Sets stop loss and take profit. An empty value removes it."
+        "description": "Sets stop loss and take profit. An empty value removes it. With TrailingStop the stop loss\nfollows the price at the distance it is set at from the price the position closes at now."
       },
       "EngineInputPlaceOrder": {
         "required": [
@@ -2783,12 +3469,16 @@
             ],
             "format": "double"
           },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time"
           }
         },
-        "description": "Places an order. Price is required for limit and stop orders and must be empty for market orders."
+        "description": "Places an order. Price is required for limit and stop orders and must be empty for market orders.\nWith TrailingStop the stop loss follows the price at the distance it is set at: from the price the\nposition closes at now for a market order, and from the order price for a limit or stop order."
       },
       "EngineInputQuote": {
         "required": [
@@ -3223,6 +3913,7 @@
         },
         "description": "An instrument as one group trades it."
       },
+      "JsonElement": { },
       "LinkLoginRequest": {
         "required": [
           "token"
@@ -3285,6 +3976,60 @@
         },
         "description": "Server is the id of the firm's server, as in MetaTrader."
       },
+      "MarketHours": {
+        "required": [
+          "symbol",
+          "isOpen",
+          "nextChange",
+          "sessions"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "isOpen": {
+            "type": "boolean"
+          },
+          "nextChange": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the market closes if it is open, or opens if it is closed. Null if it never closes, or does not open within a month.",
+            "format": "date-time"
+          },
+          "sessions": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/MarketPeriod"
+            },
+            "description": "The periods the market is open from now and a week on, in UTC, the current one first. Null if it never closes."
+          }
+        },
+        "description": "When a symbol's market is open, seen from the moment it was asked. A market that never closes has no next change and no sessions."
+      },
+      "MarketPeriod": {
+        "required": [
+          "opens",
+          "closes"
+        ],
+        "type": "object",
+        "properties": {
+          "opens": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closes": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A period when a market is open, in UTC."
+      },
       "MeResponse": {
         "required": [
           "userId",
@@ -3320,6 +4065,39 @@
         },
         "description": "The logged in trader, their firm's server and the accounts they own, with what the firm says about each in\nAccountDetails, in the same order."
       },
+      "ModifyOrderRequest": {
+        "required": [
+          "price",
+          "stopLoss",
+          "takeProfit"
+        ],
+        "type": "object",
+        "properties": {
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "stopLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "takeProfit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "description": "A pending order's new price and stops."
+      },
       "ModifyStopsRequest": {
         "required": [
           "stopLoss",
@@ -3340,8 +4118,13 @@
               "number"
             ],
             "format": "double"
+          },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
           }
-        }
+        },
+        "description": "A position's stops. With TrailingStop the stop loss follows the price at the distance it is set at."
       },
       "OrderSnapshot": {
         "required": [
@@ -3353,7 +4136,8 @@
           "price",
           "stopLoss",
           "takeProfit",
-          "placedTime"
+          "placedTime",
+          "trailingDistance"
         ],
         "type": "object",
         "properties": {
@@ -3394,8 +4178,16 @@
           "placedTime": {
             "type": "string",
             "format": "date-time"
+          },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
-        }
+        },
+        "description": "A pending order. TrailingDistance is set when the position it opens gets a trailing stop."
       },
       "OrderType": {
         "enum": [
@@ -3450,9 +4242,13 @@
               "number"
             ],
             "format": "double"
+          },
+          "trailingStop": {
+            "type": "boolean",
+            "default": false
           }
         },
-        "description": "Places an order. The client creates the order id, so a retry can never place the order twice."
+        "description": "Places an order. The client creates the order id, so a retry can never place the order twice. With\nTrailingStop the stop loss follows the price at the distance it is set at."
       },
       "PlatformInstrument": {
         "required": [
@@ -3536,7 +4332,8 @@
           "openTime",
           "currentPrice",
           "profit",
-          "margin"
+          "margin",
+          "trailingDistance"
         ],
         "type": "object",
         "properties": {
@@ -3586,9 +4383,16 @@
           "margin": {
             "type": "number",
             "format": "double"
+          },
+          "trailingDistance": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
           }
         },
-        "description": "An open position. CurrentPrice is the price it would close at now."
+        "description": "An open position. CurrentPrice is the price it would close at now. TrailingDistance is set when the stop loss trails\nthe price at that distance."
       },
       "RejectReason": {
         "enum": [
@@ -3614,10 +4418,12 @@
           "InvalidTakeProfit",
           "NoPrice",
           "StalePrice",
+          "MarketClosed",
           "NoConversionRate",
           "InsufficientMargin",
           "UnknownOrder",
           "UnknownPosition",
+          "NoStopLoss",
           "InvalidFloor",
           "UnknownFloor",
           "InsufficientFunds"
@@ -3693,6 +4499,18 @@
             ]
           }
         }
+      },
+      "SettingsResponse": {
+        "required": [
+          "settings"
+        ],
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object"
+          }
+        },
+        "description": "The trader's settings in the terminal, by key."
       },
       "Side": {
         "enum": [
@@ -3919,6 +4737,9 @@
     },
     {
       "name": "Trading"
+    },
+    {
+      "name": "Settings"
     },
     {
       "name": "Admin"

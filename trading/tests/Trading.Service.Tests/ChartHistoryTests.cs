@@ -3,7 +3,7 @@ using Trading.Service.Tests.Support;
 
 namespace Trading.Service.Tests;
 
-/// <summary>The charts across restarts and switches of the price feed (ADR 0048).</summary>
+/// <summary>The charts across restarts and switches of the price feed (ADR 0048, ADR 0051).</summary>
 public sealed class ChartHistoryTests
 {
     private const string AccountId = "T1";
@@ -31,10 +31,51 @@ public sealed class ChartHistoryTests
         Assert.Equal([1.10000m, 1.10400m, 1.09900m, 1.10150m], Prices(hours[0]));
         Assert.Empty(await CandlesAsync(client, "M5"));
 
-        // 30 days, the latest 2 and today in minute bars.
+        // 180 days in hour bars, the latest 30 in 15 minute bars, and the latest 2 and today in minute bars.
         Assert.Equal(
-            [new HistorySpan(Timeframe.M15, Today.AddDays(-30), Today.AddDays(-2)), new HistorySpan(Timeframe.M1, Today.AddDays(-2), Today.AddHours(8))],
+            [
+                new HistorySpan(Timeframe.H1, Today.AddDays(-180), Today.AddDays(-30)),
+                new HistorySpan(Timeframe.M15, Today.AddDays(-30), Today.AddDays(-2)),
+                new HistorySpan(Timeframe.M1, Today.AddDays(-2), Today.AddHours(8)),
+            ],
             Assert.Single(feed.HistoryRequests));
+    }
+
+    [Fact]
+    public async Task HistoryIsLoadedAgainWhenTheChartsReachFurtherBack()
+    {
+        var backend = new InMemoryBackend();
+        var shorter = new Dictionary<string, string> { ["Charts:History"] = "30.00:00:00" };
+        using (var first = new ServiceFactory(backend, settings: shorter, feed: new ManualPriceFeed("Real") { History = History }))
+        {
+            (await first.CreateTraderClientAsync(AccountId)).Dispose();
+            await first.PushQuoteAsync("EURUSD", 1.12000m, 1.12010m);
+        }
+
+        var same = new ManualPriceFeed("Real") { History = History };
+        using (var second = new ServiceFactory(backend, settings: shorter, feed: same))
+        {
+            (await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword)).Dispose();
+        }
+
+        var longer = new ManualPriceFeed("Real") { History = History };
+        using var third = new ServiceFactory(backend, feed: longer);
+        (await third.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword)).Dispose();
+
+        Assert.Empty(same.HistoryRequests);
+        Assert.Equal(Today.AddDays(-180), Assert.Single(longer.HistoryRequests)[0].From);
+    }
+
+    [Fact]
+    public async Task OlderCandlesAreReadBeforeATime()
+    {
+        using var factory = new ServiceFactory(feed: new ManualPriceFeed("Real") { History = History });
+        using var client = await factory.CreateTraderClientAsync(AccountId);
+
+        var before = await client.GetJsonAsync(
+            $"/api/accounts/{AccountId}/candles/EURUSD?timeframe=M15&before={Uri.EscapeDataString(History[1].Candle.Time.ToString("O"))}");
+
+        Assert.Equal(History[0].Candle.Time, Assert.Single(before.EnumerateArray()).GetProperty("time").GetDateTimeOffset());
     }
 
     [Fact]

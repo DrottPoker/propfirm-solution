@@ -32,6 +32,7 @@ public sealed record AccountRecord(
     IReadOnlyList<string> UsedOrderIds,
     IReadOnlyList<string>? UsedOperationIds = null);
 
+/// <param name="TrailingDistance">Missing in snapshots taken before trailing stops existed.</param>
 public sealed record PositionRecord(
     string PositionId,
     string Symbol,
@@ -40,8 +41,10 @@ public sealed record PositionRecord(
     decimal OpenPrice,
     decimal? StopLoss,
     decimal? TakeProfit,
-    DateTimeOffset OpenTime);
+    DateTimeOffset OpenTime,
+    decimal? TrailingDistance = null);
 
+/// <param name="TrailingDistance">Missing in snapshots taken before trailing stops existed.</param>
 public sealed record OrderRecord(
     string OrderId,
     string Symbol,
@@ -51,7 +54,8 @@ public sealed record OrderRecord(
     decimal Price,
     decimal? StopLoss,
     decimal? TakeProfit,
-    DateTimeOffset PlacedTime);
+    DateTimeOffset PlacedTime,
+    decimal? TrailingDistance = null);
 
 /// <summary><paramref name="Anchor"/> is set for an <see cref="AnchoredFloor"/> only.</summary>
 public sealed record FloorRecord(string FloorId, EquityFloorRule Rule, decimal HighWaterMark, decimal? Anchor = null);

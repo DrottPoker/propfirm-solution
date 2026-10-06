@@ -2,11 +2,11 @@ import { HubConnectionBuilder, type IRetryPolicy, LogLevel } from "@microsoft/si
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import type { AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
+import type { AccountRules, AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
 import { tradingApiUrl } from "./config";
 import { createEventSync, type EventLoad } from "./eventSync";
 import { newEvents } from "./notices";
-import { fetchEvents, reloadCandles } from "./queries";
+import { fetchEvents, reloadCandles, reloadMarketHours, rulesKey } from "./queries";
 import { maxEvents, useTradingStore } from "./store";
 
 const retryDelayMs = 2_000;
@@ -54,6 +54,10 @@ export function useTradingConnection(accountId: string): void {
 
     connection.on("Account", (account: AccountSnapshot) => useTradingStore.getState().setAccount(account));
     connection.on("Prices", (prices: SymbolPrice[]) => useTradingStore.getState().applyPrices(prices));
+    // A handler that returns a value would answer the service, which expects no answer.
+    connection.on("Rules", (rules: AccountRules) => {
+      queryClient.setQueryData(rulesKey(accountId), rules);
+    });
     // Pushed events are new, unlike the ones loaded at the start or after a reconnect, so the trader is told of them.
     connection.on("Events", (events: EventEnvelope[]) => {
       eventSync.received(events);
@@ -78,6 +82,9 @@ export function useTradingConnection(accountId: string): void {
       if (candlesMissed) {
         candlesMissed = false;
         reloadCandles(queryClient, accountId);
+        reloadMarketHours(queryClient, accountId);
+        // New rules may have been told while the connection was lost.
+        void queryClient.invalidateQueries({ queryKey: rulesKey(accountId) });
       }
 
       clearTimeout(loadTimer);

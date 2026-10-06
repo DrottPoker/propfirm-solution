@@ -13,12 +13,12 @@ namespace Trading.Service.Persistence;
 /// <summary>The charts' bars in Postgres. A feed's history is written in one transaction with COPY.</summary>
 internal sealed class PostgresChartStore(NpgsqlDataSource dataSource, DatabaseSchema schema) : IChartStore
 {
-    public async Task<bool> HasHistoryAsync(string feed, CancellationToken cancellationToken)
+    public async Task<DateTimeOffset?> GetHistoryReachAsync(string feed, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
-        await using var command = dataSource.CreateCommand("select exists (select 1 from chart_histories where feed = $1)");
+        await using var command = dataSource.CreateCommand("select reach from chart_histories where feed = $1");
         command.Parameters.AddWithValue(feed);
-        return (bool)(await command.ExecuteScalarAsync(cancellationToken))!;
+        return await command.ExecuteScalarAsync(cancellationToken) is DateTime reach ? new DateTimeOffset(reach, TimeSpan.Zero) : null;
     }
 
     public async Task ForgetHistoryAsync(string feed, CancellationToken cancellationToken)
@@ -29,7 +29,7 @@ internal sealed class PostgresChartStore(NpgsqlDataSource dataSource, DatabaseSc
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async Task ReplaceHistoryAsync(string feed, DateTimeOffset until, IReadOnlyList<ChartBar> bars, CancellationToken cancellationToken)
+    public async Task ReplaceHistoryAsync(string feed, DateTimeOffset reach, DateTimeOffset until, IReadOnlyList<ChartBar> bars, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -64,11 +64,12 @@ internal sealed class PostgresChartStore(NpgsqlDataSource dataSource, DatabaseSc
         }
 
         await using (var mark = new NpgsqlCommand(
-            "insert into chart_histories (feed, loaded_at) values ($1, $2) on conflict (feed) do update set loaded_at = excluded.loaded_at",
+            "insert into chart_histories (feed, loaded_at, reach) values ($1, $2, $3) on conflict (feed) do update set loaded_at = excluded.loaded_at, reach = excluded.reach",
             connection))
         {
             mark.Parameters.AddWithValue(feed);
             mark.Parameters.AddWithValue(until);
+            mark.Parameters.AddWithValue(reach);
             await mark.ExecuteNonQueryAsync(cancellationToken);
         }
 

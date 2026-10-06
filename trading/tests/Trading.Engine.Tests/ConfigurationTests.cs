@@ -30,6 +30,7 @@ public sealed class ConfigurationTests
             { TestMarket.Configuration(instruments: [eurUsd with { Digits = 11 }]), "digits" },
             { TestMarket.Configuration(instruments: [eurUsd with { ContractSize = 0m }]), "contract size" },
             { TestMarket.Configuration(instruments: [eurUsd with { VolumeStep = 0m }]), "volume limits" },
+            { TestMarket.Configuration(instruments: [eurUsd with { TradingHours = TradingHoursTests.Forex with { TimeZone = "Mars/Olympus" } }]), "EURUSD: trading hours: time zone" },
             { valid with { Groups = [Group(new SymbolConditions("BTCUSD", 100, 0, 0m))] }, "unknown symbol" },
             { valid with { Groups = [Group(new SymbolConditions("EURUSD", 0, 0, 0m))] }, "leverage" },
             { valid with { Groups = [Group(new SymbolConditions("EURUSD", 100, -1, 0m))] }, "spread markup" },

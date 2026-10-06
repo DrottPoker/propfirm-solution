@@ -193,7 +193,43 @@ internal sealed class ChallengeService(
             [account.Id, step.State.Status.ToString(), step.State.Stage, (object?)step.State.CurrentDay ?? DBNull.Value, Jsonb(step.State), number, now, step.State.IsPaused],
             cancellationToken);
         await QueueAsync(connection, firm, account with { State = step.State }, step.Outputs, now, cancellationToken);
+
+        // Most steps, such as a balance update on an evaluation stage, leave the rules as they were.
+        if (TerminalRules.Of(account.State) != TerminalRules.Of(step.State))
+        {
+            await QueueRulesAsync(connection, firm, account with { State = step.State }, now, cancellationToken);
+        }
+
         return step;
+    }
+
+    /// <summary>
+    /// Tells the terminal the challenge's rules when they changed since they were last told, for example a trading day
+    /// counted, a deadline moved or the best day's share of the profit (ADR 0052).
+    /// </summary>
+    private static async Task<bool> QueueRulesAsync(NpgsqlConnection connection, Firm firm, ChallengeAccount account, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (TerminalRules.Of(account.State) is not { } rules)
+        {
+            return false;
+        }
+
+        var command = new DescribeTradingRules(account.State.AccountId!, rules);
+        var json = JsonSerializer.Serialize(command, PropJson.Options);
+        await using (var changed = new NpgsqlCommand(
+            "update challenge_accounts set described_rules = $2 where id = $1 and described_rules is distinct from $2",
+            connection))
+        {
+            changed.Parameters.AddWithValue(account.Id);
+            changed.Parameters.Add(new NpgsqlParameter { Value = json, NpgsqlDbType = NpgsqlDbType.Jsonb });
+            if (await changed.ExecuteNonQueryAsync(cancellationToken) == 0)
+            {
+                return false;
+            }
+        }
+
+        await QueueCommandAsync(connection, firm, account, command, now, cancellationToken);
+        return true;
     }
 
     public void Notify(Firm firm)
@@ -384,12 +420,9 @@ internal sealed class ChallengeService(
             cancellationToken);
 
     /// <summary>
-    /// What the terminal shows about the stage's account: the challenge and stage as the portal names them, for example
-    /// "#1001 Two-step 100K · Phase 1", the balance that passes the stage, the trading day's time zone and the account's page.
-    /// </summary>
-    /// <summary>
     /// Tells the trading platform how to show the firm's open trading accounts it was not told about, such as those opened
-    /// before it could be (ADR 0035). Each trading account is described once; new ones already are when they open.
+    /// before it could be (ADR 0035), and the rules of those whose rules it was not told (ADR 0052). Each trading account
+    /// is described once; new ones already are when they open.
     /// </summary>
     public async Task<int> DescribeOpenAccountsAsync(Firm firm, CancellationToken cancellationToken)
     {
@@ -425,6 +458,33 @@ internal sealed class ChallengeService(
                 described++;
             }
 
+            // Rules are told at every step that changes them, so this finds only accounts whose rules have not changed
+            // since the terminal began to show them.
+            var untold = new List<ChallengeAccount>();
+            await using (var command = new NpgsqlCommand(
+                $"""
+                {SelectAccount}
+                where a.firm_id = $1 and a.status not in ('Failed', 'Cancelled') and a.state ->> 'accountId' is not null and a.described_rules is null
+                for update of a
+                """,
+                connection))
+            {
+                command.Parameters.AddWithValue(firm.Id);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    untold.Add(ReadAccount(reader));
+                }
+            }
+
+            foreach (var account in untold)
+            {
+                if (await QueueRulesAsync(connection, firm, account, now, cancellationToken))
+                {
+                    described++;
+                }
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -436,6 +496,10 @@ internal sealed class ChallengeService(
         return described;
     }
 
+    /// <summary>
+    /// What the terminal shows about the stage's account: the challenge and stage as the portal names them, for example
+    /// "#1001 Two-step 100K · Phase 1", the balance that passes the stage, the trading day's time zone and the account's page.
+    /// </summary>
     private static DescribeTradingAccount Describe(Firm firm, ChallengeAccount account, string tradingAccountId, int stage)
     {
         var definition = account.State.Definition;

@@ -70,7 +70,7 @@ describe("describeEvent", () => {
   it("names the rejected input and the reason", () => {
     const event: EngineEvent = {
       kind: "InputRejected",
-      input: { kind: "PlaceOrder", accountId: "demo", orderId: "o-2", symbol: "EURUSD", side: "Buy", type: "Market", volume: 1, price: null, stopLoss: null, takeProfit: null, timestamp },
+      input: { kind: "PlaceOrder", accountId: "demo", orderId: "o-2", symbol: "EURUSD", side: "Buy", type: "Market", volume: 1, price: null, stopLoss: null, takeProfit: null, trailingStop: false, timestamp },
       reason: "StalePrice",
       timestamp,
     };
@@ -102,9 +102,38 @@ describe("describeEvent", () => {
   });
 });
 
+describe("describeEvent for the order tools", () => {
+  it("tells of a part closed, a moved order and a trailing stop", () => {
+    const part: EngineEvent = {
+      kind: "PositionPartiallyClosed",
+      accountId: "demo",
+      positionId: "p-1",
+      symbol: "EURUSD",
+      side: "Buy",
+      volume: 0.4,
+      remainingVolume: 0.6,
+      openPrice: 1.08,
+      closePrice: 1.082,
+      profit: 80,
+      commission: 1.4,
+      reason: "Manual",
+      balanceAfter: 100_075.1,
+      timestamp,
+    };
+    const moved: EngineEvent = { kind: "OrderModified", accountId: "demo", orderId: "o-1", symbol: "EURUSD", price: 1.075, stopLoss: 1.07, takeProfit: null, trailingDistance: 0.005, timestamp };
+    const trailing: EngineEvent = { kind: "PositionModified", accountId: "demo", positionId: "p-1", stopLoss: 1.079, takeProfit: null, trailingDistance: 0.001, timestamp };
+
+    expect(describeEvent(part, digitsOf)).toBe("Closed 0.40 of Buy EURUSD at 1.08200, 0.60 left open, profit 80.00 before commission");
+    expect(describeEvent(moved, digitsOf)).toBe("Moved order o-1 on EURUSD to 1.07500: SL 1.07, TP -, trailing 50.0 pips");
+    expect(describeEvent(trailing, digitsOf)).toBe("Changed stops on p-1: SL 1.079, TP -, trailing");
+    expect(rejectionText("NoStopLoss")).toBe("Refused: a trailing stop needs a stop loss to follow");
+  });
+});
+
 describe("rejectionText", () => {
   it("explains the reason, and shows a reason it does not know as it is", () => {
     expect(rejectionText("InsufficientMargin")).toBe("Refused: not enough free margin");
+    expect(rejectionText("MarketClosed")).toBe("Refused: the market is closed");
     expect(rejectionText("SomethingNew")).toBe("Refused: SomethingNew");
   });
 });

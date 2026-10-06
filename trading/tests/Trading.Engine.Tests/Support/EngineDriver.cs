@@ -64,6 +64,8 @@ internal sealed class EngineDriver(EngineConfiguration configuration)
 
     public PointValue? PointValue(string symbol = "EURUSD", string accountId = AccountId) => _engine.GetPointValue(accountId, symbol);
 
+    public EngineState ExportState() => _engine.ExportState();
+
     public AccountSnapshot Account(string accountId = AccountId) =>
         _engine.GetAccount(accountId) ?? throw new InvalidOperationException($"Account {accountId} does not exist.");
 }

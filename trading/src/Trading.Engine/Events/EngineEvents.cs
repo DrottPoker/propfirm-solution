@@ -25,7 +25,7 @@ public sealed record GroupSymbolsChanged(DateTimeOffset Timestamp, TradingGroup 
 public sealed record AccountCreated(DateTimeOffset Timestamp, string AccountId, string GroupId, string Currency, decimal Balance)
     : EngineEvent(Timestamp), IAccountEvent;
 
-/// <summary>A limit or stop order was accepted and waits for its price.</summary>
+/// <summary>A limit or stop order was accepted and waits for its price. <paramref name="TrailingDistance"/> is set for a trailing stop.</summary>
 public sealed record OrderPlaced(
     DateTimeOffset Timestamp,
     string AccountId,
@@ -36,13 +36,29 @@ public sealed record OrderPlaced(
     decimal Volume,
     decimal Price,
     decimal? StopLoss,
-    decimal? TakeProfit)
+    decimal? TakeProfit,
+    decimal? TrailingDistance = null)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>A pending order got a new price, stop loss, take profit or trailing stop.</summary>
+public sealed record OrderModified(
+    DateTimeOffset Timestamp,
+    string AccountId,
+    string OrderId,
+    string Symbol,
+    decimal Price,
+    decimal? StopLoss,
+    decimal? TakeProfit,
+    decimal? TrailingDistance)
     : EngineEvent(Timestamp), IAccountEvent;
 
 public sealed record OrderCancelled(DateTimeOffset Timestamp, string AccountId, string OrderId, CancelReason Reason)
     : EngineEvent(Timestamp), IAccountEvent;
 
-/// <summary>A position was opened. The position id is the id of the order that opened it.</summary>
+/// <summary>
+/// A position was opened. The position id is the id of the order that opened it. <paramref name="TrailingDistance"/> is
+/// set for a trailing stop.
+/// </summary>
 public sealed record PositionOpened(
     DateTimeOffset Timestamp,
     string AccountId,
@@ -54,10 +70,41 @@ public sealed record PositionOpened(
     decimal? StopLoss,
     decimal? TakeProfit,
     decimal Commission,
-    decimal BalanceAfter)
+    decimal BalanceAfter,
+    decimal? TrailingDistance = null)
     : EngineEvent(Timestamp), IAccountEvent;
 
-public sealed record PositionModified(DateTimeOffset Timestamp, string AccountId, string PositionId, decimal? StopLoss, decimal? TakeProfit)
+/// <summary>
+/// The trader set a position's stops. The moves a trailing stop makes on its own give no event: like a trailing floor's,
+/// they follow from the prices, and the account shows where the stop loss is.
+/// </summary>
+public sealed record PositionModified(
+    DateTimeOffset Timestamp,
+    string AccountId,
+    string PositionId,
+    decimal? StopLoss,
+    decimal? TakeProfit,
+    decimal? TrailingDistance = null)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>
+/// Part of a position was closed. <paramref name="Volume"/> is the part closed, and <paramref name="RemainingVolume"/>
+/// stays open with the same id. Profit and commission are for the part, in account currency.
+/// </summary>
+public sealed record PositionPartiallyClosed(
+    DateTimeOffset Timestamp,
+    string AccountId,
+    string PositionId,
+    string Symbol,
+    Side Side,
+    decimal Volume,
+    decimal RemainingVolume,
+    decimal OpenPrice,
+    decimal ClosePrice,
+    decimal Profit,
+    decimal Commission,
+    CloseReason Reason,
+    decimal BalanceAfter)
     : EngineEvent(Timestamp), IAccountEvent;
 
 /// <summary>A position was closed. Profit and commission are in account currency.</summary>

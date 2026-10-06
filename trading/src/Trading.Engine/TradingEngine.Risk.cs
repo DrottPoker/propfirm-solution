@@ -36,12 +36,14 @@ public sealed partial class TradingEngine
         return null;
     }
 
-    // Stop loss and take profit first, then pending orders. A position opened here is checked on the next price.
+    // Trailing stops move first, then stop loss and take profit, then pending orders. A position opened here is checked
+    // on the next price.
     private void ProcessTriggers(AccountState account, Instrument instrument, DateTimeOffset now, List<EngineEvent> events)
     {
         foreach (var position in account.Positions.Where(p => IsSymbol(p.Instrument, instrument)).ToList())
         {
             var closePrice = _valuation.CurrentPrice(position.Instrument, position.Conditions).ClosePrice(position.Side);
+            Trail(position, closePrice);
             if (TriggeredCloseReason(position, closePrice) is { } reason)
             {
                 ClosePositionAt(account, position, closePrice, reason, now, events);
@@ -57,7 +59,7 @@ public sealed partial class TradingEngine
             }
 
             account.Orders.Remove(order);
-            var request = new OpenRequest(order.Id, order.Instrument, order.Conditions, order.Side, order.Volume, order.StopLoss, order.TakeProfit);
+            var request = new OpenRequest(order.Id, order.Instrument, order.Conditions, order.Side, order.Volume, order.StopLoss, order.TakeProfit, order.TrailingDistance);
             if (!TryOpenPosition(account, request, price.OpenPrice(order.Side), now, events))
             {
                 events.Add(new OrderCancelled(now, account.Id, order.Id, CancelReason.InsufficientMargin));
@@ -175,7 +177,8 @@ public sealed partial class TradingEngine
             openPrice,
             request.StopLoss,
             request.TakeProfit,
-            now));
+            now,
+            request.TrailingDistance));
         events.Add(new PositionOpened(
             now,
             account.Id,
@@ -187,7 +190,8 @@ public sealed partial class TradingEngine
             request.StopLoss,
             request.TakeProfit,
             commission,
-            account.Balance));
+            account.Balance,
+            request.TrailingDistance));
         return true;
     }
 
@@ -204,6 +208,30 @@ public sealed partial class TradingEngine
             position.Id,
             position.Instrument.Symbol,
             position.Side,
+            position.Volume,
+            position.OpenPrice,
+            closePrice,
+            profit,
+            commission,
+            reason,
+            account.Balance));
+    }
+
+    // Closes part of a position. The rest stays open with the same id, its stops and its trailing stop.
+    private void ClosePartAt(AccountState account, PositionState position, decimal volume, decimal closePrice, CloseReason reason, DateTimeOffset now, List<EngineEvent> events)
+    {
+        var currency = account.Group.Currency;
+        var profit = _valuation.Profit(position, closePrice, currency, volume);
+        var commission = _valuation.Commission(position.Conditions, volume, currency);
+        account.Balance += profit - commission;
+        position.Volume -= volume;
+        events.Add(new PositionPartiallyClosed(
+            now,
+            account.Id,
+            position.Id,
+            position.Instrument.Symbol,
+            position.Side,
+            volume,
             position.Volume,
             position.OpenPrice,
             closePrice,
@@ -234,6 +262,23 @@ public sealed partial class TradingEngine
     {
         account.Status = AccountStatus.Disabled;
         events.Add(new AccountDisabled(now, account.Id, reason));
+    }
+
+    // A trailing stop loss moves with the price the position closes at, never back. Like a trailing floor, the move
+    // gives no event.
+    private static void Trail(PositionState position, decimal closePrice)
+    {
+        if (position.TrailingDistance is not { } distance)
+        {
+            return;
+        }
+
+        var isBuy = position.Side == Side.Buy;
+        var level = isBuy ? closePrice - distance : closePrice + distance;
+        if (position.StopLoss is not { } stopLoss || (isBuy ? level > stopLoss : level < stopLoss))
+        {
+            position.StopLoss = level;
+        }
     }
 
     private static bool IsSymbol(Instrument candidate, Instrument instrument) =>
@@ -273,5 +318,6 @@ public sealed partial class TradingEngine
         Side Side,
         decimal Volume,
         decimal? StopLoss,
-        decimal? TakeProfit);
+        decimal? TakeProfit,
+        decimal? TrailingDistance);
 }

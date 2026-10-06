@@ -22,6 +22,32 @@ const opened: EngineEvent = {
 };
 
 describe("tradeNotice", () => {
+  it("tells of a part closed, with what stays open and the part's result", () => {
+    const part: EngineEvent = {
+      kind: "PositionPartiallyClosed",
+      accountId: "demo",
+      positionId: "849ede3a-0000",
+      symbol: "EURUSD",
+      side: "Buy",
+      volume: 0.4,
+      remainingVolume: 0.6,
+      openPrice: 1.08,
+      closePrice: 1.082,
+      profit: 80,
+      commission: 1.4,
+      reason: "Manual",
+      balanceAfter: 100_075.1,
+      timestamp,
+    };
+
+    expect(tradeNotice(part, digitsOf, [])).toEqual({
+      id: `part-849ede3a-0000-${timestamp}`,
+      kind: "closed",
+      title: "0.40 of Buy EURUSD closed at 1.08200, 0.60 still open",
+      result: 78.6,
+    });
+  });
+
   it("says what was bought or sold and at what price", () => {
     expect(tradeNotice(opened, digitsOf, [])).toEqual({ id: "filled-849ede3a-0000", kind: "filled", title: "Bought 1.00 EURUSD at 1.08724" });
     expect(tradeNotice({ ...opened, side: "Sell", symbol: "XAUUSD", volume: 0.1, openPrice: 2403.1 }, digitsOf, [])?.title).toBe(

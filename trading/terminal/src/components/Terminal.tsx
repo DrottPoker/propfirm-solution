@@ -10,6 +10,7 @@ import { digitsLookup, initialInstrument } from "@/lib/instruments";
 import { useInstruments, useMe } from "@/lib/queries";
 import { useTradingConnection } from "@/lib/realtime";
 import { rememberAccount, rememberServer } from "@/lib/servers";
+import { useLoadedSettings } from "@/lib/syncedSettings";
 import { TimeZoneContext } from "@/lib/timeZone";
 
 import { AccountBar } from "./AccountBar";
@@ -19,6 +20,7 @@ import { CandlesIcon, LayersIcon, ListIcon, TradeIcon } from "./icons";
 import { KronantMark } from "./KronantMark";
 import { OrderPanel } from "./OrderPanel";
 import { PriceChart } from "./PriceChart";
+import { useRuleWarnings } from "./RuleWarnings";
 import { StatusBar } from "./StatusBar";
 import { useTradeNotices } from "./TradeNotices";
 import { Watchlist } from "./Watchlist";
@@ -26,12 +28,14 @@ import { Watchlist } from "./Watchlist";
 /**
  * Sends visitors who are not logged in to the login page, and picks which of the trader's accounts to show. A session
  * that ends while the terminal is open, without the trader logging out, goes to the login page too, which sends a
- * trader of a firm with a portal back there to be logged in again.
+ * trader of a firm with a portal back there to be logged in again. The trader's settings are loaded from their login
+ * first, so the terminal opens with their favorites, indicators and drawings from any device (ADR 0052).
  */
 export function Terminal({ requestedAccountId }: { requestedAccountId: string | null }) {
   const router = useRouter();
   const me = useMe();
   const hadSession = useRef(false);
+  const settingsLoaded = useLoadedSettings(me.data ? `${me.data.server.id}/${me.data.userId}` : null);
 
   useEffect(() => {
     if (me.data) {
@@ -46,7 +50,7 @@ export function Terminal({ requestedAccountId }: { requestedAccountId: string | 
     return <Message text="Could not reach the trading service." />;
   }
 
-  if (!me.data) {
+  if (!me.data || !settingsLoaded) {
     return <Message text="Loading..." />;
   }
 
@@ -95,6 +99,7 @@ function TradingTerminal({
   const instrument = list.find((i) => i.symbol === selectedSymbol) ?? initialInstrument(list);
   const digitsOf = useMemo(() => digitsLookup(list), [list]);
   useTradeNotices(digitsOf);
+  useRuleWarnings(accountId, current?.profitTarget ?? null, timeZone);
 
   if (instruments.isError) {
     return <Message text={`Could not load account ${accountId}.`} />;

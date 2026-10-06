@@ -1,3 +1,4 @@
+using Prop.Api.Trading;
 using Prop.Rules;
 
 namespace Prop.Api.Challenges;
@@ -13,6 +14,9 @@ internal sealed record OpenTradingAccount(string AccountId, decimal InitialBalan
 /// trading day and its page in the firm's portal.
 /// </summary>
 internal sealed record DescribeTradingAccount(string AccountId, string Label, decimal? ProfitTarget, string TimeZone, Uri DetailsUrl) : TradingCommand;
+
+/// <summary>What the terminal shows about the account's rules as they stand now (ADR 0052).</summary>
+internal sealed record DescribeTradingRules(string AccountId, TradingAccountRules Rules) : TradingCommand;
 
 internal sealed record SetTradingFloor(string AccountId, string FloorId, FloorSpec Floor) : TradingCommand;
 

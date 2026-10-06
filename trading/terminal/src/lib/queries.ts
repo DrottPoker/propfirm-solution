@@ -1,10 +1,12 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./api/client";
-import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
+import type { Candle, CommandResponse, EventEnvelope, MarketHours, PlaceOrderRequest, Timeframe } from "./api/types";
 import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
+import { marketRefreshDelay } from "./marketHours";
 import { newEvents } from "./notices";
+import { flushSettings } from "./syncedSettings";
 import { useTradingStore } from "./store";
 
 const accountPath = (accountId: string) => ({ params: { path: { accountId } } });
@@ -105,8 +107,10 @@ export class LinkLoginFailedError extends Error {
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
-    // Marked first, so calls refused while the session ends do not send the trader back to the firm's portal.
+    // Settings changed a moment ago are sent first. Then marked, so calls refused while the session ends do not
+    // send the trader back to the firm's portal.
     mutationFn: async () => {
+      await flushSettings();
       markLoggedOut();
       await api.POST("/api/auth/logout");
     },
@@ -128,6 +132,44 @@ export function useInstruments(accountId: string) {
  */
 export function onTheClock(periodMs: number): () => number {
   return () => periodMs - (Date.now() % periodMs);
+}
+
+/**
+ * When each of the account's markets is open, as the service says. Loaded again just after the next market opens or
+ * closes, also in a tab in the background, so the terminal never waits for a refusal to show it.
+ */
+export function useMarketHours(accountId: string) {
+  return useQuery({
+    queryKey: ["marketHours", accountId],
+    queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}/market-hours", accountPath(accountId)), "market hours"),
+    staleTime: (query) => marketRefreshDelay(query.state.data ?? [], Date.now()),
+    refetchInterval: (query) => marketRefreshDelay(query.state.data ?? [], Date.now()),
+    refetchIntervalInBackground: true,
+  });
+}
+
+/** The symbol's market hours, or undefined until they are loaded. A market not yet known counts as open: the engine decides anyway. */
+export function useMarket(accountId: string, symbol: string | null): MarketHours | undefined {
+  return useMarketHours(accountId).data?.find((m) => m.symbol === symbol);
+}
+
+export const rulesKey = (accountId: string) => ["rules", accountId];
+
+/**
+ * The account's rules as the firm's system last told them: trading days, deadlines and the consistency rule. New ones
+ * arrive in realtime (ADR 0052).
+ */
+export function useAccountRules(accountId: string) {
+  return useQuery({
+    queryKey: rulesKey(accountId),
+    queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}/rules", accountPath(accountId)), "the rules"),
+    staleTime: Infinity,
+  });
+}
+
+/** Loads the market hours again, for example after the service restarted, perhaps with another price feed. */
+export function reloadMarketHours(queryClient: QueryClient, accountId: string): void {
+  void queryClient.invalidateQueries({ queryKey: ["marketHours", accountId] });
 }
 
 const pointValueRefreshMs = 10_000;
@@ -188,6 +230,16 @@ export function useDaySummary(accountId: string, symbol: string | null) {
   });
 }
 
+/** Candles that start before the time in UTC seconds, oldest first, for scrolling back. Empty where the history ends. */
+export async function fetchOlderCandles(accountId: string, symbol: string, timeframe: Timeframe, before: number, count = 500): Promise<Candle[]> {
+  return queryResult(
+    await api.GET("/api/accounts/{accountId}/candles/{symbol}", {
+      params: { path: { accountId, symbol }, query: { timeframe, count, before: new Date(before * 1000).toISOString() } },
+    }),
+    "candles",
+  );
+}
+
 /** Loads the account's charts and day summaries again, for example after the service restarted and rebuilt them. */
 export function reloadCandles(queryClient: QueryClient, accountId: string): void {
   void queryClient.invalidateQueries({ queryKey: ["candles", accountId] });
@@ -214,11 +266,40 @@ export function usePlaceOrder(accountId: string) {
   });
 }
 
+/** Closes a position, or with a volume only that part of it. */
 export function useClosePosition(accountId: string) {
   return useMutation({
-    mutationFn: async (positionId: string) =>
+    mutationFn: async (input: { positionId: string; volume?: number }) =>
       commandResult(
-        await api.POST("/api/accounts/{accountId}/positions/{positionId}/close", { params: { path: { accountId, positionId } } }),
+        await api.POST("/api/accounts/{accountId}/positions/{positionId}/close", {
+          params: { path: { accountId, positionId: input.positionId } },
+          body: input.volume === undefined ? undefined : { volume: input.volume },
+        }),
+      ),
+    onSuccess: addEvents,
+  });
+}
+
+/** Closes every position, or those in a symbol, at the same moment. Positions whose market is closed stay open. */
+export function useCloseAllPositions(accountId: string) {
+  return useMutation({
+    mutationFn: async (symbol: string | null) =>
+      commandResult(
+        await api.POST("/api/accounts/{accountId}/positions/close-all", { ...accountPath(accountId), body: symbol === null ? undefined : { symbol } }),
+      ),
+    onSuccess: addEvents,
+  });
+}
+
+/** Moves a pending order and sets its stops. */
+export function useModifyOrder(accountId: string) {
+  return useMutation({
+    mutationFn: async (input: { orderId: string; price: number; stopLoss: number | null; takeProfit: number | null; trailingStop: boolean }) =>
+      commandResult(
+        await api.PUT("/api/accounts/{accountId}/orders/{orderId}", {
+          params: { path: { accountId, orderId: input.orderId } },
+          body: { price: input.price, stopLoss: input.stopLoss, takeProfit: input.takeProfit, trailingStop: input.trailingStop },
+        }),
       ),
     onSuccess: addEvents,
   });
@@ -232,13 +313,17 @@ export function useCancelOrder(accountId: string) {
   });
 }
 
+/**
+ * Sets a position's stops. The trailing stop is always given, since a change without it turns it off: a stop loss
+ * dragged on a trailing position keeps trailing at the new distance.
+ */
 export function useModifyStops(accountId: string) {
   return useMutation({
-    mutationFn: async (input: { positionId: string; stopLoss: number | null; takeProfit: number | null }) =>
+    mutationFn: async (input: { positionId: string; stopLoss: number | null; takeProfit: number | null; trailingStop: boolean }) =>
       commandResult(
         await api.PUT("/api/accounts/{accountId}/positions/{positionId}/stops", {
           params: { path: { accountId, positionId: input.positionId } },
-          body: { stopLoss: input.stopLoss, takeProfit: input.takeProfit },
+          body: { stopLoss: input.stopLoss, takeProfit: input.takeProfit, trailingStop: input.trailingStop },
         }),
       ),
     onSuccess: addEvents,
