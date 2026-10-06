@@ -16,11 +16,13 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 | `IEngineJournal`, `PostgresEngineJournal` | Journalen: indata, händelser och ögonblicksbilder i Postgres. |
 | `EventLog` | Skickar sparade händelser vidare till realtidsdelen. |
 | `EngineHealthCheck` | `/health` är friskt först när journalen är uppspelad, och bara så länge den går att skriva. |
-| `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. |
-| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Standard. |
-| `TiingoPriceFeed` | Riktiga priser för valutor och guld från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. |
-| `PriceFeedPump` | Flyttar priser från flödet till candles och motorn. Bygger graferna från sparade priser vid start, eller från flödets historik första gången. |
-| `CandleStore` | Bygger candles av bid per symbol och tidsram (M1, M5, M15, M30, H1, H4, D1). |
+| `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. Ger livepriser och historik för graferna. Flödets namn sparas med varje pris det ger. |
+| `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Historiken går bakåt från det senaste priset, så den slutar där livepriserna fortsätter. Standard. |
+| `TiingoPriceFeed` | Riktiga priser för valutor och guld från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. Historiken kommer från Tiingos staplar av mittpriset, sänkta med halva spreaden till bid (ADR 0048). |
+| `PriceFeedPump` | Flyttar priser från flödet till candles och motorn, när graferna är fyllda. |
+| `CandleStore` | Bygger candles av bid per symbol och tidsram (M1, M5, M15, M30, H1, H4, D1), av priser och av staplar. En stapel går in i sin egen tidsram och alla längre. Vet när graferna är fyllda efter en start. |
+| `ChartHistory`, `ChartRecorder` | Grafernas historik (ADR 0048). Laddar flödets historik vid ett byte, fyller graferna från sparade staplar vid start och sparar varje färdig minutstapel. |
+| `IChartStore`, `PostgresChartStore` | Grafernas staplar per flöde i Postgres. |
 | `TradingHub`, `RealtimePublisher` | Realtid via SignalR. |
 | `AccountSeeder` | Skapar utvecklingskonton och deras ägare vid start om de inte redan finns. |
 | `TenantCatalog`, `AdminApiKeyFilter` | Firmorna i minnet: server, namn, grupper och hash av API-nyckeln. Laddas från databasen vid start (ADR 0016). |
@@ -43,7 +45,9 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 
 | Tabell | Innehåll |
 |---|---|
-| `engine_inputs` | Varje indata med löpnummer. Priser i egna kolumner, kommandon som JSON. |
+| `engine_inputs` | Varje indata med löpnummer. Priser i egna kolumner med flödet de kom från (`feed`, tomt för priser sparade före ADR 0048), kommandon som JSON. |
+| `chart_bars` | Grafernas staplar av bid per flöde, symbol och längd: minutstaplar från livepriserna och flödets historik. Bara de senaste 30 dagarna behålls. |
+| `chart_histories` | Flöden vars historik är laddad sedan tjänsten senast bytte till dem. |
 | `engine_events` | Varje händelse med löpnummer, konto och kontots grupp. Används för `GET /events` och firmans händelseström. |
 | `engine_snapshots` | Motorns tillstånd efter ett visst indata, med konfigurationens fingeravtryck. De tre senaste behålls. |
 | `users`, `account_owners` | Traders och vilka konton de äger. |
@@ -61,7 +65,10 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 3. Spela upp indata efter den. Har konfigurationen ändrats sedan ögonblicksbilden, till exempel med fler instrument, jämförs varje uppspelad händelse med den sparade. Vägra starta om någon skiljer sig, eftersom indatan då tillämpades med en annan konfiguration än den nya.
 4. Kontrollera att uppspelningen gav lika många händelser som journalen har. Vägra starta annars.
 5. Spara en ny ögonblicksbild med den aktuella konfigurationen.
-6. Bygg graferna från sparade priser och låt det syntetiska flödet fortsätta från de senaste priserna.
+6. Låt det syntetiska flödet fortsätta från de senaste priserna.
+7. Fyll graferna med det aktuella flödets priser (ADR 0048). Kommer det senaste sparade priset från ett annat flöde, eller finns inget, har tjänsten bytt flöde, och flödets historik för 30 dagar laddas först. Därefter läses flödets sparade staplar, och priserna efter den sista spelas upp från journalen. Ett annat flödes priser kommer aldrig med. `GET /candles` väntar tills graferna är fyllda.
+
+**Grafernas historik:** de senaste 2 dagarna och i dag laddas i minutstaplar, som ger M1 och M5. Resten laddas i staplar på 15 minuter, som ger M15 och längre. Lägre tidsramar får alltså kortare historik, vilket räcker eftersom terminalen visar 500 staplar. Varje färdig minutstapel sparas några sekunder efter att minuten slutat, och de sista när tjänsten stängs. Går historiken inte att ladda startar tjänsten ändå, och nästa start försöker igen.
 
 **Avstängning:** Arbete som inte hunnit köras avbryts. Den sista batchen sparas tillsammans med en ögonblicksbild, så att nästa start inte behöver spela upp något.
 
@@ -92,7 +99,7 @@ Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är 
 | `GET /instruments` | Gruppens instrument med villkor: hävstång, påslag och provision. |
 | `GET /instruments/{symbol}/point-value` | Vad en punkt på en lot är värd i kontots valuta vid senaste växelkurs (`perLot`). Vinsten är punkter gånger volym gånger `perLot`, före avrundning och provision. Terminalen använder det för att sätta stop loss och take profit med belopp. 404 om gruppen inte handlar symbolen eller växelkursen saknas än. |
 | `GET /prices` | Senaste priser efter påslag. |
-| `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. |
+| `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. Väntar tills graferna är byggda efter en start. |
 | `GET /events?limit=500` | Kontots senaste händelser, äldst först. Med `after={sequence}` i stället de första efter sekvensnumret, för att hämta ikapp efter en återanslutning. Med `before={sequence}` de sista före sekvensnumret, för att bläddra bakåt. `after` och `before` tillsammans svarar 422. Högst 1 000 per anrop. |
 | `POST /orders` | Lägger en order. Klienten skapar order-id:t. |
 | `DELETE /orders/{orderId}` | Tar bort en väntande order. |
@@ -152,16 +159,17 @@ SignalR-hubben ligger på `/hubs/trading` och kräver inloggning. Klienten anrop
 | `Prices` | Priser som ändrats för kontots grupp | Direkt vid prenumeration, därefter högst var 100:e ms |
 | `Events` | Nya händelser för kontot | Direkt när de inträffar |
 
-Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid omladdning hämtas historiken från `GET /candles`.
+Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid omladdning och efter en återanslutning hämtas historiken från `GET /candles`.
 
 ## Konfiguration
 
 | Sektion | Innehåll |
 |---|---|
 | `Trading` | Instrument, grupper, max ålder på priser och utvecklingskonton (`SeedAccounts`). |
-| `SyntheticFeed` | Frö, intervall, längd på historiken och startpriser per symbol. |
+| `SyntheticFeed` | Frö, intervall och startpriser per symbol. |
+| `Charts` | Hur många hela dagar historiken når bakåt (`History`, 30) och hur många av dem som laddas i minutstaplar (`MinuteHistory`, 2). |
 | `Realtime` | Takt för priser och konto. |
-| `Journal` | Antal indata mellan ögonblicksbilder, hur många som behålls och hur lång prishistorik graferna byggs från vid start. |
+| `Journal` | Antal indata mellan ögonblicksbilder och hur många som behålls. |
 | `Tenants` | Firmor som sparas i databasen vid varje start, för utveckling och tester: id (servern, till exempel `nordic-prop`), namn, grupper i `Trading:Groups`, SHA-256 av API-nyckeln och valfri `LoginUrl`, firmans portal där traderna loggar in. De listas alltid. |
 | `Partners` | Partnerna som får skapa firmor: `Id`, `Name` och SHA-256 av nyckeln (`ApiKeySha256`). |
 | `Tenancy:NewTenantGroups` | Grupperna i `Trading:Groups` som en ny firma får en kopia av. Standard `standard`. |
@@ -184,6 +192,7 @@ I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och f
 - En firmas namn kan inte ändras efter att den skapats, och firmor kan inte tas bort. Grupperna i konfigurationen ändras bara i konfigurationen.
 - Journalen växer med alla priser och har ännu ingen arkivering.
 - Candles använder UTC och dygnsgräns vid midnatt, inte 17:00 New York-tid.
+- Historiken från Tiingo saknar tickvolym, och den görs om till bid med spreaden vid bytet. Under tiden tjänsten är avstängd sparas inga staplar, så graferna har en lucka där tills nästa byte laddar historiken igen.
 
 ## Tester
 
@@ -191,10 +200,12 @@ Testerna ligger i `trading/tests/Trading.Service.Tests`. De kör den riktiga tj�
 
 De flesta tester använder en journal i minnet som går via JSON som i Postgres. Den kan hålla inne eller fälla skrivningar, så att testerna kan visa att inget släpps innan det är sparat, att fel stoppar tjänsten, att omstart efter krasch och efter vanlig avstängning ger samma tillstånd och att skadad journal eller ändrad konfiguration stoppar starten.
 
+`ChartHistoryTests` täcker graferna vid omstarter och byten av flöde: historiken laddas vid ett byte och bara då, den sparas och används vid nästa start, ett flödes grafer visar aldrig ett annat flödes priser, historik som inte gick att ladda försöks igen vid nästa start, och färdiga minuter sparas medan resten spelas upp från journalen efter en krasch. `CandleStoreTests` visar att staplar går in i sin egen tidsram och längre, men aldrig kortare. `SyntheticPriceFeedTests` visar att den påhittade historiken är hela staplar som följer på varandra och slutar där livepriserna fortsätter.
+
 `TradingConditionsTests` täcker instrumenten, firmans grupper med villkor, ändrade villkor som gäller direkt, en symbol i bruk, en konfigurerad grupp som inte kan ändras och ändrade villkor som finns kvar efter en krasch. `RecoveryTests` visar också att en konfiguration med fler instrument godtas efter en krasch, och att en som ändrar händelserna stoppar starten.
 
 `PartnerApiTests` täcker partner-API:t: en ny firma handlar direkt i sin egen grupp, en firma i EUR handlar guld genom USD och en valuta som inte erbjuds nekas, dess traders ser gruppens instrument, priser och grafer som terminalen laddar, firman ser bara sina egna händelser och konton, servrar är unika och giltiga, bara partners skapar firmor, en partner ser bara sina egna firmor, en ny nyckel ersätter den gamla, nya firmor listas inte men deras traders loggar in, en firma listas och får sin portal som inloggning, en ogiltig adress nekas, firmor och grupper finns kvar efter en krasch och en vanlig omstart, och en grupp från ett avbrutet försök tas över.
 
-`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket. Testerna läser aldrig utvecklarens user secrets.
+`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket, och historiken: att den görs om till bid utan oförändrade och ofärdiga staplar, och delas upp i anrop som håller sig inom Tiingos gräns. Testerna läser aldrig utvecklarens user secrets.
 
-`PostgresJournalTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler och tider kommer tillbaka exakt, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.
+`PostgresJournalTests`, `PostgresChartStoreTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler, tider och prisflöden kommer tillbaka exakt, att priser kan läsas från ett flöde, att bara priser har ett flöde, att flödet för det senaste priset går att få fram, att ett flödes historik bara ersätter dess egna tidigare staplar, att gamla staplar tas bort, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.

@@ -52,12 +52,16 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         var snapshot = new JournalSnapshot(4, events.Count, "fingerprint", engine.ExportState());
 
         await journal.Value.AppendAsync(
-            new JournalBatch(inputs.Select((input, i) => new JournaledInput(i + 1, input)).ToList(), [.. events.Select(e => new JournaledEvent(e, "standard"))], snapshot),
+            new JournalBatch(
+                inputs.Select((input, i) => new JournaledInput(i + 1, input) { Feed = input is Quote ? "Tiingo" : null }).ToList(),
+                [.. events.Select(e => new JournaledEvent(e, "standard"))],
+                snapshot),
             TestContext.Current.CancellationToken);
 
         var readInputs = await ToListAsync(journal.Value.ReadInputsAsync(0, TestContext.Current.CancellationToken));
         Assert.Equal(inputs, readInputs.Select(i => i.Input));
         Assert.Equal([1L, 2, 3, 4], readInputs.Select(i => i.Sequence));
+        Assert.Equal([null, "Tiingo", null, null], readInputs.Select(i => i.Feed));
         var quote = Assert.IsType<Quote>(readInputs[1].Input);
         Assert.Equal("1.08010", quote.Bid.ToString(CultureInfo.InvariantCulture));
         Assert.Equal(T, quote.Timestamp);
@@ -180,15 +184,70 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         await using var journal = await CreateJournalAsync();
         var inputs = new[]
         {
-            new JournaledInput(1, new Quote(T, "EURUSD", 1.08000m, 1.08010m)),
+            new JournaledInput(1, new Quote(T, "EURUSD", 1.08000m, 1.08010m)) { Feed = "Tiingo" },
             new JournaledInput(2, new CreateAccount(T.AddMinutes(1), "A1", "standard", 1_000m)),
-            new JournaledInput(3, new Quote(T.AddMinutes(2), "EURUSD", 1.08100m, 1.08110m)),
+            new JournaledInput(3, new Quote(T.AddMinutes(2), "EURUSD", 1.08100m, 1.08110m)) { Feed = "Tiingo" },
         };
         await journal.Value.AppendAsync(new JournalBatch(inputs, [], null), TestContext.Current.CancellationToken);
 
-        var quotes = await ToListAsync(journal.Value.ReadQuotesAsync(T.AddMinutes(1), TestContext.Current.CancellationToken));
+        var quotes = await ToListAsync(journal.Value.ReadQuotesAsync(T.AddMinutes(1), "Tiingo", TestContext.Current.CancellationToken));
 
         Assert.Equal(1.08100m, Assert.Single(quotes).Bid);
+    }
+
+    [Fact]
+    public async Task RecordedPricesAreReadFromOneFeed()
+    {
+        await using var journal = await CreateJournalAsync();
+        var inputs = new[]
+        {
+            // Recorded before feeds were.
+            new JournaledInput(1, new Quote(T, "EURUSD", 1.08000m, 1.08010m)),
+            new JournaledInput(2, new Quote(T, "EURUSD", 1.08100m, 1.08110m)) { Feed = "Synthetic" },
+            new JournaledInput(3, new Quote(T, "EURUSD", 1.08200m, 1.08210m)) { Feed = "Tiingo" },
+        };
+        await journal.Value.AppendAsync(new JournalBatch(inputs, [], null), TestContext.Current.CancellationToken);
+
+        var quotes = await ToListAsync(journal.Value.ReadQuotesAsync(T, "Tiingo", TestContext.Current.CancellationToken));
+
+        Assert.Equal(1.08200m, Assert.Single(quotes).Bid);
+    }
+
+    // It tells whether the service has switched feeds since it last ran.
+    [Fact]
+    public async Task FeedOfTheLastPriceIsKnown()
+    {
+        await using var journal = await CreateJournalAsync();
+        var none = await journal.Value.GetLastQuoteFeedAsync(TestContext.Current.CancellationToken);
+        await journal.Value.AppendAsync(
+            new JournalBatch(
+                [
+                    new JournaledInput(1, new Quote(T, "EURUSD", 1.08000m, 1.08010m)) { Feed = "Synthetic" },
+                    new JournaledInput(2, new Quote(T, "EURUSD", 1.08100m, 1.08110m)) { Feed = "Tiingo" },
+                    new JournaledInput(3, new CreateAccount(T, "A1", "standard", 1_000m)),
+                ],
+                [],
+                null),
+            TestContext.Current.CancellationToken);
+        var tiingo = await journal.Value.GetLastQuoteFeedAsync(TestContext.Current.CancellationToken);
+        await journal.Value.AppendAsync(
+            new JournalBatch([new JournaledInput(4, new Quote(T, "EURUSD", 1.08200m, 1.08210m))], [], null),
+            TestContext.Current.CancellationToken);
+        var unknown = await journal.Value.GetLastQuoteFeedAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal<string?>([null, "Tiingo", null], [none, tiingo, unknown]);
+    }
+
+    [Fact]
+    public async Task OnlyPricesHaveAFeed()
+    {
+        await using var journal = await CreateJournalAsync();
+        await using var insert = journal.DataSource.CreateCommand(
+            "insert into engine_inputs (sequence, recorded_at, kind, payload, feed) values (1, now(), 'CreateAccount', '{}', 'Tiingo')");
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => insert.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("engine_inputs_feed_only_on_quotes", exception.ConstraintName);
     }
 
     [Fact]

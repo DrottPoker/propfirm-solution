@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./api/client";
 import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
@@ -186,6 +186,12 @@ export function useDaySummary(accountId: string, symbol: string | null) {
     staleTime: daySummaryRefreshMs,
     refetchInterval: onTheClock(daySummaryRefreshMs),
   });
+}
+
+/** Loads the account's charts and day summaries again, for example after the service restarted and rebuilt them. */
+export function reloadCandles(queryClient: QueryClient, accountId: string): void {
+  void queryClient.invalidateQueries({ queryKey: ["candles", accountId] });
+  void queryClient.invalidateQueries({ queryKey: ["day", accountId] });
 }
 
 /** A page of the account's events, oldest first. Kept in the store by the realtime connection. */

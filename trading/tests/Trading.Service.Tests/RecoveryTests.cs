@@ -90,24 +90,6 @@ public sealed class RecoveryTests
     }
 
     [Fact]
-    public async Task ChartsAreRebuiltFromRecordedPrices()
-    {
-        var backend = new InMemoryBackend();
-        using (var first = new ServiceFactory(backend))
-        {
-            (await first.CreateTraderClientAsync(AccountId)).Dispose();
-            await first.PushQuoteAsync("EURUSD", 1.08000m, 1.08010m);
-        }
-
-        using var second = new ServiceFactory(backend);
-        using var restarted = await second.LoginAsync(ServiceFactory.EmailOf(AccountId), ServiceFactory.TraderPassword);
-
-        await Eventually.ThatAsync(
-            async () => (await restarted.GetJsonAsync($"/api/accounts/{AccountId}/candles/EURUSD?timeframe=M1")).GetArrayLength() == 1,
-            "the charts to be rebuilt");
-    }
-
-    [Fact]
     public async Task DamagedJournalStopsTheStart()
     {
         using var first = new ServiceFactory();

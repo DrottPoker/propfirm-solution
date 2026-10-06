@@ -53,6 +53,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0045](0045-skydd-mot-missbruk-av-gratis-sandlador.md) | Skydd mot missbruk av gratis sandlådor | Föreslagen |
 | [0046](0046-namn-pa-bolaget-och-produkterna.md) | Bolaget heter Ludware och produkterna Kronant Trader och Kronant Prop | Beslutad |
 | [0047](0047-ett-gemensamt-designsystem.md) | Ett gemensamt designsystem med djup och rörelse | Föreslagen |
+| [0048](0048-grafernas-historik-per-prisflode.md) | Graferna visar bara det aktuella prisflödet, med 30 dagars historik från flödet | Beslutad |
 
 ## Så skriver du en ny ADR
 

@@ -89,23 +89,22 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 |---|---|---|
 | Instrument och villkor | `GET /instruments` | En gång |
 | Värdet av en punkt | `GET /instruments/{symbol}/point-value` | Var 10:e sekund, eftersom det följer växelkursen |
-| Candles | `GET /candles/{symbol}` | Vid byte av symbol eller tidsram. Den senaste candlen uppdateras med livepriser. |
-| 24 timmar per symbol | `GET /candles/{symbol}?timeframe=M15&count=100` | Var 5:e minut, och visas tillsammans med livepriset |
-
-- **Uppdateringar på klockan:** värdet av en punkt och de senaste 24 timmarna hämtas på hela 10 sekunder och hela 5 minuter. Alla delar av terminalen som visar samma värde delar då på en hämtning, i stället för att var och en hämtar lite förskjutet. React Query pausar uppdateringarna när fönstret inte är aktivt.
+| Candles | `GET /candles/{symbol}` | Vid byte av symbol eller tidsram och efter en återanslutning. Den senaste candlen uppdateras med livepriser. |
+| 24 timmar per symbol | `GET /candles/{symbol}?timeframe=M15&count=100` | Var 5:e minut och efter en återanslutning, och visas tillsammans med livepriset |
 | Priser | SignalR `Prices` | Högst var 100:e ms |
 | Kontot | SignalR `Account` | Högst var 250:e ms |
 | Händelser | De senaste 1 000 från `GET /events` vid start, därefter SignalR `Events` | Direkt |
 | Kontots namn, vinstmål, tidszon och adress i portalen, firmans logga | `GET /api/auth/me` (`accountDetails`, `server.logoUrl`) | Vid inloggning |
 | Kommandon | `POST /orders`, `DELETE /orders/{id}`, `POST /positions/{id}/close`, `PUT /positions/{id}/stops` | Svaret innehåller händelserna |
 
+- **Uppdateringar på klockan:** värdet av en punkt och de senaste 24 timmarna hämtas på hela 10 sekunder och hela 5 minuter. Alla delar av terminalen som visar samma värde delar då på en hämtning, i stället för att var och en hämtar lite förskjutet. React Query pausar uppdateringarna när fönstret inte är aktivt.
 - **Gränssnittet räknar aldrig kontots pengar.** Equity, vinst, marginal och avståndet till golven kommer från motorn och visas som de är. Kontraktsvärdet under volymen är bara volymen gånger kontraktsstorleken i basvalutan, inte ett belopp på kontot, och det som är kvar till vinstmålet bara målet minus saldot. Marginalen, värdet av en pip och risken i orderpanelens sammanfattning är uppskattningar inför en order, av samma slag som beloppen för stop loss och take profit, och räknas från värdet av en punkt som motorn ger.
 - **Belopp för stop loss och take profit är uppskattningar.** Motorn ger värdet av en punkt per lot i kontots valuta vid aktuell växelkurs, och terminalen räknar punkter gånger volym gånger det värdet. Det faktiska resultatet beror på växelkursen när positionen stänger, provisionen kommer till, och en marknadsorder kan fyllas en bit från priset vid klicket.
 - **Förändringen över 24 timmar** räknas från stängningen av den sista candlen på 15 minuter som slutade för 24 timmar sedan. Har tjänsten inte haft priser så länge visas ett streck i stället.
 - **Inmatning kontrolleras innan den skickas.** Priser får inte ha fler decimaler än instrumentet, och volymen ska följa instrumentets gränser och steg. Motorn kontrollerar allt igen.
 - **Order-id skapas i webbläsaren** (UUID), så att ett anrop som skickas igen inte kan lägga ordern två gånger.
 - **Händelser:** terminalen behåller kontots senaste 1 000 händelser. Vid start hämtas de senaste, så historiken, händelserna och pilarna i grafen visar alltid det som hänt sist, också på konton med fler händelser. En stängning vars öppning är äldre än så visas med bara stängningspilen.
-- **Återanslutning:** SignalR återansluter automatiskt. Efter en återanslutning hämtas det som missades med `GET /events?after=`, räknat från den senaste händelsen som terminalen vet att den har allt fram till. Svar på kommandon räknas inte, eftersom de kan komma före tidigare händelser i realtid. Har fler än 1 000 händelser missats hämtas de senaste 1 000 i stället för att bläddra igenom resten, eftersom terminalen ändå bara behåller så många. En hämtning som misslyckas görs om varannan sekund. Om tjänsten inte går att nå vid start försöker terminalen igen varannan sekund.
+- **Återanslutning:** SignalR återansluter automatiskt, direkt och sedan varannan sekund så länge det behövs, också när tjänsten är nere en stund för en omstart. Efter en återanslutning, eller när tjänsten inte gick att nå, hämtas graferna och de senaste 24 timmarna igen, eftersom tjänsten kan ha startats om och byggt om dem, till exempel utan det syntetiska flödets påhittade priser (ADR 0048). Det som missades av händelserna hämtas med `GET /events?after=`, räknat från den senaste händelsen som terminalen vet att den har allt fram till. Svar på kommandon räknas inte, eftersom de kan komma före tidigare händelser i realtid. Har fler än 1 000 händelser missats hämtas de senaste 1 000 i stället för att bläddra igenom resten, eftersom terminalen ändå bara behåller så många. En hämtning som misslyckas görs om varannan sekund. Om tjänsten inte går att nå vid start försöker terminalen igen varannan sekund.
 
 ## Typer från API:t
 
@@ -124,7 +123,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 ## Begränsningar
 
 - Panelerna har fast storlek på en datorskärm. Smalare än 1 024 px, som på en telefon, visas en del i taget, vald i en rad flikar längst ned (Chart, Trade, Watchlist, Positions), där den valda är mässingsfärgad med ett kort streck överst. Kontoraden har siffrorna på en egen rad som skrollas i sidled och statusraden döljs. Ett val i bevakningslistan visar grafen. Tabellen med positioner skrollas i sidled för att nå Edit och Close.
-- Candles finns bara i tjänstens minne, så förändringen över 24 timmar visas först 24 timmar efter att tjänsten startade.
+- Lägre tidsramar har kortare historik: M1 och M5 når 2 dagar och i dag bakåt, M15 och längre 30 dagar (ADR 0048). Historiken från Tiingo saknar tickvolym, så volymbandet är tomt där.
 - Varje rad i symbollistan hämtar sina egna candles för de senaste 24 timmarna. Med många symboler och traders behövs en samlad sammanfattning från tjänsten.
 - Terminalen får högst ett pris per symbol var 100:e ms, så tickvolymen i den senaste candlen kan vara lägre än tjänstens tills grafen laddas om.
 - Inget byte eller återställning av lösenord i terminalen. Firmornas traders loggar in genom sin portal, som har glömt lösenord.

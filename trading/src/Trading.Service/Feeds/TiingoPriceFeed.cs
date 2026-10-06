@@ -8,6 +8,7 @@ using System.Text.Json;
 
 using Microsoft.Extensions.Options;
 
+using Trading.Service.Candles;
 using Trading.Service.Configuration;
 
 namespace Trading.Service.Feeds;
@@ -40,7 +41,7 @@ public sealed class TiingoOptions
 /// Live forex and gold prices from Tiingo's top-of-book stream. Every connection first fetches the latest
 /// prices, since the stream only sends changes and is quiet while the market is closed. Reconnects with
 /// backoff when the stream fails or goes silent. Prices are rounded outwards to the instrument's digits
-/// (bid down, ask up), so the spread is never made smaller than Tiingo's.
+/// (bid down, ask up), so the spread is never made smaller than Tiingo's. The charts' history comes from Tiingo's bars.
 /// <para>Tiingo's free plan does not allow showing the prices to other people. Use it for development only.</para>
 /// </summary>
 internal sealed partial class TiingoPriceFeed : IPriceFeed
@@ -48,6 +49,9 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
     public const string HttpClientName = "Tiingo";
 
     private const int MaxMessageBytes = 1 << 20;
+
+    // Tiingo answers at most this many bars a call.
+    private const int MaxBarsPerCall = 10_000;
 
     private readonly IHttpClientFactory _http;
     private readonly TiingoOptions _options;
@@ -69,8 +73,74 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
         _tickers = [.. _instruments.Keys.Order(StringComparer.Ordinal)];
     }
 
-    /// <summary>No history: the charts fill from live prices and, after a restart, from the journal.</summary>
-    public IEnumerable<FeedQuote> GetBackfill(DateTimeOffset until) => [];
+    private string TopOfBookPath => $"tiingo/fx/top?tickers={string.Join(',', _tickers)}";
+
+    public string Name => PriceFeedOptions.TiingoProvider;
+
+    /// <summary>
+    /// Tiingo's bars of mid prices, moved down by half the current spread so they are bid like the live prices, and
+    /// rounded down to the instrument's digits. Tiingo takes whole days and answers at most 10 000 bars a call, so the
+    /// days and tickers are split into calls that fit. A bar that does not move from the one before is left out: Tiingo
+    /// repeats the last price while the market is closed, and the live prices have no bars then.
+    /// </summary>
+    public async Task<IReadOnlyList<ChartBar>> GetHistoryAsync(IReadOnlyList<HistorySpan> spans, CancellationToken cancellationToken)
+    {
+        var halfSpreads = await LoadHalfSpreadsAsync(cancellationToken);
+        var calls = 1;
+        var midBars = new List<ChartBar>();
+        foreach (var span in spans)
+        {
+            var length = CandleStore.Duration(span.Resolution);
+            var barsPerDay = (int)(TimeSpan.FromDays(1) / length);
+            var daysPerCall = Math.Max(1, MaxBarsPerCall / barsPerDay);
+            var lastDay = DateOnly.FromDateTime((span.Until - TimeSpan.FromTicks(1)).UtcDateTime);
+            for (var firstDay = DateOnly.FromDateTime(span.From.UtcDateTime); firstDay <= lastDay; firstDay = firstDay.AddDays(daysPerCall))
+            {
+                var endDay = firstDay.AddDays(daysPerCall - 1) < lastDay ? firstDay.AddDays(daysPerCall - 1) : lastDay;
+                var days = endDay.DayNumber - firstDay.DayNumber + 1;
+                foreach (var tickers in _tickers.Chunk(Math.Max(1, MaxBarsPerCall / (days * barsPerDay))))
+                {
+                    using var document = await GetAsync(
+                        string.Create(
+                            CultureInfo.InvariantCulture,
+                            $"tiingo/fx/prices?tickers={string.Join(',', tickers)}&startDate={firstDay:yyyy-MM-dd}&endDate={endDay:yyyy-MM-dd}&resampleFreq={Frequency(span.Resolution)}"),
+                        cancellationToken);
+                    calls++;
+                    if (document.RootElement.GetArrayLength() >= MaxBarsPerCall)
+                    {
+                        LogHistoryCut(_logger, string.Join(',', tickers), firstDay, endDay);
+                    }
+
+                    midBars.AddRange(document.RootElement.EnumerateArray()
+                        .Select(item => ToBar(item, span.Resolution))
+                        .OfType<ChartBar>()
+                        .Where(b => b.Candle.Time >= span.From && b.Candle.Time + length <= span.Until));
+                }
+            }
+        }
+
+        var bars = new List<ChartBar>();
+        foreach (var symbolBars in midBars.GroupBy(b => b.Symbol))
+        {
+            Candle? previous = null;
+            foreach (var bar in symbolBars.OrderBy(b => b.Candle.Time))
+            {
+                var mid = bar.Candle;
+                var unmoved = mid.Open == mid.High && mid.High == mid.Low && mid.Low == mid.Close && mid.Close == previous?.Close;
+                previous = mid;
+                if (!unmoved)
+                {
+                    var half = halfSpreads.GetValueOrDefault(bar.Symbol);
+                    var digits = _instruments[bar.Symbol.ToLowerInvariant()].Digits;
+                    decimal Bid(decimal price) => decimal.Round(price - half, digits, MidpointRounding.ToNegativeInfinity);
+                    bars.Add(bar with { Candle = mid with { Open = Bid(mid.Open), High = Bid(mid.High), Low = Bid(mid.Low), Close = Bid(mid.Close) } });
+                }
+            }
+        }
+
+        LogHistoryFetched(_logger, bars.Count, calls);
+        return bars;
+    }
 
     public async IAsyncEnumerable<FeedQuote> StreamAsync([EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -200,19 +270,75 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
         }
     }
 
+    private static string Frequency(Timeframe resolution) => resolution switch
+    {
+        Timeframe.M1 => "1min",
+        Timeframe.M5 => "5min",
+        Timeframe.M15 => "15min",
+        Timeframe.M30 => "30min",
+        Timeframe.H1 => "1hour",
+        Timeframe.H4 => "4hour",
+        Timeframe.D1 => "1day",
+        _ => throw new ArgumentOutOfRangeException(nameof(resolution), resolution, null),
+    };
+
+    /// <summary>Half of each symbol's current spread, the distance from Tiingo's mid prices down to the bid.</summary>
+    private async Task<Dictionary<string, decimal>> LoadHalfSpreadsAsync(CancellationToken cancellationToken)
+    {
+        using var document = await GetAsync(TopOfBookPath, cancellationToken);
+        var halfSpreads = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        foreach (var item in document.RootElement.EnumerateArray())
+        {
+            if (Property(item, "ticker") is { ValueKind: JsonValueKind.String } ticker
+                && _instruments.TryGetValue(ticker.GetString()!, out var instrument)
+                && TryGetPrice(Property(item, "bidPrice"), out var bid)
+                && TryGetPrice(Property(item, "askPrice"), out var ask)
+                && bid > 0
+                && ask >= bid)
+            {
+                halfSpreads[instrument.Symbol] = (ask - bid) / 2;
+            }
+        }
+
+        return halfSpreads;
+    }
+
+    /// <summary>A bar of mid prices, or null for an unknown ticker or an incomplete bar.</summary>
+    private ChartBar? ToBar(JsonElement item, Timeframe resolution)
+    {
+        if (Property(item, "ticker") is not { ValueKind: JsonValueKind.String } ticker
+            || !_instruments.TryGetValue(ticker.GetString()!, out var instrument)
+            || Property(item, "date") is not { ValueKind: JsonValueKind.String } date
+            || !DateTimeOffset.TryParse(date.GetString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var time)
+            || !TryGetPrice(Property(item, "open"), out var open)
+            || !TryGetPrice(Property(item, "high"), out var high)
+            || !TryGetPrice(Property(item, "low"), out var low)
+            || !TryGetPrice(Property(item, "close"), out var close))
+        {
+            return null;
+        }
+
+        return new ChartBar(instrument.Symbol, resolution, new Candle(time.ToUniversalTime(), open, high, low, close, 0));
+    }
+
+    private async Task<JsonDocument> GetAsync(string pathAndQuery, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_options.ApiUrl, pathAndQuery));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.ApiKey);
+        using var client = _http.CreateClient(HttpClientName);
+        using var response = await client.SendAsync(request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
+    }
+
     /// <summary>Without these, nothing would be priced until the market moves.</summary>
     private async Task LoadLatestPricesAsync(LatestQuotes latest, CancellationToken cancellationToken)
     {
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(_options.ApiUrl, $"tiingo/fx/top?tickers={string.Join(',', _tickers)}"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Token", _options.ApiKey);
-            using var client = _http.CreateClient(HttpClientName);
-            using var response = await client.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
-            using var document = await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
+            using var document = await GetAsync(TopOfBookPath, cancellationToken);
             var count = 0;
             foreach (var item in document.RootElement.EnumerateArray())
             {
@@ -323,6 +449,12 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Could not load the latest Tiingo prices, continuing with the stream")]
     private static partial void LogLatestPricesFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Fetched {Count} bars of Tiingo history in {Calls} calls")]
+    private static partial void LogHistoryFetched(ILogger logger, int count, int calls);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tiingo's history for {Tickers} from {FirstDay} to {LastDay} may be cut short at the most bars a call")]
+    private static partial void LogHistoryCut(ILogger logger, string tickers, DateOnly firstDay, DateOnly lastDay);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The Tiingo stream ended, reconnecting in {Delay}")]
     private static partial void LogStreamEnded(ILogger logger, TimeSpan delay);

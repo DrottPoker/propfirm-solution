@@ -283,6 +283,8 @@ dotnet user-secrets set "PriceFeed:Tiingo:ApiKey" "din-nyckel" --project trading
 
 Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara för utveckling. När valutamarknaden är stängd, från fredag kväll till söndag kväll, kommer inga nya priser och ordrar avvisas som för gamla. Använd då de syntetiska priserna. Gå tillbaka till syntetiska priser med `dotnet user-secrets remove "PriceFeed:Provider" --project trading/src/Trading.Service`. Testerna läser aldrig user secrets, så de påverkas inte av valet.
 
+Graferna visar bara det flöde som används just nu. När du byter flöde laddas 30 dagars historik vid starten: från Tiingo när du byter till Tiingo, och påhittad när du byter till de syntetiska priserna. Den påhittade historiken slutar där de riktiga priserna slutade, så graferna hoppar inte. Helgens påhittade priser försvinner alltså av sig själva, och en öppen terminal hämtar graferna igen när den återansluter. M1 och M5 får de senaste 2 dagarna och i dag, och längre tidsramar hela 30 dagar. Ett byte till Tiingo kostar ungefär 11 av gratisplanens 50 anrop i timmen. Om historiken inte går att hämta startar tjänsten ändå och försöker igen vid nästa start (ADR 0048).
+
 ## Tester av hela flödet
 
 Playwright startar egna tjänster med egna portar och databaser, så testerna kan köras medan du utvecklar. Portalens tester registrerar också firmor på http://app.localhost:3022 och granskar dem på http://ops.localhost:3022. Terminalens tester använder handelstjänsten och terminalen mot `trading_e2e`. Portalens tester använder handelstjänsten, propfirm-tjänsten och portalen mot `trading_portal_e2e` och `prop_e2e`. Postgres måste vara igång och tjänsterna byggda i Release.

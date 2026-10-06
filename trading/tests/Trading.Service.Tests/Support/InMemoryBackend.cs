@@ -20,8 +20,10 @@ internal sealed class InMemoryBackend
 
     public InMemoryTenantStore Tenants { get; init; } = new();
 
-    /// <summary>What a crash leaves behind: the stored journal, users, keys, login links and firms.</summary>
-    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys, LoginLinks = LoginLinks, Tenants = Tenants };
+    public InMemoryChartStore Charts { get; init; } = new();
+
+    /// <summary>What a crash leaves behind: the stored journal, users, keys, login links, firms and charts.</summary>
+    public InMemoryBackend Crashed() => new() { Journal = Journal.Clone(), Users = Users, Keys = Keys, LoginLinks = LoginLinks, Tenants = Tenants, Charts = Charts };
 }
 
 internal sealed class InMemoryTenantStore : ITenantStore

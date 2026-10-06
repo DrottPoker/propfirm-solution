@@ -50,7 +50,7 @@ public sealed class EngineHostTests
     public async Task QueriesSeeEveryInputSentBeforeThem()
     {
         await using var harness = await HostHarness.StartAsync();
-        harness.Host.EnqueueQuote("EURUSD", 1.08000m, 1.08010m);
+        harness.Host.EnqueueQuote(ManualPriceFeed.DefaultName, "EURUSD", 1.08000m, 1.08010m);
 
         var prices = await harness.Host.QueryAsync(e => e.GetPrices("standard"), TestContext.Current.CancellationToken);
 

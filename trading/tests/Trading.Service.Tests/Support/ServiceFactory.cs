@@ -12,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 
+using Trading.Service.Candles;
 using Trading.Service.Engine;
 using Trading.Service.Feeds;
 using Trading.Service.Identity;
@@ -23,12 +24,13 @@ namespace Trading.Service.Tests.Support;
 /// <summary>
 /// The real service in memory, with prices pushed by the test, a clock that only moves when told and
 /// storage in memory. Pass the same backend to a second factory to restart the service. With a Postgres
-/// connection string, the real stores in that database are used instead.
+/// connection string, the real stores in that database are used instead. Pass a feed to restart with another one.
 /// </summary>
 internal sealed class ServiceFactory(
     InMemoryBackend? backend = null,
     IReadOnlyDictionary<string, string>? settings = null,
-    string? postgresConnectionString = null)
+    string? postgresConnectionString = null,
+    ManualPriceFeed? feed = null)
     : WebApplicationFactory<Program>
 {
     /// <summary>The development firm's admin key, from appsettings.Development.json.</summary>
@@ -46,7 +48,7 @@ internal sealed class ServiceFactory(
 
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 5, 8, 0, 0, TimeSpan.Zero));
 
-    public ManualPriceFeed Feed { get; } = new();
+    public ManualPriceFeed Feed { get; } = feed ?? new();
 
     public InMemoryBackend Backend { get; } = backend ?? new InMemoryBackend();
 
@@ -171,6 +173,7 @@ internal sealed class ServiceFactory(
                 services.AddSingleton<IXmlRepository>(Backend.Keys);
                 services.AddSingleton<ILoginLinkStore>(Backend.LoginLinks);
                 services.AddSingleton<ITenantStore>(Backend.Tenants);
+                services.AddSingleton<IChartStore>(Backend.Charts);
             }
         });
     }

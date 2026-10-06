@@ -1,18 +1,45 @@
+using System.Collections.Concurrent;
 using System.Threading.Channels;
 
+using Trading.Service.Candles;
 using Trading.Service.Feeds;
 
 namespace Trading.Service.Tests.Support;
 
-/// <summary>A price feed the test pushes prices into. No backfill.</summary>
-internal sealed class ManualPriceFeed : IPriceFeed
+/// <summary>A price feed the test pushes prices into, with the history the test gives it.</summary>
+internal class ManualPriceFeed(string name = ManualPriceFeed.DefaultName) : IPriceFeed
 {
+    public const string DefaultName = "Manual";
+
     private readonly Channel<FeedQuote> _quotes = Channel.CreateUnbounded<FeedQuote>();
+    private readonly ConcurrentQueue<IReadOnlyList<HistorySpan>> _historyRequests = new();
+
+    public string Name => name;
+
+    /// <summary>Returned for every history request, whatever the spans.</summary>
+    public IReadOnlyList<ChartBar> History { get; set; } = [];
+
+    /// <summary>When set, history requests throw it.</summary>
+    public Exception? HistoryFailure { get; set; }
+
+    public IReadOnlyList<IReadOnlyList<HistorySpan>> HistoryRequests => [.. _historyRequests];
 
     public void Push(string symbol, decimal bid, decimal ask) =>
         _quotes.Writer.TryWrite(new FeedQuote(symbol, bid, ask, DateTimeOffset.MinValue));
 
-    public IEnumerable<FeedQuote> GetBackfill(DateTimeOffset until) => [];
+    public Task<IReadOnlyList<ChartBar>> GetHistoryAsync(IReadOnlyList<HistorySpan> spans, CancellationToken cancellationToken)
+    {
+        _historyRequests.Enqueue(spans);
+        return HistoryFailure is { } failure ? Task.FromException<IReadOnlyList<ChartBar>>(failure) : Task.FromResult(History);
+    }
 
     public IAsyncEnumerable<FeedQuote> StreamAsync(CancellationToken cancellationToken) => _quotes.Reader.ReadAllAsync(cancellationToken);
+}
+
+/// <summary>A manual feed that, like the synthetic one, continues from the last recorded prices.</summary>
+internal sealed class ContinuingPriceFeed(string name) : ManualPriceFeed(name), IContinuablePriceFeed
+{
+    public void ContinueFrom(IReadOnlyList<FeedQuote> lastQuotes)
+    {
+    }
 }

@@ -85,8 +85,9 @@ internal sealed partial class EngineHost : BackgroundService
     /// <summary>Number of live prices the engine has applied.</summary>
     public long QuotesApplied => Interlocked.Read(ref _quotesApplied);
 
-    public void EnqueueQuote(string symbol, decimal bid, decimal ask) =>
-        _queue.Writer.TryWrite(new QuoteWork(symbol, bid, ask));
+    /// <summary>Applies a live price. The feed is stored with it, so the charts can tell real prices from made-up ones.</summary>
+    public void EnqueueQuote(string feed, string symbol, decimal bid, decimal ask) =>
+        _queue.Writer.TryWrite(new QuoteWork(feed, symbol, bid, ask));
 
     /// <summary>Applies a command and returns its events once they are stored. The function receives the timestamp to use.</summary>
     public Task<IReadOnlyList<EventEnvelope>> SendAsync(Func<DateTimeOffset, EngineInput> createInput, CancellationToken cancellationToken = default)
@@ -310,10 +311,10 @@ internal sealed partial class EngineHost : BackgroundService
     }
 
     // Engine loop only.
-    private List<EventEnvelope> Apply(EngineInput input)
+    private List<EventEnvelope> Apply(EngineInput input, string? feed = null)
     {
         var events = _engine.Apply(input);
-        _pending.Inputs.Add(new JournaledInput(++_inputSequence, input));
+        _pending.Inputs.Add(new JournaledInput(++_inputSequence, input) { Feed = feed });
 
         var envelopes = new List<EventEnvelope>(events.Count);
         foreach (var engineEvent in events)
@@ -548,13 +549,13 @@ internal sealed partial class EngineHost : BackgroundService
         }
     }
 
-    private sealed class QuoteWork(string symbol, decimal bid, decimal ask) : EngineWork
+    private sealed class QuoteWork(string feed, string symbol, decimal bid, decimal ask) : EngineWork
     {
         public override void Run(EngineHost host)
         {
             try
             {
-                host.Apply(new Quote(host.NextTimestamp(), symbol, bid, ask));
+                host.Apply(new Quote(host.NextTimestamp(), symbol, bid, ask), feed);
                 Interlocked.Increment(ref host._quotesApplied);
             }
             catch (Exception exception)

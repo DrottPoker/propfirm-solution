@@ -71,7 +71,7 @@ internal static class TradingEndpoints
         return TypedResults.Ok(await engine.QueryAsync(e => e.GetPrices(groupId) ?? [], cancellationToken));
     }
 
-    /// <summary>Bid candles as the account's group sees them, oldest first.</summary>
+    /// <summary>Bid candles as the account's group sees them, oldest first. Waits until the history is loaded after a start.</summary>
     private static async Task<Results<Ok<IReadOnlyList<Candle>>, NotFound>> GetCandlesAsync(
         string accountId,
         string symbol,
@@ -88,6 +88,7 @@ internal static class TradingEndpoints
             return TypedResults.NotFound();
         }
 
+        await candles.Ready.WaitAsync(cancellationToken);
         var shift = -conditions.BidMarkupPoints * instrument.Point;
         return TypedResults.Ok(candles.Get(symbol, timeframe, Math.Clamp(count ?? DefaultCandles, 1, MaxCandles), shift));
     }

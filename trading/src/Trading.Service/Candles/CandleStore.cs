@@ -16,18 +16,34 @@ public enum Timeframe
 /// <summary>Bar of bid prices. Time is the start of the bar in UTC.</summary>
 public sealed record Candle(DateTimeOffset Time, decimal Open, decimal High, decimal Low, decimal Close, int TickCount);
 
-/// <summary>Bid candles per symbol and timeframe, built from raw prices and kept in memory.</summary>
+/// <summary>A bar of a symbol and the timeframe it covers. Bars from a feed's history have no ticks.</summary>
+public sealed record ChartBar(string Symbol, Timeframe Resolution, Candle Candle);
+
+/// <summary>Bid candles per symbol and timeframe, built from raw prices and bars, and kept in memory.</summary>
 internal sealed class CandleStore(int capacityPerSeries)
 {
     public const int DefaultCapacity = 5_000;
 
     private readonly ConcurrentDictionary<(string Symbol, Timeframe Timeframe), CandleSeries> _series = new();
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    public void Add(string symbol, decimal bid, DateTimeOffset time)
+    /// <summary>Completes when the history is loaded at startup. Until then the charts lack their latest part.</summary>
+    public Task Ready => _ready.Task;
+
+    public void MarkReady() => _ready.TrySetResult();
+
+    public void Add(string symbol, decimal bid, DateTimeOffset time) => AddBar(new ChartBar(symbol, Timeframe.M1, new Candle(time, bid, bid, bid, bid, 1)));
+
+    /// <summary>Merges the bar into its own timeframe and every longer one. Bars must come in time order.</summary>
+    public void AddBar(ChartBar bar)
     {
+        var length = Duration(bar.Resolution);
         foreach (var timeframe in Enum.GetValues<Timeframe>())
         {
-            _series.GetOrAdd((symbol, timeframe), key => new CandleSeries(key.Timeframe, capacityPerSeries)).Add(bid, time);
+            if (Duration(timeframe) >= length)
+            {
+                _series.GetOrAdd((bar.Symbol, timeframe), key => new CandleSeries(key.Timeframe, capacityPerSeries)).Add(bar.Candle);
+            }
         }
     }
 
@@ -35,21 +51,29 @@ internal sealed class CandleStore(int capacityPerSeries)
     public IReadOnlyList<Candle> Get(string symbol, Timeframe timeframe, int count, decimal shift) =>
         _series.TryGetValue((symbol, timeframe), out var series) ? series.Latest(count, shift) : [];
 
+    /// <summary>Every symbol's bars of the timeframe that start in the period.</summary>
+    public IReadOnlyList<ChartBar> GetBars(Timeframe timeframe, DateTimeOffset from, DateTimeOffset until) =>
+        [.. _series
+            .Where(s => s.Key.Timeframe == timeframe)
+            .OrderBy(s => s.Key.Symbol, StringComparer.Ordinal)
+            .SelectMany(s => s.Value.Between(from, until).Select(c => new ChartBar(s.Key.Symbol, timeframe, c)))];
+
+    public static TimeSpan Duration(Timeframe timeframe) => timeframe switch
+    {
+        Timeframe.M1 => TimeSpan.FromMinutes(1),
+        Timeframe.M5 => TimeSpan.FromMinutes(5),
+        Timeframe.M15 => TimeSpan.FromMinutes(15),
+        Timeframe.M30 => TimeSpan.FromMinutes(30),
+        Timeframe.H1 => TimeSpan.FromHours(1),
+        Timeframe.H4 => TimeSpan.FromHours(4),
+        Timeframe.D1 => TimeSpan.FromDays(1),
+        _ => throw new ArgumentOutOfRangeException(nameof(timeframe), timeframe, null),
+    };
+
     public static DateTimeOffset BarStart(Timeframe timeframe, DateTimeOffset time)
     {
         var utcTicks = time.UtcTicks;
-        var barTicks = timeframe switch
-        {
-            Timeframe.M1 => TimeSpan.TicksPerMinute,
-            Timeframe.M5 => 5 * TimeSpan.TicksPerMinute,
-            Timeframe.M15 => 15 * TimeSpan.TicksPerMinute,
-            Timeframe.M30 => 30 * TimeSpan.TicksPerMinute,
-            Timeframe.H1 => TimeSpan.TicksPerHour,
-            Timeframe.H4 => 4 * TimeSpan.TicksPerHour,
-            Timeframe.D1 => TimeSpan.TicksPerDay,
-            _ => throw new ArgumentOutOfRangeException(nameof(timeframe), timeframe, null),
-        };
-        return new DateTimeOffset(utcTicks - (utcTicks % barTicks), TimeSpan.Zero);
+        return new DateTimeOffset(utcTicks - (utcTicks % Duration(timeframe).Ticks), TimeSpan.Zero);
     }
 
     private sealed class CandleSeries(Timeframe timeframe, int capacity)
@@ -57,9 +81,10 @@ internal sealed class CandleStore(int capacityPerSeries)
         private readonly Lock _lock = new();
         private readonly List<Candle> _candles = [];
 
-        public void Add(decimal price, DateTimeOffset time)
+        /// <summary>Merges a price or a bar into the bar its time falls in.</summary>
+        public void Add(Candle part)
         {
-            var start = BarStart(timeframe, time);
+            var start = BarStart(timeframe, part.Time);
             lock (_lock)
             {
                 if (_candles.Count > 0)
@@ -69,10 +94,10 @@ internal sealed class CandleStore(int capacityPerSeries)
                     {
                         _candles[^1] = last with
                         {
-                            High = Math.Max(last.High, price),
-                            Low = Math.Min(last.Low, price),
-                            Close = price,
-                            TickCount = last.TickCount + 1,
+                            High = Math.Max(last.High, part.High),
+                            Low = Math.Min(last.Low, part.Low),
+                            Close = part.Close,
+                            TickCount = last.TickCount + part.TickCount,
                         };
                         return;
                     }
@@ -84,7 +109,7 @@ internal sealed class CandleStore(int capacityPerSeries)
                     }
                 }
 
-                _candles.Add(new Candle(start, price, price, price, price, 1));
+                _candles.Add(part with { Time = start });
 
                 // Trim in batches so the list is not shifted on every new bar.
                 if (_candles.Count > capacity + (capacity / 4))
@@ -103,6 +128,14 @@ internal sealed class CandleStore(int capacityPerSeries)
                     .Skip(_candles.Count - take)
                     .Select(c => c with { Open = c.Open + shift, High = c.High + shift, Low = c.Low + shift, Close = c.Close + shift })
                     .ToList();
+            }
+        }
+
+        public List<Candle> Between(DateTimeOffset from, DateTimeOffset until)
+        {
+            lock (_lock)
+            {
+                return _candles.Where(c => c.Time >= from && c.Time < until).ToList();
             }
         }
     }

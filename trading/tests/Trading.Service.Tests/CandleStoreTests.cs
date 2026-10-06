@@ -24,6 +24,44 @@ public sealed class CandleStoreTests
             store.Get("EURUSD", Timeframe.M5, 10, 0m));
     }
 
+    // For example 15 minute bars from a feed's history: they fill M15 and longer, but nothing shorter.
+    [Fact]
+    public void BarsAreMergedIntoTheirTimeframeAndLongerOnes()
+    {
+        var store = new CandleStore(100);
+        store.AddBar(new ChartBar("EURUSD", Timeframe.M15, new Candle(Eight, 1.10m, 1.30m, 1.05m, 1.20m, 0)));
+        store.AddBar(new ChartBar("EURUSD", Timeframe.M15, new Candle(Eight.AddMinutes(15), 1.20m, 1.40m, 1.10m, 1.15m, 0)));
+
+        Assert.Empty(store.Get("EURUSD", Timeframe.M5, 10, 0m));
+        Assert.Equal(2, store.Get("EURUSD", Timeframe.M15, 10, 0m).Count);
+        Assert.Equal([new Candle(Eight, 1.10m, 1.40m, 1.05m, 1.15m, 0)], store.Get("EURUSD", Timeframe.H1, 10, 0m));
+    }
+
+    [Fact]
+    public void LivePricesContinueTheLastBar()
+    {
+        var store = new CandleStore(100);
+        store.AddBar(new ChartBar("EURUSD", Timeframe.M1, new Candle(Eight, 1.10m, 1.30m, 1.05m, 1.20m, 0)));
+        store.Add("EURUSD", 1.35m, Eight.AddSeconds(40));
+
+        Assert.Equal([new Candle(Eight, 1.10m, 1.35m, 1.05m, 1.35m, 1)], store.Get("EURUSD", Timeframe.M1, 10, 0m));
+    }
+
+    [Fact]
+    public void BarsOfAPeriodAreFoundForEverySymbol()
+    {
+        var store = new CandleStore(100);
+        for (var minute = 0; minute < 3; minute++)
+        {
+            store.Add("GBPUSD", 1.26m, Eight.AddMinutes(minute));
+            store.Add("EURUSD", 1.08m, Eight.AddMinutes(minute));
+        }
+
+        var bars = store.GetBars(Timeframe.M1, Eight.AddMinutes(1), Eight.AddMinutes(2));
+
+        Assert.Equal([("EURUSD", Eight.AddMinutes(1)), ("GBPUSD", Eight.AddMinutes(1))], bars.Select(b => (b.Symbol, b.Candle.Time)));
+    }
+
     [Theory]
     [InlineData(Timeframe.M15, "2026-10-05T10:44:59Z", "2026-10-05T10:30:00Z")]
     [InlineData(Timeframe.H4, "2026-10-05T10:30:00Z", "2026-10-05T08:00:00Z")]

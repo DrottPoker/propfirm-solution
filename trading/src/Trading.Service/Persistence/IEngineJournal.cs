@@ -37,12 +37,19 @@ public interface IEngineJournal
     /// <summary>Events of accounts in the groups after the sequence number, oldest first. A firm reads its own groups.</summary>
     Task<IReadOnlyList<EventEnvelope>> ReadGroupEventsAsync(IReadOnlyCollection<string> groupIds, long afterSequence, int limit, CancellationToken cancellationToken);
 
-    /// <summary>Recorded prices since the given time, in order. Used to rebuild the charts.</summary>
-    IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, CancellationToken cancellationToken);
+    /// <summary>The feed's recorded prices since the given time, in order. Used to rebuild the charts.</summary>
+    IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, string feed, CancellationToken cancellationToken);
+
+    /// <summary>The feed of the last recorded price, or null when there is none or its feed is unknown.</summary>
+    Task<string?> GetLastQuoteFeedAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>An input with its gapless sequence number.</summary>
-public sealed record JournaledInput(long Sequence, EngineInput Input);
+public sealed record JournaledInput(long Sequence, EngineInput Input)
+{
+    /// <summary>The price feed a quote came from. Null for other inputs, and for quotes recorded before feeds were.</summary>
+    public string? Feed { get; init; }
+}
 
 /// <summary>
 /// Engine state after <paramref name="InputSequence"/>. The fingerprint identifies the configuration
@@ -67,7 +74,4 @@ public sealed class JournalOptions
 
     /// <summary>Snapshots kept. Older ones are deleted. Inputs and events are always kept.</summary>
     public int SnapshotsToKeep { get; init; } = 3;
-
-    /// <summary>Price history read from the journal at startup to rebuild the charts.</summary>
-    public TimeSpan CandleHistory { get; init; } = TimeSpan.FromHours(24);
 }

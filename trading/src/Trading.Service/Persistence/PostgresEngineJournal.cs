@@ -43,7 +43,7 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
     public async IAsyncEnumerable<JournaledInput> ReadInputsAsync(long afterSequence, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand(
-            "select sequence, recorded_at, kind, symbol, bid, ask, payload from engine_inputs where sequence > $1 order by sequence");
+            "select sequence, recorded_at, kind, symbol, bid, ask, payload, feed from engine_inputs where sequence > $1 order by sequence");
         command.Parameters.AddWithValue(afterSequence);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -51,7 +51,7 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
             var input = reader.GetString(2) == QuoteKind
                 ? new Quote(reader.GetFieldValue<DateTimeOffset>(1), reader.GetString(3), reader.GetDecimal(4), reader.GetDecimal(5))
                 : Deserialize<EngineInput>(reader.GetString(6));
-            yield return new JournaledInput(reader.GetInt64(0), input);
+            yield return new JournaledInput(reader.GetInt64(0), input) { Feed = reader.IsDBNull(7) ? null : reader.GetString(7) };
         }
     }
 
@@ -69,12 +69,13 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         if (batch.Inputs.Count > 0)
         {
             await using var importer = await connection.BeginBinaryImportAsync(
-                "copy engine_inputs (sequence, recorded_at, kind, symbol, bid, ask, payload) from stdin (format binary)",
+                "copy engine_inputs (sequence, recorded_at, kind, symbol, bid, ask, payload, feed) from stdin (format binary)",
                 cancellationToken);
-            foreach (var (sequence, input) in batch.Inputs)
+            foreach (var journaled in batch.Inputs)
             {
+                var input = journaled.Input;
                 await importer.StartRowAsync(cancellationToken);
-                await importer.WriteAsync(sequence, NpgsqlDbType.Bigint, cancellationToken);
+                await importer.WriteAsync(journaled.Sequence, NpgsqlDbType.Bigint, cancellationToken);
                 await importer.WriteAsync(input.Timestamp, NpgsqlDbType.TimestampTz, cancellationToken);
                 if (input is Quote quote)
                 {
@@ -83,6 +84,7 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
                     await importer.WriteAsync(quote.Bid, NpgsqlDbType.Numeric, cancellationToken);
                     await importer.WriteAsync(quote.Ask, NpgsqlDbType.Numeric, cancellationToken);
                     await importer.WriteNullAsync(cancellationToken);
+                    await WriteNullableTextAsync(importer, journaled.Feed, cancellationToken);
                 }
                 else
                 {
@@ -91,6 +93,7 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
                     await importer.WriteNullAsync(cancellationToken);
                     await importer.WriteNullAsync(cancellationToken);
                     await importer.WriteAsync(JsonSerializer.Serialize(input, Json), NpgsqlDbType.Jsonb, cancellationToken);
+                    await importer.WriteNullAsync(cancellationToken);
                 }
             }
 
@@ -191,11 +194,18 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
             limit,
             cancellationToken);
 
-    public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async Task<string?> GetLastQuoteFeedAsync(CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand("select feed from engine_inputs where kind = 'Quote' order by sequence desc limit 1");
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
+    }
+
+    public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, string feed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand(
-            "select recorded_at, symbol, bid, ask from engine_inputs where kind = 'Quote' and recorded_at >= $1 order by sequence");
+            "select recorded_at, symbol, bid, ask from engine_inputs where kind = 'Quote' and recorded_at >= $1 and feed = $2 order by sequence");
         command.Parameters.AddWithValue(since);
+        command.Parameters.AddWithValue(feed);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {

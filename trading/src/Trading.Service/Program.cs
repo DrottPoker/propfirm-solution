@@ -33,6 +33,10 @@ builder.Services.AddOptions<TradingOptions>().Bind(builder.Configuration.GetSect
 builder.Services.AddOptions<SyntheticFeedOptions>().Bind(builder.Configuration.GetSection(SyntheticFeedOptions.SectionName));
 builder.Services.AddOptions<RealtimeOptions>().Bind(builder.Configuration.GetSection(RealtimeOptions.SectionName));
 builder.Services.AddOptions<JournalOptions>().Bind(builder.Configuration.GetSection(JournalOptions.SectionName));
+builder.Services.AddOptions<ChartOptions>()
+    .Bind(builder.Configuration.GetSection(ChartOptions.SectionName))
+    .Validate(o => o.IsValid(), "Charts:History and Charts:MinuteHistory must be whole days, with the minute history no longer than the history.")
+    .ValidateOnStart();
 var terminalOptions = builder.Services.AddOptions<TerminalOptions>()
     .Bind(builder.Configuration.GetSection(TerminalOptions.SectionName))
     .Validate(o => o.Url is { IsAbsoluteUri: true }, "Terminal:Url must be the absolute address of the terminal, for login links.");
@@ -70,6 +74,7 @@ builder.Services.AddSingleton(sp => NpgsqlDataSource.Create(
 builder.Services.AddSingleton(TradingMigrations.All);
 builder.Services.AddSingleton<DatabaseSchema>();
 builder.Services.AddSingleton<IEngineJournal, PostgresEngineJournal>();
+builder.Services.AddSingleton<IChartStore, PostgresChartStore>();
 builder.Services.AddSingleton<IUserStore, PostgresUserStore>();
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
 builder.Services.AddSingleton<ILoginLinkStore, PostgresLoginLinkStore>();
@@ -123,6 +128,7 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 builder.Services.AddSingleton(_ => new CandleStore(CandleStore.DefaultCapacity));
+builder.Services.AddSingleton<ChartHistory>();
 if (builder.Configuration.GetValue<string>($"{PriceFeedOptions.SectionName}:Provider") == PriceFeedOptions.TiingoProvider)
 {
     builder.Services.AddHttpClient(TiingoPriceFeed.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
@@ -142,6 +148,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService(sp => sp.GetRequiredService<EngineHost>());
     builder.Services.AddHostedService<AccountSeeder>();
     builder.Services.AddHostedService<PriceFeedPump>();
+    builder.Services.AddHostedService<ChartRecorder>();
     builder.Services.AddHostedService<RealtimePublisher>();
 }
 

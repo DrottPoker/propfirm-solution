@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+using Trading.Service.Candles;
 using Trading.Service.Configuration;
 using Trading.Service.Feeds;
 
@@ -140,6 +141,76 @@ public sealed class TiingoPriceFeedTests
         Assert.True(tiingo.Subscriptions.Count >= 2);
     }
 
+    // Tiingo's bars are of mid prices. Bars that do not move are Tiingo repeating the last price while the market is closed.
+    [Fact]
+    public async Task HistoryIsMovedToTheBidAndLeavesOutUnmovedAndUnfinishedBars()
+    {
+        await using var tiingo = await FakeTiingo.StartAsync();
+        tiingo.LatestPrices =
+            """
+            [{"ticker":"eurusd","quoteTimestamp":"2026-10-05T08:03:00+00:00","bidPrice":1.08000,"askPrice":1.08010},
+             {"ticker":"xauusd","quoteTimestamp":"2026-10-05T08:03:00+00:00","bidPrice":2650.10,"askPrice":2650.30}]
+            """;
+        tiingo.History =
+            """
+            [{"date":"2026-10-04T23:59:00.000Z","ticker":"eurusd","open":1.08,"high":1.08,"low":1.08,"close":1.08},
+             {"date":"2026-10-05T08:00:00.000Z","ticker":"eurusd","open":1.08004,"high":1.08012,"low":1.07998,"close":1.08006},
+             {"date":"2026-10-05T08:01:00.000Z","ticker":"eurusd","open":1.08006,"high":1.08006,"low":1.08006,"close":1.08006},
+             {"date":"2026-10-05T08:02:00.000Z","ticker":"eurusd","open":1.0801,"high":1.0801,"low":1.0801,"close":1.0801},
+             {"date":"2026-10-05T08:03:00.000Z","ticker":"eurusd","open":1.0801,"high":1.0802,"low":1.0801,"close":1.0802},
+             {"date":"2026-10-05T08:00:00.000Z","ticker":"xauusd","open":2650.125,"high":2650.5,"low":2650.0,"close":2650.25}]
+            """;
+        var today = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
+
+        var bars = await CreateFeed(tiingo).GetHistoryAsync(
+            [new HistorySpan(Timeframe.M1, today, today.AddHours(8).AddMinutes(3).AddSeconds(30))],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [
+                new ChartBar("EURUSD", Timeframe.M1, new Candle(today.AddHours(8), 1.07999m, 1.08007m, 1.07993m, 1.08001m, 0)),
+                new ChartBar("EURUSD", Timeframe.M1, new Candle(today.AddHours(8).AddMinutes(2), 1.08005m, 1.08005m, 1.08005m, 1.08005m, 0)),
+                new ChartBar("XAUUSD", Timeframe.M1, new Candle(today.AddHours(8), 2650.02m, 2650.40m, 2649.90m, 2650.15m, 0)),
+            ],
+            bars);
+        Assert.Equal(
+            [("/tiingo/fx/prices?tickers=eurusd,xauusd&startDate=2026-10-05&endDate=2026-10-05&resampleFreq=1min", "Token test-key")],
+            tiingo.HistoryRequests);
+    }
+
+    // Tiingo takes whole days and answers at most 10 000 bars a call. A day has 1 440 minute bars.
+    [Fact]
+    public async Task HistoryIsSplitIntoCallsThatFitTiingosLimit()
+    {
+        await using var tiingo = await FakeTiingo.StartAsync();
+        var today = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
+
+        await CreateFeed(tiingo).GetHistoryAsync(
+            [new HistorySpan(Timeframe.M15, today.AddDays(-30), today.AddDays(-8)), new HistorySpan(Timeframe.M1, today.AddDays(-8), today.AddHours(8))],
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            [
+                "/tiingo/fx/prices?tickers=eurusd,xauusd&startDate=2026-09-05&endDate=2026-09-26&resampleFreq=15min",
+                "/tiingo/fx/prices?tickers=eurusd&startDate=2026-09-27&endDate=2026-10-02&resampleFreq=1min",
+                "/tiingo/fx/prices?tickers=xauusd&startDate=2026-09-27&endDate=2026-10-02&resampleFreq=1min",
+                "/tiingo/fx/prices?tickers=eurusd,xauusd&startDate=2026-10-03&endDate=2026-10-05&resampleFreq=1min",
+            ],
+            tiingo.HistoryRequests.Select(r => r.Url));
+    }
+
+    [Fact]
+    public async Task RefusedHistoryFails()
+    {
+        await using var tiingo = await FakeTiingo.StartAsync();
+        tiingo.HistoryStatus = StatusCodes.Status429TooManyRequests;
+        var today = new DateTimeOffset(2026, 10, 5, 0, 0, 0, TimeSpan.Zero);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => CreateFeed(tiingo).GetHistoryAsync(
+            [new HistorySpan(Timeframe.M1, today, today.AddHours(8))],
+            TestContext.Current.CancellationToken));
+    }
+
     // The key must never be put in a file, so a missing one stops the start with instructions.
     [Fact]
     public void TiingoWithoutKeyStopsTheStart()
@@ -212,6 +283,7 @@ public sealed class TiingoPriceFeedTests
         private readonly CancellationTokenSource _stopping = new();
         private readonly ConcurrentQueue<string> _subscriptions = new();
         private readonly ConcurrentQueue<(string Url, string? Authorization)> _priceRequests = new();
+        private readonly ConcurrentQueue<(string Url, string? Authorization)> _historyRequests = new();
 
         private FakeTiingo(Func<WebSocket, CancellationToken, Task>[] connections)
         {
@@ -228,11 +300,23 @@ public sealed class TiingoPriceFeedTests
                 _priceRequests.Enqueue((context.Request.Path + context.Request.QueryString, context.Request.Headers.Authorization.ToString()));
                 return Results.Content(LatestPrices, "application/json", statusCode: LatestPricesStatus);
             });
+            _app.MapGet("/tiingo/fx/prices", (HttpContext context) =>
+            {
+                _historyRequests.Enqueue((context.Request.Path + context.Request.QueryString, context.Request.Headers.Authorization.ToString()));
+                return Results.Content(History, "application/json", statusCode: HistoryStatus);
+            });
         }
 
         public string LatestPrices { get; set; } = "[]";
 
         public int LatestPricesStatus { get; set; } = StatusCodes.Status200OK;
+
+        /// <summary>The answer to every history request.</summary>
+        public string History { get; set; } = "[]";
+
+        public int HistoryStatus { get; set; } = StatusCodes.Status200OK;
+
+        public IReadOnlyList<(string Url, string? Authorization)> HistoryRequests => [.. _historyRequests];
 
         public Uri StreamUrl => new UriBuilder(ApiUrl) { Scheme = "ws", Path = "fx" }.Uri;
 

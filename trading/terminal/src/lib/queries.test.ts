@@ -1,6 +1,31 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { onTheClock } from "./queries";
+import { meKey, onTheClock, reloadCandles } from "./queries";
+
+describe("reloadCandles", () => {
+  it("marks the account's charts and day summaries to be loaded again, and nothing else", () => {
+    const queryClient = new QueryClient();
+    const keys = {
+      chart: ["candles", "A1", "EURUSD", "M1"],
+      day: ["day", "A1", "EURUSD"],
+      otherAccount: ["candles", "A2", "EURUSD", "M1"],
+      me: meKey,
+    };
+    for (const key of Object.values(keys)) {
+      queryClient.setQueryData(key, []);
+    }
+
+    reloadCandles(queryClient, "A1");
+
+    expect(Object.fromEntries(Object.entries(keys).map(([name, key]) => [name, queryClient.getQueryState(key)?.isInvalidated]))).toEqual({
+      chart: true,
+      day: true,
+      otherAccount: false,
+      me: false,
+    });
+  });
+});
 
 describe("onTheClock", () => {
   afterEach(() => {

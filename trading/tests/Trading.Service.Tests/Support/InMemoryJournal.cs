@@ -18,7 +18,7 @@ internal sealed class InMemoryJournal : IEngineJournal
     private static readonly JsonSerializerOptions Json = EngineJson.CreateOptions();
 
     private readonly Lock _lock = new();
-    private readonly List<(long Sequence, string Json)> _inputs = [];
+    private readonly List<(long Sequence, string Json, string? Feed)> _inputs = [];
     private readonly List<(long Sequence, string? AccountId, string? GroupId, string Json)> _events = [];
     private readonly List<(JournalSnapshot Snapshot, string StateJson)> _snapshots = [];
     private int _appends;
@@ -71,16 +71,16 @@ internal sealed class InMemoryJournal : IEngineJournal
 
     public async IAsyncEnumerable<JournaledInput> ReadInputsAsync(long afterSequence, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        List<(long Sequence, string Json)> inputs;
+        List<(long Sequence, string Json, string? Feed)> inputs;
         lock (_lock)
         {
             inputs = _inputs.Where(i => i.Sequence > afterSequence).ToList();
         }
 
-        foreach (var (sequence, json) in inputs)
+        foreach (var (sequence, json, feed) in inputs)
         {
             await Task.Yield();
-            yield return new JournaledInput(sequence, JsonSerializer.Deserialize<EngineInput>(json, Json)!);
+            yield return new JournaledInput(sequence, JsonSerializer.Deserialize<EngineInput>(json, Json)!) { Feed = feed };
         }
     }
 
@@ -122,7 +122,7 @@ internal sealed class InMemoryJournal : IEngineJournal
                 throw new InvalidOperationException($"Input {batch.Inputs[0].Sequence} does not follow {lastInput}.");
             }
 
-            _inputs.AddRange(batch.Inputs.Select(i => (i.Sequence, JsonSerializer.Serialize(i.Input, Json))));
+            _inputs.AddRange(batch.Inputs.Select(i => (i.Sequence, JsonSerializer.Serialize(i.Input, Json), i.Feed)));
             _events.AddRange(batch.Events.Select(e => (e.Envelope.Sequence, EventLog.AccountIdOf(e.Envelope.Event), e.GroupId, JsonSerializer.Serialize(e.Envelope.Event, Json))));
             if (batch.Snapshot is { } snapshot)
             {
@@ -184,14 +184,23 @@ internal sealed class InMemoryJournal : IEngineJournal
         }
     }
 
-    public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Quote> ReadQuotesAsync(DateTimeOffset since, string feed, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var (_, input) in ReadInputsAsync(0, cancellationToken))
+        await foreach (var journaled in ReadInputsAsync(0, cancellationToken))
         {
-            if (input is Quote quote && quote.Timestamp >= since)
+            if (journaled.Input is Quote quote && quote.Timestamp >= since && journaled.Feed == feed)
             {
                 yield return quote;
             }
+        }
+    }
+
+    public Task<string?> GetLastQuoteFeedAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var last = _inputs.LastOrDefault(i => JsonSerializer.Deserialize<EngineInput>(i.Json, Json) is Quote);
+            return Task.FromResult(last.Json is null ? null : last.Feed);
         }
     }
 

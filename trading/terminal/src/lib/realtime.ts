@@ -1,26 +1,37 @@
-import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
+import { HubConnectionBuilder, type IRetryPolicy, LogLevel } from "@microsoft/signalr";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import type { AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
 import { tradingApiUrl } from "./config";
 import { createEventSync, type EventLoad } from "./eventSync";
 import { newEvents } from "./notices";
-import { fetchEvents } from "./queries";
+import { fetchEvents, reloadCandles } from "./queries";
 import { maxEvents, useTradingStore } from "./store";
 
 const retryDelayMs = 2_000;
 
+/** Reconnects at once, then every few seconds for as long as it takes, since a restart of the service can take a while. */
+export const reconnectPolicy: IRetryPolicy = {
+  nextRetryDelayInMilliseconds: (context) => (context.previousRetryCount === 0 ? 0 : retryDelayMs),
+};
+
 /**
  * Keeps a SignalR connection for the account and feeds the store. Retries until the service is reachable. Loads the
- * latest events when it subscribes, and after a reconnect the events that were missed while disconnected.
+ * latest events when it subscribes, and after a reconnect the events that were missed while disconnected. The charts
+ * are loaded again after a lost or failed connection, since the service may have restarted and rebuilt them, for
+ * example without the made-up prices of the synthetic feed.
  */
 export function useTradingConnection(accountId: string): void {
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     const store = useTradingStore.getState();
     store.reset();
     newEvents.reset();
 
     let stopped = false;
+    let candlesMissed = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let loadTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -37,7 +48,7 @@ export function useTradingConnection(accountId: string): void {
 
     const connection = new HubConnectionBuilder()
       .withUrl(`${tradingApiUrl}/hubs/trading`)
-      .withAutomaticReconnect()
+      .withAutomaticReconnect(reconnectPolicy)
       .configureLogging(LogLevel.Warning)
       .build();
 
@@ -64,12 +75,18 @@ export function useTradingConnection(accountId: string): void {
       const eventLoad = eventSync.subscribing();
       await connection.invoke("Subscribe", accountId);
       useTradingStore.getState().setConnection("connected");
+      if (candlesMissed) {
+        candlesMissed = false;
+        reloadCandles(queryClient, accountId);
+      }
+
       clearTimeout(loadTimer);
       await load(eventLoad);
     };
 
     // A failed subscription leaves the connection open, so it is closed and the next attempt starts over.
     const retry = async () => {
+      candlesMissed = true;
       await connection.stop();
       if (!stopped) {
         useTradingStore.getState().setConnection("disconnected");
@@ -93,7 +110,10 @@ export function useTradingConnection(accountId: string): void {
       }
     };
 
-    connection.onreconnecting(() => useTradingStore.getState().setConnection("reconnecting"));
+    connection.onreconnecting(() => {
+      candlesMissed = true;
+      useTradingStore.getState().setConnection("reconnecting");
+    });
     connection.onreconnected(async () => {
       try {
         await subscribe();
@@ -115,5 +135,5 @@ export function useTradingConnection(accountId: string): void {
       clearTimeout(loadTimer);
       void connection.stop();
     };
-  }, [accountId]);
+  }, [accountId, queryClient]);
 }
