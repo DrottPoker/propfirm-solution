@@ -14,7 +14,7 @@ import { eventText } from "@/lib/verification";
 import { Modal } from "./Dialog";
 import { ClockIcon, ExternalIcon, MailIcon, PauseIcon } from "./icons";
 import { OpsReview } from "./OpsReview";
-import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass, StatTile, Tabs } from "./ui";
+import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass, StatTile, Tabs } from "./ui";
 
 /**
  * One firm for our staff (ADRs 0021 and 0024): its review with our checks, how it is doing and pays its traders, what
@@ -29,7 +29,7 @@ export function OpsFirm({ firmId, initialTab }: { firmId: string; initialTab: Op
   }
 
   if (!firm.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = firm.data;
@@ -273,10 +273,10 @@ function TraderPayouts({ firm }: { firm: Firm }) {
             <tbody>
               {payouts.waiting.map((p) => (
                 <tr key={`${p.accountNumber}-${p.requestedAt}`} className="border-t border-border">
-                  <td className="py-2.5 font-mono">#{p.accountNumber}</td>
+                  <td className="py-2.5">#{p.accountNumber}</td>
                   <td className="py-2.5">{formatDate(p.requestedAt)}</td>
                   <td className="py-2.5">{p.status === "Approved" && p.approvedAt ? `Approved ${formatDate(p.approvedAt)}` : "To approve"}</td>
-                  <td className="py-2.5 text-right font-mono tabular-nums">
+                  <td className="py-2.5 text-right tabular-nums">
                     {formatMoney(p.amount)} {p.currency}
                   </td>
                 </tr>
@@ -386,12 +386,12 @@ function Billing({ firm }: { firm: Firm }) {
               <tbody>
                 {charges.map((charge) => (
                   <tr key={charge.id} className="border-t border-border align-top">
-                    <td className="py-2.5 font-mono">#{charge.number}</td>
+                    <td className="py-2.5">#{charge.number}</td>
                     <td className="py-2.5">
                       {chargeLabel(charge)}
                       <span className="block text-xs text-muted">{formatDate(charge.createdAt)}</span>
                     </td>
-                    <td className="py-2.5 text-right font-mono tabular-nums">
+                    <td className="py-2.5 text-right tabular-nums">
                       {formatMoney(charge.amount)} {charge.currency}
                     </td>
                     <td className="py-2.5 pl-4">

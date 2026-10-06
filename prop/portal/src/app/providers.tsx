@@ -1,7 +1,9 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { createContext, useContext, useState } from "react";
+import { Toaster } from "sonner";
 
 import type { Branding, OpsSite, Platform } from "@/lib/api/types";
 
@@ -41,9 +43,32 @@ export function useOps(): OpsSite {
   return ops;
 }
 
+// What every site shares: data from the API, motion that stands still for those who asked their system for less, and
+// the short notes, such as "Saved", that come and go in a corner.
 function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <MotionConfig reducedMotion="user">
+        {children}
+        <Toaster
+          position="bottom-right"
+          gap={10}
+          toastOptions={{
+            unstyled: true,
+            classNames: {
+              toast: "flex w-[22rem] max-w-[calc(100vw-2rem)] items-start gap-3 rounded-xl border border-border bg-panel px-4 py-3 text-sm text-foreground shadow-float",
+              title: "font-medium",
+              description: "text-muted",
+              icon: "mt-0.5",
+              success: "[&_[data-icon]]:text-profit",
+              error: "[&_[data-icon]]:text-loss",
+            },
+          }}
+        />
+      </MotionConfig>
+    </QueryClientProvider>
+  );
 }
 
 /** For a firm's portal. */

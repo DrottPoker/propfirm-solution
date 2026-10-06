@@ -68,11 +68,11 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
       <dl className="grid grid-cols-2 gap-3 text-xs">
         <div className="flex flex-col gap-0.5">
           <dt className="text-muted">Bought in your portal</dt>
-          <dd className="font-mono text-sm">{data.orders === 0 ? "Nothing" : formatTotals(data.bought, account.currency)}</dd>
+          <dd className="text-sm">{data.orders === 0 ? "Nothing" : formatTotals(data.bought, account.currency)}</dd>
         </div>
         <div className="flex flex-col gap-0.5">
           <dt className="text-muted">Paid out</dt>
-          <dd className="font-mono text-sm">{formatTotals(data.paidOut, account.currency)}</dd>
+          <dd className="text-sm">{formatTotals(data.paidOut, account.currency)}</dd>
         </div>
       </dl>
 
@@ -91,11 +91,11 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
               <li key={other.id} className="flex items-center justify-between gap-2 border-t border-border py-2">
                 {other.id === account.id ? (
                   <span>
-                    <span className="font-mono">#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)} · this one</span>
+                    <span>#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)} · this one</span>
                   </span>
                 ) : (
                   <Link href={`/admin/accounts/${other.id}`} className="min-w-0 truncate">
-                    <span className="font-mono text-accent">#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)}</span>
+                    <span className="text-accent">#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)}</span>
                   </Link>
                 )}
                 <Badge tone={status.tone}>{status.label}</Badge>

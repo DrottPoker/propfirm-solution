@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
+import { AdminSettings } from "@/components/AdminSettings";
 
-// The settings were split into the portal's design, its checkout and the integrations. Old links go to the design.
+// Every setting of the firm, with where it stands. Each setting's own page has the others as tabs.
 export default function AdminSettingsPage() {
-  redirect("/admin/design");
+  return <AdminSettings />;
 }

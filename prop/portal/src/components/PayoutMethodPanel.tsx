@@ -8,35 +8,43 @@ import type { PayoutMethod } from "@/lib/api/types";
 import { payoutMethodFields, payoutMethodForm, payoutMethodKindLabels, payoutMethodLines, payoutMethodOf, type PayoutMethodForm } from "@/lib/payoutMethods";
 import { useMyPayoutMethod, useSavePayoutMethod } from "@/lib/queries";
 
-import { buttonClass, ErrorText, fieldClass, secondaryButtonClass, SegmentedControl } from "./ui";
+import { buttonClass, ErrorText, fieldClass, secondaryButtonClass, SegmentedControl, Skeleton } from "./ui";
 
-/** Where the trader's payouts are sent, and a way to change it. A payout can be asked for once it is given. */
-export function PayoutMethodPanel() {
+/**
+ * Where the trader's payouts are sent, and a way to change it. A payout can be asked for once it is given. Before the
+ * trader has a funded account the form waits behind a button, since nothing can be paid out yet.
+ */
+export function PayoutMethodPanel({ funded }: { funded: boolean }) {
   const branding = useBranding();
   const method = useMyPayoutMethod();
   const [editing, setEditing] = useState(false);
+  const later = method.data === null && !funded && !editing;
 
   return (
-    <section id="payout-method" aria-labelledby="payout-method-heading" className="flex flex-col gap-4 rounded-lg border border-border bg-panel p-5">
+    <section id="payout-method" aria-labelledby="payout-method-heading" className="flex scroll-mt-20 flex-col gap-4 rounded-xl border border-border bg-panel p-5 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h2 id="payout-method-heading" className="font-medium">
             How you get paid
           </h2>
-          <p className="text-sm text-muted">{branding.name} sends your payouts here. A payout keeps the details it was asked for with.</p>
+          <p className="text-sm text-muted">
+            {later
+              ? `Add where ${branding.name} should send your money once you are funded. You can do it now if you like.`
+              : `${branding.name} sends your payouts here. Each payout goes to the details that applied when you asked for it.`}
+          </p>
         </div>
-        {method.data && !editing && (
+        {(later || (method.data && !editing)) && (
           <button type="button" onClick={() => setEditing(true)} className={`${secondaryButtonClass} text-sm`}>
-            Change
+            {later ? "Add now" : "Change"}
           </button>
         )}
       </div>
       {method.isError ? (
         <ErrorText error={method.error} />
       ) : method.data === undefined ? (
-        <p className="text-sm text-muted">Loading...</p>
-      ) : method.data === null || editing ? (
-        <MethodForm method={method.data} onSaved={() => setEditing(false)} onCancel={method.data ? () => setEditing(false) : null} />
+        <Skeleton className="h-16" />
+      ) : later ? null : method.data === null || editing ? (
+        <MethodForm method={method.data} onSaved={() => setEditing(false)} onCancel={method.data || !funded ? () => setEditing(false) : null} />
       ) : (
         <MethodView method={method.data} />
       )}

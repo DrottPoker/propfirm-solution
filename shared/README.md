@@ -5,6 +5,7 @@ Generell kod som båda produkterna kan använda, till exempel typer för pengar,
 | Projekt | Innehåll |
 |---|---|
 | `src/Common.Postgres` | Migreringar av databasen från SQL-filer i produktens assembly, och en spärr som ser till att de körts innan första frågan. |
+| `web/design` | `@kronant/design`: designtokens som portalen och terminalen delar, Kronants färger, djup och rörelse ([ADR 0047](../docs/adr/0047-ett-gemensamt-designsystem.md)). |
 
 Regler:
 

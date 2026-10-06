@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { platformUrl } from "../playwright.config";
 
-import { adminLink, signUp, startChallenge, waitForSandbox } from "./support";
+import { adminLink, openSetting, signUp, startChallenge, waitForSandbox } from "./support";
 
 // A PNG of one pixel, as a logo.
 const logo = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
@@ -16,6 +16,8 @@ test("a firm signs up, gets its own portal and server, and starts a challenge in
   // The trading server is created in the background, together with the firm's first challenge. Then the overview shows
   // the steps to live, with the server and the challenge done.
   await waitForSandbox(page);
+  // The steps already done are folded away, so the next one is at the top.
+  await page.getByRole("button", { name: /^Show \d+ done$/ }).click();
   await expect(page.getByText("Two-step 100K. Change the rules or add more whenever you like.")).toBeVisible();
 
   // The guide prices the first challenge and turns on test payments, and the steps to live show it.
@@ -26,14 +28,16 @@ test("a firm signs up, gets its own portal and server, and starts a challenge in
   await expect(page.getByRole("heading", { name: "Price your first challenge" })).toBeVisible();
   await page.getByLabel("Price of Two-step 100K").fill("499");
   await page.getByLabel("For sale in your shop").check();
-  await page.getByRole("button", { name: "Save price" }).click();
+  // Next saves the price.
+  await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByText("Saved.")).toBeVisible();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByRole("button", { name: "Use test payments for now" }).click();
-  await expect(page.getByText(/^Test payments are on/)).toBeVisible();
-  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/get-started\?step=payments$/);
+  await page.getByRole("button", { name: "Use test payments and go on" }).click();
+  await expect(page).toHaveURL(/\/admin\/get-started\?step=try$/);
   await expect(page.getByRole("link", { name: "Open your shop" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Trying it as a trader" }).getByRole("listitem")).toHaveCount(3);
   await page.getByRole("link", { name: "Go to your overview" }).click();
+  await page.getByRole("button", { name: /^Show \d+ done$/ }).click();
   await expect(page.getByText(/One challenge is for sale in your portal's shop/)).toBeVisible();
 
   // Until we have approved the firm, its emails go only to its administrators, so only the owner could be emailed.
@@ -54,7 +58,7 @@ test("the firm changes its look and makes challenges of its own", async ({ page 
   await signUp(page, "Look E2E Firm", "look-e2e-firm");
   await waitForSandbox(page);
 
-  await adminLink(page, "Portal design").click();
+  await openSetting(page, "Portal design");
   await page.getByLabel("Logo file").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: logo });
   await expect(page.getByRole("img", { name: "Your logo" })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "Admin menu" }).getByRole("img", { name: "Look E2E Firm" })).toBeVisible();
@@ -93,7 +97,7 @@ test("sign-up is only on the platform's address, and a firm's pages are not ther
   await page.goto(`${platformUrl}/admin/login`);
   await expect(page).toHaveURL(`${platformUrl}/`);
   await expect(page.getByRole("heading", { name: "Start your own prop firm" })).toBeVisible();
-  await expect(page.getByText(/^Startup fee: 700\.00 USD once/)).toBeVisible();
+  await expect(page.getByText(/^Startup fee: \$700 once, of which \$200/)).toBeVisible();
   await page.getByRole("link", { name: "Start free sandbox" }).first().click();
   await expect(page).toHaveURL(`${platformUrl}/signup`);
   await expect(page.getByRole("heading", { name: /Start your prop firm/ })).toBeVisible();

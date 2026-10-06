@@ -9,7 +9,8 @@ import { canMarkPaid, canMarkRefunded, orderNote, orderStatusLabels, providerLab
 import { useChallenges, useFirmOrders, useFirmSettings, useOrderDecision } from "@/lib/queries";
 
 import { Modal } from "./Dialog";
-import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, FilterTabs, PageHeader, secondaryButtonClass, type BadgeTone } from "./ui";
+import { BagIcon } from "./icons";
+import { AdminPage, Badge, type BadgeTone, buttonClass, EmptyState, ErrorText, fieldClass, FilterTabs, PageHeader, secondaryButtonClass } from "./ui";
 
 const views: { id: string; label: string; status: OrderStatus | null }[] = [
   { id: "all", label: "All", status: null },
@@ -65,7 +66,7 @@ export function AdminOrders() {
         {orders.isPending ? (
           <p className="px-4 py-6 text-sm text-muted">Loading...</p>
         ) : (orders.data ?? []).length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted">No orders here.</p>
+          <EmptyState icon={<BagIcon className="size-6" />} title="No orders here" text="Orders come when traders buy a challenge in your portal's shop." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[60rem] text-sm">
@@ -98,7 +99,7 @@ export function AdminOrders() {
                 {(orders.data ?? []).map((order) => (
                   <tr key={order.id} className="border-t border-border align-top">
                     <td className="whitespace-nowrap px-4 py-3">
-                      <span className="font-mono">{order.number}</span>
+                      <span>{order.number}</span>
                       <span className="block text-xs text-muted">{formatDateTime(order.createdAt)}</span>
                     </td>
                     <td className="px-4 py-3">
@@ -115,7 +116,7 @@ export function AdminOrders() {
                       )}
                       <span className="block font-mono text-xs text-muted">{order.challengeId}</span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums">
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                       {formatMoney(order.amount)} {order.currency}
                       {order.discountCode && order.listAmount != null && (
                         <span className="block font-sans text-xs text-muted">

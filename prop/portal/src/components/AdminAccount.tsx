@@ -15,12 +15,13 @@ import { AccountHistory } from "./AccountHistory";
 import { teamOnlyText } from "./BeforeApproval";
 import { ChallengeRules } from "./ChallengeRules";
 import { Modal } from "./Dialog";
+import { ActionsMenu } from "./Menu";
 import { ShieldCheckIcon } from "./icons";
 import { PayoutTable } from "./Payouts";
 import { StageTiles } from "./StageSteps";
 import { KeyFigures, Objectives } from "./TraderAccount";
 import { TraderCard } from "./TraderCard";
-import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass, Tabs } from "./ui";
+import { AdminPage, Badge, buttonClass, dangerButtonClass, ErrorText, fieldClass, Loading, Message, Panel, secondaryButtonClass, Tabs } from "./ui";
 
 type Tab = "overview" | "trading" | "payouts" | "log";
 
@@ -45,7 +46,7 @@ export function AdminAccount({ accountId, emailed }: { accountId: string; emaile
   }
 
   if (!details.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = details.data;
@@ -71,15 +72,18 @@ export function AdminAccount({ accountId, emailed }: { accountId: string; emaile
 
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-6">
         {tab === "overview" && (
-          <>
-            <StageTiles details={data} audience="firm" />
-            <KeyFigures details={data} paidOutLabel="Paid out" />
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
-              <Objectives details={data} />
+          // The account in the wide column, and its trader beside it, staying in view while the page scrolls.
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+            <div className="flex min-w-0 flex-col gap-6">
+              <StageTiles details={data} audience="firm" />
+              <KeyFigures details={data} paidOutLabel="Paid out" />
+              <Objectives details={data} columns={2} />
+              <ChallengeRules details={data} audience="firm" />
+            </div>
+            <div className="lg:sticky lg:top-6">
               <TraderCard account={data.account} challengeName={challengeName} />
             </div>
-            <ChallengeRules details={data} audience="firm" />
-          </>
+          </div>
         )}
         {tab === "trading" && <AccountHistory details={data} now={details.dataUpdatedAt} role="admin" />}
         {tab === "payouts" &&
@@ -111,7 +115,7 @@ function Header({ details }: { details: AccountDetails }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{challenge.name}</h1>
+            <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">{challenge.name}</h1>
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>
           <p className="text-sm text-muted">
@@ -123,11 +127,7 @@ function Header({ details }: { details: AccountDetails }) {
             {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt, details.challenge.tradingDay.timeZone)}
           </p>
         </div>
-        {canCancel(account) && (
-          <button type="button" onClick={() => setCancelling(true)} className={`${secondaryButtonClass} text-loss`}>
-            Cancel account
-          </button>
-        )}
+        {canCancel(account) && <ActionsMenu items={[{ label: "Cancel account", danger: true, onSelect: () => setCancelling(true) }]} />}
       </div>
       {cancelling && <CancelDialog details={details} onClose={() => setCancelling(false)} />}
     </div>

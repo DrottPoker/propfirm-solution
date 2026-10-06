@@ -8,16 +8,19 @@ import { accountName, backLink, floorLabel, floorLeftText, floorRisk, initials, 
 import type { AccountDetails, AccountStatus, FloorSnapshot, ServerInfo } from "@/lib/api/types";
 import { formatMoney, formatPercent } from "@/lib/format";
 import { useLogout } from "@/lib/queries";
+import { useSettings } from "@/lib/settings";
+import { playFillSound, unlockSound } from "@/lib/sound";
 import { useTradingStore, type ConnectionState } from "@/lib/store";
 
-import { ArrowLeftIcon, ChevronDownIcon, InfoIcon, LogOutIcon } from "./icons";
+import { ArrowLeftIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SoundIcon } from "./icons";
 
 // "Live prices", not "Live": the accounts are practice accounts, and "Live" could be read as a real money account.
-const connectionStyles: Record<ConnectionState, { label: string; className: string }> = {
-  connecting: { label: "Connecting", className: "border-warning/30 bg-warning/10 text-warning" },
-  connected: { label: "Live prices", className: "border-profit/30 bg-profit/10 text-profit" },
-  reconnecting: { label: "Reconnecting", className: "border-warning/30 bg-warning/10 text-warning" },
-  disconnected: { label: "Offline", className: "border-loss/30 bg-loss/10 text-loss" },
+// The dot pulses while prices stream in.
+const connectionStyles: Record<ConnectionState, { label: string; className: string; dot: string }> = {
+  connecting: { label: "Connecting", className: "border-warning/30 bg-warning/10 text-warning", dot: "" },
+  connected: { label: "Live prices", className: "border-profit/30 bg-profit/10 text-profit", dot: "animate-pulse-dot" },
+  reconnecting: { label: "Reconnecting", className: "border-warning/30 bg-warning/10 text-warning", dot: "" },
+  disconnected: { label: "Offline", className: "border-loss/30 bg-loss/10 text-loss", dot: "" },
 };
 
 const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text-warning", danger: "text-loss" };
@@ -49,7 +52,7 @@ export function AccountBar({
       <span className="flex shrink-0 flex-col justify-center gap-0.5">
         <FirmMark server={server} />
         {back && (
-          <a href={back} className="flex items-center gap-1 text-[11px] text-muted hover:text-foreground">
+          <a href={back} className="flex items-center gap-1 text-[11px] text-muted transition-colors duration-150 hover:text-foreground">
             <ArrowLeftIcon className="size-3" />
             Back to {server.name}
           </a>
@@ -57,10 +60,10 @@ export function AccountBar({
       </span>
 
       <span
-        className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${connection.className}`}
+        className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-300 ${connection.className}`}
         title="Prices and figures come live from the trading service"
       >
-        <span className="size-1.5 rounded-full bg-current" />
+        <span className={`size-1.5 rounded-full bg-current ${connection.dot}`} />
         <span className="max-sm:sr-only">{connection.label}</span>
       </span>
 
@@ -126,7 +129,7 @@ function AccountPicker({
   const nameOf = (a: string) => accountName(a, details.find((d) => d.accountId === a));
 
   return (
-    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4" title={`Trading account ${accountId}`}>
+    <div className="flex shrink-0 flex-col justify-center border-l border-border px-3 lg:px-4" title={`Trading account ${accountId}`}>
       {accounts.length > 1 ? (
         <>
           <label htmlFor={id} className="text-[11px] text-muted">
@@ -166,7 +169,7 @@ function AccountPicker({
 
 function Figure({ label, value, unit, note, help }: { label: string; value: string; unit?: string; note?: string; help?: string }) {
   return (
-    <div className="flex shrink-0 flex-col justify-center border-l border-border px-4" title={help}>
+    <div className="flex shrink-0 flex-col justify-center border-l border-border px-3 lg:px-4" title={help}>
       <span className="flex items-center gap-1 text-[11px] text-muted">
         {label}
         {help && <InfoIcon className="size-3" />}
@@ -191,7 +194,7 @@ function FloorFigure({ floor, ended }: { floor: FloorSnapshot; ended: boolean })
   const broken = floor.headroom <= 0;
   return (
     <div
-      className="flex shrink-0 flex-col justify-center border-l border-border px-4"
+      className="flex shrink-0 flex-col justify-center border-l border-border px-3 lg:px-4"
       title="Equity must stay above this level. If it falls below, every position is closed and trading on the account ends."
     >
       <span className="flex items-center gap-1 text-[11px] text-muted">
@@ -212,6 +215,17 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
   const panelId = useId();
   const logout = useLogout();
   const router = useRouter();
+  const sound = useSettings((s) => s.fillSound);
+  const changeSetting = useSettings((s) => s.change);
+
+  // Turning the sound on plays it once, so the trader hears what it is, and lets the browser play it later.
+  const toggleSound = () => {
+    changeSetting("fillSound", !sound);
+    if (!sound) {
+      unlockSound();
+      playFillSound();
+    }
+  };
 
   useEffect(() => {
     if (!open) {
@@ -244,21 +258,39 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
-        className="flex size-9 items-center justify-center rounded-full bg-raised text-xs font-semibold ring-1 ring-border transition hover:ring-accent"
+        className={`flex size-9 items-center justify-center rounded-full bg-raised text-xs font-semibold ring-1 transition duration-150 hover:ring-accent active:translate-y-px ${open ? "ring-accent" : "ring-border"}`}
       >
         {initials(email)}
       </button>
       {open && (
-        <div id={panelId} className="absolute top-11 right-0 z-20 w-64 rounded-lg border border-border bg-panel p-1 shadow-2xl shadow-black/50">
+        <div
+          id={panelId}
+          className="absolute top-11 right-0 z-20 w-64 origin-top-right animate-pop rounded-xl border border-border bg-panel p-1 shadow-float"
+        >
           <div className="border-b border-border px-3 py-2.5">
             <p className="truncate font-medium">{email}</p>
             <p className="text-xs text-muted">Server {serverName}</p>
           </div>
           <button
             type="button"
+            role="switch"
+            aria-checked={sound}
+            onClick={toggleSound}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+          >
+            <SoundIcon />
+            <span className="flex-1">Sound on fills</span>
+            <span aria-hidden="true" className={`relative h-4 w-7 rounded-full transition-colors duration-150 ${sound ? "bg-accent" : "bg-border"}`}>
+              <span
+                className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${sound ? "translate-x-3" : ""}`}
+              />
+            </span>
+          </button>
+          <button
+            type="button"
             disabled={logout.isPending}
             onClick={() => logout.mutate(undefined, { onSuccess: () => router.replace("/login") })}
-            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted hover:bg-raised hover:text-foreground disabled:opacity-50"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground disabled:opacity-50"
           >
             <LogOutIcon />
             Log out

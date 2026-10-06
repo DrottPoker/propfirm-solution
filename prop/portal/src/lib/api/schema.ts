@@ -1742,6 +1742,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/orders/{orderId}/receipt.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    token?: string;
+                };
+                header?: never;
+                path: {
+                    orderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/orders/{orderId}/invite": {
         parameters: {
             query?: never;
@@ -3773,6 +3810,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/firm/email-settings/{kind}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationPreviewResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/firm/support-email": {
         parameters: {
             query?: never;
@@ -3791,6 +3865,45 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["SupportEmailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmSettingsResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/firm/shop-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ShopPayoutsRequest"];
                 };
             };
             responses: {
@@ -5708,6 +5821,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/support/saved-replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SavedReplyResponse"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavedReplyRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SavedReplyResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/support/saved-replies/{replyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    replyId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavedReplyRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SavedReplyResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    replyId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/identity": {
         parameters: {
             query?: never;
@@ -6857,13 +7088,18 @@ export interface components {
             traderChecked: boolean;
             identityName?: null | string;
         };
-        /** @description IsYou marks the administrator who asked. */
+        /**
+         * @description LastLoginAt is when the administrator last logged in, empty for one who has not since we began to keep
+         *     it, and IsYou marks the administrator who asked.
+         */
         AdminResponse: {
             /** Format: uuid */
             id: string;
             email: string;
             /** Format: date-time */
             createdAt: string;
+            /** Format: date-time */
+            lastLoginAt: null | string;
             isYou: boolean;
         };
         /** @description The firm's administrators, and the invitations that wait for a password. */
@@ -7324,6 +7560,11 @@ export interface components {
         };
         /** @enum {unknown} */
         DomainStatus: "Pending" | "Active" | null;
+        /**
+         * @description Who a notification email goes to: each of the firm's administrators, or the trader it is about.
+         * @enum {unknown}
+         */
+        EmailAudience: "Team" | "Trader";
         /** @description Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting. */
         EmailSettingsRequest: {
             settings: null | {
@@ -7405,7 +7646,8 @@ export interface components {
          *     the sandbox. Payments is how its portal takes payment. EmailSettings has every
          *     notification email by kind, and whether the firm sends it, and SupportEmail is where replies to the
          *     emails to its traders go. FirmApiUrl is where the firm's own systems reach the firm API, and
-         *     OpenApiUrl its description for code generators.
+         *     OpenApiUrl its description for code generators. ShopShowsPayouts is whether the
+         *     shop shows what the firm paid out lately.
          */
         FirmSettingsResponse: {
             id: string;
@@ -7433,6 +7675,7 @@ export interface components {
             /** Format: uri */
             openApiUrl: string;
             supportEmail: null | string;
+            shopShowsPayouts: boolean;
         };
         /**
          * @description Where a firm is on its way from sign-up to live (ADR 0017).
@@ -7635,6 +7878,17 @@ export interface components {
             vatAmount: number;
             /** Format: double */
             amount: number;
+        };
+        /**
+         * @description A notification email as it would go out for the firm now, with sample data: who it goes to, its subject, and the same
+         *     email as HTML and as plain text.
+         */
+        NotificationPreviewResponse: {
+            kind: string;
+            audience: components["schemas"]["EmailAudience"];
+            subject: string;
+            html: string;
+            text: string;
         };
         /**
          * @description What happened to a firm.
@@ -8488,11 +8742,43 @@ export interface components {
             orders: number;
             totals: components["schemas"]["MoneyTotalResponse"][];
         };
+        /**
+         * @description A saved reply: a short Title to find it by, and the text. The text can have {trader} and {firm},
+         *     which the portal fills in with the trader's and the firm's name when it puts the reply in an answer.
+         */
+        SavedReplyRequest: {
+            title: null | string;
+            body: null | string;
+        };
+        /** @description One of the firm's saved replies, as its administrators wrote it, with the placeholders not filled in. */
+        SavedReplyResponse: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            body: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         ShopItemResponse: {
             challenge: components["schemas"]["ChallengeDefinition"];
             /** Format: double */
             price: number;
             currency: string;
+        };
+        /** @description Whether the shop shows what the firm paid out to traders in the last 30 days and how soon. */
+        ShopPayoutsRequest: {
+            show: boolean;
+        };
+        /**
+         * @description What the firm paid out to traders in the last 30 days: how many payouts, the total per currency, and the days from a
+         *     request to its payment on average.
+         */
+        ShopPayoutsResponse: {
+            /** Format: int32 */
+            count: number;
+            totals: components["schemas"]["MoneyTotalResponse"][];
+            /** Format: double */
+            averageDaysToPay: null | number;
         };
         /**
          * @description What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or
@@ -8508,6 +8794,7 @@ export interface components {
             /** Format: uri */
             termsUrl: null | string;
             items: components["schemas"]["ShopItemResponse"][];
+            payouts?: null | components["schemas"]["ShopPayoutsResponse"];
         };
         /**
          * @description FirmId is the short name: the portal's subdomain and the server on the trading platform.
@@ -8645,13 +8932,21 @@ export interface components {
             /** Format: uri */
             checkoutUrl: null | string;
         };
-        /** @description The account a ticket is about, as the portal shows it. */
+        /**
+         * @description The account a ticket is about, as the portal shows it, with where it is now: Status, the stage it
+         *     is on by name, for example "Phase 1" or "Funded", whether that is the funded stage, and whether it is paused while
+         *     the firm's month is unpaid.
+         */
         SupportAccountResponse: {
             /** Format: uuid */
             id: string;
             /** Format: int64 */
             number: number;
             challengeName: string;
+            status: components["schemas"]["ChallengeStatus"];
+            stageName: string;
+            funded: boolean;
+            paused: boolean;
         };
         /** @description A file added to a message, fetched from the attachments path of the trader's or the admin panel's API. */
         SupportAttachmentResponse: {

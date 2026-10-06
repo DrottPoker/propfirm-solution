@@ -174,6 +174,12 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         var live = await GetAsync(admin, "admin/overview");
 
         Assert.Contains("Ann Buyer (tester@test.example) bought Two-step 100K for 99.00 USD in your portal (order 1001).", sale.Body, StringComparison.Ordinal);
+
+        // Our emails to firms have the same text as HTML in our look, with the main link as a button.
+        Assert.Contains("""<a href="mailto:tester@test.example" """, sale.Html, StringComparison.Ordinal);
+        Assert.Contains("style=\"display:inline-block;background:#c9a35b;color:#15120c", sale.Html, StringComparison.Ordinal);
+        Assert.Contains(">Open the account</a>", sale.Html, StringComparison.Ordinal);
+        Assert.Contains("Choose which emails the firm sends under Notifications in the admin panel.</p>", sale.Html, StringComparison.Ordinal);
         Assert.Equal(1, inSandbox.GetProperty("sales").GetProperty("orders").GetInt32());
         Assert.Single(inSandbox.GetProperty("weeks").EnumerateArray().Last().GetProperty("sales").EnumerateArray());
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);

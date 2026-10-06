@@ -20,7 +20,8 @@ export const closeReasons: Record<CloseReason, string> = {
   AccountClosed: "Account closed",
 };
 
-const closedBecause: Record<CloseReason, string> = {
+/** How a position closed, after "Closed Buy 1.00 EURUSD at 1.07500": nothing for a manual close. */
+export const closedBecause: Record<CloseReason, string> = {
   Manual: "",
   StopLoss: " by its stop loss",
   TakeProfit: " by its take profit",

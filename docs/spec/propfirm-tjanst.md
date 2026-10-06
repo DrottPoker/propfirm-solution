@@ -1,8 +1,8 @@
 # Spec: propfirm-tjänsten
 
-- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a, handelshistorik för traderns översikt efter 9a, e-post genom en utkorg, notiser, glömt lösenord, utbetalningsmetoder, handelsvillkor, moms och fakturor, mejl i firmans utseende, lösenordet efter köpet, kontona i terminalen, rabattkoder, firmans kontroller av traders, egen domän och konsistensregel efter genomgången som ny firma
+- Fas: 4c, portalens del i 4d, utbetalningar i 5, firmor i databasen, registrering och sandlåda i 6, platser och betalning i 7, köp i portalen i 8, granskning och avstängning i 9a, handelshistorik för traderns översikt efter 9a, e-post genom en utkorg, notiser, glömt lösenord, utbetalningsmetoder, handelsvillkor, moms och fakturor, mejl i firmans utseende, lösenordet efter köpet, kontona i terminalen, rabattkoder, firmans kontroller av traders, egen domän och konsistensregel efter genomgången som ny firma, våra mejl som HTML och kvittot efter ett köp efter genomgången av UI och UX
 - Status: Implementerad i `prop/src/Prop.Api`
-- Datum: 2026-10-05
+- Datum: 2026-10-06
 
 ## Syfte
 
@@ -18,11 +18,11 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `FirmProvisioner` | Skapar servern på handelsplattformen för varje firma som registrerat sig, och flyttar firman till sandlådan med en första challenge. Försöker igen tills det lyckas. Berättar också för handelsplattformen var firmans traders loggar in (portalens `/terminal`) och att servern ska listas i terminalen när firman är live (ADR 0027). |
 | `FirmLoops` | Startar bakgrundsjobben per firma när firman har en server, även för firmor som blir klara medan tjänsten kör. |
 | `SignupService` | Registrering, bekräftelse av e-postadressen och skapandet av firman, adressen och administratören. |
-| `FirmAdmins` | Administratörernas engångslänkar, inbjudningar och borttagning. |
+| `FirmAdmins` | Administratörernas engångslänkar, inbjudningar, borttagning och när de senast loggade in. `PortalAuth.SignInAsync`, som alla sätt att logga in som administratör går genom, sparar tiden. |
 | `IEmailSender`, `SmtpEmailSender` | E-post från plattformen med SMTP, som ren text och, när mejlet har det, också HTML, och med en svarsadress. Lokalt fångas allt av Mailpit. |
-| `PlatformEmails`, `TraderEmails` | Mejlen till firmor och vår personal i ren text, och mejlen till traders i firmans namn och utseende: loggan, accentfärgen på knappen och svar till firmans supportadress (ADR 0033). |
+| `PlatformEmails`, `TraderEmails`, `EmailLayout` | Mejlen till firmor och vår personal, och mejlen till traders i firmans namn och utseende: loggan, accentfärgen på knappen, svar till firmans supportadress och en sidfot med firmans namn, supportadress och varför tradern får mejlet (ADR 0033). Alla mejl har samma text som ren text och HTML. `EmailLayout` skriver båda från samma delar (stycken, rubriker, en knapp, steg, tabeller och citat), med tabeller och inline-stilar som mejlprogram visar lika, utan webbtypsnitt och SVG. Våra egna mejl skrivs som ren text, och `PlatformEmails.Create` gör HTML av texten i Kronants utseende: ordmärket "Kronant" i en serif med produktens namn i små versaler bredvid, grafit på vitt och varmt benvitt, tunna linjer, en mässingsfärgad knapp med mörk text för huvudlänken, numrerade rader som steg och rader med "namn: värde" som en tabell, och en sidfot med plattformens namn och varför mottagaren får mejlet och, när det går, var det ändras. Ett nytt mejl som skapas med `Create` får mallen utan mer arbete. |
 | `EmailOutbox`, `EmailWorker` | Mejl, med HTML och svarsadress, som köas i samma transaktion som ändringen de berättar om och skickas i bakgrunden, äldst först, med nya försök efter 30 sekunder och dubbel väntan upp till 4 timmar, i 12 försök (ADR 0025). |
-| `Notifications`, `InactivityReminderWorker` | Notiserna till firmans administratörer och traders när regelmotorn fattar ett beslut eller en order betalas, och påminnelsen om att öppna en affär innan challengen tar slut. Varje slag kan stängas av av firman (ADR 0025). |
+| `Notifications`, `InactivityReminderWorker` | Notiserna till firmans administratörer och traders när regelmotorn fattar ett beslut eller en order betalas, och påminnelsen om att öppna en affär innan challengen tar slut. Varje slag kan stängas av av firman (ADR 0025). `Notifications.Preview` bygger varje slag med samma kod och påhittade uppgifter, för "Show the email" i adminpanelen, utan att köa något. |
 | `PasswordResets`, `PasswordResetEndpoints` | Länkarna för att välja nytt lösenord för traders, administratörer och vår personal, och kontrollen av länkar och inbjudningar när de öppnas (ADR 0028). |
 | `PayoutMethods` | Hur traders vill få betalt, krypterat med `SecretProtector` (ADR 0026). |
 | `TradingConditionsEndpoints` | Firmans handelsvillkor på handelsplattformen: instrumenten, hävstången, påslaget och provisionen (ADR 0027). |
@@ -132,7 +132,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 |---|---|
 | `challenge_definitions` | Firmans challenges. |
 | `traders` | Firmans traders, deras användare på handelsplattformen, hash av lösenordet till portalen och när det valdes, namnet och landet från köpet och när e-posten bekräftades. E-postadressen är unik inom firman. |
-| `firm_admins` | Firmans administratörer i portalen, och när lösenordet valdes. E-postadressen är unik inom firman. |
+| `firm_admins` | Firmans administratörer i portalen, när lösenordet valdes och när de senast loggade in (`last_login_at`, tomt för den som inte har loggat in sedan det började sparas). E-postadressen är unik inom firman. |
 | `password_resets` | Länkar för att välja nytt lösenord: hash av token, slag (`trader`, `admin` eller `staff`), personen, när länken går ut och när den användes. |
 | `email_outbox` | Mejl som väntar på att skickas, med texten, HTML och svarsadressen, försök, senaste fel, när de skickades eller gavs upp, och en nyckel som hindrar att samma påminnelse köas två gånger. `withheld_at` är satt för ett mejl som aldrig skickas, eftersom vi inte har godkänt firman och mottagaren inte är en administratör (ADR 0043). |
 | `trader_payout_methods` | Traderns utbetalningsmetod, krypterad. |
@@ -256,6 +256,8 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `PayoutFlowTests`: en utbetalning från begäran via uttaget på handelsplattformen till godkänd och betald, med webhooks, orsaker att neka, konsistensregeln, ett nekat uttag som gör utbetalningen `Failed` och ett nytt försök som lyckas, nej från firman, nej med vinsten tillbaka på kontot och mejlet om det, traderns begäran och administratörens beslut i portalen med utbetalningsmetoden, att metoden sparas krypterad, att andra firmor inte når utbetalningarna och gränserna för listor.
 - `PasswordResetTests`: länkarna för nytt lösenord, kontrollen av inbjudningar och plattformens mejl med inloggningslänkar. Se [specen för portalen](portal.md).
 - `SignupTests`: registrering med och utan bekräftelse av e-postadressen, länkens livslängd, korta namn som är ogiltiga, reserverade eller tagna, också på handelsplattformen, kontroll av formuläret, att registreringen bara finns på plattformens adress, ett mejl som inte gick iväg, en server som skapas när handelsplattformen är tillbaka och ett svar som gick förlorat, välkomstlänken, inloggning med lösenordet från registreringen, sandlådans gräns, omstart och att en konfigurerad firma inte kan ta över en registrerad.
+- `NotificationPreviewTests`: förhandsvisningen av varje notis i firmans namn och utseende, om firmans challenges och utan att något köas eller skickas. Se [specen för portalen](portal.md).
+- `AdminLastLoginTests`: när varje administratör senast loggade in, på alla sätt att logga in. Se [specen för portalen](portal.md).
 - `AdminSettingsTests`: färgerna, en logga som laddas upp, visas och tas bort och loggor som nekas, nyckel för firmans API, webhooks som signeras med firmans hemlighet och en ny hemlighet, inbjudningar till administratörer, som skickas igen eller dras tillbaka, en borttagen administratör som loggas ut direkt, att administratörer bara når sin egen firma, challenges från mallen och i firmans valuta, och att inställningarna bara är för administratörer.
 - `AdminPanelTests`: adminpanelens översikt, sökningen bland kontona, kontots trader, firmans kontroller av tradern, mejlet till tradern och förhandsvisningen av det, historiken för firmans konton, utbetalningskön och challengernas siffror. Se [specen för portalen](portal.md).
 - `OrderFlowTests`: köp i portalen med testbetalning, Stripe och firmans egen betalsida. Se [specen för köp i portalen](kop.md).
@@ -264,6 +266,7 @@ Testerna ligger i `prop/tests/Prop.Api.Tests`. De kör tjänsten mot riktig Post
 - `IdentityTests` och `DiditDecisionTests`: ID-kontrollen med testkontrollen, Didit och firmans egen tjänst, och debiteringen, se [specen för ID-kontroll](id-kontroll.md).
 - `DomainTests`: en egen domän som blir portalens adress när posterna finns, också med samma adresser i stället för CNAME, DNS som inte svarar, domäner som nekas, att en domän hör till en firma, att den kan tas bort och att konfigurerade firmor inte kan byta.
 - `SmtpEmailSenderTests`: ett riktigt mejl genom SMTP till Mailpit i en container, och att en mejlserver som inte svarar ger ett fel som går att hantera.
+- `PlatformEmailsTests`, `TraderEmailsTests` och `ReceiptTests`: våra mejl med samma text som HTML i Kronants utseende, ordmärket, knappen, stegen och tabellerna, länkar i texten, mejlen till traders i firmans utseende med sidfoten, och kvittot efter ett köp i mejlet och som PDF. Se [specen för köp i portalen](kop.md).
 - `SlotTests`, `BillingFlowTests`, `StripeBillingTests` och `BillingRulesTests`: platserna och betalningen. Se [specen för platser och betalning](platser-och-betalning.md).
 - `ReviewTests` och `SuspensionTests`: vår granskning, vår adminvy och avstängning. Se [specen för granskning och avstängning](granskning.md).
 - `OpsPanelTests`: vår adminvy över alla firmor, med översikten, sökningen bland firmorna, kontrollerna, en firmas utbetalningar och vad firmorna betalar. Se [specen för granskning och avstängning](granskning.md).

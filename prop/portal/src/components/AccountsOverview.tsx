@@ -8,8 +8,10 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { useMe, useMyAccounts, useSendEmailConfirmation, useShop } from "@/lib/queries";
 
 import { AccountCard } from "./AccountCard";
+import { AlertIcon, BagIcon, CheckIcon, InfoIcon } from "./icons";
+import { LiveDot } from "./Live";
 import { VerifyIdentityNotice } from "./TraderIdentity";
-import { buttonClass, ErrorText, Message, SectionLabel, TraderPage } from "./ui";
+import { buttonClass, EmptyState, ErrorText, Loading, Message, PageHeader, SectionLabel, TraderPage } from "./ui";
 
 /**
  * The trader's start page: what needs attention, a card for every account that is trading or on its way, and the
@@ -24,7 +26,7 @@ export function AccountsOverview() {
   }
 
   if (!accounts.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   // The newest first, since a trader usually cares about the latest challenge.
@@ -37,32 +39,43 @@ export function AccountsOverview() {
 
   return (
     <TraderPage gap="gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Your accounts</h1>
-        {current.length > 0 && (
-          <p className="text-muted">
-            {trading === 0 ? "No account is trading right now." : trading === 1 ? "One account is trading right now." : `${trading} accounts are trading right now.`}{" "}
-            The figures update every few seconds.
-          </p>
-        )}
-      </div>
+      <PageHeader
+        title="Your accounts"
+        description={
+          current.length > 0 && (
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {trading === 0
+                ? "No account is trading right now."
+                : trading === 1
+                  ? "One account is trading right now."
+                  : `${trading} accounts are trading right now.`}
+              {trading > 0 && <LiveDot label="Figures update live" />}
+            </span>
+          )
+        }
+      />
 
       <ConfirmEmailNotice />
       <VerifyIdentityNotice accounts={current} />
 
       {current.length === 0 && (
-        <section className="flex flex-col items-start gap-3 rounded-lg border border-border bg-panel p-6">
-          <h2 className="text-lg font-semibold">You have no active challenge</h2>
-          <p className="text-muted">
-            {ended.length > 0 ? "Your challenges have ended. Start a new one to trade again." : "Buy a challenge to start trading, and it shows up here."}
-          </p>
-          {canBuy ? (
-            <Link href="/buy" className={buttonClass}>
-              Buy a challenge
-            </Link>
-          ) : (
-            <p className="text-sm text-muted">Ask your firm for a new challenge.</p>
-          )}
+        <section className="rounded-2xl border border-border bg-panel shadow-card">
+          <EmptyState
+            titleAs="h2"
+            icon={<BagIcon className="size-6" />}
+            title="You have no active challenge"
+            text={
+              (ended.length > 0 ? "Your challenges have ended. Start a new one to trade again." : "Buy a challenge to start trading, and it shows up here.") +
+              (canBuy ? "" : " Ask your firm for a new challenge.")
+            }
+            actions={
+              canBuy && (
+                <Link href="/buy" className={buttonClass}>
+                  Buy a challenge
+                </Link>
+              )
+            }
+          />
         </section>
       )}
 
@@ -77,13 +90,17 @@ export function AccountsOverview() {
       {current.length > 0 && (
         <section aria-labelledby="trading-heading" className="flex flex-col gap-3">
           <SectionLabel id="trading-heading">Trading</SectionLabel>
-          <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {current.map((details) => (
-              <li key={details.account.id} className="flex">
-                <AccountCard details={details} />
-              </li>
-            ))}
-          </ul>
+          {current.length === 1 ? (
+            <AccountCard details={current[0]} featured />
+          ) : (
+            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {current.map((details) => (
+                <li key={details.account.id} className="flex">
+                  <AccountCard details={details} />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
@@ -102,7 +119,7 @@ const attentionStyles: Record<AttentionItem["tone"], { box: string; icon: string
 function Attention({ item }: { item: AttentionItem }) {
   const style = attentionStyles[item.tone];
   return (
-    <div role={item.tone === "danger" ? "alert" : "status"} className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-4 py-3 ${style.box}`}>
+    <div role={item.tone === "danger" ? "alert" : "status"} className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 ${style.box}`}>
       <AttentionIcon tone={item.tone} className={style.icon} />
       <p className="min-w-0 flex-1">
         <span className="font-medium">{item.title}</span> <span className="text-muted">{item.detail}</span>
@@ -115,27 +132,11 @@ function Attention({ item }: { item: AttentionItem }) {
 }
 
 function AttentionIcon({ tone, className }: { tone: AttentionItem["tone"]; className: string }) {
+  const Icon = tone === "danger" || tone === "warning" ? AlertIcon : tone === "profit" ? CheckIcon : InfoIcon;
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={`shrink-0 ${className}`}>
-      {tone === "danger" || tone === "warning" ? (
-        <>
-          <path d="M12 9v4" />
-          <path d="M12 17h.01" />
-          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
-        </>
-      ) : tone === "profit" ? (
-        <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="m8 12 3 3 5-6" />
-        </>
-      ) : (
-        <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8h.01" />
-          <path d="M11 12h1v4h1" />
-        </>
-      )}
-    </svg>
+    <span className={className}>
+      <Icon className="size-[18px]" />
+    </span>
   );
 }
 
@@ -148,7 +149,7 @@ function ConfirmEmailNotice() {
   }
 
   return (
-    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+    <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
       <p className="min-w-0 flex-1">
         <span className="font-medium">Confirm your email.</span>{" "}
         <span className="text-muted">Open the link we sent to {me.data.email}. Payouts are paid only once it is confirmed.</span>
@@ -184,12 +185,15 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
       <ul className="flex flex-col gap-2 sm:hidden">
         {accounts.map((details) => (
           <li key={details.account.id}>
-            <Link href={`/accounts/${details.account.id}`} className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-4 text-sm hover:border-muted">
+            <Link
+              href={`/accounts/${details.account.id}`}
+              className="flex flex-col gap-1 rounded-xl border border-border bg-panel p-4 text-sm transition-colors hover:border-muted"
+            >
               <span className="flex items-baseline justify-between gap-3">
                 <span className="font-medium">
                   {details.challenge.name} <span className="text-muted">#{details.account.number}</span>
                 </span>
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {formatMoney(details.results.balance)} {details.account.currency}
                 </span>
               </span>
@@ -205,7 +209,7 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
           </li>
         ))}
       </ul>
-      <div className="hidden overflow-x-auto rounded-lg border border-border bg-panel sm:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-panel shadow-card sm:block">
         <table className="w-full text-sm">
           <thead className="text-left text-muted">
             <tr>
@@ -242,7 +246,7 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
                   <RetryLink details={details} className="mt-1 block text-xs" />
                 </td>
                 <td className="px-5 py-3 text-muted">{details.endedAt ? formatDate(details.endedAt, details.challenge.tradingDay.timeZone) : "-"}</td>
-                <td className="px-5 py-3 text-right font-mono tabular-nums">
+                <td className="px-5 py-3 text-right tabular-nums">
                   {formatMoney(details.results.balance)} {details.account.currency}
                 </td>
               </tr>

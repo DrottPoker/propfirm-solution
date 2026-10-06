@@ -111,9 +111,9 @@ function Days({ days }: { days: DayResult[] }) {
           {days.map((day) => (
             <tr key={day.day} className="border-t border-border">
               <td className="py-2">{formatDay(day.day)}</td>
-              <td className="py-2 pl-4 text-right font-mono tabular-nums">{day.trades}</td>
-              <td className="py-2 pl-4 text-right font-mono tabular-nums">{day.trades > 0 ? formatLots(day.lots) : "-"}</td>
-              <td className={`py-2 pl-4 text-right font-mono tabular-nums ${toneText[resultTone(day.result)]}`}>{day.trades > 0 ? formatSignedMoney(day.result) : "-"}</td>
+              <td className="py-2 pl-4 text-right tabular-nums">{day.trades}</td>
+              <td className="py-2 pl-4 text-right tabular-nums">{day.trades > 0 ? formatLots(day.lots) : "-"}</td>
+              <td className={`py-2 pl-4 text-right tabular-nums ${toneText[resultTone(day.result)]}`}>{day.trades > 0 ? formatSignedMoney(day.result) : "-"}</td>
               <td className={`py-2 pl-4 ${day.counted ? "text-profit" : "text-muted"}`}>{day.counted ? "Counted" : "No new trade"}</td>
             </tr>
           ))}
@@ -145,7 +145,7 @@ function Statistics({ statistics: s }: { statistics: TradeStatistics }) {
       {figures.map((f) => (
         <div key={f.label} className="flex flex-col gap-0.5">
           <dt className="text-muted">{f.label}</dt>
-          <dd className={`font-mono text-base ${f.tone ?? ""}`}>{f.value}</dd>
+          <dd className={`text-base ${f.tone ?? ""}`}>{f.value}</dd>
         </div>
       ))}
     </dl>
@@ -207,15 +207,15 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
                 <tr key={trade.positionId} className="border-t border-border">
                   <td className="py-2 font-medium">{trade.symbol}</td>
                   <td className={`py-2 pl-4 ${trade.side === "Buy" ? "text-profit" : "text-loss"}`}>{trade.side}</td>
-                  <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatLots(trade.volume)}</td>
+                  <td className="py-2 pl-4 text-right tabular-nums">{formatLots(trade.volume)}</td>
                   <td className="whitespace-nowrap py-2 pl-4 text-muted">{trade.openedAt ? formatShortDateTime(trade.openedAt, timeZone) : "-"}</td>
-                  <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatPrice(trade.openPrice)}</td>
+                  <td className="py-2 pl-4 text-right tabular-nums">{formatPrice(trade.openPrice)}</td>
                   <td className="whitespace-nowrap py-2 pl-4 text-muted">
                     {formatShortDateTime(trade.closedAt, timeZone)}
                     {trade.closeReason !== "Manual" && <span className="block text-xs">{closeReasons[trade.closeReason] ?? trade.closeReason}</span>}
                   </td>
-                  <td className="py-2 pl-4 text-right font-mono tabular-nums">{formatPrice(trade.closePrice)}</td>
-                  <td className="py-2 pl-4 text-right font-mono tabular-nums">
+                  <td className="py-2 pl-4 text-right tabular-nums">{formatPrice(trade.closePrice)}</td>
+                  <td className="py-2 pl-4 text-right tabular-nums">
                     <span className={toneText[resultTone(trade.result)]}>{formatSignedMoney(trade.result)}</span>
                     {trade.commission > 0 && <span className="block text-xs text-muted">after {formatMoney(trade.commission)} commission</span>}
                   </td>

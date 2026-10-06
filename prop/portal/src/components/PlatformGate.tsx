@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import { PlatformHome } from "./PlatformHome";
 import { PlatformLogin } from "./PlatformLogin";
-import { Message } from "./ui";
+import { Loading } from "./ui";
 
 /**
  * The platform's own address shares the front page and the login page with the firms' portals, so they are chosen here
@@ -22,5 +22,5 @@ export function PlatformGate() {
     }
   }, [known, router]);
 
-  return pathname === "/" ? <PlatformHome /> : pathname === "/login" ? <PlatformLogin /> : <Message text="Loading..." />;
+  return pathname === "/" ? <PlatformHome /> : pathname === "/login" ? <PlatformLogin /> : <Loading />;
 }

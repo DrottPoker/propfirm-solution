@@ -9,10 +9,11 @@ import type { IdentityMode, IdentityRequirement, IdentitySettings } from "@/lib/
 import { formatDateTime, formatMoney } from "@/lib/format";
 import { identityModes, readinessText, requirementLabels } from "@/lib/identity";
 import { FieldError, useFirmSettings, useIdentitySettings, useSaveIdentitySettings } from "@/lib/queries";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { CopyButton } from "./CopyButton";
 import { AlertIcon, CheckIcon } from "./icons";
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel } from "./ui";
 
 /**
  * The firm's KYC, how it checks its traders' IDs (ADR 0042): with our built-in check or its own service, and what waits
@@ -27,20 +28,28 @@ export function AdminIdentity() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
     <AdminPage narrow>
       <PageHeader
         title="KYC"
-        description="Know your customer: check who your traders are before you pay them. Choose how it is done, and what waits until it is. The trader's card shows the outcome."
-        actions={
-          branding.status === "Sandbox" && (
-            <Link href="/admin/go-live" className={secondaryButtonClass}>
-              Go live
-            </Link>
-          )
+        description={
+          <>
+            Know your customer: check who your traders are before you pay them. Choose how it is done, and what waits until it is. The trader&apos;s card
+            shows the outcome.
+            {branding.status === "Sandbox" && (
+              <>
+                {" "}
+                You need it before you{" "}
+                <Link href="/admin/go-live" className="text-accent hover:underline">
+                  go live
+                </Link>
+                .
+              </>
+            )}
+          </>
         }
       />
       <WhyKyc />
@@ -67,6 +76,7 @@ function WhyKyc() {
 
 function SettingsForm({ settings }: { settings: IdentitySettings }) {
   const save = useSaveIdentitySettings();
+  useSavedNote(save);
   const firm = useFirmSettings();
   const branding = useBranding();
   const urlId = useId();
@@ -132,7 +142,7 @@ function SettingsForm({ settings }: { settings: IdentitySettings }) {
               <input type="checkbox" checked={checkAddress} onChange={(e) => setCheckAddress(e.target.checked)} className="mt-0.5" />
               <span className="flex flex-col">
                 <span>The trader&apos;s address, from a bank statement or a bill · {money(prices.address)} a check</span>
-                <span className="text-xs text-muted">Approval ticks Address checked too.</span>
+                <span className="text-xs text-muted">When it is approved, Address checked is ticked for you too.</span>
               </span>
             </label>
             <label className="flex items-start gap-2.5">
@@ -203,7 +213,6 @@ function SettingsForm({ settings }: { settings: IdentitySettings }) {
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-3">
-        {save.isSuccess && <span className="text-sm text-profit">Saved.</span>}
         {mode === null && <span className="text-sm text-muted">Choose one of the two first.</span>}
         <ErrorText error={save.error} />
         <button type="submit" disabled={mode === null || save.isPending} className={buttonClass}>
@@ -256,7 +265,7 @@ function ExternalApi({ firmApiUrl }: { firmApiUrl: string }) {
   return (
     <div className="flex flex-col gap-2">
       <span className="text-muted">
-        When your service has checked a trader, tell us with your firm API key: the status is Approved, Declined with a reason, or InReview. Approval ticks ID checked.
+        When your service has checked a trader, tell us with your firm API key: the status is Approved, Declined with a reason, or InReview. When you report Approved, ID checked is ticked for you.
       </span>
       <div className="relative">
         <pre className="overflow-x-auto rounded-md border border-border bg-background p-3 pr-12 font-mono text-xs">{example}</pre>

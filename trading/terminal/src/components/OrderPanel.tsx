@@ -4,43 +4,54 @@ import { useEffect, useId, useState } from "react";
 
 import { suspendedHelp } from "@/lib/account";
 import { CommandRejectedError } from "@/lib/api/client";
-import type { InstrumentInfo, OrderType, Side } from "@/lib/api/types";
+import type { InstrumentInfo, OrderType, PointValue, Side } from "@/lib/api/types";
 import { rejectionText } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatUnits } from "@/lib/format";
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
+import { estimatedMargin, nearestLimit, pipValue, riskText, shareOfRoom, shareRisk, stopLossRisk } from "@/lib/orderSummary";
 import { usePlaceOrder, usePointValue } from "@/lib/queries";
-import { estimatedProfit, resolveStops, stepAmount, type StopKind, type StopUnit } from "@/lib/stops";
+import { estimatedProfit, resolveStops, stepAmount, type ResolvedStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
+import { loadVolumes, rememberVolume, startVolume } from "@/lib/volumes";
 
 import { MinusIcon, PlusIcon } from "./icons";
 import { StopUnitToggle } from "./StopUnitToggle";
+import { showError } from "./TradeNotices";
 
 const orderTypes: OrderType[] = ["Market", "Limit", "Stop"];
 const sides: Side[] = ["Sell", "Buy"];
 
-type Status = { kind: "idle" } | { kind: "ok"; text: string } | { kind: "error"; text: string };
 type StopFields = Record<StopKind, string>;
 
 const noStops: StopFields = { stopLoss: "", takeProfit: "" };
+
+const panelClass = "rounded-xl border border-border bg-panel shadow-card";
 
 export function OrderPanel({ accountId, instrument }: { accountId: string; instrument: InstrumentInfo | null }) {
   // Nothing to preview without a symbol.
   useEffect(() => () => useOrderDraft.getState().setDraft(null, []), []);
 
-  return instrument ? <OrderTicket accountId={accountId} instrument={instrument} /> : <aside className="rounded-lg border border-border bg-panel" />;
+  return instrument ? <OrderTicket accountId={accountId} instrument={instrument} /> : <aside className={panelClass} />;
 }
 
 function OrderTicket({ accountId, instrument }: { accountId: string; instrument: InstrumentInfo }) {
   const [type, setType] = useState<OrderType>("Market");
-  const [volume, setVolume] = useState("1.00");
+  // Each symbol starts from the volume the trader last chose for it on this device, so gold does not start at 1 lot
+  // because EURUSD did.
+  const [volume, setVolume] = useState(() => startVolume(instrument, loadVolumes()));
+  const [volumeSymbol, setVolumeSymbol] = useState(instrument.symbol);
   const [price, setPrice] = useState("");
   const [unit, setUnit] = useState<StopUnit>("price");
   // One set of fields per unit, so switching never reads a price as an amount.
   const [stops, setStops] = useState<Record<StopUnit, StopFields>>({ price: noStops, money: noStops });
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
-  // The side the trader points at or has focused, which the chart preview follows.
+  // The side the trader points at or has focused, which the chart preview and the summary follow.
   const [pointedSide, setPointedSide] = useState<Side | null>(null);
+
+  if (volumeSymbol !== instrument.symbol) {
+    setVolumeSymbol(instrument.symbol);
+    setVolume(startVolume(instrument, loadVolumes()));
+  }
 
   const quote = useTradingStore((s) => s.prices[instrument.symbol]);
   const canTrade = useTradingStore((s) => s.connection === "connected" && s.account?.status === "Active");
@@ -57,11 +68,19 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const orderPrice = typedPrice?.ok ? (typedPrice.value ?? undefined) : undefined;
   const fields = stops[unit];
 
+  const changeVolume = (next: string) => {
+    setVolume(next);
+    if (parseVolume(next, instrument).ok) {
+      rememberVolume(instrument.symbol, next);
+    }
+  };
+
   // Amounts are counted from where the order opens: the ask for a market buy, the bid for a market sell.
   const entryFor = (side: Side) => (type === "Market" ? (side === "Buy" ? quote?.ask : quote?.bid) : orderPrice);
   const resolve = (side: Side) =>
     resolveStops(unit, fields.stopLoss, fields.takeProfit, side, entryFor(side), lots ?? 0, digits, pointValue?.perLot);
 
+  // What the trader asked for comes back as a note in the corner: the fill from the trading service, or why not.
   const submit = (side: Side) => {
     const resolved = resolve(side);
     const error = !parsedVolume.ok
@@ -72,11 +91,10 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
           ? resolved.error
           : null;
     if (error || !resolved.ok) {
-      setStatus({ kind: "error", text: error ?? "Invalid order." });
+      showError(error ?? "Invalid order.");
       return;
     }
 
-    setStatus({ kind: "idle" });
     placeOrder.mutate(
       {
         orderId: crypto.randomUUID(),
@@ -90,12 +108,11 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
       },
       {
         onSuccess: () => {
-          setStatus({ kind: "ok", text: type === "Market" ? `${side} filled.` : `${side} ${type.toLowerCase()} placed.` });
           // The next order starts clean but keeps the volume, the order type and how stops are typed.
           setPrice("");
           setStops({ price: noStops, money: noStops });
         },
-        onError: (e) => setStatus({ kind: "error", text: e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service." }),
+        onError: (e) => showError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service."),
       },
     );
   };
@@ -126,7 +143,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const previews = sides.map(preview);
 
   // A price step is one pip. An amount step is what one pip is worth at the volume.
-  const pipAmount = pointValue && lots ? pipSize(digits) * 10 ** digits * lots * pointValue.perLot : 10;
+  const pipAmount = pointValue && lots ? pipValue(lots, digits, pointValue.perLot) : 10;
   const startPrice = orderPrice ?? quote?.bid;
   const setStop = (kind: StopKind, value: string) => setStops((s) => ({ ...s, [unit]: { ...s[unit], [kind]: value } }));
   const stepStop = (kind: StopKind, direction: 1 | -1) =>
@@ -179,22 +196,24 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   );
 
   const disabled = !canTrade || !quote || placeOrder.isPending;
+  // A pending order's margin is counted at its price, a market order's at the middle of bid and ask.
+  const marginPrice = orderPrice ?? (quote ? (quote.bid + quote.ask) / 2 : undefined);
 
   return (
-    <aside className="flex min-h-0 flex-col gap-4 overflow-y-auto rounded-lg border border-border bg-panel p-3 text-sm">
+    <aside className={`flex min-h-0 flex-col gap-3.5 overflow-y-auto p-3 text-sm ${panelClass}`}>
       <h2 className="flex items-baseline gap-2">
         <span className="font-semibold">Trade</span>{" "}
         <span className="text-muted">{instrument.symbol}</span>
       </h2>
 
-      <div className="grid grid-cols-3 gap-1 rounded-md bg-background p-1" role="group" aria-label="Order type">
+      <div className="grid grid-cols-3 gap-1 rounded-lg bg-background p-1" role="group" aria-label="Order type">
         {orderTypes.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setType(t)}
             aria-pressed={t === type}
-            className={`rounded px-2 py-1.5 font-medium ${t === type ? "bg-accent text-white" : "text-muted hover:text-foreground"}`}
+            className={`rounded-md px-2 py-1.5 font-medium transition duration-150 ease-out-soft active:translate-y-px ${t === type ? "bg-accent text-accent-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.2)]" : "text-muted hover:bg-raised hover:text-foreground"}`}
           >
             {t}
           </button>
@@ -205,8 +224,8 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         <Stepper
           label="Volume (lots)"
           value={volume}
-          onChange={setVolume}
-          onStep={(direction) => setVolume(stepVolume(volume, direction, instrument))}
+          onChange={changeVolume}
+          onStep={(direction) => changeVolume(stepVolume(volume, direction, instrument))}
         />
         {lots !== undefined ? (
           <span className="text-xs text-muted">
@@ -290,11 +309,15 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         )}
       </div>
 
-      {status.kind !== "idle" && !ended && (
-        <p role="status" className={`rounded-md px-3 py-2 ${status.kind === "error" ? "bg-loss/10 text-loss" : "bg-profit/10 text-profit"}`}>
-          {status.text}
-        </p>
-      )}
+      <OrderSummary
+        instrument={instrument}
+        lots={lots}
+        price={marginPrice}
+        pointValue={pointValue}
+        side={ghostSide}
+        entry={entryFor(ghostSide)}
+        stops={resolve(ghostSide)}
+      />
 
       <dl className="mt-auto grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 border-t border-border pt-3 text-xs">
         <dt className="text-muted">Leverage</dt>
@@ -311,6 +334,102 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         </dd>
       </dl>
     </aside>
+  );
+}
+
+const riskColors = { ok: "text-foreground", warning: "text-warning", danger: "text-loss" };
+const riskBars = { ok: "bg-accent", warning: "bg-warning", danger: "bg-loss" };
+
+/**
+ * What the order means before it is placed: the margin it takes from the free margin, what a pip is worth at the
+ * volume, and with a stop loss what the order risks, also as a share of the room left to the nearest loss limit.
+ */
+function OrderSummary({
+  instrument,
+  lots,
+  price,
+  pointValue,
+  side,
+  entry,
+  stops,
+}: {
+  instrument: InstrumentInfo;
+  lots: number | undefined;
+  price: number | undefined;
+  pointValue: PointValue | undefined;
+  side: Side;
+  entry: number | undefined;
+  stops: ResolvedStops;
+}) {
+  const freeMargin = useTradingStore((s) => s.account?.freeMargin);
+  const floors = useTradingStore((s) => s.account?.floors);
+  const { digits } = instrument;
+  const ready = lots !== undefined && pointValue !== undefined;
+  const currency = pointValue?.currency ?? "";
+
+  const margin =
+    ready && price !== undefined
+      ? estimatedMargin({
+          lots,
+          price,
+          digits,
+          contractSize: instrument.contractSize,
+          leverage: instrument.leverage,
+          pointValuePerLot: pointValue.perLot,
+          baseIsAccountCurrency: instrument.baseCurrency === pointValue.currency,
+        })
+      : null;
+  const tooMuchMargin = margin !== null && freeMargin !== undefined && margin > freeMargin;
+  const pip = ready ? pipValue(lots, digits, pointValue.perLot) : null;
+  const risk =
+    ready && entry !== undefined && stops.ok && stops.stopLoss !== null
+      ? stopLossRisk(side, lots, entry, stops.stopLoss, digits, pointValue.perLot)
+      : null;
+  // A stop loss on the winning side would be refused, so it says so rather than ask for one.
+  const wrongSide = ready && entry !== undefined && stops.ok && stops.stopLoss !== null && risk === null;
+  const limit = nearestLimit(floors ?? []);
+  const level = risk !== null && limit ? shareRisk(shareOfRoom(risk, limit)) : "ok";
+
+  return (
+    <section aria-label="What this order means" className="flex flex-col gap-2 rounded-lg border border-border bg-background/50 px-3 py-2.5 text-xs">
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <dt className="text-muted">Margin</dt>
+        <dd
+          className={`text-right font-mono tabular-nums ${tooMuchMargin ? "text-loss" : ""}`}
+          title={
+            tooMuchMargin
+              ? `More than the free margin of ${formatMoney(freeMargin ?? 0)} ${currency}, so the order would be refused.`
+              : `About what the order takes from the free margin at leverage 1:${instrument.leverage}. The trading service counts it when the order fills.`
+          }
+        >
+          {margin === null ? "-" : `${formatMoney(margin)} ${currency}`}
+        </dd>
+        <dt className="text-muted">Pip value</dt>
+        <dd className="text-right font-mono tabular-nums" title={`What a move of one pip (${pipSize(digits).toFixed(Math.max(0, digits - 1))}) is worth at this volume`}>
+          {pip === null ? "-" : `${formatMoney(pip)} ${currency}`}
+        </dd>
+      </dl>
+      {risk !== null ? (
+        <div
+          className="flex flex-col gap-1.5 border-t border-border pt-2"
+          title={`Estimated at the stop loss, before commission. ${limit ? "The room is how far equity can fall before the limit is broken." : ""}`.trim()}
+        >
+          <p className={riskColors[level]}>{riskText(risk, currency, limit)}</p>
+          {limit && (
+            <span aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-border">
+              <span
+                className={`block h-full origin-left animate-grow-x rounded-full transition-[width,background-color] duration-300 ease-out-soft ${riskBars[level]}`}
+                style={{ width: `${Math.min(100, Math.max(2, shareOfRoom(risk, limit)))}%` }}
+              />
+            </span>
+          )}
+        </div>
+      ) : wrongSide ? (
+        <p className="border-t border-border pt-2 text-warning">The stop loss is on the wrong side of the price for a {side.toLowerCase()}.</p>
+      ) : (
+        <p className="border-t border-border pt-2 text-muted">Set a stop loss to see what the order risks.</p>
+      )}
+    </section>
   );
 }
 
@@ -332,14 +451,14 @@ function Stepper({
   const id = useId();
   // "Volume (lots)" gives "Lower volume".
   const name = label.replace(/\s*\(.*\)$/, "").toLowerCase();
-  const buttonClass = `flex shrink-0 items-center justify-center text-muted hover:bg-white/5 hover:text-foreground ${compact ? "w-7" : "w-9"}`;
+  const buttonClass = `flex shrink-0 items-center justify-center text-muted transition-colors duration-150 hover:bg-foreground/5 hover:text-foreground active:bg-foreground/10 ${compact ? "w-7" : "w-9"}`;
   // Not a wrapping label: it would also label the buttons, and a click on the text would press one.
   return (
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="text-xs text-muted">
         {label}
       </label>
-      <span className="flex h-9 overflow-hidden rounded-md border border-border bg-raised focus-within:border-accent">
+      <span className="flex h-9 overflow-hidden rounded-lg border border-border bg-raised transition-colors duration-150 focus-within:border-accent">
         {compact && (
           <button type="button" className={`${buttonClass} border-r border-border`} aria-label={`Lower ${name}`} onClick={() => onStep(-1)}>
             <MinusIcon className="size-3.5" />
@@ -379,7 +498,8 @@ function TradeButton({
   onClick: () => void;
   onPoint: (pointed: boolean) => void;
 }) {
-  const color = side === "Buy" ? "bg-buy hover:bg-buy/90" : "bg-sell hover:bg-sell/90";
+  // Dark text, which reads better than white on the bright green and red.
+  const color = side === "Buy" ? "bg-buy" : "bg-sell";
   return (
     <button
       type="button"
@@ -389,7 +509,7 @@ function TradeButton({
       onFocus={() => onPoint(true)}
       onBlur={() => onPoint(false)}
       disabled={disabled}
-      className={`flex flex-col items-center rounded-md py-2.5 text-white transition ${color} disabled:opacity-40`}
+      className={`flex flex-col items-center rounded-lg py-2.5 text-background shadow-[inset_0_1px_0_rgb(255_255_255/0.25),0_1px_2px_rgb(0_0_0/0.3)] transition duration-150 ease-out-soft hover:brightness-110 active:translate-y-px active:brightness-95 disabled:pointer-events-none disabled:opacity-40 ${color}`}
     >
       <span className="text-xs font-semibold tracking-wide uppercase">{side}</span>{" "}
       <span className="font-mono text-base font-semibold tabular-nums">{price}</span>

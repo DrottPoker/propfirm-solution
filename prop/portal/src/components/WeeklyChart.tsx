@@ -58,7 +58,7 @@ export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekA
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeWidth={1} />
-              <text x={plot.right + 8} y={y(tick) + 4} className="fill-muted font-mono text-[11px]">
+              <text x={plot.right + 8} y={y(tick) + 4} className="fill-muted text-[11px]">
                 {shortAmount(tick)}
               </text>
             </g>

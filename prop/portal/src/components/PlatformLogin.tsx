@@ -5,7 +5,6 @@ import { useState } from "react";
 
 import { usePlatform } from "@/app/providers";
 import { useLoginHelp } from "@/lib/passwordQueries";
-import { portalAddress } from "@/lib/signup";
 
 import { PlatformCard } from "./PlatformCard";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
@@ -36,10 +35,7 @@ export function PlatformLogin() {
         </div>
       ) : (
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <p className="text-sm text-muted">
-            Each firm has its own address, such as <span className="font-mono">{portalAddress(platform.firmPortalUrl, "yourfirm")}admin</span>. Write
-            your email, and we send you a link to the admin panel of your firm.
-          </p>
+          <p className="text-sm text-muted">Each firm has its own address. Write your email, and we send you a link to the admin panel of each firm you run.</p>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-muted">Email</span>
             <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={fieldClass} />

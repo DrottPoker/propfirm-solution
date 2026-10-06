@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { attachmentUrl, authorName, charactersLeft, filesProblem, isImage, lastAuthorName, supportLimits, ticketStatus, traderTicketNote, waitingText } from "./support";
+import {
+  attachmentUrl,
+  authorName,
+  charactersLeft,
+  filesProblem,
+  fillReply,
+  findReplies,
+  insertText,
+  isImage,
+  lastAuthorName,
+  replyPreview,
+  replyValues,
+  savedReplyLimits,
+  savedReplyProblem,
+  supportLimits,
+  ticketAccountStatus,
+  ticketStatus,
+  traderTicketNote,
+  waitingText,
+} from "./support";
 
 const names = { firm: "Demo Firm", trader: "anna@test.com", me: "admin@test.com" };
 
@@ -84,5 +103,86 @@ describe("how long a ticket has waited", () => {
     expect(waitingText("2026-10-07T07:30:00Z", now)).toBe("Waiting 4 hours");
     expect(waitingText("2026-10-06T10:00:00Z", now)).toBe("Waiting 1 day");
     expect(waitingText("2026-10-04T12:00:00Z", now)).toBe("Waiting 3 days");
+  });
+});
+
+describe("where the account a ticket is about is", () => {
+  it("is its stage and its status, as in the list of accounts", () => {
+    expect(ticketAccountStatus({ status: "Active", stageName: "Phase 1", paused: false })).toEqual({ stage: "Phase 1", label: "Trading", tone: "accent" });
+    expect(ticketAccountStatus({ status: "Active", stageName: "Funded", paused: true })).toEqual({ stage: "Funded", label: "Paused", tone: "warning" });
+    expect(ticketAccountStatus({ status: "Failed", stageName: "Phase 2", paused: false })).toEqual({ stage: "Phase 2", label: "Failed", tone: "loss" });
+    expect(ticketAccountStatus({ status: "Cancelled", stageName: "Phase 1", paused: false })).toEqual({ stage: "Phase 1", label: "Cancelled", tone: "muted" });
+    expect(ticketAccountStatus({ status: "OpeningAccount", stageName: "Phase 2", paused: false }).label).toBe("Opening its account");
+  });
+
+  it("has passed every stage while it waits for the firm's approval", () => {
+    expect(ticketAccountStatus({ status: "AwaitingFunding", stageName: "Phase 2", paused: false })).toEqual({
+      stage: "Every stage passed",
+      label: "Waiting for your approval",
+      tone: "warning",
+    });
+  });
+});
+
+describe("a saved reply", () => {
+  const values = { trader: "Anna Berg", firm: "Demo Firm" };
+
+  it("has the trader's and the firm's names filled in, wherever and however often they are", () => {
+    expect(fillReply("Hi {trader},\nthanks for writing to {firm}.\n{firm}", values)).toBe("Hi Anna Berg,\nthanks for writing to Demo Firm.\nDemo Firm");
+    expect(fillReply("Hi {Trader} from {FIRM}", values)).toBe("Hi Anna Berg from Demo Firm");
+  });
+
+  it("leaves other braces, and names that are not placeholders, as they are", () => {
+    expect(fillReply("Use {account} or { trader } or {{trader}}", values)).toBe("Use {account} or { trader } or {Anna Berg}");
+    expect(fillReply("Costs $& and $1 at {firm}", { trader: "$&", firm: "$1" })).toBe("Costs $& and $1 at $1");
+  });
+
+  it("names the trader by name, or by email when the trader has none", () => {
+    expect(replyValues({ traderName: "Anna Berg", traderEmail: "anna@test.com" }, "Demo Firm")).toEqual(values);
+    expect(replyValues({ traderName: null, traderEmail: "anna@test.com" }, "Demo Firm").trader).toBe("anna@test.com");
+    expect(replyValues({ traderName: "  ", traderEmail: "anna@test.com" }, "Demo Firm").trader).toBe("anna@test.com");
+  });
+
+  it("is found by its title or text, in any case", () => {
+    const replies = [
+      { title: "Payout times", body: "Payouts are paid within 2 days." },
+      { title: "Terminal", body: "Choose the server in the terminal." },
+    ];
+    expect(findReplies(replies, "")).toEqual(replies);
+    expect(findReplies(replies, "  PAYOUT ")).toEqual([replies[0]]);
+    expect(findReplies(replies, "server")).toEqual([replies[1]]);
+    expect(findReplies(replies, "refund")).toEqual([]);
+  });
+
+  it("is previewed on one line", () => {
+    expect(replyPreview("Hi {trader},\n\npayouts are paid\twithin 2 days.")).toBe("Hi {trader}, payouts are paid within 2 days.");
+    expect(replyPreview("a ".repeat(60), 20)).toBe("a a a a a a a a a...");
+  });
+
+  it("needs a title and a text within their limits", () => {
+    expect(savedReplyProblem(" ", "Hello")).toEqual({ field: "title", text: "Write a title to find the reply by." });
+    expect(savedReplyProblem("a".repeat(savedReplyLimits.title + 1), "Hello")?.field).toBe("title");
+    expect(savedReplyProblem("Greeting", " \n ")).toEqual({ field: "body", text: "Write the reply." });
+    expect(savedReplyProblem("Greeting", "a".repeat(savedReplyLimits.body + 1))).toEqual({ field: "body", text: "Keep the reply to 4,000 characters." });
+    expect(savedReplyProblem(` ${"a".repeat(savedReplyLimits.title)} `, ` ${"a".repeat(savedReplyLimits.body)}\n`)).toBeNull();
+  });
+});
+
+describe("putting a saved reply in an answer", () => {
+  it("replaces an empty answer", () => {
+    expect(insertText("", "Hi Anna", 0, 0)).toEqual({ value: "Hi Anna", cursor: 7 });
+    expect(insertText(" \n ", "Hi Anna", 3, 3)).toEqual({ value: "Hi Anna", cursor: 7 });
+  });
+
+  it("goes in at the cursor, with a space where it would run into a word", () => {
+    expect(insertText("Hello\n", "Payouts take 2 days.", 6, 6)).toEqual({ value: "Hello\nPayouts take 2 days.", cursor: 26 });
+    expect(insertText("Hello.", "Payouts take 2 days.", 6, 6)).toEqual({ value: "Hello. Payouts take 2 days.", cursor: 27 });
+    expect(insertText("Hello. Bye.", "Payouts take 2 days.", 7, 7)).toEqual({ value: "Hello. Payouts take 2 days. Bye.", cursor: 27 });
+    expect(insertText("Bye.", "Hello.", 0, 0)).toEqual({ value: "Hello. Bye.", cursor: 6 });
+  });
+
+  it("takes the place of what is selected", () => {
+    expect(insertText("Hello XXX bye", "Anna", 6, 9)).toEqual({ value: "Hello Anna bye", cursor: 10 });
+    expect(insertText("Hello", "Anna", 9, 2)).toEqual({ value: "Hello Anna", cursor: 10 });
   });
 });

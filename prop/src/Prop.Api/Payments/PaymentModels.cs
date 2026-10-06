@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using Prop.Api.Portal;
 using Prop.Rules;
 
 namespace Prop.Api.Payments;
@@ -81,7 +82,17 @@ public sealed record PriceRequest(decimal Amount, string? Currency, bool ForSale
 /// terms, which the buyer accepts. <paramref name="Test"/> means no money is taken. <paramref name="TeamOnly"/> means only
 /// the firm's own administrators can buy now, to try the shop (ADR 0043).
 /// </summary>
-public sealed record ShopResponse(bool Open, bool Full, bool Test, bool TeamOnly, Uri? TermsUrl, IReadOnlyList<ShopItemResponse> Items);
+/// <summary>
+/// The firm's shop. <paramref name="Payouts"/> is what the firm paid out in the last 30 days, when it chose to show it and
+/// has paid any.
+/// </summary>
+public sealed record ShopResponse(bool Open, bool Full, bool Test, bool TeamOnly, Uri? TermsUrl, IReadOnlyList<ShopItemResponse> Items, ShopPayoutsResponse? Payouts = null);
+
+/// <summary>
+/// What the firm paid out to traders in the last 30 days: how many payouts, the total per currency, and the days from a
+/// request to its payment on average.
+/// </summary>
+public sealed record ShopPayoutsResponse(int Count, IReadOnlyList<MoneyTotalResponse> Totals, double? AverageDaysToPay);
 
 public sealed record ShopItemResponse(ChallengeDefinition Challenge, decimal Price, string Currency);
 

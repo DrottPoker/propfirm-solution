@@ -1,12 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { sessionExpired } from "@/lib/api/client";
 import type { AccountDetails, ServerInfo } from "@/lib/api/types";
 import { usableTimeZone } from "@/lib/format";
-import { initialInstrument } from "@/lib/instruments";
+import { digitsLookup, initialInstrument } from "@/lib/instruments";
 import { useInstruments, useMe } from "@/lib/queries";
 import { useTradingConnection } from "@/lib/realtime";
 import { rememberAccount, rememberServer } from "@/lib/servers";
@@ -16,9 +16,11 @@ import { AccountBar } from "./AccountBar";
 import { BottomPanel } from "./BottomPanel";
 import { EndedNotice } from "./EndedNotice";
 import { CandlesIcon, LayersIcon, ListIcon, TradeIcon } from "./icons";
+import { KronantMark } from "./KronantMark";
 import { OrderPanel } from "./OrderPanel";
 import { PriceChart } from "./PriceChart";
 import { StatusBar } from "./StatusBar";
+import { useTradeNotices } from "./TradeNotices";
 import { Watchlist } from "./Watchlist";
 
 /**
@@ -89,8 +91,10 @@ function TradingTerminal({
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [view, setView] = useState<PhoneView>("chart");
 
-  const list = instruments.data ?? [];
+  const list = useMemo(() => instruments.data ?? [], [instruments.data]);
   const instrument = list.find((i) => i.symbol === selectedSymbol) ?? initialInstrument(list);
+  const digitsOf = useMemo(() => digitsLookup(list), [list]);
+  useTradeNotices(digitsOf);
 
   if (instruments.isError) {
     return <Message text={`Could not load account ${accountId}.`} />;
@@ -122,7 +126,7 @@ function TradingTerminal({
             </div>
           </div>
           <div className={pane("positions", view)}>
-            <BottomPanel accountId={accountId} instruments={list} />
+            <BottomPanel accountId={accountId} digitsOf={digitsOf} />
           </div>
         </main>
         <PhoneTabs view={view} onChange={setView} />
@@ -150,7 +154,10 @@ function pane(part: PhoneView, view: PhoneView): string {
   return `${part === view ? "flex" : "hidden"} min-h-0 flex-1 flex-col max-lg:*:min-h-0 max-lg:*:flex-1 lg:contents`;
 }
 
-/** The tabs at the bottom of a phone's screen, between the chart, the order ticket, the watchlist and the positions. */
+/**
+ * The tabs at the bottom of a phone's screen, between the chart, the order ticket, the watchlist and the positions.
+ * The chosen one is brass, with a short bar along its top edge.
+ */
 function PhoneTabs({ view, onChange }: { view: PhoneView; onChange: (view: PhoneView) => void }) {
   return (
     <nav aria-label="Terminal" className="grid shrink-0 grid-cols-4 border-t border-border bg-panel pb-[env(safe-area-inset-bottom)] lg:hidden">
@@ -160,8 +167,9 @@ function PhoneTabs({ view, onChange }: { view: PhoneView; onChange: (view: Phone
           type="button"
           aria-pressed={value === view}
           onClick={() => onChange(value)}
-          className={`flex flex-col items-center gap-1 py-2 text-[11px] ${value === view ? "text-accent" : "text-muted hover:text-foreground"}`}
+          className={`relative flex flex-col items-center gap-1 py-2 text-[11px] font-medium transition-colors duration-150 active:translate-y-px ${value === view ? "text-accent" : "text-muted hover:text-foreground"}`}
         >
+          {value === view && <span aria-hidden="true" className="absolute inset-x-6 top-0 h-0.5 animate-fade rounded-b-full bg-accent" />}
           <Icon className="size-5" />
           {label}
         </button>
@@ -171,5 +179,10 @@ function PhoneTabs({ view, onChange }: { view: PhoneView; onChange: (view: Phone
 }
 
 function Message({ text }: { text: string }) {
-  return <main className="flex flex-1 items-center justify-center p-8 text-muted">{text}</main>;
+  return (
+    <main className="flex flex-1 animate-fade flex-col items-center justify-center gap-4 p-8 text-muted">
+      <KronantMark className="size-9" />
+      {text}
+    </main>
+  );
 }

@@ -69,9 +69,10 @@ internal sealed record NotifiedAccount(Guid Id, long Number, string Email, Chall
 
 /// <summary>
 /// Queues the notification emails for a decision of the rule engine or a paid order, in the caller's transaction, so an
-/// email goes out if and only if the decision is saved. The caller wakes the email worker after committing.
+/// email goes out if and only if the decision is saved. The caller wakes the email worker after committing. The same
+/// emails with sample data are previewed in NotificationPreviews.cs.
 /// </summary>
-internal sealed class Notifications(IOptions<PlatformOptions> platform)
+internal sealed partial class Notifications(IOptions<PlatformOptions> platform)
 {
     /// <summary>The trader is reminded when the last day to open a trade is at most this many days away.</summary>
     public const int InactivityReminderDays = 3;
@@ -79,7 +80,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
     public async Task QueueAsync(NpgsqlConnection connection, Firm firm, NotifiedAccount account, ChallengeOutput output, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var definition = account.Definition;
-        var accountUrl = new Uri(firm.Portal.Url, $"accounts/{account.Id}");
+        var accountUrl = AccountUrl(firm, account);
         switch (output)
         {
             case StagePassed passed when passed.Stage < definition.FundedStage - 1:
@@ -150,14 +151,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var lastDay = endsOn.AddDays(-1);
-        var message = TraderEmails.Create(
-            firm,
-            account.Email,
-            $"Open a trade by {Day(lastDay)} to keep your {account.Definition.Name}",
-            [$"No new trade has been opened on your {account.Definition.Name} (account #{account.Number}) for a while. Open a new trade by {Day(lastDay)}, or the challenge ends when the trading day of {Day(endsOn)} starts."],
-            "Open your account",
-            new Uri(firm.Portal.Url, $"accounts/{account.Id}"));
+        var message = InactivityReminderEmail(firm, account, endsOn);
         return NotificationKinds.IsOn(firm, NotificationKinds.TraderInactivity)
             ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderInactivity, firm.Id, now, cancellationToken, $"inactivity:{account.Id}:{endsOn:yyyy-MM-dd}")
             : Task.CompletedTask;
@@ -193,10 +187,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var link = new Uri(firm.Portal.Url, $"support/{ticket.Id}");
-        var message = opened
-            ? TraderEmails.SupportOpened(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, link)
-            : TraderEmails.SupportAnswer(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, closed, link);
+        var message = SupportToTraderEmail(firm, ticket, text, files, opened, closed);
         return NotificationKinds.IsOn(firm, NotificationKinds.TraderSupportAnswers)
             ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderSupportAnswers, firm.Id, now, cancellationToken)
             : Task.CompletedTask;
@@ -205,10 +196,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
     /// <summary>Our built-in ID check of the trader was approved or declined: the trader is told, with why it was declined.</summary>
     public static Task QueueIdentityAsync(NpgsqlConnection connection, Firm firm, string to, Identity.TraderIdentity identity, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var page = new Uri(firm.Portal.Url, "identity");
-        var message = identity.Status == Identity.IdentityStatus.Approved
-            ? TraderEmails.IdentityVerified(firm, to, page)
-            : TraderEmails.IdentityDeclined(firm, to, identity.Reason ?? "The check did not pass.", page);
+        var message = IdentityEmail(firm, to, identity.Status == Identity.IdentityStatus.Approved, identity.Reason);
         return NotificationKinds.IsOn(firm, NotificationKinds.TraderIdentity)
             ? EmailOutbox.AddAsync(connection, message, NotificationKinds.TraderIdentity, firm.Id, now, cancellationToken)
             : Task.CompletedTask;
@@ -349,6 +337,34 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             ],
             accountUrl);
 
+    private static EmailMessage InactivityReminderEmail(Firm firm, NotifiedAccount account, DateOnly endsOn)
+    {
+        var lastDay = endsOn.AddDays(-1);
+        return TraderEmails.Create(
+            firm,
+            account.Email,
+            $"Open a trade by {Day(lastDay)} to keep your {account.Definition.Name}",
+            [$"No new trade has been opened on your {account.Definition.Name} (account #{account.Number}) for a while. Open a new trade by {Day(lastDay)}, or the challenge ends when the trading day of {Day(endsOn)} starts."],
+            "Open your account",
+            AccountUrl(firm, account));
+    }
+
+    private static EmailMessage SupportToTraderEmail(Firm firm, SupportTicket ticket, string text, int files, bool opened, bool closed)
+    {
+        var link = new Uri(firm.Portal.Url, $"support/{ticket.Id}");
+        return opened
+            ? TraderEmails.SupportOpened(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, link)
+            : TraderEmails.SupportAnswer(firm, ticket.TraderEmail, ticket.Number, ticket.Subject, text, files, closed, link);
+    }
+
+    private static EmailMessage IdentityEmail(Firm firm, string to, bool approved, string? reason)
+    {
+        var page = new Uri(firm.Portal.Url, "identity");
+        return approved ? TraderEmails.IdentityVerified(firm, to, page) : TraderEmails.IdentityDeclined(firm, to, reason ?? "The check did not pass.", page);
+    }
+
+    private static Uri AccountUrl(Firm firm, NotifiedAccount account) => new(firm.Portal.Url, $"accounts/{account.Id}");
+
     private static EmailMessage ToTrader(Firm firm, NotifiedAccount account, string subject, string text, Uri accountUrl) =>
         ToTrader(firm, account, subject, [text], accountUrl);
 
@@ -360,6 +376,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             to,
             $"{trader.Short} passed {account.Definition.Name}",
             $"{trader.Full} passed every phase of {account.Definition.Name}, and account #{account.Number} waits for your approval of the funded account. Approve it when your checks, such as KYC, are done:",
+            "Open the account",
             new Uri(firm.Portal.Url, $"admin/accounts/{account.Id}"));
 
     private EmailMessage PayoutRequestedEmail(Firm firm, NotifiedAccount account, Payout payout, TraderName trader, string to) =>
@@ -367,6 +384,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             to,
             $"Payout request of {Money(payout.Amount, account.Definition.Currency)} from {trader.Short}",
             $"{trader.Full} asked for a payout of {Money(payout.Amount, account.Definition.Currency)} from account #{account.Number}, {payout.ProfitSplitPercent.ToString("0.##", CultureInfo.InvariantCulture)}% of a profit of {Money(payout.Profit, account.Definition.Currency)}. Approve it after your checks, send the money and mark it as paid:",
+            "Open payouts",
             new Uri(firm.Portal.Url, "admin/payouts"));
 
     private EmailMessage SaleEmail(Firm firm, string buyer, string challengeName, long orderNumber, decimal amount, string currency, Guid? accountId, string to) =>
@@ -374,6 +392,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             to,
             $"New sale: {challengeName} for {Money(amount, currency)}",
             $"{buyer} bought {challengeName} for {Money(amount, currency)} in your portal (order {orderNumber}).{(accountId is null ? " No account could be started for it, so see the order in your admin panel." : " The challenge has started.")}",
+            accountId is null ? "Open orders" : "Open the account",
             new Uri(firm.Portal.Url, accountId is { } id ? $"admin/accounts/{id}" : "admin/orders"));
 
     private EmailMessage SupportTicketEmail(Firm firm, SupportTicket ticket, string message, int files, bool opened, string to)
@@ -385,6 +404,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             to,
             opened ? $"New support ticket #{ticket.Number} from {trader.Short}" : $"{trader.Short} wrote in support ticket #{ticket.Number}",
             $"{trader.Full} {(opened ? "opened" : "wrote in")} support ticket #{ticket.Number}{about}, \"{ticket.Subject}\":\n\n{Quote(message)}\n\n{attached}Answer in your admin panel:",
+            "Answer the ticket",
             new Uri(firm.Portal.Url, $"admin/support/{ticket.Id}"));
     }
 
@@ -396,21 +416,14 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
         return string.Join('\n', text.Split('\n').Select(line => line.Length == 0 ? ">" : $"> {line}"));
     }
 
-    private EmailMessage ToAdmin(string to, string subject, string text, Uri link) =>
-        new(
+    private EmailMessage ToAdmin(string to, string subject, string text, string button, Uri link) =>
+        PlatformEmails.Create(
+            platform.Value.Name,
             to,
             subject,
-            $"""
-            Hi,
-
-            {text}
-
-            {link}
-
-            You get this email as an administrator of the firm. Choose which emails the firm sends under Notifications in the admin panel.
-
-            {platform.Value.Name}
-            """);
+            $"{text}\n\n{link}",
+            button,
+            "You get this email as an administrator of the firm. Choose which emails the firm sends under Notifications in the admin panel.");
 
     /// <summary>
     /// The trader's name, kept from the first order that gave it or written by the trader, when there is one. Admin emails

@@ -1,33 +1,30 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Familjen_Grotesk, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 
-import { monogramIcon } from "@/lib/icon";
+import { kronantIcon, monogramIcon } from "@/lib/icon";
 import { getSite } from "@/lib/site";
-import { defaultColors, opsColors, themeStyle } from "@/lib/theme";
+import { defaultColors, opsColors, platformColors, themeStyle } from "@/lib/theme";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+// Text and figures: a grotesk from Stockholm whose figures are as wide as each other, so amounts line up (ADR 0047).
+const text = Familjen_Grotesk({ variable: "--font-text", subsets: ["latin"] });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Page titles and the big moments, such as a passed challenge.
+const display = Instrument_Serif({ variable: "--font-display", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
+
+// Codes, keys and addresses.
+const code = JetBrains_Mono({ variable: "--font-code", subsets: ["latin"] });
 
 export async function generateMetadata(): Promise<Metadata> {
   const site = await getSite();
-  // The tab's icon is the firm's first letter in its brand color, or ours on the platform and in our admin view.
+  // The tab's icon is the firm's first letter in its brand color, or our mark on the platform and in our admin view.
   const icon =
     site.kind === "firm"
       ? monogramIcon(site.branding.name, site.branding.colors.accent ?? defaultColors.accent)
-      : site.kind === "platform"
-        ? monogramIcon(site.platform.name, defaultColors.accent)
-        : site.kind === "ops"
-          ? monogramIcon(site.ops.name, opsColors.accent ?? defaultColors.accent)
-          : null;
+      : site.kind === "platform" || site.kind === "ops"
+        ? kronantIcon
+        : null;
   return {
     title:
       site.kind === "firm"
@@ -42,13 +39,14 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-// The site is known from the address. A firm's colors are set before anything renders; the platform uses the defaults,
-// and our own admin view a brand color of its own.
+// The site is known from the address. A firm's colors are set before anything renders; the platform has Kronant's own,
+// and our own admin view Kronant's with a brand color of its own.
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const site = await getSite();
-  const colors = site.kind === "firm" ? site.branding : site.kind === "ops" ? { colors: opsColors } : null;
+  const colors =
+    site.kind === "firm" ? site.branding : site.kind === "ops" ? { colors: opsColors } : site.kind === "platform" ? { colors: platformColors } : null;
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`} style={themeStyle(colors) as React.CSSProperties}>
+    <html lang="en" className={`${text.variable} ${display.variable} ${code.variable} h-full antialiased`} style={themeStyle(colors) as React.CSSProperties}>
       <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );

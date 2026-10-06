@@ -74,9 +74,41 @@ internal sealed class EmailNotSentException : Exception
     }
 }
 
-/// <summary>The platform's emails to firms and our staff. Plain text, so they read the same in every mail program. Those to traders are in <see cref="TraderEmails"/>.</summary>
+/// <summary>
+/// The platform's emails to firms and our staff, in plain text and as HTML in our own look (<see cref="Create"/>). Those to
+/// traders are in <see cref="TraderEmails"/>.
+/// </summary>
 internal static class PlatformEmails
 {
+    private const string Serif = "Georgia,'Times New Roman',serif";
+
+    /// <summary>Our look (ADR 0047): graphite text on white and warm off-white, thin lines and a brass button.</summary>
+    private static readonly EmailLook Look = new(
+        Page: "#f6f4ef",
+        Card: "#ffffff",
+        Text: "#15171b",
+        Muted: "#6b665e",
+        Border: "#e7e2d9",
+        Accent: "#c9a35b",
+        OnAccent: "#15120c",
+        Font: EmailLayout.SansSerif,
+        HeadingStyle: $"font-family:{Serif};font-size:19px;font-weight:400",
+        Radius: 2,
+        TopRule: "#c9a35b");
+
+    /// <summary>
+    /// An email from the platform: the greeting, <paramref name="text"/>, <paramref name="reason"/>, why the recipient gets it
+    /// and where to change that, and the platform's name. The HTML has our wordmark over the same text, with the first
+    /// paragraph that is only a link as a button saying <paramref name="button"/>, and the platform and the reason in the
+    /// footer. Numbered lines become steps and lines of "label: value" a table (<see cref="EmailLayout.Parse"/>).
+    /// </summary>
+    public static EmailMessage Create(string platform, string to, string subject, string text, string? button = null, string? reason = null)
+    {
+        var body = $"{EmailLayout.Greeting}\n\n{text}\n\n{(reason is null ? "" : $"{reason}\n\n")}{platform}";
+        string[] footer = reason is null ? [platform] : [platform, reason];
+        return new EmailMessage(to, subject, body, Html: EmailLayout.Html(Look, Wordmark(platform), EmailLayout.Parse(text, button), footer));
+    }
+
     /// <summary>How long a link works, in words, for example "1 hour" or "7 days".</summary>
     public static string Lifetime(TimeSpan lifetime) =>
         lifetime.TotalDays >= 1 ? Plural(lifetime.TotalDays, "day") : lifetime.TotalHours >= 1 ? Plural(lifetime.TotalHours, "hour") : Plural(lifetime.TotalMinutes, "minute");
@@ -87,14 +119,28 @@ internal static class PlatformEmails
         return whole == 1 ? $"1 {unit}" : $"{whole} {unit}s";
     }
 
+    /// <summary>Why a firm's administrator gets an email about the firm.</summary>
+    private static string ToAdministrator(string platform, string firmName) => $"You get this email as an administrator of {firmName} on {platform}.";
+
+    // The platform's name as text, so it shows without images: the first word in a serif, "Kronant", and the rest, the
+    // product, small, in capitals and spaced.
+    private static string Wordmark(string platform)
+    {
+        var space = platform.IndexOf(' ', StringComparison.Ordinal);
+        var (brand, product) = space > 0 ? (platform[..space], platform[(space + 1)..].Trim()) : (platform, "");
+        var mark = $"""<span style="font-family:{Serif};font-size:26px;line-height:1;color:{Look.Text}">{EmailLayout.Encode(brand)}</span>""";
+        return product.Length == 0
+            ? mark
+            : $"""{mark}<span style="padding-left:10px;font-family:{EmailLayout.SansSerif};font-size:11px;font-weight:600;letter-spacing:0.2em;color:{Look.Muted}">{EmailLayout.Encode(product.ToUpperInvariant())}</span>""";
+    }
+
     /// <summary>To a firm's first administrator when the firm is created: where the admin panel is, and the first steps.</summary>
     public static EmailMessage Welcome(string platform, string firmName, string to, Uri adminLogin) =>
-        new(
+        Create(
+            platform,
             to,
             $"Welcome to {platform}: {firmName} is ready to try",
             $"""
-            Hi,
-
             {firmName} is set up in its sandbox, where you can try everything with test accounts and test payments. Your admin panel is here, worth a bookmark:
 
             {adminLogin}
@@ -106,29 +152,27 @@ internal static class PlatformEmails
             3. Choose how traders pay. Test payments are enough to try.
 
             Then buy a challenge in your own shop and place a trade, as your traders will. When you are ready, send your company for review and go live.
-
-            {platform}
-            """);
+            """,
+            "Open your admin panel",
+            ToAdministrator(platform, firmName));
 
     /// <summary>
     /// Confirms the address of someone who signed a firm up. Anyone can type any address, so the email says nothing they
     /// chose, such as the firm's name (ADR 0045).
     /// </summary>
     public static EmailMessage ConfirmSignup(string platform, string to, Uri link, TimeSpan lifetime) =>
-        new(
+        Create(
+            platform,
             to,
             $"Confirm your email for {platform}",
             $"""
-            Hi,
-
             Someone signed a firm up on {platform} with this email address. If it was you, open this link to confirm the address and open your admin panel:
 
             {link}
 
             The link works once, within {lifetime.TotalHours:0} hours. If it was not you, ignore this email, and nothing is created.
-
-            {platform}
-            """);
+            """,
+            "Confirm your email");
 
     /// <summary>A charge of the firm's saved card was declined.</summary>
     public static EmailMessage PaymentDeclined(
@@ -148,99 +192,93 @@ internal static class PlatformEmails
         var pause = pausedFrom is { } from
             ? $" If it is not paid by {from:yyyy-MM-dd} at {from:HH:mm} UTC, no new challenges can start and your traders' accounts are paused until it is."
             : "";
-        return new(
+        return Create(
+            platform,
             to,
             $"Payment for {firmName} declined",
             $"""
-            Hi,
-
             We could not charge your card {amount} for {charge}: {reason}
 
             {next}{pause} Pay with another card or try again in your admin panel:
 
             {billingUrl}
-
-            {platform}
-            """);
+            """,
+            "Go to Plan and billing",
+            ToAdministrator(platform, firmName));
     }
 
     /// <summary>The month started unpaid, so the firm's challenges are paused.</summary>
     public static EmailMessage FirmPaused(string platform, string firmName, string to, Uri billingUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is paused until this month is paid",
             $"""
-            Hi,
-
             This month's slots for {firmName} are not paid yet. Until they are, no new challenges can start, and your traders' accounts are paused: they cannot open new trades, but they can close the ones they have, and their days do not count. Everything goes on as soon as the payment goes through.
 
             Pay with another card or try again in your admin panel:
 
             {billingUrl}
-
-            {platform}
-            """);
+            """,
+            "Go to Plan and billing",
+            ToAdministrator(platform, firmName));
 
     /// <summary>Most of the firm's slots are taken.</summary>
     public static EmailMessage SlotsNearlyFull(string platform, string firmName, string to, int taken, int slots, bool autoExpand, Uri billingUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} has used {taken} of {slots} slots",
             $"""
-            Hi,
-
             {taken} of your {slots} slots for open challenges are taken. When every slot is taken, no new challenges can start and your shop stops selling until a challenge ends or you buy more slots.{(autoExpand ? " Automatic expansion is on, so more slots are bought when the last one is taken." : "")}
 
             See your slots and buy more in your admin panel:
 
             {billingUrl}
-
-            {platform}
-            """);
+            """,
+            "See your slots",
+            ToAdministrator(platform, firmName));
 
     /// <summary>
     /// We have the firm's application, sent when its deposit was paid or sent again after changes. With the deposit's
     /// <paramref name="receipt"/>, when it was paid.
     /// </summary>
     public static EmailMessage ApplicationReceived(string platform, string firmName, string to, string? receipt, Uri goLiveUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"We have received the application for {firmName}",
             $"""
-            Hi,
-
             Thank you. We have received the application for {firmName}, and review it by hand, usually within a day. We email you when we have decided, and you follow the review in your admin panel:
 
-            {goLiveUrl}
-            {(receipt is null ? "" : $"\n{receipt}\n")}
-            {platform}
-            """);
+            {goLiveUrl}{(receipt is null ? "" : $"\n\n{receipt}")}
+            """,
+            "Follow the review",
+            ToAdministrator(platform, firmName));
 
     /// <summary>A payment the firm made on a checkout page went through, with its receipt.</summary>
     public static EmailMessage PaymentReceived(string platform, string firmName, string to, string receipt, Uri billingUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"Payment received for {firmName}",
             $"""
-            Hi,
-
             Thank you. We have received your payment for {firmName}.
 
             {receipt}
 
             {billingUrl}
-
-            {platform}
-            """);
+            """,
+            "Open your admin panel",
+            ToAdministrator(platform, firmName));
 
     /// <summary>The firm paid and is live: the receipt, and what happens now. Without <paramref name="shopUrl"/>, the firm does not sell in its portal.</summary>
     public static EmailMessage FirmLive(string platform, string firmName, string to, string receipt, int sandboxAccounts, Uri adminUrl, Uri? shopUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is live",
             $"""
-            Hi,
-
             {firmName} is live.{(shopUrl is null ? "" : " Your shop takes real payments from now on.")} New challenges count against your slots.
 
             What happens now:
@@ -252,33 +290,31 @@ internal static class PlatformEmails
             {receipt}
 
             {adminUrl}
-
-            {platform}
-            """);
+            """,
+            "Open your admin panel",
+            ToAdministrator(platform, firmName));
 
     /// <summary>To our staff: a firm sent its application and waits for our review.</summary>
     public static EmailMessage ApplicationSubmitted(string platform, string firmName, string firmId, string to, Uri reviewUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is waiting for review",
             $"""
-            Hi,
-
             {firmName} ({firmId}) sent its application to go live. Review it here:
 
             {reviewUrl}
-
-            {platform}
-            """);
+            """,
+            "Review the application",
+            $"You get this email as staff of {platform}.");
 
     /// <summary>We need the firm to change its application before we can approve it.</summary>
     public static EmailMessage ChangesRequested(string platform, string firmName, string to, string message, Uri goLiveUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"Changes needed for {firmName}",
             $"""
-            Hi,
-
             We have looked at the application for {firmName} and need a few changes before we can approve it:
 
             {message}
@@ -286,50 +322,46 @@ internal static class PlatformEmails
             Change your application and send it again in your admin panel. You do not pay the deposit again.
 
             {goLiveUrl}
-
-            {platform}
-            """);
+            """,
+            "Change the application",
+            ToAdministrator(platform, firmName));
 
     /// <summary>The firm is approved and can go live by paying.</summary>
     public static EmailMessage ApplicationApproved(string platform, string firmName, string to, string? message, Uri goLiveUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is approved",
             $"""
-            Hi,
-
             {firmName} is approved to go live.{(message is null ? "" : $" {message}")} Choose your slots and pay to go live in your admin panel. The deposit you paid is taken off the startup fee.
 
             {goLiveUrl}
-
-            {platform}
-            """);
+            """,
+            "Go live",
+            ToAdministrator(platform, firmName));
 
     /// <summary>The firm was not approved, and cannot go live.</summary>
     public static EmailMessage ApplicationRejected(string platform, string firmName, string to, string message) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} was not approved",
             $"""
-            Hi,
-
             We have reviewed the application for {firmName}, and we cannot approve it:
 
             {message}
 
             The firm cannot go live on {platform}. The deposit paid for the review, which we did by hand, so it is not paid back. Reply to this email if you have questions.
-
-            {platform}
-            """);
+            """,
+            reason: ToAdministrator(platform, firmName));
 
     /// <summary>We suspended the firm.</summary>
     public static EmailMessage FirmSuspended(string platform, string firmName, string to, string reason, Uri adminUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is suspended",
             $"""
-            Hi,
-
             We have suspended {firmName} on {platform}:
 
             {reason}
@@ -337,33 +369,31 @@ internal static class PlatformEmails
             Until we lift the suspension, no new challenges can start, your shop is closed, and your traders' accounts are paused: they cannot open new trades, but they can close the ones they have, and their days do not count. Reply to this email to talk to us.
 
             {adminUrl}
-
-            {platform}
-            """);
+            """,
+            "Open your admin panel",
+            ToAdministrator(platform, firmName));
 
     /// <summary>We lifted the firm's suspension.</summary>
     public static EmailMessage SuspensionLifted(string platform, string firmName, string to, Uri adminUrl) =>
-        new(
+        Create(
+            platform,
             to,
             $"{firmName} is no longer suspended",
             $"""
-            Hi,
-
             We have lifted the suspension of {firmName}, so your challenges, your shop and your traders' accounts go on as before.
 
             {adminUrl}
-
-            {platform}
-            """);
+            """,
+            "Open your admin panel",
+            ToAdministrator(platform, firmName));
 
     /// <summary>Nobody has used the firm's sandbox for a while, so it closes on <paramref name="closesAt"/> unless someone logs in (ADR 0045).</summary>
     public static EmailMessage SandboxClosing(string platform, string firmName, string to, int idleDays, DateTimeOffset closesAt, Uri adminLogin) =>
-        new(
+        Create(
+            platform,
             to,
             $"The sandbox of {firmName} closes on {closesAt:d MMM yyyy}",
             $"""
-            Hi,
-
             Nobody has used the admin panel of {firmName} for {idleDays - 7} days. A sandbox that is not used for {idleDays} days closes: its test accounts end, and no new ones start.
 
             Log in before {closesAt:d MMM yyyy} to keep it open:
@@ -371,94 +401,84 @@ internal static class PlatformEmails
             {adminLogin}
 
             If it closes, logging in opens it again, with everything you set up.
-
-            {platform}
-            """);
+            """,
+            "Log in",
+            ToAdministrator(platform, firmName));
 
     /// <summary>Nobody used the firm's sandbox for <paramref name="idleDays"/> days, so it closed, and logging in opens it again.</summary>
     public static EmailMessage SandboxClosed(string platform, string firmName, string to, int idleDays, int accountsEnded, Uri adminLogin) =>
-        new(
+        Create(
+            platform,
             to,
             $"The sandbox of {firmName} is closed",
             $"""
-            Hi,
-
             Nobody used the admin panel of {firmName} for {idleDays} days, so its sandbox is closed.{(accountsEnded switch { 0 => "", 1 => " Its test account has ended.", _ => $" Its {accountsEnded} test accounts have ended." })} No new challenges start until it opens again.
 
             Your settings, challenges and design are kept. Log in to open the sandbox again:
 
             {adminLogin}
-
-            {platform}
-            """);
+            """,
+            "Log in",
+            ToAdministrator(platform, firmName));
 
     /// <summary>An administrator forgot the password for the firm's admin panel.</summary>
     public static EmailMessage ResetAdminPassword(string platform, string firmName, string to, Uri link, TimeSpan lifetime) =>
-        new(
+        Create(
+            platform,
             to,
             $"Choose a new password for {firmName}'s admin panel",
             $"""
-            Hi,
-
             Open this link to choose a new password for the admin panel of {firmName} on {platform}:
 
             {link}
 
             The link works once, within {Lifetime(lifetime)}. If you did not ask for a new password, you can ignore this email, and your password stays as it is.
-
-            {platform}
-            """);
+            """,
+            "Choose a new password");
 
     /// <summary>One of our staff forgot the password for our admin view.</summary>
     public static EmailMessage ResetStaffPassword(string platform, string to, Uri link, TimeSpan lifetime) =>
-        new(
+        Create(
+            platform,
             to,
             $"Choose a new password for {platform}'s admin view",
             $"""
-            Hi,
-
             Open this link to choose a new password for our admin view of {platform}:
 
             {link}
 
             The link works once, within {Lifetime(lifetime)}. If you did not ask for a new password, you can ignore this email, and your password stays as it is.
-
-            {platform}
-            """);
+            """,
+            "Choose a new password");
 
     /// <summary>Someone asked the platform where to log in: a link that logs them in to each firm they administer.</summary>
     public static EmailMessage LoginHelp(string platform, string to, IReadOnlyList<(string Name, Uri Link, Uri Login)> firms, TimeSpan lifetime)
     {
         var list = string.Join("\n\n", firms.Select(f => $"{f.Name}\n{f.Link}\n(Its admin panel is at {f.Login}, worth a bookmark.)"));
-        return new(
+        return Create(
+            platform,
             to,
             firms.Count == 1 ? $"Log in to {firms[0].Name}" : $"Log in to your firms on {platform}",
             $"""
-            Hi,
-
             Someone asked where to log in to {platform} with this email. Open a link to log in to the admin panel of the firm:
 
             {list}
 
             Each link works once, within {Lifetime(lifetime)}. If you did not ask for this, you can ignore this email.
-
-            {platform}
             """);
     }
 
     public static EmailMessage InviteAdmin(string platform, string firmName, string invitedBy, string to, Uri link, TimeSpan lifetime) =>
-        new(
+        Create(
+            platform,
             to,
             $"You are invited to administer {firmName}",
             $"""
-            Hi,
-
             {invitedBy} invites you to administer {firmName} on {platform}. Open this link to choose your password:
 
             {link}
 
             The link works once, within {lifetime.TotalDays:0} days. If you did not expect this, you can ignore this email.
-
-            {platform}
-            """);
+            """,
+            "Choose your password");
 }

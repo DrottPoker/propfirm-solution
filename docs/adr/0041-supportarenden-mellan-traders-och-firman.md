@@ -19,6 +19,7 @@ En trader hade inget sätt att nå sin firma från portalen. Den som svarade på
 - **En trader har högst tio ärenden som tradern själv öppnat och som inte är stängda**, så att en trader inte kan översvämma firman. Ärenden som firman öppnat räknas inte, så att firman inte kan stänga ute en trader.
 - **Ärendena numreras per firma från 1.** Listorna läses en sida i taget med en markör av tid och id, eftersom kön sorteras på när ärendet började vänta och de andra listorna på när det senast skrevs i.
 - **Vår personal ser inte ärendena.** De är mellan firman och dess traders.
+- **Firman har sparade svar.** Administratörerna sparar svar de ofta ger, med en kort rubrik och en text, och lägger in ett i svarsrutan i ett ärende för att ändra det innan det skickas. Svaren hör till firman, så alla dess administratörer delar dem. Texten kan ha `{trader}` och `{firm}`, som portalen fyller i med traderns namn, eller e-post när namn saknas, och firmans namn när svaret läggs in, så tjänsten sparar texten som den skrevs. En firma har högst 100 sparade svar, med olika rubriker. Bredvid ärendet visas också var kontot det gäller är nu, till exempel Phase 1, Funded, Failed eller pausat, så att firman inte behöver öppna kontot för att svara.
 
 ## Konsekvenser
 

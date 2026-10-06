@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 
 import type { FirmSettings } from "@/lib/api/types";
-import { isOn, notificationKinds, type NotificationAudience } from "@/lib/notifications";
+import { isOn, notificationKinds, type NotificationAudience, type NotificationKind } from "@/lib/notifications";
 import { useFirmSettings, useSaveEmailSettings, useSaveSupportEmail } from "@/lib/queries";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { TeamOnlyNote } from "./BeforeApproval";
-import { AdminPage, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { EmailPreview } from "./EmailPreview";
+import { EyeIcon } from "./icons";
+import { AdminPage, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass, Switch } from "./ui";
 
 /** Which emails we send for the firm: to its team when something waits for it, and to its traders as their challenges move on. */
 export function AdminNotifications() {
@@ -18,7 +21,7 @@ export function AdminNotifications() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
@@ -37,6 +40,7 @@ export function AdminNotifications() {
 /** Where traders' replies go. The emails to traders come in the firm's name, logo and color. */
 function SupportEmail({ settings }: { settings: FirmSettings }) {
   const save = useSaveSupportEmail();
+  useSavedNote(save);
   const [email, setEmail] = useState(settings.supportEmail ?? "");
   return (
     <Panel title="Replies from traders">
@@ -59,7 +63,6 @@ function SupportEmail({ settings }: { settings: FirmSettings }) {
           {save.isPending ? "Saving..." : "Save"}
         </button>
       </form>
-      {save.isSuccess && <p className="text-sm text-profit">Saved.</p>}
       <ErrorText error={save.error} />
     </Panel>
   );
@@ -84,6 +87,9 @@ const audiences: { audience: NotificationAudience; title: string; note: React.Re
 
 function Emails({ settings }: { settings: FirmSettings }) {
   const save = useSaveEmailSettings();
+  useSavedNote(save);
+  // The email whose preview is open.
+  const [showing, setShowing] = useState<NotificationKind | null>(null);
 
   return (
     <>
@@ -96,22 +102,21 @@ function Emails({ settings }: { settings: FirmSettings }) {
               .map((n) => {
                 const on = isOn(settings.emailSettings, n.kind);
                 return (
-                  <li key={n.kind}>
-                    <label className="flex cursor-pointer items-start justify-between gap-4 py-3 text-sm">
-                      <span className="flex flex-col gap-0.5">
-                        <span className="font-medium">{n.label}</span>
-                        <span className="text-muted">{n.description}</span>
-                      </span>
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        checked={on}
-                        disabled={save.isPending}
-                        onChange={(e) => save.mutate({ [n.kind]: e.target.checked })}
-                        className="mt-1 h-4 w-4 shrink-0 accent-accent"
-                        aria-label={`Send "${n.label}"`}
-                      />
-                    </label>
+                  <li key={n.kind} className="flex items-start justify-between gap-4 py-3 text-sm">
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span className="font-medium">{n.label}</span>
+                      <span className="text-muted">{n.description}</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowing(n)}
+                        aria-label={`Show the email: ${n.label}`}
+                        className="mt-1 flex items-center gap-1.5 rounded text-accent hover:underline"
+                      >
+                        <EyeIcon className="size-3.5" />
+                        Show the email
+                      </button>
+                    </span>
+                    <Switch checked={on} disabled={save.isPending} onChange={(checked) => save.mutate({ [n.kind]: checked })} label={`Send "${n.label}"`} />
                   </li>
                 );
               })}
@@ -119,6 +124,7 @@ function Emails({ settings }: { settings: FirmSettings }) {
         </Panel>
       ))}
       <ErrorText error={save.error} />
+      <EmailPreview email={showing} on={showing === null || isOn(settings.emailSettings, showing.kind)} onClose={() => setShowing(null)} />
     </>
   );
 }

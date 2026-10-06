@@ -4,15 +4,21 @@ using Npgsql;
 
 using NpgsqlTypes;
 
+using Prop.Api.Challenges;
+using Prop.Rules;
+
 namespace Prop.Api.Support;
 
 /// <summary>Support tickets, their messages and attachments in the database. Changes that must happen together run in the caller's transaction.</summary>
 internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema schema)
 {
+    // The account's stage is named in the definition it was bought with: an evaluation stage by its index, or the funded one.
     private const string TicketColumns =
-        """
+        $"""
         t.id, t.firm_id, t.number, t.trader_id, tr.email, tr.name, t.account_id, a.number, a.state -> 'definition' ->> 'name',
-        t.subject, t.status, t.created_at, t.updated_at, t.waiting_since, t.answered_at, t.trader_read_at, t.closed_at, t.closed_by, t.messages, t.opened_by
+        t.subject, t.status, t.created_at, t.updated_at, t.waiting_since, t.answered_at, t.trader_read_at, t.closed_at, t.closed_by, t.messages, t.opened_by,
+        a.status, a.paused, a.stage >= {ChallengeQueries.FundedStageSql},
+        case when a.stage < {ChallengeQueries.FundedStageSql} then a.state -> 'definition' -> 'evaluation' -> a.stage ->> 'name' else a.state -> 'definition' -> 'funded' ->> 'name' end
         """;
 
     private const string TicketJoins =
@@ -83,7 +89,7 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
         var items = new List<SupportTicketItem>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            items.Add(new SupportTicketItem(ReadTicket(reader), Enum.Parse<SupportAuthor>(reader.GetString(20)), reader.GetString(21)));
+            items.Add(new SupportTicketItem(ReadTicket(reader), Enum.Parse<SupportAuthor>(reader.GetString(24)), reader.GetString(25)));
         }
 
         return items;
@@ -384,7 +390,7 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
             reader.GetGuid(3),
             reader.GetString(4),
             reader.IsDBNull(5) ? null : reader.GetString(5),
-            reader.IsDBNull(6) ? null : new SupportTicketAccount(reader.GetGuid(6), reader.GetInt64(7), reader.IsDBNull(8) ? "" : reader.GetString(8)),
+            reader.IsDBNull(6) ? null : ReadAccount(reader),
             reader.GetString(9),
             Enum.Parse<SupportTicketStatus>(reader.GetString(10)),
             reader.GetFieldValue<DateTimeOffset>(11),
@@ -396,6 +402,17 @@ internal sealed class SupportStore(NpgsqlDataSource dataSource, DatabaseSchema s
             reader.IsDBNull(17) ? null : reader.GetString(17),
             reader.GetInt32(18),
             Enum.Parse<SupportAuthor>(reader.GetString(19)));
+
+    // The account in the ticket's columns, when the ticket is about one.
+    private static SupportTicketAccount ReadAccount(NpgsqlDataReader reader) =>
+        new(
+            reader.GetGuid(6),
+            reader.GetInt64(7),
+            reader.IsDBNull(8) ? "" : reader.GetString(8),
+            Enum.Parse<ChallengeStatus>(reader.GetString(20)),
+            reader.IsDBNull(23) ? "" : reader.GetString(23),
+            reader.GetBoolean(22),
+            reader.GetBoolean(21));
 
     // The search in capitals, as emails are kept, and as a ticket number, with or without #.
     private static object[] SearchValues(string? search)

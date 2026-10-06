@@ -17,13 +17,16 @@ export function EndedNotice({ details, server }: { details: AccountDetails | und
 
   const link = backLink(details, server);
   return (
-    <div role="alert" className="mx-2 mt-2 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-loss/40 bg-loss/10 px-4 py-3 text-sm">
+    <div role="alert" className="mx-2 mt-2 flex animate-enter flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-loss/40 bg-loss/10 px-4 py-3 text-sm shadow-card">
       <div className="flex min-w-0 flex-col gap-0.5">
         <p className="font-semibold text-loss">Trading on this account has ended</p>
         <p>{endedText(events.map((e) => e.event), timeZone)}</p>
       </div>
       {link && (
-        <a href={link} className="ml-auto shrink-0 rounded-md border border-border bg-panel px-3 py-1.5 font-medium hover:border-muted">
+        <a
+          href={link}
+          className="ml-auto shrink-0 rounded-lg border border-border bg-panel px-3 py-1.5 font-medium transition duration-150 hover:border-muted hover:bg-raised active:translate-y-px"
+        >
           See the account at {server.name}
         </a>
       )}

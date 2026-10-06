@@ -21,7 +21,7 @@ import { AutoExpandFields, QuoteView, wholeNumber } from "./AdminBilling";
 import { ApplicationEditor } from "./Application";
 import { CopyButton } from "./CopyButton";
 import { AlertIcon, CheckIcon } from "./icons";
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /** Links from before the Go live page: the way to live in the sandbox, and the company's details once live. */
 export function VerificationRedirect() {
@@ -30,7 +30,7 @@ export function VerificationRedirect() {
   useEffect(() => {
     router.replace(status === "Live" ? "/admin/billing?tab=company" : "/admin/go-live");
   }, [router, status]);
-  return <Message text="Loading..." />;
+  return <Loading />;
 }
 
 /**
@@ -66,7 +66,7 @@ export function AdminGoLive({ step, returnedFromCheckout }: { step: string | nul
   }
 
   if (!verification.data || !billing.data || !settings.data || (live && !waiting)) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const v = verification.data;
@@ -213,15 +213,15 @@ function DepositStep({ verification, billing, onDetails, onSent }: { verificatio
           <tbody>
             <tr className="border-t border-border">
               <td className="py-1">Review deposit</td>
-              <td className="py-1 text-right font-mono tabular-nums">{formatMoney(deposit.amount)}</td>
+              <td className="py-1 text-right tabular-nums">{formatMoney(deposit.amount)}</td>
             </tr>
             <tr className="border-t border-border text-muted">
               <td className="py-1">{billing.vat.treatment === "ReverseCharge" ? "VAT (reverse charge)" : `VAT ${billing.vat.percent}%`}</td>
-              <td className="py-1 text-right font-mono tabular-nums">{formatMoney(vatAmount)}</td>
+              <td className="py-1 text-right tabular-nums">{formatMoney(vatAmount)}</td>
             </tr>
             <tr className="border-t border-border font-medium">
               <td className="py-1">Total</td>
-              <td className="py-1 text-right font-mono tabular-nums">{money(deposit.amount + vatAmount)}</td>
+              <td className="py-1 text-right tabular-nums">{money(deposit.amount + vatAmount)}</td>
             </tr>
           </tbody>
         </table>

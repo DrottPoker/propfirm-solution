@@ -8,7 +8,7 @@ export const identityModes: { mode: IdentityMode; label: string; description: st
   {
     mode: "BuiltIn",
     label: "Our built-in KYC",
-    description: "The trader checks their ID document and face on their phone or computer, in a few minutes. Approval ticks ID checked for you.",
+    description: "The trader checks their ID document and face on their phone or computer, in a few minutes. When the check is approved, ID checked is ticked for you.",
   },
   {
     mode: "External",

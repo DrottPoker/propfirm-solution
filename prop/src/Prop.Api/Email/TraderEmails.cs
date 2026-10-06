@@ -1,15 +1,15 @@
 using System.Globalization;
-using System.Net;
-using System.Text;
 
 using Prop.Api.Firms;
+using Prop.Api.Payments;
+using Prop.Rules;
 
 namespace Prop.Api.Email;
 
 /// <summary>
 /// The emails to a firm's traders (ADR 0033). They come in the firm's name and look, with its logo and accent color,
-/// and replies go to the firm's support address when it has one. Each has the same text in plain text too, for mail
-/// programs that show no HTML.
+/// and replies go to the firm's support address when it has one. The footer has the firm's name, its support address and
+/// why the trader gets the email. Each has the same text in plain text too, for mail programs that show no HTML.
 /// </summary>
 internal static class TraderEmails
 {
@@ -17,9 +17,10 @@ internal static class TraderEmails
 
     /// <summary>
     /// An email to a trader: paragraphs of text and, with <paramref name="link"/>, a button to it. <paramref name="note"/>
-    /// is a line in small print under the button, for example how long the link works. Without
-    /// <paramref name="askForReplies"/> the email does not ask the trader to reply to it, for example when the answer
-    /// belongs in the portal, though a reply still goes to the firm's support address.
+    /// is a line in small print under the button, for example how long the link works, and <paramref name="more"/> what
+    /// comes after it, such as a receipt. Without <paramref name="askForReplies"/> the email does not ask the trader to reply
+    /// to it, for example when the answer belongs in the portal, though a reply still goes to the firm's support address.
+    /// <paramref name="reason"/> says why the trader gets the email, by default that the trader trades with the firm.
     /// </summary>
     public static EmailMessage Create(
         Firm firm,
@@ -29,46 +30,67 @@ internal static class TraderEmails
         string? button,
         Uri? link,
         string? note = null,
-        bool askForReplies = true)
+        bool askForReplies = true,
+        IReadOnlyList<EmailBlock>? more = null,
+        string? reason = null)
     {
-        var text = new StringBuilder("Hi,\n\n");
-        foreach (var paragraph in paragraphs)
-        {
-            text.Append(paragraph).Append("\n\n");
-        }
-
+        var blocks = new List<EmailBlock>(paragraphs.Select(p => new EmailBlock.Paragraph(p)));
         if (link is not null)
         {
-            text.Append(link).Append("\n\n");
+            blocks.Add(new EmailBlock.Button(button ?? "Open", link));
         }
 
         if (note is not null)
         {
-            text.Append(note).Append("\n\n");
+            blocks.Add(new EmailBlock.Note(note));
         }
 
+        blocks.AddRange(more ?? []);
         if (firm.SupportEmail is not null && askForReplies)
         {
-            text.Append("Questions? Reply to this email.\n\n");
+            blocks.Add(new EmailBlock.Paragraph("Questions? Reply to this email."));
         }
 
-        text.Append(firm.Name);
-        return new EmailMessage(to, subject, text.ToString(), firm.Name, Html(firm, paragraphs, button, link, note, askForReplies), firm.SupportEmail);
+        reason ??= $"You get this email because you trade with {firm.Name}.";
+        string[] signature = firm.SupportEmail is { } support ? [firm.Name, support] : [firm.Name];
+        var text = $"{EmailLayout.Greeting}\n\n{EmailLayout.Text(blocks)}\n\n{reason}\n\n{string.Join('\n', signature)}";
+        var look = LookOf(firm);
+        return new EmailMessage(to, subject, text, firm.Name, EmailLayout.Html(look, Header(firm, look), blocks, [.. signature, reason]), firm.SupportEmail);
     }
 
-    /// <summary>After paying for a challenge in the portal: a link that confirms the email and lets the buyer choose a password.</summary>
-    public static EmailMessage InviteBuyer(Firm firm, string challengeName, string to, Uri link, TimeSpan lifetime) =>
+    /// <summary>
+    /// After paying for a challenge in the portal: a link that confirms the email and lets the buyer choose a password, how to
+    /// get started, the rules the account started with and the receipt.
+    /// </summary>
+    public static EmailMessage InviteBuyer(Firm firm, OrderReceipt receipt, Uri link, TimeSpan lifetime) =>
         Create(
             firm,
-            to,
-            $"Your {challengeName} with {firm.Name} is starting",
+            receipt.Order.Email,
+            $"Your {receipt.ChallengeName} with {firm.Name} is starting",
             [
-                $"Thank you for buying {challengeName} from {firm.Name}. Your challenge is being set up now.",
+                $"Thank you for buying {receipt.ChallengeName} from {firm.Name}. Your challenge is being set up now.",
                 $"Open this link to confirm your email and get into {firm.Name}'s portal, where you follow your challenge and open the trading terminal. If you have not chosen a password yet, you choose it there.",
             ],
             "Confirm your email",
             link,
-            $"The link works once, within {PlatformEmails.Lifetime(lifetime)}. If you did not buy this, you can ignore this email.");
+            $"The link works once, within {PlatformEmails.Lifetime(lifetime)}. If you did not buy this, you can ignore this email.",
+            more: Purchase(firm, receipt, "Choose a password with the link above, or log in if you have chosen one already."),
+            reason: Bought(firm));
+
+    /// <summary>
+    /// After paying for a challenge in the portal, to a buyer who has a password for it already: a link to the new account,
+    /// how to get started, the rules the account started with and the receipt.
+    /// </summary>
+    public static EmailMessage ChallengeBought(Firm firm, OrderReceipt receipt, Uri accountUrl) =>
+        Create(
+            firm,
+            receipt.Order.Email,
+            $"Your {receipt.ChallengeName} with {firm.Name} has started",
+            [$"Thank you for buying {receipt.ChallengeName} from {firm.Name}. Your challenge is being set up now. Follow it in {firm.Name}'s portal, where you also open the trading terminal."],
+            "Open your account",
+            accountUrl,
+            more: Purchase(firm, receipt, $"Log in to {firm.Name}'s portal with your password."),
+            reason: Bought(firm));
 
     /// <summary>The firm started a challenge for a trader who has no password for its portal yet, or has not confirmed the email.</summary>
     public static EmailMessage InviteTrader(Firm firm, string challengeName, string to, Uri link, TimeSpan lifetime) =>
@@ -79,7 +101,8 @@ internal static class TraderEmails
             [$"{firm.Name} has started {challengeName} for you. Open this link to get into {firm.Name}'s portal, where you follow your challenge and open the trading terminal. If you have not chosen a password yet, you choose it there."],
             "Open the portal",
             link,
-            $"The link works once, within {PlatformEmails.Lifetime(lifetime)}.");
+            $"The link works once, within {PlatformEmails.Lifetime(lifetime)}.",
+            reason: StartedByFirm(firm));
 
     /// <summary>The firm started another challenge for a trader who already has a password for its portal.</summary>
     public static EmailMessage ChallengeStarted(Firm firm, string challengeName, string to, Uri accountUrl) =>
@@ -89,7 +112,8 @@ internal static class TraderEmails
             $"Your {challengeName} with {firm.Name} has started",
             [$"{firm.Name} has started {challengeName} for you. Log in to {firm.Name}'s portal to follow it and open the trading terminal."],
             "Open your account",
-            accountUrl);
+            accountUrl,
+            reason: StartedByFirm(firm));
 
     /// <summary>A trader forgot the password for the firm's portal.</summary>
     public static EmailMessage ResetPassword(Firm firm, string to, Uri link, TimeSpan lifetime) =>
@@ -145,7 +169,8 @@ internal static class TraderEmails
             ],
             "Open the ticket",
             ticketUrl,
-            askForReplies: false);
+            askForReplies: false,
+            reason: Ticket(firm));
 
     /// <summary>The firm wrote to the trader first, in a new support ticket (ADR 0041), with its message.</summary>
     public static EmailMessage SupportOpened(Firm firm, string to, long ticketNumber, string subject, string text, int files, Uri ticketUrl) =>
@@ -161,7 +186,8 @@ internal static class TraderEmails
             ],
             "Open the ticket",
             ticketUrl,
-            askForReplies: false);
+            askForReplies: false,
+            reason: Ticket(firm));
 
     /// <summary>Our built-in ID check approved the trader (ADR 0042).</summary>
     public static EmailMessage IdentityVerified(Firm firm, string to, Uri page) =>
@@ -190,60 +216,102 @@ internal static class TraderEmails
     /// <summary>That a message has files, which are only in the portal, for example "1 file is attached in the ticket."</summary>
     public static string FilesNote(int files) => files == 1 ? "1 file is attached in the ticket." : $"{files.ToString(CultureInfo.InvariantCulture)} files are attached in the ticket.";
 
-    // Tables and inline styles, which mail programs show the same.
-    private static string Html(Firm firm, IReadOnlyList<string> paragraphs, string? button, Uri? link, string? note, bool askForReplies)
+    private static string Bought(Firm firm) => $"You get this email because you bought a challenge from {firm.Name}.";
+
+    private static string StartedByFirm(Firm firm) => $"You get this email because {firm.Name} started a challenge for you.";
+
+    private static string Ticket(Firm firm) => $"You get this email about your support ticket with {firm.Name}.";
+
+    // How to get started, the rules the account started with and the receipt, after the purchase email's link.
+    private static List<EmailBlock> Purchase(Firm firm, OrderReceipt receipt, string firstStep)
+    {
+        List<EmailBlock> blocks =
+        [
+            new EmailBlock.Heading("How to get started"),
+            new EmailBlock.Steps([firstStep, "Open the trading terminal from your account in the portal.", "Place your first trade."]),
+        ];
+        if (receipt.Challenge is { } challenge)
+        {
+            blocks.Add(new EmailBlock.Heading("Your rules"));
+            blocks.Add(new EmailBlock.Table(RulesOf(challenge)));
+            blocks.Add(new EmailBlock.Note("Every rule, such as the minimum trading days, is on your account's page in the portal."));
+        }
+
+        var order = receipt.Order;
+        List<EmailRow> lines =
+        [
+            .. receipt.Lines.Select(l => new EmailRow(l.Description, receipt.Money(l.Amount))),
+            new("Total paid", receipt.Money(order.Amount), Strong: true),
+            new("Paid with", receipt.PaidWith(firm)),
+        ];
+        if (order.PaymentReference is { } reference)
+        {
+            lines.Add(new EmailRow("Payment reference", reference));
+        }
+
+        blocks.Add(new EmailBlock.Heading("Receipt"));
+        blocks.Add(new EmailBlock.Paragraph($"{receipt.Title}, paid {OrderReceipt.Day(receipt.PaidAt)}."));
+        blocks.Add(new EmailBlock.Table(lines));
+        return blocks;
+    }
+
+    // What a trader most needs to know of the challenge: its size, the profit targets, the loss limits and the profit split.
+    private static List<EmailRow> RulesOf(ChallengeDefinition challenge)
+    {
+        var rows = new List<EmailRow> { new("Account size", Money(challenge.InitialBalance, challenge.Currency)) };
+        rows.AddRange(challenge.Evaluation.Select(stage => new EmailRow($"{stage.Name} profit target", Share(challenge, stage.ProfitTargetPercent ?? 0))));
+        rows.Add(new EmailRow("Daily loss limit", PerStage(challenge, stage => Share(challenge, stage.DailyLoss.Percent))));
+        rows.Add(new EmailRow(
+            "Max loss limit", PerStage(challenge, stage => Share(challenge, stage.MaxLoss.Percent) + (stage.MaxLoss.Kind == MaxLossKind.Trailing ? ", trailing" : ""))));
+        if (challenge.Funded.ProfitSplitPercent is { } split)
+        {
+            rows.Add(new EmailRow("Profit split", $"{Percent(split)} to you"));
+        }
+
+        return rows;
+    }
+
+    // One value when every stage has the same, or each stage's.
+    private static string PerStage(ChallengeDefinition challenge, Func<StageRules, string> value)
+    {
+        var stages = challenge.Evaluation.Append(challenge.Funded).Select(stage => (stage.Name, Value: value(stage))).ToList();
+        return stages.Select(s => s.Value).Distinct().Count() == 1 ? stages[0].Value : string.Join(", ", stages.Select(s => $"{s.Name} {s.Value}"));
+    }
+
+    // A percent of the account size, with the amount, for example "10% (10,000.00 USD)".
+    private static string Share(ChallengeDefinition challenge, decimal percent) =>
+        $"{Percent(percent)} ({Money(challenge.PercentOfInitialBalance(percent), challenge.Currency)})";
+
+    private static string Percent(decimal percent) => $"{percent.ToString("0.##", CultureInfo.InvariantCulture)}%";
+
+    private static string Money(decimal amount, string currency) => $"{amount.ToString("N2", CultureInfo.InvariantCulture)} {currency}";
+
+    private static EmailLook LookOf(Firm firm)
     {
         var colors = firm.Portal.Branding.Colors;
         var accent = colors.TryGetValue("accent", out var a) ? a : DefaultAccent;
         var onAccent = colors.TryGetValue("accent-foreground", out var f) ? f : ForegroundOn(accent);
-        var name = Encode(firm.Name);
-        var logo = firm.Portal.Branding.LogoUrl is { } logoUrl && Uri.TryCreate(firm.Portal.Url, logoUrl, out var logoUri)
-            ? $"""<img src="{Encode(logoUri.AbsoluteUri)}" alt="{name}" height="40" style="display:block;height:40px;max-width:240px;border:0">"""
-            : $"""<span style="font-size:20px;font-weight:700;color:{accent}">{name}</span>""";
-        var html = new StringBuilder();
-        html.Append(CultureInfo.InvariantCulture, $"""
-            <!doctype html>
-            <html><body style="margin:0;padding:0;background:#f4f4f5">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 12px">
-            <tr><td align="center">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:8px;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.5;color:#18181b">
-            <tr><td style="padding:24px 28px 8px">{logo}</td></tr>
-            <tr><td style="padding:8px 28px 0">
-            <p style="margin:0 0 14px">Hi,</p>
-            """);
-        foreach (var paragraph in paragraphs)
-        {
-            // A paragraph can be a message someone wrote, with lines of its own.
-            html.Append(CultureInfo.InvariantCulture, $"""<p style="margin:0 0 14px">{Encode(paragraph).Replace("\n", "<br>", StringComparison.Ordinal)}</p>""").Append('\n');
-        }
-
-        if (link is not null)
-        {
-            var href = Encode(link.AbsoluteUri);
-            html.Append(CultureInfo.InvariantCulture, $"""
-                <p style="margin:20px 0"><a href="{href}" style="display:inline-block;background:{accent};color:{onAccent};padding:11px 20px;border-radius:6px;text-decoration:none;font-weight:600">{Encode(button ?? "Open")}</a></p>
-                <p style="margin:0 0 14px;font-size:13px;color:#71717a">Or open this link: <a href="{href}" style="color:#71717a;word-break:break-all">{href}</a></p>
-                """);
-        }
-
-        if (note is not null)
-        {
-            html.Append(CultureInfo.InvariantCulture, $"""<p style="margin:0 0 14px;font-size:13px;color:#71717a">{Encode(note)}</p>""").Append('\n');
-        }
-
-        var reply = firm.SupportEmail is not null && askForReplies ? " Questions? Reply to this email." : "";
-        html.Append(CultureInfo.InvariantCulture, $"""
-            </td></tr>
-            <tr><td style="padding:16px 28px 24px;border-top:1px solid #e4e4e7;font-size:13px;color:#71717a">{name}.{Encode(reply)}</td></tr>
-            </table>
-            </td></tr>
-            </table>
-            </body></html>
-            """);
-        return html.ToString();
+        return new EmailLook(
+            Page: "#f4f4f5",
+            Card: "#ffffff",
+            Text: "#18181b",
+            Muted: "#71717a",
+            Border: "#e4e4e7",
+            Accent: accent,
+            OnAccent: onAccent,
+            Font: EmailLayout.SansSerif,
+            HeadingStyle: "font-size:16px;font-weight:600",
+            Radius: 8);
     }
 
-    private static string Encode(string text) => WebUtility.HtmlEncode(text);
+    // The firm's logo, or its name in its accent color.
+    private static string Header(Firm firm, EmailLook look)
+    {
+        var name = EmailLayout.Encode(firm.Name);
+        return firm.Portal.Branding.LogoUrl is { } logoUrl && Uri.TryCreate(firm.Portal.Url, logoUrl, out var logoUri)
+            ? $"""<img src="{EmailLayout.Encode(logoUri.AbsoluteUri)}" alt="{name}" height="40" style="display:block;height:40px;max-width:240px;border:0">"""
+            : $"""<span style="font-size:20px;font-weight:700;color:{look.Accent}">{name}</span>""";
+    }
 
     // Black or white, whichever reads better on the color, as the portal does for a color the firm did not pair.
     private static string ForegroundOn(string hex)

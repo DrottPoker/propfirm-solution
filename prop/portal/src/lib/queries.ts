@@ -308,6 +308,15 @@ export function useAccountSearch(query: AccountQuery) {
   });
 }
 
+/** The firm's newest accounts, asked for often while the guide waits for the firm to try its own shop. */
+export function useNewestAccounts(limit: number, refetchInterval: number) {
+  return useQuery({
+    queryKey: ["firm-accounts", "newest", limit],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/accounts", { params: { query: { limit } } }), "the accounts"),
+    refetchInterval,
+  });
+}
+
 /** The firm's accounts that wait for a funded account, the newest few with how many there are. */
 export function useWaitingAccounts(limit: number) {
   return useQuery({
@@ -612,12 +621,32 @@ export function useSaveEmailSettings() {
   });
 }
 
+/** The notification email of the kind as it would be sent for the firm now, with sample data. Nothing is sent. */
+export function useEmailPreview(kind: string) {
+  return useQuery({
+    queryKey: ["email-preview", kind],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/firm/email-settings/{kind}/preview", { params: { path: { kind } } }), "the email"),
+  });
+}
+
 /** Where replies to the emails to the firm's traders go. Empty for nowhere. */
 export function useSaveSupportEmail() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (email: string) => resultOf(await api.PUT("/api/portal/admin/firm/support-email", { body: { email } }), "the support address"),
     onSuccess: (settings) => queryClient.setQueryData(["firm-settings"], settings),
+  });
+}
+
+/** Whether the shop shows what the firm paid out lately. The shop is asked for again, so it shows at once. */
+export function useSaveShopPayouts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (show: boolean) => resultOf(await api.PUT("/api/portal/admin/firm/shop-payouts", { body: { show } }), "the shop setting"),
+    onSuccess: (settings) => {
+      queryClient.setQueryData(["firm-settings"], settings);
+      return queryClient.invalidateQueries({ queryKey: ["shop"] });
+    },
   });
 }
 
@@ -1484,6 +1513,46 @@ export function useOpenTicketWithTrader() {
       queryClient.setQueryData(ticketKey("admin", ticket.id), ticket);
       return refreshTickets(queryClient, "admin");
     },
+  });
+}
+
+// The firm's saved replies, shared by its administrators, with {trader} and {firm} as they were written.
+const savedRepliesKey = ["support", "firm", "saved-replies"];
+
+/** The firm's saved replies by title. */
+export function useSavedReplies() {
+  return useQuery({
+    queryKey: savedRepliesKey,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/support/saved-replies"), "the saved replies"),
+  });
+}
+
+/** Saves a new reply, or changes the one with the id. The service names the field a problem is about. */
+export function useSaveReply() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (reply: { id: string | null; title: string; body: string }) => {
+      const body = { title: reply.title, body: reply.body };
+      const result = reply.id
+        ? await api.PUT("/api/portal/admin/support/saved-replies/{replyId}", { params: { path: { replyId: reply.id } }, body })
+        : await api.POST("/api/portal/admin/support/saved-replies", { body });
+      if (result.data) {
+        return result.data;
+      }
+
+      throw fieldErrorOf(result.error, result.response.status, "the saved reply");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savedRepliesKey }),
+  });
+}
+
+/** Deletes a saved reply. Answers already sent with it stay as they are. */
+export function useRemoveReply() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (replyId: string) =>
+      ensureOk(await api.DELETE("/api/portal/admin/support/saved-replies/{replyId}", { params: { path: { replyId } } }), "the saved reply"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: savedRepliesKey }),
   });
 }
 

@@ -1,6 +1,6 @@
 # Handelsterminal
 
-Webbgränssnittet för traders i handelsplattformen (Produkt 1): kontorad med golv, symbollista med sökning och favoriter, graf med tickvolym, orderpanel med stegknappar, positioner, ordrar, historik, händelser och statusrad. Se [specen för handelsterminalen](../../docs/spec/handelsterminal.md).
+Kronant Trader, webbgränssnittet för traders i handelsplattformen (Produkt 1): kontorad med golv, symbollista med sökning, favoriter och priser som blinkar, graf med tickvolym som kan döljas, orderpanel med stegknappar och vad ordern innebär (marginal, värdet av en pip och risk), notiser när ordrar fylls och stängs, positioner, ordrar, historik, händelser och statusrad. Utseendet är Kronants, från `@kronant/design`. Se [specen för handelsterminalen](../../docs/spec/handelsterminal.md).
 
 Kör lokalt med `pnpm dev` på http://localhost:3001. Handelstjänsten måste vara igång. Adressen till den kan ändras med `NEXT_PUBLIC_TRADING_API_URL`.
 

@@ -2,17 +2,37 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { motion } from "motion/react";
+import { useId, useState, useSyncExternalStore } from "react";
 
 import { useBranding } from "@/app/providers";
 
+import { dailyPlaces, isSettingsPath, isUnder, liveOrBilling, settingsPlaces } from "@/lib/adminNav";
 import type { FirmStatus, Me } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
 import { useFirmSupportSummary, useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
 
 import { BillingNotice } from "./BillingNotice";
+import { CommandPalette } from "./CommandPalette";
 import { FirmName } from "./FirmName";
-import { AccountsIcon, BagIcon, CardIcon, CloseIcon, CodeIcon, ExternalIcon, FlagIcon, GlobeIcon, LogoutIcon, MailIcon, MenuIcon, OverviewIcon, PaletteIcon, PayoutIcon, ReceiptIcon, RocketIcon, ServerIcon, ShieldCheckIcon, SupportIcon, TagIcon, TeamIcon } from "./icons";
+import {
+  AccountsIcon,
+  BagIcon,
+  CloseIcon,
+  CommandIcon,
+  ExternalIcon,
+  FlagIcon,
+  LogoutIcon,
+  MenuIcon,
+  OverviewIcon,
+  PayoutIcon,
+  ReceiptIcon,
+  RocketIcon,
+  SearchIcon,
+  SettingsIcon,
+  SupportIcon,
+  TagIcon,
+} from "./icons";
 
 type NavLink = {
   href: string;
@@ -22,41 +42,46 @@ type NavLink = {
   badge?: "accounts" | "payouts" | "support";
 };
 
-const startsWith = (prefix: string) => (path: string) => path === prefix || path.startsWith(`${prefix}/`);
+const placeIcons: Record<string, NavLink["icon"]> = {
+  "/admin": OverviewIcon,
+  "/admin/accounts": AccountsIcon,
+  "/admin/payouts": PayoutIcon,
+  "/admin/support": SupportIcon,
+  "/admin/orders": BagIcon,
+  "/admin/challenges": FlagIcon,
+  "/admin/discounts": TagIcon,
+  "/admin/billing": ReceiptIcon,
+  "/admin/go-live": RocketIcon,
+};
 
-/** The daily work, then the firm's own settings. Go live is there until the firm is live, and Plan and billing from then. */
-function navigation(status: FirmStatus): { label: string | null; links: NavLink[] }[] {
+const badges: Record<string, NavLink["badge"]> = { "/admin/accounts": "accounts", "/admin/payouts": "payouts", "/admin/support": "support" };
+
+/**
+ * The daily work first, then the firm's settings together under one link, and Go live until the firm is live, Plan and
+ * billing from then. Each settings page has the others as tabs.
+ */
+function navigation(status: FirmStatus): NavLink[] {
+  const live = liveOrBilling(status);
   return [
+    ...dailyPlaces.map((place) => ({
+      href: place.href,
+      label: place.label,
+      icon: placeIcons[place.href],
+      matches: place.href === "/admin" ? (path: string) => path === "/admin" : (path: string) => isUnder(path, place.href),
+      badge: badges[place.href],
+    })),
+    { href: "/admin/settings", label: "Settings", icon: SettingsIcon, matches: isSettingsPath },
     {
-      label: null,
-      links: [
-        { href: "/admin", label: "Overview", icon: OverviewIcon, matches: (path) => path === "/admin" },
-        { href: "/admin/accounts", label: "Accounts", icon: AccountsIcon, matches: startsWith("/admin/accounts"), badge: "accounts" },
-        { href: "/admin/payouts", label: "Payouts", icon: PayoutIcon, matches: startsWith("/admin/payouts"), badge: "payouts" },
-        { href: "/admin/support", label: "Support", icon: SupportIcon, matches: startsWith("/admin/support"), badge: "support" },
-        { href: "/admin/orders", label: "Orders", icon: BagIcon, matches: startsWith("/admin/orders") },
-        { href: "/admin/discounts", label: "Discount codes", icon: TagIcon, matches: startsWith("/admin/discounts") },
-        { href: "/admin/challenges", label: "Challenges", icon: FlagIcon, matches: startsWith("/admin/challenges") },
-      ],
-    },
-    {
-      label: "Your firm",
-      links: [
-        { href: "/admin/design", label: "Portal design", icon: PaletteIcon, matches: startsWith("/admin/design") },
-        { href: "/admin/domain", label: "Your domain", icon: GlobeIcon, matches: startsWith("/admin/domain") },
-        { href: "/admin/checkout", label: "Checkout", icon: CardIcon, matches: startsWith("/admin/checkout") },
-        { href: "/admin/trading", label: "Trading conditions", icon: ServerIcon, matches: startsWith("/admin/trading") },
-        { href: "/admin/identity", label: "KYC", icon: ShieldCheckIcon, matches: startsWith("/admin/identity") },
-        { href: "/admin/notifications", label: "Notifications", icon: MailIcon, matches: startsWith("/admin/notifications") },
-        { href: "/admin/integrations", label: "Integrations", icon: CodeIcon, matches: startsWith("/admin/integrations") },
-        { href: "/admin/team", label: "Team", icon: TeamIcon, matches: startsWith("/admin/team") },
-        status === "Live"
-          ? { href: "/admin/billing", label: "Plan and billing", icon: ReceiptIcon, matches: startsWith("/admin/billing") }
-          : { href: "/admin/go-live", label: "Go live", icon: RocketIcon, matches: (path) => startsWith("/admin/go-live")(path) || startsWith("/admin/billing")(path) },
-      ],
+      href: live.href,
+      label: live.label,
+      icon: placeIcons[live.href],
+      matches: status === "Live" ? (path: string) => isUnder(path, "/admin/billing") : (path: string) => isUnder(path, "/admin/go-live") || isUnder(path, "/admin/billing"),
     },
   ];
 }
+
+// The keyboard does not change while the page is open.
+const noChanges = () => () => {};
 
 const statusLine: Record<FirmStatus, { text: string; dot: string }> = {
   Provisioning: { text: "Setting up", dot: "bg-muted" },
@@ -72,6 +97,7 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
   const path = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openedOn, setOpenedOn] = useState(path);
+  const [searching, setSearching] = useState(false);
   const menuId = useId();
 
   // A new page closes the menu on a phone.
@@ -83,6 +109,7 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
     <div className="flex flex-1 flex-col md:flex-row">
       <aside aria-label="Admin menu" className="hidden w-60 shrink-0 flex-col gap-5 border-r border-border bg-panel px-3 py-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
         <FirmMark />
+        <SearchButton onOpen={() => setSearching(true)} />
         <Navigation path={path} />
         <Footer me={me} />
       </aside>
@@ -106,6 +133,12 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
         </div>
         {menuOpen && (
           <div id={menuId} className="flex flex-col gap-4 border-t border-border px-3 py-3">
+            <SearchButton
+              onOpen={() => {
+                setMenuOpen(false);
+                setSearching(true);
+              }}
+            />
             <Navigation path={path} />
             <Footer me={me} />
           </div>
@@ -114,8 +147,10 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
 
       <div className="flex min-w-0 flex-1 flex-col">
         <BillingNotice />
+        {isSettingsPath(path) && path !== "/admin/settings" && <SettingsNav path={path} />}
         {children}
       </div>
+      <CommandPalette open={searching} onOpenChange={setSearching} />
     </div>
   );
 }
@@ -150,41 +185,91 @@ function FirmMark() {
   );
 }
 
+// The current page's mark slides to it when another page opens.
 function Navigation({ path }: { path: string }) {
   const { status } = useBranding();
   const payouts = usePayoutSummary();
   const waiting = useWaitingAccounts(3);
   const support = useFirmSupportSummary();
-  const badges = { payouts: payouts.data?.toApprove.count ?? 0, accounts: waiting.data?.counts.awaitingFunding ?? 0, support: support.data?.open ?? 0 };
+  const counts = { payouts: payouts.data?.toApprove.count ?? 0, accounts: waiting.data?.counts.awaitingFunding ?? 0, support: support.data?.open ?? 0 };
+  const links = navigation(status);
 
   return (
     <nav aria-label="Admin" className="flex flex-col gap-0.5 text-sm">
-      {navigation(status).map((group) => (
-        <div key={group.label ?? "main"} className="flex flex-col gap-0.5">
-          {group.label && <span className="px-2.5 pb-1.5 pt-4 text-[11px] font-medium uppercase tracking-wider text-muted">{group.label}</span>}
-          {group.links.map((link) => {
-            const current = link.matches(path);
-            const badge = link.badge ? badges[link.badge] : 0;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-current={current ? "page" : undefined}
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 ${current ? "bg-background font-medium text-foreground" : "text-muted hover:text-foreground"}`}
-              >
-                <link.icon className="size-4 shrink-0" />
-                <span className="flex-1">{link.label}</span>
-                {badge > 0 && (
-                  <span className="min-w-5 rounded-full bg-accent/20 px-1.5 text-center font-mono text-[11px] font-medium text-foreground tabular-nums">
-                    {badge}
-                    <span className="sr-only"> waiting for you</span>
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+      {links.map((link, index) => {
+        const current = link.matches(path);
+        const badge = link.badge ? counts[link.badge] : 0;
+        // The settings and the way to live stand apart from the daily work.
+        const apart = index === links.length - 2;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            aria-current={current ? "page" : undefined}
+            className={`relative flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${apart ? "mt-3" : ""} ${current ? "font-medium text-foreground" : "text-muted hover:bg-raised/50 hover:text-foreground"}`}
+          >
+            {current && (
+              <motion.span layoutId="admin-nav-current" transition={{ type: "spring", stiffness: 500, damping: 40 }} className="absolute inset-0 rounded-lg bg-raised shadow-card">
+                <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent" />
+              </motion.span>
+            )}
+            <link.icon className={`relative size-[1.1rem] shrink-0 ${current ? "text-accent" : ""}`} />
+            <span className="relative flex-1">{link.label}</span>
+            {badge > 0 && (
+              <span className="relative min-w-5 rounded-full bg-accent px-1.5 text-center text-[11px] font-semibold text-accent-foreground">
+                {badge}
+                <span className="sr-only"> waiting for you</span>
+              </span>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/** Opens the search over the admin panel's pages and accounts, which Ctrl+K opens too, or Cmd+K on a Mac. */
+function SearchButton({ onOpen }: { onOpen: () => void }) {
+  const mac = useSyncExternalStore(
+    noChanges,
+    () => /Mac|iPhone|iPad/.test(navigator.userAgent),
+    () => false,
+  );
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex items-center gap-2.5 rounded-lg border border-border bg-background/50 px-2.5 py-2 text-sm text-muted transition-colors hover:border-muted/50 hover:text-foreground"
+    >
+      <SearchIcon className="size-4" />
+      <span className="flex-1 text-left">Search</span>
+      <kbd className="flex items-center gap-0.5 rounded-md border border-border px-1.5 font-sans text-[11px]">
+        {mac ? <CommandIcon className="size-3" /> : "Ctrl "}K
+      </kbd>
+    </button>
+  );
+}
+
+/** The firm's settings as tabs above each of them, so the others are one click away. */
+function SettingsNav({ path }: { path: string }) {
+  return (
+    <nav aria-label="Settings" className="mx-auto w-full max-w-6xl px-4 pt-5 sm:px-7">
+      <div className="flex gap-1 overflow-x-auto border-b border-border text-sm">
+        {settingsPlaces.map((place) => {
+          const current = isUnder(path, place.href);
+          return (
+            <Link
+              key={place.href}
+              href={place.href}
+              aria-current={current ? "page" : undefined}
+              className={`relative whitespace-nowrap px-3 py-2.5 transition-colors ${current ? "font-medium text-foreground" : "text-muted hover:text-foreground"}`}
+            >
+              {place.label}
+              {current && <motion.span layoutId="settings-current" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

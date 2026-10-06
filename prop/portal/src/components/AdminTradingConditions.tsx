@@ -3,10 +3,13 @@
 import { useState } from "react";
 
 import type { TradingConditions } from "@/lib/api/types";
+import { instrumentGroup, instrumentGroups, instrumentName, type InstrumentGroup } from "@/lib/instruments";
 import { useFirmSettings, useSaveTradingConditions, useTradingConditions } from "@/lib/queries";
-import { conditionRows, conditionsRequest, type ConditionRow } from "@/lib/tradingConditions";
+import { applyToGroup, conditionRows, conditionsRequest, type BulkConditions, type ConditionRow } from "@/lib/tradingConditions";
+import { useSavedNote } from "@/lib/useSavedNote";
 
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel } from "./ui";
+import { InstrumentMark } from "./InstrumentMark";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /**
  * What the firm's traders trade, and on what terms: the instruments, the leverage, the markup on the spread and the
@@ -26,7 +29,7 @@ export function AdminTradingConditions() {
   }
 
   if (!conditions.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
@@ -42,6 +45,7 @@ export function AdminTradingConditions() {
 
 function ConditionsForm({ conditions }: { conditions: TradingConditions }) {
   const save = useSaveTradingConditions();
+  useSavedNote(save, "Saved. Your traders trade on these conditions now.");
   const [rows, setRows] = useState<ConditionRow[]>(() => conditionRows(conditions.symbols));
   const [problem, setProblem] = useState<string | null>(null);
   const readOnly = !conditions.changeable;
@@ -61,9 +65,22 @@ function ConditionsForm({ conditions }: { conditions: TradingConditions }) {
   };
 
   const details = new Map(conditions.symbols.map((s) => [s.symbol, s]));
+  // The instruments by group, Forex first, so a firm sees its currency pairs and its metals apart.
+  const groups = instrumentGroups
+    .map((group) => ({ group, rows: rows.filter((r) => instrumentGroup(r.symbol) === group) }))
+    .filter((g) => g.rows.length > 0);
   return (
     <Panel>
       {readOnly && <p className="text-sm text-muted">Your trading conditions are set by us. Ask us if you want them changed.</p>}
+      {!readOnly && (
+        <BulkBar
+          groups={groups.map((g) => g.group)}
+          onApply={(group, values) => {
+            save.reset();
+            setRows((current) => applyToGroup(current, group, values));
+          }}
+        />
+      )}
       <form onSubmit={submit} className="flex flex-col gap-4">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[44rem] text-sm">
@@ -83,74 +100,84 @@ function ConditionsForm({ conditions }: { conditions: TradingConditions }) {
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row) => {
-                const instrument = details.get(row.symbol);
-                const off = !row.enabled || readOnly;
-                return (
-                  <tr key={row.symbol} className="border-t border-border">
-                    <td className="py-2.5 pr-4">
-                      <label className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={row.enabled}
-                          disabled={readOnly}
-                          onChange={(e) => change(row.symbol, { enabled: e.target.checked })}
-                          aria-label={`Traders trade ${row.symbol}`}
-                        />
-                        <span className="flex flex-col">
-                          <span className="font-mono font-medium">{row.symbol}</span>
-                          {instrument && (
-                            <span className="text-xs text-muted">
-                              1 lot = {instrument.contractSize.toLocaleString("en-US")} {instrument.baseCurrency}
+            {groups.map(({ group, rows: groupRows }) => (
+              <tbody key={group}>
+                <tr>
+                  <th colSpan={4} scope="colgroup" className="pb-1.5 pt-5 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+                    {group}
+                  </th>
+                </tr>
+                {groupRows.map((row) => {
+                  const instrument = details.get(row.symbol);
+                  const off = !row.enabled || readOnly;
+                  return (
+                    <tr key={row.symbol} className={`border-t border-border transition-opacity ${row.enabled ? "" : "opacity-60"}`}>
+                      <td className="py-2.5 pr-4">
+                        <label className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={row.enabled}
+                            disabled={readOnly}
+                            onChange={(e) => change(row.symbol, { enabled: e.target.checked })}
+                            aria-label={`Traders trade ${row.symbol}`}
+                          />
+                          <InstrumentMark symbol={row.symbol} />
+                          <span className="flex flex-col">
+                            <span className="font-medium">
+                              {row.symbol} <span className="font-normal text-muted">{instrumentName(row.symbol) !== row.symbol && instrumentName(row.symbol)}</span>
                             </span>
-                          )}
+                            {instrument && (
+                              <span className="text-xs text-muted">
+                                1 lot = {instrument.contractSize.toLocaleString("en-US")} {instrument.baseCurrency}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <span className="flex items-center gap-1">
+                          <span className="text-muted">1:</span>
+                          <input
+                            aria-label={`${row.symbol} leverage`}
+                            inputMode="numeric"
+                            disabled={off}
+                            value={row.leverage}
+                            onChange={(e) => change(row.symbol, { leverage: e.target.value })}
+                            className={`${fieldClass} w-20 py-1 text-right disabled:opacity-50`}
+                          />
                         </span>
-                      </label>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span className="flex items-center gap-1">
-                        <span className="text-muted">1:</span>
-                        <input
-                          aria-label={`${row.symbol} leverage`}
-                          inputMode="numeric"
-                          disabled={off}
-                          value={row.leverage}
-                          onChange={(e) => change(row.symbol, { leverage: e.target.value })}
-                          className={`${fieldClass} w-20 py-1 text-right disabled:opacity-50`}
-                        />
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4">
-                      <span className="flex items-center gap-1.5">
-                        <input
-                          aria-label={`${row.symbol} spread markup in points`}
-                          inputMode="numeric"
-                          disabled={off}
-                          value={row.spreadMarkupPoints}
-                          onChange={(e) => change(row.symbol, { spreadMarkupPoints: e.target.value })}
-                          className={`${fieldClass} w-20 py-1 text-right disabled:opacity-50`}
-                        />
-                        <span className="text-muted">points</span>
-                      </span>
-                    </td>
-                    <td className="py-2.5">
-                      <span className="flex items-center gap-1.5">
-                        <input
-                          aria-label={`${row.symbol} commission per lot and side`}
-                          inputMode="decimal"
-                          disabled={off}
-                          value={row.commissionPerLotPerSide}
-                          onChange={(e) => change(row.symbol, { commissionPerLotPerSide: e.target.value })}
-                          className={`${fieldClass} w-24 py-1 text-right disabled:opacity-50`}
-                        />
-                        <span className="text-muted">{conditions.currency}</span>
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
+                      </td>
+                      <td className="py-2.5 pr-4">
+                        <span className="flex items-center gap-1.5">
+                          <input
+                            aria-label={`${row.symbol} spread markup in points`}
+                            inputMode="numeric"
+                            disabled={off}
+                            value={row.spreadMarkupPoints}
+                            onChange={(e) => change(row.symbol, { spreadMarkupPoints: e.target.value })}
+                            className={`${fieldClass} w-20 py-1 text-right disabled:opacity-50`}
+                          />
+                          <span className="text-muted">points</span>
+                        </span>
+                      </td>
+                      <td className="py-2.5">
+                        <span className="flex items-center gap-1.5">
+                          <input
+                            aria-label={`${row.symbol} commission per lot and side`}
+                            inputMode="decimal"
+                            disabled={off}
+                            value={row.commissionPerLotPerSide}
+                            onChange={(e) => change(row.symbol, { commissionPerLotPerSide: e.target.value })}
+                            className={`${fieldClass} w-24 py-1 text-right disabled:opacity-50`}
+                          />
+                          <span className="text-muted">{conditions.currency}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            ))}
           </table>
         </div>
         <p className="text-xs text-muted">
@@ -161,11 +188,6 @@ function ConditionsForm({ conditions }: { conditions: TradingConditions }) {
         {!readOnly && (
           <>
             <ErrorText error={problem ? new Error(problem) : save.error} />
-            {save.isSuccess && (
-              <p role="status" className="text-sm text-profit">
-                Saved. Your traders trade on these conditions now.
-              </p>
-            )}
             <button type="submit" disabled={save.isPending} className={`${buttonClass} self-start`}>
               {save.isPending ? "Saving..." : "Save conditions"}
             </button>
@@ -173,5 +195,54 @@ function ConditionsForm({ conditions }: { conditions: TradingConditions }) {
         )}
       </form>
     </Panel>
+  );
+}
+
+/**
+ * Conditions typed once for a whole group of instruments, such as every forex pair, put on each that is traded. Empty
+ * fields leave each instrument's own. Nothing is saved until the form is.
+ */
+function BulkBar({ groups, onApply }: { groups: InstrumentGroup[]; onApply: (group: InstrumentGroup | "All", values: BulkConditions) => void }) {
+  const [group, setGroup] = useState<InstrumentGroup | "All">("All");
+  const [values, setValues] = useState<BulkConditions>({ leverage: "", spreadMarkupPoints: "", commissionPerLotPerSide: "" });
+  const set = (changes: Partial<BulkConditions>) => setValues((current) => ({ ...current, ...changes }));
+  const empty = Object.values(values).every((v) => v.trim() === "");
+
+  return (
+    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-background/40 p-3.5 text-sm">
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted">Set for</span>
+        <select aria-label="Set for" value={group} onChange={(e) => setGroup(e.target.value as InstrumentGroup | "All")} className={`${fieldClass} py-1.5`}>
+          <option value="All">Every instrument</option>
+          {groups.map((g) => (
+            <option key={g} value={g}>
+              {g === "Forex" ? "Every forex pair" : g === "Metals" ? "Every metal" : "Every other instrument"}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted">Leverage 1:</span>
+        <input aria-label="Leverage for all" inputMode="numeric" value={values.leverage} onChange={(e) => set({ leverage: e.target.value })} className={`${fieldClass} w-20 py-1.5 text-right`} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted">Markup, points</span>
+        <input aria-label="Spread markup for all" inputMode="numeric" value={values.spreadMarkupPoints} onChange={(e) => set({ spreadMarkupPoints: e.target.value })} className={`${fieldClass} w-20 py-1.5 text-right`} />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted">Commission</span>
+        <input
+          aria-label="Commission for all"
+          inputMode="decimal"
+          value={values.commissionPerLotPerSide}
+          onChange={(e) => set({ commissionPerLotPerSide: e.target.value })}
+          className={`${fieldClass} w-24 py-1.5 text-right`}
+        />
+      </label>
+      <button type="button" disabled={empty} onClick={() => onApply(group, values)} className={`${secondaryButtonClass} py-1.5`}>
+        Fill in below
+      </button>
+      <span className="basis-full text-xs text-muted">Fills in the instruments that are traded. Empty fields leave each one as it is. Save the conditions below to use them.</span>
+    </div>
   );
 }

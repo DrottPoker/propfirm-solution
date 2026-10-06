@@ -79,6 +79,7 @@ internal sealed partial class OrderService(
     DiscountStore discounts,
     ChallengeCatalog challenges,
     ChallengeService accounts,
+    ChallengeQueries queries,
     SlotService slots,
     Notifications notifications,
     WorkSignals signals,
@@ -370,6 +371,7 @@ internal sealed partial class OrderService(
         firm = firms.ById(firm.Id) ?? firm;
         var now = time.GetUtcNow();
         Order paid;
+        ChallengeDefinition? challenge;
         await using (var connection = await dataSource.OpenConnectionAsync(cancellationToken))
         {
             await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -400,15 +402,21 @@ internal sealed partial class OrderService(
             var started = await accounts.StartAsync(connection, firm, order.Email, order.ChallengeId, null, order.Id, cancellationToken);
 
             // The trader keeps the name and country from the first order that gave them. The name kept names the buyer to the firm.
-            string? traderName;
+            string? traderName = null;
+            var hasPassword = false;
             await using (var details = new NpgsqlCommand(
-                "update traders set name = coalesce(name, $3), country = coalesce(country, $4) where firm_id = $1 and normalized_email = $2 returning name", connection))
+                "update traders set name = coalesce(name, $3), country = coalesce(country, $4) where firm_id = $1 and normalized_email = $2 returning name, password_hash is not null",
+                connection))
             {
                 details.Parameters.AddWithValue(firm.Id);
                 details.Parameters.AddWithValue(Emails.Normalize(order.Email));
                 details.Parameters.Add(OrderStore.Text(order.BuyerName));
                 details.Parameters.Add(OrderStore.Text(order.BuyerCountry));
-                traderName = await details.ExecuteScalarAsync(cancellationToken) as string;
+                await using var reader = await details.ExecuteReaderAsync(cancellationToken);
+                if (await reader.ReadAsync(cancellationToken))
+                {
+                    (traderName, hasPassword) = (reader.IsDBNull(0) ? null : reader.GetString(0), reader.GetBoolean(1));
+                }
             }
             var problem = started.Account is not null
                 ? null
@@ -446,6 +454,21 @@ internal sealed partial class OrderService(
                 paid.AccountId,
                 now,
                 cancellationToken);
+
+            // A buyer who has a password already gets the receipt with the payment. One who has not gets it with the
+            // invitation, below.
+            challenge = started.Account?.State.Definition;
+            if (started.Account is { } startedAccount && hasPassword)
+            {
+                await EmailOutbox.AddAsync(
+                    connection,
+                    TraderEmails.ChallengeBought(firm, new OrderReceipt(paid, challenge), new Uri(firm.Portal.Url, $"accounts/{startedAccount.Id}")),
+                    "order_receipt",
+                    firm.Id,
+                    now,
+                    cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
         }
 
@@ -455,8 +478,8 @@ internal sealed partial class OrderService(
             LogPaidWithoutAccount(logger, paid.Id, firm.Id, reason);
         }
 
-        // A buyer without a password gets an invitation. If the email cannot be sent, the buyer asks for it again.
-        await SendInviteAsync(firm, paid, payment.Source, cancellationToken);
+        // A buyer without a password gets an invitation, with the receipt. If the email cannot be sent, the buyer asks for it again.
+        await SendInviteAsync(firm, paid, challenge, payment.Source, cancellationToken);
         return new OrderChange(OrderChangeOutcome.Done, await orders.GetAsync(firm.Id, orderId, time.GetUtcNow(), cancellationToken));
     }
 
@@ -485,11 +508,12 @@ internal sealed partial class OrderService(
     }
 
     /// <summary>
-    /// Emails the buyer of a paid order an invitation to choose a password for the firm's portal, unless the
-    /// trader already has one. A new invitation replaces the trader's older unused ones. Before we approve the firm,
-    /// only a buyer who is one of its administrators gets one (ADR 0043).
+    /// Emails the buyer of a paid order an invitation to choose a password for the firm's portal, with the receipt, unless
+    /// the trader already has one. A new invitation replaces the trader's older unused ones. Before we approve the firm,
+    /// only a buyer who is one of its administrators gets one (ADR 0043). <paramref name="challenge"/> is the challenge as
+    /// the order's account started with it, which is read when it is not given.
     /// </summary>
-    public async Task<InviteOutcome> SendInviteAsync(Firm firm, Order order, string source, CancellationToken cancellationToken)
+    public async Task<InviteOutcome> SendInviteAsync(Firm firm, Order order, ChallengeDefinition? challenge, string source, CancellationToken cancellationToken)
     {
         if (order.Status != OrderStatus.Paid || order.AccountId is null || await users.FindTraderAsync(firm.Id, order.Email, cancellationToken) is not { } trader)
         {
@@ -512,13 +536,12 @@ internal sealed partial class OrderService(
             return InviteOutcome.TooSoon;
         }
 
+        var receipt = challenge is null ? await ReceiptAsync(firm, order, cancellationToken) : new OrderReceipt(order, challenge);
         var invite = await users.CreateInviteAsync(trader.Id, now, cancellationToken);
-        var challengeName = (await challenges.GetAsync(firm.Id, order.ChallengeId, cancellationToken))?.Name ?? order.ChallengeId;
         try
         {
             await email.SendAsync(
-                TraderEmails.InviteBuyer(firm, challengeName, order.Email, new Uri(firm.Portal.Url, $"invite?token={invite.Token}"), PortalUsers.InviteLifetime),
-                cancellationToken);
+                TraderEmails.InviteBuyer(firm, receipt, new Uri(firm.Portal.Url, $"invite?token={invite.Token}"), PortalUsers.InviteLifetime), cancellationToken);
         }
         catch (EmailNotSentException exception)
         {
@@ -528,6 +551,16 @@ internal sealed partial class OrderService(
 
         await orders.SetInviteSentAsync(order.Id, source, now, cancellationToken);
         return InviteOutcome.Sent;
+    }
+
+    /// <summary>
+    /// The receipt of a paid order, with the challenge as the order's account started with it, or as the firm has it now
+    /// when the order started no account.
+    /// </summary>
+    public async Task<OrderReceipt> ReceiptAsync(Firm firm, Order order, CancellationToken cancellationToken)
+    {
+        var started = order.AccountId is { } accountId ? await queries.GetAsync(firm.Id, accountId, cancellationToken) : null;
+        return new OrderReceipt(order, started?.Account.State.Definition ?? await challenges.GetAsync(firm.Id, order.ChallengeId, cancellationToken));
     }
 
     /// <summary>Why a change to an order belongs to its provider, for example a Stripe order that only Stripe marks as paid.</summary>

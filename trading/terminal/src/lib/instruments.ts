@@ -1,4 +1,5 @@
 import type { InstrumentInfo } from "./api/types";
+import type { DigitsOf } from "./events";
 
 export type Category = "Forex" | "Metals";
 
@@ -21,6 +22,12 @@ export function categoryOf(instrument: InstrumentInfo): Category {
 export function categoriesOf(instruments: readonly InstrumentInfo[]): Category[] {
   const present = new Set(instruments.map(categoryOf));
   return (["Forex", "Metals"] as const).filter((c) => present.has(c));
+}
+
+/** Price decimals by symbol, for the instruments the terminal knows. Unknown symbols get 5. */
+export function digitsLookup(instruments: readonly InstrumentInfo[]): DigitsOf {
+  const bySymbol = new Map(instruments.map((i) => [i.symbol, i.digits]));
+  return (symbol) => bySymbol.get(symbol) ?? 5;
 }
 
 /** The spread in points, the smallest price step of the instrument. */

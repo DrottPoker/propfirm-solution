@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { Verification } from "@/lib/api/types";
 import { countries, countryName } from "@/lib/countries";
 import { formatMoney } from "@/lib/format";
 import { FieldError, useRemoveDocument, useSaveApplication, useUploadDocument } from "@/lib/queries";
 import { applicationFieldLabels, applicationOf, fileSize, formOf, maxOwners, problemsByField, sharesTotal, type ApplicationForm } from "@/lib/verification";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { DropZone } from "./DropZone";
-import { AlertIcon } from "./icons";
+import { AlertIcon, CheckIcon } from "./icons";
 import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
 
 /**
@@ -24,6 +25,12 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
   const [attempted, setAttempted] = useState(false);
   const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const save = useSaveApplication();
+  useSavedNote(save, "Draft saved.");
+  // Saves the draft quietly when a changed field is left, so nothing typed is lost. Its problems wait for a real save.
+  const autosave = useSaveApplication();
+  const [autosavedAt, setAutosavedAt] = useState<number | null>(null);
+  // A save waits for a quiet one still on its way, so an older draft never lands after it.
+  const quietSave = useRef<Promise<unknown>>(Promise.resolve());
   const editable = verification.canEdit;
   const set = (changes: Partial<ApplicationForm>) => setForm((current) => ({ ...current, ...changes }));
   const inEu = verification.euCountries.includes(form.country);
@@ -47,7 +54,7 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
     setProblem(null);
 
     // Awaited rather than a callback of mutate, which never runs when the saved application moves the page to the next step first.
-    save.mutateAsync(parsed.application).then(
+    quietSave.current.then(() => save.mutateAsync(parsed.application)).then(
       (saved) => {
         if (andContinue && saved.problems.length === 0) {
           onContinue();
@@ -59,6 +66,29 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
 
   const changed = JSON.stringify(form) !== JSON.stringify(formOf(verification.application));
   const missing = verification.problems;
+
+  const saveQuietly = () => {
+    if (!editable || !changed || save.isPending || autosave.isPending) {
+      return;
+    }
+
+    const parsed = applicationOf(form);
+    if (!("problem" in parsed)) {
+      quietSave.current = autosave.mutateAsync(parsed.application).then(
+        () => setAutosavedAt(Date.now()),
+        () => {},
+      );
+    }
+  };
+
+  // A part is done once nothing in it is missing in the saved draft and nothing in it has changed since.
+  const done = (fields: string[]) =>
+    !changed && missing.every((p) => !fields.includes(p.field)) ? (
+      <span className="flex items-center gap-1.5 text-xs font-medium text-profit">
+        <CheckIcon className="size-3.5" />
+        Done
+      </span>
+    ) : undefined;
   return (
     <form
       onSubmit={(event) => {
@@ -70,10 +100,12 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
         if (field && !touched.has(field)) {
           setTouched(new Set(touched).add(field));
         }
+
+        saveQuietly();
       }}
       className="flex flex-col gap-6"
     >
-      <Panel title="Company">
+      <Panel title="Company" actions={done(["companyName", "registrationNumber", "country", "vatNumber", "website", "address"])}>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField name="companyName" label="Legal name" value={form.companyName} onChange={(companyName) => set({ companyName })} disabled={!editable} problem={shown("companyName")} />
           <TextField
@@ -140,16 +172,16 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
         </div>
       </Panel>
 
-      <Panel title="Contact">
+      <Panel title="Contact" actions={done(["contactName", "contactPhone"])}>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField name="contactName" label="Contact person" value={form.contactName} onChange={(contactName) => set({ contactName })} disabled={!editable} problem={shown("contactName")} />
           <TextField name="contactPhone" label="Phone" value={form.contactPhone} onChange={(contactPhone) => set({ contactPhone })} disabled={!editable} optional problem={shown("contactPhone")} />
         </div>
       </Panel>
 
-      <Owners form={form} onChange={(owners) => set({ owners })} disabled={!editable} problem={shown("owners")} />
+      <Owners form={form} onChange={(owners) => set({ owners })} disabled={!editable} problem={shown("owners")} done={done(["owners"])} />
 
-      <Panel title="Your terms and links">
+      <Panel title="Your terms and links" actions={done(["termsUrl", "links", "description"])}>
         <TextField
           name="termsUrl"
           label="Your terms for traders"
@@ -219,7 +251,11 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
             <p className="text-sm text-profit">Everything is filled in. Continue to send it for review.</p>
           )}
           <ErrorText error={problem ? new Error(problem) : save.error} />
-          {save.isSuccess && !save.isPending && !changed && <p className="text-sm text-profit">Saved.</p>}
+          {autosavedAt !== null && !changed && !save.isSuccess && (
+            <p className="text-xs text-muted">
+              Saved as a draft by itself at {new Date(autosavedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}.
+            </p>
+          )}
           <div className="flex flex-wrap gap-3">
             <button type="button" disabled={save.isPending} onClick={() => send(false)} className={secondaryButtonClass}>
               {save.isPending ? "Saving..." : "Save draft"}
@@ -269,13 +305,25 @@ export function CompanyDetails({ verification }: { verification: Verification })
   );
 }
 
-function Owners({ form, onChange, disabled, problem }: { form: ApplicationForm; onChange: (owners: ApplicationForm["owners"]) => void; disabled: boolean; problem?: string }) {
+function Owners({
+  form,
+  onChange,
+  disabled,
+  problem,
+  done,
+}: {
+  form: ApplicationForm;
+  onChange: (owners: ApplicationForm["owners"]) => void;
+  disabled: boolean;
+  problem?: string;
+  done?: React.ReactNode;
+}) {
   const owners = form.owners;
   const update = (index: number, changes: Partial<ApplicationForm["owners"][number]>) =>
     onChange(owners.map((owner, i) => (i === index ? { ...owner, ...changes } : owner)));
 
   return (
-    <Panel title="Owners">
+    <Panel title="Owners" actions={done}>
       <p className="text-sm text-muted">Everyone who owns 25 percent or more of the company, or the largest owners if nobody does.</p>
       {owners.length > 0 && (
         <ul className="flex flex-col gap-3">

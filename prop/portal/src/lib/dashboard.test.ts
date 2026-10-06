@@ -4,13 +4,17 @@ import type { AccountDetails } from "./api/types";
 import {
   attentionItems,
   breachClosesText,
+  breachStory,
   currentTradingDay,
   deadlineOf,
   deadlineText,
   endingText,
   floorState,
   initials,
+  latestMilestone,
+  nextStepsOf,
   objectivesOf,
+  roomShare,
   resultTone,
   retryOf,
   statusText,
@@ -144,8 +148,8 @@ describe("objectivesOf", () => {
 
     expect(objectives.map((o) => [o.key, o.state, o.stateText])).toEqual([
       ["target", "progress", "In progress"],
-      ["daily", "kept", "Kept"],
-      ["max-loss", "kept", "Kept"],
+      ["daily", "kept", "5,800.00 left"],
+      ["max-loss", "kept", "12,800.00 left"],
       ["days", "progress", "2 of 4"],
       ["activity", "info", "Trade by 4 Nov (29 days)"],
     ]);
@@ -154,7 +158,8 @@ describe("objectivesOf", () => {
       ghost: 28,
       detail: "2,500.00 of 10,000.00 · reach a balance of 110,000.00. Closed trades count: with your open ones closed now, it would be 2,800.00.",
     });
-    expect(objectives[1].detail).toMatch(/^Equity may fall 5,800.00 more today, to 97,000.00. It starts again /);
+    expect(objectives[1].detail).toMatch(/^Equity may not fall below 97,000.00 today. It starts again /);
+    expect(objectives[1].room).toEqual({ share: 100, state: "ok" });
     expect(objectives[3].segments).toEqual({ filled: 2, total: 4 });
   });
 
@@ -195,6 +200,12 @@ describe("objectivesOf", () => {
       "Then every open position was closed at the next price (EURUSD at 1.07512), and 3.50 in commission was charged for closing it, so the balance ended at 96,901.50.",
     );
     expect(breachClosesText(testDetails())).toBeNull();
+    expect(breachStory(failed)).toEqual([
+      { when: "6 Oct 2026, 11:30", text: "Equity fell to 96,950.00, below the daily loss limit at 97,000.00." },
+      { when: "Right after", text: "Every open position was closed at the next price: EURUSD at 1.07512. Closing it cost 3.50 in commission." },
+      { when: "Then", text: "The challenge ended with a balance of 96,901.50." },
+    ]);
+    expect(breachStory(testDetails())).toEqual([]);
   });
 
   it("offers a new try at a failed challenge, with the firm's code for retries", () => {
@@ -271,3 +282,115 @@ describe("stepState and statusText", () => {
     expect(endingText(expired)).toBe("no new trade in time");
   });
 });
+
+describe("roomShare", () => {
+  it("is the share of the limit's distance left, from 0 to 100", () => {
+    expect([
+      roomShare({ headroom: 1_250, distance: 5_000 }),
+      roomShare({ headroom: -10, distance: 5_000 }),
+      roomShare({ headroom: 5_800, distance: 5_000 }),
+    ]).toEqual([25, 0, 100]);
+    expect(roomShare({ headroom: 10, distance: null })).toBe(100);
+  });
+});
+
+describe("nextStepsOf", () => {
+  it("says what is left of the phase, and the deadline", () => {
+    expect(nextStepsOf(testDetails()).map((s) => s.text)).toEqual([
+      "Make 7,500.00 more to reach the profit target",
+      "Trade on 2 more days",
+      "Open a trade by 4 Nov (29 days)",
+    ]);
+  });
+
+  it("points a funded trader to the payout when it can be asked for", () => {
+    const quote = { canRequest: true, refusal: null, profit: 2_000, profitSplitPercent: 80, amount: 1_600, tradingDays: 5, minTradingDays: 5 };
+    const funded = testDetails({ account: { ...testAccount, funded: true, stage: 2, stageName: "Funded", nextPayout: quote, inactivityDeadline: null } });
+    const early = testDetails({ account: { ...funded.account, nextPayout: { ...quote, canRequest: false, tradingDays: 4 } } });
+
+    expect(nextStepsOf(funded)).toEqual([{ key: "payout", text: "Ask for your payout of 1,600.00 USD", tone: "profit" }]);
+    expect(nextStepsOf(early).map((s) => s.text)).toEqual(["Trade on 1 more day before the next payout"]);
+  });
+
+  it("is empty while the account cannot trade", () => {
+    expect(nextStepsOf(testDetails({ account: { ...testAccount, paused: true } }))).toEqual([]);
+    expect(nextStepsOf(testDetails({ account: { ...testAccount, status: "Failed" } }))).toEqual([]);
+  });
+});
+
+describe("latestMilestone", () => {
+  const base = testDetails();
+
+  it("is the last passed phase, with its result and what comes next", () => {
+    const details = testDetails({
+      account: { ...testAccount, stage: 1, stageName: "Phase 2" },
+      stages: base.stages.map((s) =>
+        s.stage === 0
+          ? { ...s, progress: "Passed", passedAt: "2026-10-05T15:00:00Z", result: 10_200, tradingDays: 5 }
+          : s.stage === 1
+            ? { ...s, progress: "Current" }
+            : s,
+      ),
+    });
+
+    expect(latestMilestone(details, "Aurora Funded")).toEqual({
+      key: `${testAccount.id}:passed:0`,
+      kind: "passed",
+      title: "Phase 1 passed",
+      detail: "You passed it with +10,200.00 in 5 trading days. Next up: Phase 2.",
+      at: "2026-10-05T15:00:00Z",
+    });
+  });
+
+  it("is the funded account once it trades, and nothing before a phase is passed", () => {
+    const funded = testDetails({
+      account: { ...testAccount, funded: true, stage: 2, stageName: "Funded" },
+      stages: base.stages.map((s) =>
+        s.stage < 2 ? { ...s, progress: "Passed", passedAt: "2026-10-05T15:00:00Z" } : { ...s, progress: "Current", startedAt: "2026-10-06T09:00:00Z" },
+      ),
+    });
+
+    expect(latestMilestone(funded, "Aurora Funded")).toMatchObject({
+      kind: "funded",
+      title: "You're funded",
+      detail: "You now trade Aurora Funded's capital and keep 80% of the profit.",
+    });
+    expect(latestMilestone(base, "Aurora Funded")).toBeNull();
+  });
+
+  it("is the newest paid payout, with its amount", () => {
+    const paid = { ...payoutFields, id: "p2", status: "Paid" as const, amount: 1_600, paidAt: "2026-11-02T09:00:00Z" };
+    const funded = testDetails({ account: { ...testAccount, funded: true, stage: 2, stageName: "Funded" }, payouts: [paid] });
+
+    expect(latestMilestone(funded, "Aurora Funded")).toMatchObject({
+      key: `${testAccount.id}:paid:p2`,
+      kind: "paid",
+      amount: 1_600,
+      detail: "Aurora Funded has sent your 1,600.00 USD. Your certificate for it is ready to share.",
+    });
+  });
+});
+
+const payoutFields: AccountDetails["payouts"][number] = {
+  id: "p",
+  accountId: testAccount.id,
+  accountNumber: 1001,
+  email: "anna@test.example",
+  tradingAccountId: "demo-firm-1001-3",
+  status: "Paid",
+  profit: 2_000,
+  profitSplitPercent: 80,
+  amount: 1_600,
+  currency: "USD",
+  requestedAt: "2026-11-01T08:00:00Z",
+  withdrawnAt: "2026-11-01T08:00:01Z",
+  approvedAt: "2026-11-01T10:00:00Z",
+  paidAt: "2026-11-02T09:00:00Z",
+  rejectedAt: null,
+  failedAt: null,
+  reason: null,
+  reference: null,
+  payTo: null,
+  profitReturned: false,
+  timeZone: "Europe/Stockholm",
+};

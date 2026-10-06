@@ -2,16 +2,26 @@
 
 import { useEffect, useState } from "react";
 
+import { productName } from "@/lib/config";
 import { formatDateTime, formatMoney, formatPercent, timeZoneName } from "@/lib/format";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
-/** The firm's server, the time in the account's time zone like every other time on screen, and the account's margin figures. */
+import { KronantMark } from "./KronantMark";
+
+/**
+ * Our name, the firm's server, the time in the account's time zone like every other time on screen, and the
+ * account's margin figures. The account bar above is the firm's; this is where the terminal says it is ours.
+ */
 export function StatusBar({ serverName }: { serverName: string }) {
   const account = useTradingStore((s) => s.account);
 
   return (
     <footer className="flex h-8 shrink-0 items-center gap-6 overflow-x-auto border-t border-border bg-panel px-4 text-xs whitespace-nowrap text-muted">
+      <span className="flex items-center gap-1.5 text-foreground">
+        <KronantMark className="size-4" />
+        {productName}
+      </span>
       <span>
         Server: <span className="text-foreground">{serverName}</span>
       </span>

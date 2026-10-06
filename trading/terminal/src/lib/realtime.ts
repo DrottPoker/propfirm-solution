@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
 import { tradingApiUrl } from "./config";
 import { createEventSync, type EventLoad } from "./eventSync";
+import { newEvents } from "./notices";
 import { fetchEvents } from "./queries";
 import { maxEvents, useTradingStore } from "./store";
 
@@ -17,6 +18,7 @@ export function useTradingConnection(accountId: string): void {
   useEffect(() => {
     const store = useTradingStore.getState();
     store.reset();
+    newEvents.reset();
 
     let stopped = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -41,7 +43,11 @@ export function useTradingConnection(accountId: string): void {
 
     connection.on("Account", (account: AccountSnapshot) => useTradingStore.getState().setAccount(account));
     connection.on("Prices", (prices: SymbolPrice[]) => useTradingStore.getState().applyPrices(prices));
-    connection.on("Events", (events: EventEnvelope[]) => eventSync.received(events));
+    // Pushed events are new, unlike the ones loaded at the start or after a reconnect, so the trader is told of them.
+    connection.on("Events", (events: EventEnvelope[]) => {
+      eventSync.received(events);
+      newEvents.announce(events);
+    });
 
     // Tries again until the events are loaded or a newer subscription takes over.
     const load = async (eventLoad: EventLoad) => {

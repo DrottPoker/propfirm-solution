@@ -1,3 +1,5 @@
+import type { EmailAudience } from "./api/types";
+
 /** Who an email goes to: the firm's administrators, or the trader the challenge is for. */
 export type NotificationAudience = "team" | "trader";
 
@@ -47,4 +49,9 @@ export const notificationKinds: NotificationKind[] = [
 /** Whether the firm sends the email. One it never chose is sent. */
 export function isOn(settings: Record<string, boolean>, kind: string): boolean {
   return settings[kind] ?? true;
+}
+
+/** Who a previewed email goes to, as the preview says it. */
+export function recipientText(audience: EmailAudience): string {
+  return audience === "Team" ? "To each administrator on your team" : "To the trader";
 }

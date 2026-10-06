@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { accountStatus, activityView, ageText, axisTicks, formatTotals, needsYouItems, passRateText, salesAndPayouts, shortAmount, weekBars, whenText } from "./admin";
+import { accountStatus, activityView, ageText, axisTicks, formatTotals, fourWeekChange, needsYouItems, passRateText, salesAndPayouts, shortAmount, weekBars, weeklySeries, whenText } from "./admin";
 import type { Activity, PayoutSummary, Slots } from "./api/types";
 import { testAccount } from "./testAccounts";
 
@@ -211,5 +211,25 @@ describe("axisTicks", () => {
 describe("shortAmount", () => {
   it("shortens thousands and millions", () => {
     expect([shortAmount(0), shortAmount(500), shortAmount(6_000), shortAmount(2_500), shortAmount(1_500_000)]).toEqual(["0", "500", "6k", "2.5k", "1.5M"]);
+  });
+});
+
+describe("the curves on the figures", () => {
+  const week = (start: string, sales: number, payouts: number) => ({
+    start,
+    sales: [{ currency: "USD", amount: sales }, { currency: "EUR", amount: 1 }],
+    payouts: payouts ? [{ currency: "USD", amount: payouts }] : [],
+  });
+
+  it("take one currency's amounts per week, with nothing as zero", () => {
+    expect(weeklySeries([week("2026-09-28", 100, 0), week("2026-10-05", 50, 20)], "sales", "USD")).toEqual([100, 50]);
+    expect(weeklySeries([week("2026-09-28", 100, 0), week("2026-10-05", 50, 20)], "payouts", "USD")).toEqual([0, 20]);
+  });
+
+  it("compare the last four weeks with the four before, once there are eight", () => {
+    expect(fourWeekChange([1, 1, 1, 1, 2, 2, 2, 2])).toBe(1);
+    expect(fourWeekChange([10, 10, 10, 10, 5, 5, 5, 5])).toBe(-0.5);
+    expect(fourWeekChange([1, 2, 3])).toBeNull();
+    expect(fourWeekChange([0, 0, 0, 0, 5, 5, 5, 5])).toBeNull();
   });
 });

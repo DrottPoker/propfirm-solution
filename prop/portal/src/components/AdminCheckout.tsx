@@ -4,10 +4,12 @@ import { useState } from "react";
 
 import type { FirmSettings, PaymentProvider } from "@/lib/api/types";
 import { providerLabels } from "@/lib/orders";
-import { useFirmSettings, useSavePayments } from "@/lib/queries";
+import { useFirmSettings, usePayoutSummary, useSavePayments, useSaveShopPayouts } from "@/lib/queries";
+import { payoutLines } from "@/lib/shop";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { CopyButton } from "./CopyButton";
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, Skeleton, Switch } from "./ui";
 
 /** How the firm's portal takes payment for challenges, and the terms buyers accept. */
 export function AdminCheckout() {
@@ -17,7 +19,7 @@ export function AdminCheckout() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const shop = new URL("buy", settings.data.portalUrl).toString();
@@ -39,6 +41,7 @@ export function AdminCheckout() {
         }
       />
       <Payments settings={settings.data} />
+      <ShopPayouts settings={settings.data} />
     </AdminPage>
   );
 }
@@ -46,6 +49,7 @@ export function AdminCheckout() {
 /** How the portal takes payment for challenges: a test page in the sandbox, Stripe with the firm's own keys, or the firm's own checkout. */
 function Payments({ settings }: { settings: FirmSettings }) {
   const save = useSavePayments();
+  useSavedNote(save);
   const payments = settings.payments;
   const [provider, setProvider] = useState<PaymentProvider | null>(payments.provider);
   const [stripeSecretKey, setStripeSecretKey] = useState("");
@@ -164,9 +168,9 @@ function Payments({ settings }: { settings: FirmSettings }) {
         )}
 
         <label className="flex flex-col gap-1 border-t border-border pt-4">
-          <span className="text-muted">Your terms for traders (https), or empty for none</span>
+          <span className="text-muted">Terms for traders (link)</span>
           <input type="url" value={termsUrl} onChange={(e) => setTermsUrl(e.target.value)} placeholder="https://" className={fieldClass} />
-          <span className="text-xs text-muted">Buyers accept them in your shop, and we read them in your application. One address for both.</span>
+          <span className="text-xs text-muted">Buyers accept them before they pay. We read the same page when we review your firm. Leave it empty for none.</span>
         </label>
 
         {payments.provider !== null && !payments.active && (
@@ -177,15 +181,48 @@ function Payments({ settings }: { settings: FirmSettings }) {
           </p>
         )}
         <ErrorText error={save.error} />
-        {save.isSuccess && !save.isPending && (
-          <p role="status" className="text-profit">
-            Saved.
-          </p>
-        )}
         <button type="submit" disabled={save.isPending} className={`${buttonClass} self-start`}>
-          {save.isPending ? "Saving..." : "Save payments"}
+          {save.isPending ? "Saving..." : "Save"}
         </button>
       </form>
+    </Panel>
+  );
+}
+
+/**
+ * Whether the shop shows buyers what the firm paid out to traders in the last 30 days, and how soon. It makes the
+ * firm's own figures public, so it is off until the firm turns it on. The lines buyers see, or would see, are shown.
+ */
+function ShopPayouts({ settings }: { settings: FirmSettings }) {
+  const save = useSaveShopPayouts();
+  useSavedNote(save);
+  const summary = usePayoutSummary();
+  const paid = summary.data?.paidLast30Days;
+  const lines = paid && paid.count > 0 ? payoutLines({ count: paid.count, totals: paid.totals, averageDaysToPay: summary.data?.averageDaysToPay ?? null }) : null;
+  const on = settings.shopShowsPayouts;
+  return (
+    <Panel title="Your payouts in the shop">
+      <div className="flex items-start justify-between gap-4">
+        <p className="text-sm text-muted">
+          Show buyers what you paid out to traders in the last 30 days, and how soon. It makes your own figures public, so it is off until you turn it on.
+        </p>
+        <Switch checked={on} disabled={save.isPending} onChange={(show) => save.mutate(show)} label="Show your payouts in the shop" />
+      </div>
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-4 text-sm">
+        <span className="text-xs text-muted">{on ? "Buyers see" : "Buyers would see"}</span>
+        {!summary.data && !summary.error ? (
+          <Skeleton className="h-5 w-72 max-w-full" />
+        ) : lines ? (
+          <ul className="flex flex-col gap-1">
+            {lines.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-muted">Nothing yet. The line shows once you have paid a payout in the last 30 days.</p>
+        )}
+      </div>
+      <ErrorText error={save.error ?? summary.error} />
     </Panel>
   );
 }

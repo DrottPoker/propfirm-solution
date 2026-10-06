@@ -12,7 +12,9 @@ import {
   formatShortDateTime,
   formatSignedMoney,
   formatSignedPercent,
+  priceText,
   timeZoneName,
+  wholeAmount,
 } from "./format";
 
 describe("formatting", () => {
@@ -44,5 +46,11 @@ describe("formatting", () => {
   it("counts days between plain dates", () => {
     expect([daysBetween("2026-10-06", "2026-11-02"), daysBetween("2026-10-06", "2026-10-06"), daysBetween("2026-10-06", "2026-10-05")]).toEqual([27, 0, -1]);
     expect(dayBefore("2026-11-01")).toBe("2026-10-31");
+  });
+});
+
+describe("priceText and wholeAmount", () => {
+  it("write prices and amounts without cents when they have none", () => {
+    expect([priceText(349, "USD"), priceText(199.5, "EUR"), wholeAmount(5_000), wholeAmount(2_500.5)]).toEqual(["$349", "€199.50", "5,000", "2,500.50"]);
   });
 });

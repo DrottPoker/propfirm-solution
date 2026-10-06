@@ -1,5 +1,5 @@
-import type { StatusTone } from "./admin";
-import type { SupportAuthor, SupportMessage, SupportTicketGroup, SupportTicketStatus, SupportTicketSummary } from "./api/types";
+import { accountStatus, stageLabel, type StatusTone } from "./admin";
+import type { SavedReply, SupportAccount, SupportAuthor, SupportMessage, SupportTicket, SupportTicketGroup, SupportTicketStatus, SupportTicketSummary } from "./api/types";
 
 // Support tickets between traders and their firm (ADR 0041). Prop.Api keeps them; this words and checks them.
 
@@ -128,6 +128,84 @@ export function attachmentUrl(attachmentId: string, viewer: SupportViewer): stri
 export function charactersLeft(text: string, limit: number): number | null {
   const left = limit - text.length;
   return left < limit / 10 ? left : null;
+}
+
+/**
+ * Where the account a ticket is about is now, worded as in the admin panel's list of accounts: the stage it is on, for
+ * example "Phase 1" or "Funded", and its status with its tone.
+ */
+export function ticketAccountStatus(account: Pick<SupportAccount, "status" | "stageName" | "paused">): { stage: string; label: string; tone: StatusTone } {
+  return { stage: stageLabel(account), ...accountStatus(account) };
+}
+
+// Saved replies: answers the firm's administrators save, and put in an answer with the placeholders filled in.
+
+/** The service's limits of saved replies, so the portal can say what is wrong before anything is sent. The service checks them again. */
+export const savedReplyLimits = { title: 80, body: 4_000, count: 100 } as const;
+
+/** From this many saved replies, their list has a search. */
+export const savedReplySearchFrom = 9;
+
+/** What fills in a saved reply's placeholders: {trader} and {firm}. */
+export type ReplyValues = { trader: string; firm: string };
+
+/** The values for a saved reply in the ticket: the trader's name, or the email when the trader has none, and the firm's name. */
+export function replyValues(ticket: Pick<SupportTicket, "traderName" | "traderEmail">, firmName: string): ReplyValues {
+  return { trader: ticket.traderName?.trim() || ticket.traderEmail, firm: firmName };
+}
+
+/** A saved reply's text with {trader} and {firm} filled in, in any case. Other braces stay as they are. */
+export function fillReply(body: string, values: ReplyValues): string {
+  return body.replace(/\{(trader|firm)\}/gi, (_, name: string) => (name.toLowerCase() === "trader" ? values.trader : values.firm));
+}
+
+/**
+ * The answer with the text put in at the cursor, or in place of what is selected, and where the cursor goes after it.
+ * An empty answer is replaced. A space keeps the text from running into the words on either side.
+ */
+export function insertText(current: string, text: string, start: number, end: number): { value: string; cursor: number } {
+  if (current.trim() === "") {
+    return { value: text, cursor: text.length };
+  }
+
+  const from = Math.min(Math.max(0, start), current.length);
+  const to = Math.min(Math.max(from, end), current.length);
+  const before = current.slice(0, from);
+  const after = current.slice(to);
+  const lead = before !== "" && !/\s$/.test(before) ? " " : "";
+  const trail = after !== "" && !/^\s/.test(after) ? " " : "";
+  return { value: `${before}${lead}${text}${trail}${after}`, cursor: before.length + lead.length + text.length };
+}
+
+/** The saved replies whose title or text has the search in it, in any case. All of them without a search. */
+export function findReplies<T extends Pick<SavedReply, "title" | "body">>(replies: readonly T[], search: string): T[] {
+  const text = search.trim().toLowerCase();
+  return text === "" ? [...replies] : replies.filter((r) => r.title.toLowerCase().includes(text) || r.body.toLowerCase().includes(text));
+}
+
+/** The start of a saved reply on one line, for a list of them. */
+export function replyPreview(body: string, length = 90): string {
+  const line = body.split(/\s+/).filter(Boolean).join(" ");
+  return line.length <= length ? line : `${line.slice(0, length - 3).trimEnd()}...`;
+}
+
+/** Why the saved reply cannot be saved, and the field it is about, or null when it can. */
+export function savedReplyProblem(title: string, body: string): { field: "title" | "body"; text: string } | null {
+  const cleanTitle = title.trim();
+  const cleanBody = body.trim();
+  if (cleanTitle.length === 0) {
+    return { field: "title", text: "Write a title to find the reply by." };
+  }
+
+  if (cleanTitle.length > savedReplyLimits.title) {
+    return { field: "title", text: `Keep the title to ${savedReplyLimits.title} characters.` };
+  }
+
+  if (cleanBody.length === 0) {
+    return { field: "body", text: "Write the reply." };
+  }
+
+  return cleanBody.length > savedReplyLimits.body ? { field: "body", text: `Keep the reply to ${savedReplyLimits.body.toLocaleString("en-GB")} characters.` } : null;
 }
 
 // Browsers name some types, and only the extension tells for others.

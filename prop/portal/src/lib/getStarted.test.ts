@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { guideSteps, stepAfter, stepOf } from "./getStarted";
+import { guideSteps, stepAfter, stepOf, tryChecklist } from "./getStarted";
+import { testAccount } from "./testAccounts";
 
 describe("the guide for a new firm", () => {
   it("goes through the look, the price, the payments and trying it, and stays within its steps", () => {
@@ -14,5 +15,15 @@ describe("the guide for a new firm", () => {
     expect(stepOf("payments")).toBe("payments");
     expect(stepOf("nonsense")).toBe("look");
     expect(stepOf(undefined)).toBe("look");
+  });
+
+  it("ticks off trying it as a trader by itself, from the firm's accounts", () => {
+    const done = (accounts: (typeof testAccount)[]) => tryChecklist(accounts).map((i) => i.done);
+
+    expect(done([])).toEqual([false, false, false]);
+    expect(done([{ ...testAccount, status: "OpeningAccount", tradingAccountId: null, tradingDays: 0 }])).toEqual([true, false, false]);
+    expect(done([{ ...testAccount, tradingDays: 0 }])).toEqual([true, true, false]);
+    expect(done([testAccount])).toEqual([true, true, true]);
+    expect(done([{ ...testAccount, status: "Cancelled" }])).toEqual([false, false, false]);
   });
 });

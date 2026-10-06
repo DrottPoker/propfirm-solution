@@ -118,7 +118,7 @@ export function OpsFirms({ initialGroup, initialSearch }: { initialGroup: OpsFir
                           )}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono tabular-nums">
+                      <td className="px-4 py-3 text-right tabular-nums">
                         {firm.monthlyPrice === null ? <span className="text-muted">{firm.configured ? "Free" : "-"}</span> : `${formatMoney(firm.monthlyPrice)} ${firms.data?.currency}`}
                       </td>
                       <td className="px-4 py-3 text-muted">{latestText(firm, now)}</td>

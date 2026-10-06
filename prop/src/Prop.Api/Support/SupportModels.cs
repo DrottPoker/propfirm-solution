@@ -1,3 +1,5 @@
+using Prop.Rules;
+
 namespace Prop.Api.Support;
 
 /// <summary>Where a support ticket is (ADR 0041).</summary>
@@ -59,6 +61,13 @@ internal static class SupportRules
 
     /// <summary>Who closed a ticket, when it was the trader. Otherwise the administrator's email.</summary>
     public const string ClosedByTrader = "trader";
+
+    public const int MaxSavedReplyTitleLength = 80;
+
+    public const int MaxSavedReplyLength = 4_000;
+
+    /// <summary>The most saved replies a firm can have, so the list stays one to choose from (ADR 0045).</summary>
+    public const int MaxSavedReplies = 100;
 }
 
 /// <summary>
@@ -90,8 +99,8 @@ internal sealed record SupportTicket(
     public bool UnreadByTrader => AnsweredAt is { } answered && (TraderReadAt is not { } read || answered > read);
 }
 
-/// <summary>The challenge account a ticket is about.</summary>
-internal sealed record SupportTicketAccount(Guid Id, long Number, string ChallengeName);
+/// <summary>The challenge account a ticket is about, and where it is now: its status, the stage it is on and whether it is paused.</summary>
+internal sealed record SupportTicketAccount(Guid Id, long Number, string ChallengeName, ChallengeStatus Status, string StageName, bool Funded, bool Paused);
 
 /// <summary>A ticket in a list, with its latest message.</summary>
 internal sealed record SupportTicketItem(SupportTicket Ticket, SupportAuthor LastAuthor, string LastBody);
@@ -149,11 +158,15 @@ internal abstract record SupportResult
     public sealed record Refused(int StatusCode, string Problem, string? Field = null) : SupportResult;
 }
 
-/// <summary>The account a ticket is about, as the portal shows it.</summary>
-public sealed record SupportAccountResponse(Guid Id, long Number, string ChallengeName)
+/// <summary>
+/// The account a ticket is about, as the portal shows it, with where it is now: <paramref name="Status"/>, the stage it
+/// is on by name, for example "Phase 1" or "Funded", whether that is the funded stage, and whether it is paused while
+/// the firm's month is unpaid.
+/// </summary>
+public sealed record SupportAccountResponse(Guid Id, long Number, string ChallengeName, ChallengeStatus Status, string StageName, bool Funded, bool Paused)
 {
     internal static SupportAccountResponse? From(SupportTicketAccount? account) =>
-        account is null ? null : new SupportAccountResponse(account.Id, account.Number, account.ChallengeName);
+        account is null ? null : new SupportAccountResponse(account.Id, account.Number, account.ChallengeName, account.Status, account.StageName, account.Funded, account.Paused);
 }
 
 /// <summary>A file added to a message, fetched from the attachments path of the trader's or the admin panel's API.</summary>
@@ -287,3 +300,33 @@ public sealed record TraderSupportSummaryResponse(int Active, int Unread);
 
 /// <summary>The firm's tickets that wait for it, since when the oldest has waited, and those that wait for the trader.</summary>
 public sealed record FirmSupportSummaryResponse(int Open, DateTimeOffset? OldestWaiting, int Answered);
+
+/// <summary>An answer the firm's administrators saved, to start an answer in a ticket from. It belongs to the firm.</summary>
+internal sealed record SavedReply(Guid Id, string FirmId, string Title, string Body, DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+
+/// <summary>What saving a reply came to.</summary>
+internal enum SavedReplyOutcome
+{
+    Saved,
+
+    /// <summary>The firm has no such reply.</summary>
+    Unknown,
+
+    /// <summary>The firm has another reply with the same title, in any case.</summary>
+    TitleTaken,
+
+    /// <summary>The firm has as many replies as it can have.</summary>
+    TooMany,
+}
+
+/// <summary>
+/// A saved reply: a short <paramref name="Title"/> to find it by, and the text. The text can have {trader} and {firm},
+/// which the portal fills in with the trader's and the firm's name when it puts the reply in an answer.
+/// </summary>
+public sealed record SavedReplyRequest(string? Title, string? Body);
+
+/// <summary>One of the firm's saved replies, as its administrators wrote it, with the placeholders not filled in.</summary>
+public sealed record SavedReplyResponse(Guid Id, string Title, string Body, DateTimeOffset UpdatedAt)
+{
+    internal static SavedReplyResponse From(SavedReply reply) => new(reply.Id, reply.Title, reply.Body, reply.UpdatedAt);
+}

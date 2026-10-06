@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { opsUrl, platformUrl } from "../playwright.config";
 
-import { approveAsStaff, chooseBuiltInKyc, fillApplication, openAsStaff, payDeposit, signUp, waitForSandbox } from "./support";
+import { approveAsStaff, chooseBuiltInKyc, fillApplication, openAsStaff, openSetting, payDeposit, signUp, waitForSandbox } from "./support";
 
 const pdf = Buffer.from("%PDF-1.7\nA certificate of registration\n%%EOF");
 
@@ -11,7 +11,7 @@ test("a new firm is reviewed by our staff, goes live, and can be suspended", asy
   await waitForSandbox(page);
 
   // Until we have approved the firm, it cannot put its portal on its own domain.
-  await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Your domain" }).click();
+  await openSetting(page, "Your domain");
   await expect(page.getByText(/^You can add your own domain once we have approved your firm\./)).toBeVisible();
   await expect(page.getByRole("button", { name: "Add domain" })).toHaveCount(0);
 

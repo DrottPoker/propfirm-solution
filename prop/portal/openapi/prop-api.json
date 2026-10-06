@@ -1389,6 +1389,36 @@
         }
       }
     },
+    "/api/portal/orders/{orderId}/receipt.pdf": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "orderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/portal/orders/{orderId}/invite": {
       "post": {
         "tags": [
@@ -3150,6 +3180,35 @@
         }
       }
     },
+    "/api/portal/admin/firm/email-settings/{kind}/preview": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/firm/support-email": {
       "put": {
         "tags": [
@@ -3160,6 +3219,35 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SupportEmailRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/firm/shop-payouts": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShopPayoutsRequest"
               }
             }
           },
@@ -4695,6 +4783,116 @@
         }
       }
     },
+    "/api/portal/admin/support/saved-replies": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SavedReplyResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReplyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/support/saved-replies/{replyId}": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "replyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavedReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedReplyResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "replyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/portal/admin/identity": {
       "get": {
         "tags": [
@@ -5999,6 +6197,7 @@
           "id",
           "email",
           "createdAt",
+          "lastLoginAt",
           "isYou"
         ],
         "type": "object",
@@ -6014,11 +6213,18 @@
             "type": "string",
             "format": "date-time"
           },
+          "lastLoginAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
           "isYou": {
             "type": "boolean"
           }
         },
-        "description": "IsYou marks the administrator who asked."
+        "description": "LastLoginAt is when the administrator last logged in, empty for one who has not since we began to keep\nit, and IsYou marks the administrator who asked."
       },
       "AdminsResponse": {
         "required": [
@@ -7419,6 +7625,13 @@
           null
         ]
       },
+      "EmailAudience": {
+        "enum": [
+          "Team",
+          "Trader"
+        ],
+        "description": "Who a notification email goes to: each of the firm's administrators, or the trader it is about."
+      },
       "EmailSettingsRequest": {
         "required": [
           "settings"
@@ -7720,7 +7933,8 @@
           "emailSettings",
           "firmApiUrl",
           "openApiUrl",
-          "supportEmail"
+          "supportEmail",
+          "shopShowsPayouts"
         ],
         "type": "object",
         "properties": {
@@ -7800,9 +8014,12 @@
               "null",
               "string"
             ]
+          },
+          "shopShowsPayouts": {
+            "type": "boolean"
           }
         },
-        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in\nthe sandbox. Payments is how its portal takes payment. EmailSettings has every\nnotification email by kind, and whether the firm sends it, and SupportEmail is where replies to the\nemails to its traders go. FirmApiUrl is where the firm's own systems reach the firm API, and\nOpenApiUrl its description for code generators."
+        "description": "The firm's settings for its admin panel. SandboxMaxOpenAccounts is set while the firm is in\nthe sandbox. Payments is how its portal takes payment. EmailSettings has every\nnotification email by kind, and whether the firm sends it, and SupportEmail is where replies to the\nemails to its traders go. FirmApiUrl is where the firm's own systems reach the firm API, and\nOpenApiUrl its description for code generators. ShopShowsPayouts is whether the\nshop shows what the firm paid out lately."
       },
       "FirmStatus": {
         "enum": [
@@ -8350,6 +8567,34 @@
           }
         },
         "description": "The month charged next: when, for how many slots and how much, without VAT and with it."
+      },
+      "NotificationPreviewResponse": {
+        "required": [
+          "kind",
+          "audience",
+          "subject",
+          "html",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/EmailAudience"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "description": "A notification email as it would go out for the firm now, with sample data: who it goes to, its subject, and the same\nemail as HTML and as plain text."
       },
       "OpsActivityKind": {
         "enum": [
@@ -10987,6 +11232,54 @@
         },
         "description": "Challenges bought in the portal and paid in the last 30 days, without those refunded."
       },
+      "SavedReplyRequest": {
+        "required": [
+          "title",
+          "body"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "body": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A saved reply: a short Title to find it by, and the text. The text can have {trader} and {firm},\nwhich the portal fills in with the trader's and the firm's name when it puts the reply in an answer."
+      },
+      "SavedReplyResponse": {
+        "required": [
+          "id",
+          "title",
+          "body",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "One of the firm's saved replies, as its administrators wrote it, with the placeholders not filled in."
+      },
       "ShopItemResponse": {
         "required": [
           "challenge",
@@ -11006,6 +11299,46 @@
             "type": "string"
           }
         }
+      },
+      "ShopPayoutsRequest": {
+        "required": [
+          "show"
+        ],
+        "type": "object",
+        "properties": {
+          "show": {
+            "type": "boolean"
+          }
+        },
+        "description": "Whether the shop shows what the firm paid out to traders in the last 30 days and how soon."
+      },
+      "ShopPayoutsResponse": {
+        "required": [
+          "count",
+          "totals",
+          "averageDaysToPay"
+        ],
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MoneyTotalResponse"
+            }
+          },
+          "averageDaysToPay": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "What the firm paid out to traders in the last 30 days: how many payouts, the total per currency, and the days from a\nrequest to its payment on average."
       },
       "ShopResponse": {
         "required": [
@@ -11042,6 +11375,16 @@
             "items": {
               "$ref": "#/components/schemas/ShopItemResponse"
             }
+          },
+          "payouts": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ShopPayoutsResponse"
+              }
+            ]
           }
         },
         "description": "What the firm's portal sells. Open is false when the firm takes no payment, sells nothing or\ncannot start more challenges now, which Full says. TermsUrl is the firm's\nterms, which the buyer accepts. Test means no money is taken. TeamOnly means only\nthe firm's own administrators can buy now, to try the shop (ADR 0043)."
@@ -11436,7 +11779,11 @@
         "required": [
           "id",
           "number",
-          "challengeName"
+          "challengeName",
+          "status",
+          "stageName",
+          "funded",
+          "paused"
         ],
         "type": "object",
         "properties": {
@@ -11450,9 +11797,21 @@
           },
           "challengeName": {
             "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChallengeStatus"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "funded": {
+            "type": "boolean"
+          },
+          "paused": {
+            "type": "boolean"
           }
         },
-        "description": "The account a ticket is about, as the portal shows it."
+        "description": "The account a ticket is about, as the portal shows it, with where it is now: Status, the stage it\nis on by name, for example \"Phase 1\" or \"Funded\", whether that is the funded stage, and whether it is paused while\nthe firm's month is unpaid."
       },
       "SupportAttachmentResponse": {
         "required": [

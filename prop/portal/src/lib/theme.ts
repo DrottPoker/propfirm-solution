@@ -20,11 +20,11 @@ export type ThemeColors = Partial<Record<ThemeColor, string>>;
 
 /** The portal's own look, the same as in globals.css. A firm's colors replace these. */
 export const defaultColors: Record<ThemeColor, string> = {
-  background: "#0b0e14",
-  panel: "#11151c",
-  border: "#1f2530",
-  foreground: "#d6d9e0",
-  muted: "#7d8590",
+  background: "#0c0d10",
+  panel: "#14161a",
+  border: "#24272e",
+  foreground: "#e4e6ea",
+  muted: "#8a9099",
   accent: "#2563eb",
   "accent-foreground": "#ffffff",
   profit: "#22c55e",
@@ -32,8 +32,25 @@ export const defaultColors: Record<ThemeColor, string> = {
   warning: "#f59e0b",
 };
 
-/** Our own admin view's look: the portal's, with a brand color of its own so it is never taken for a firm's. */
-export const opsColors: ThemeColors = { accent: "#2dd4bf", "accent-foreground": "#0b0e14" };
+/**
+ * Kronant's own look (ADR 0047), on the platform's pages where firms sign up: graphite, warm off-white text and brass.
+ * The same colors as the --kronant-* tokens of @kronant/design.
+ */
+export const platformColors: Record<ThemeColor, string> = {
+  background: "#0d0e11",
+  panel: "#15171b",
+  border: "#272a31",
+  foreground: "#ece7df",
+  muted: "#8f8a81",
+  accent: "#c9a35b",
+  "accent-foreground": "#15120c",
+  profit: "#34c38f",
+  loss: "#ef5a50",
+  warning: "#f0883e",
+};
+
+/** Our own admin view's look: Kronant's, with a brand color of its own so it is never taken for a firm's or the platform's. */
+export const opsColors: ThemeColors = { ...platformColors, accent: "#2dd4bf", "accent-foreground": "#0b0e14" };
 
 /** The colors a theme sets: everything but the brand color and the text on it, which the firm chooses on their own. */
 export const surfaceColors = ["background", "panel", "border", "foreground", "muted", "profit", "loss", "warning"] as const;

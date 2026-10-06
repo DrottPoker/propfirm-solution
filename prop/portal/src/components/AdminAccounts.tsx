@@ -10,9 +10,9 @@ import { formatDate, formatMoney, formatSignedMoney } from "@/lib/format";
 import { useAccountSearch, useChallenges } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
 
-import { SearchIcon } from "./icons";
+import { AccountsIcon, SearchIcon } from "./icons";
 import { StartChallengeButton } from "./StartChallenge";
-import { AdminPage, Badge, ErrorText, FilterTabs, PageHeader, secondaryButtonClass } from "./ui";
+import { AdminPage, Badge, EmptyState, ErrorText, FilterTabs, PageHeader, secondaryButtonClass } from "./ui";
 
 /** Every challenge account at the firm, newest first: found by email, number or reference, in a group and a challenge. */
 export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: AccountGroup; initialSearch: string }) {
@@ -88,9 +88,23 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
         {accounts.isPending ? (
           <p className="px-4 py-6 text-sm text-muted">Loading...</p>
         ) : rows.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted">
-            {filtered ? "No accounts found." : "No accounts yet. Start a challenge for a trader, or sell one in your portal's shop."}
-          </p>
+          filtered ? (
+            <EmptyState icon={<SearchIcon className="size-5" />} title="No accounts found" text="Try another email, account number or group." />
+          ) : (
+            <EmptyState
+              icon={<AccountsIcon className="size-6" />}
+              title="No accounts yet"
+              text="Start a challenge for a trader, or let traders buy one in your portal's shop."
+              actions={
+                <>
+                  <StartChallengeButton />
+                  <a href="/buy" target="_blank" rel="noopener" className={secondaryButtonClass}>
+                    Open your shop
+                  </a>
+                </>
+              }
+            />
+          )
         ) : (
           <>
             {/* On a phone, each account is a card with what the table shows: status, stage and balance. */}
@@ -103,7 +117,7 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
                     <Link href={`/admin/accounts/${account.id}`} className="flex flex-col gap-1.5 px-4 py-3 text-sm">
                       <span className="flex items-center justify-between gap-3">
                         <span>
-                          <span className="font-mono text-accent">#{account.number}</span> <span className="text-muted">{challengeName(account.challengeId)}</span>
+                          <span className="text-accent">#{account.number}</span> <span className="text-muted">{challengeName(account.challengeId)}</span>
                         </span>
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </span>
@@ -113,7 +127,7 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
                           {stageLabel(account)} ·{" "}
                           {account.minTradingDays > 0 ? `${account.tradingDays} of ${account.minTradingDays} days` : `${account.tradingDays} trading days`}
                         </span>
-                        <span className="font-mono text-sm text-foreground tabular-nums">
+                        <span className="text-sm text-foreground tabular-nums">
                           {formatMoney(account.balance)}
                           {result !== null && <span className={`ml-1.5 text-xs ${toneText[resultTone(result)]}`}>{formatSignedMoney(result)}</span>}
                         </span>
@@ -158,7 +172,7 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
                       <tr key={account.id} className={`border-t border-border ${account.status === "AwaitingFunding" ? "bg-warning/5" : ""}`}>
                         <td className="px-4 py-3">
                           <Link href={`/admin/accounts/${account.id}`} className="flex flex-col" aria-label={`Account #${account.number}, ${challengeName(account.challengeId)}`}>
-                            <span className="font-mono text-accent">#{account.number}</span>
+                            <span className="text-accent">#{account.number}</span>
                             <span className="text-xs text-muted">{challengeName(account.challengeId)}</span>
                           </Link>
                         </td>
@@ -170,11 +184,11 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
                         <td className="px-4 py-3">
                           <Badge tone={status.tone}>{status.label}</Badge>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        <td className="px-4 py-3 text-right tabular-nums">
                           {formatMoney(account.balance)}
                           {result !== null && <span className={`block text-xs ${toneText[resultTone(result)]}`}>{formatSignedMoney(result)}</span>}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums">
+                        <td className="px-4 py-3 text-right tabular-nums">
                           {account.tradingDays} of {account.minTradingDays}
                         </td>
                         <td className="px-4 py-3 text-right text-muted">{formatDate(account.createdAt)}</td>

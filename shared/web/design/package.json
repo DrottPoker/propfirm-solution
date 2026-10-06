@@ -1,0 +1,9 @@
+{
+  "name": "@kronant/design",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The design tokens Kronant Prop's portal and Kronant Trader share: motion, depth, shapes and our own brand colors.",
+  "exports": {
+    "./tokens.css": "./tokens.css"
+  }
+}

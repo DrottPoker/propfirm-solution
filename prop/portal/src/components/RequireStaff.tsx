@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { useOpsMe } from "@/lib/opsQueries";
 
 import { OpsShell } from "./OpsShell";
-import { Message } from "./ui";
+import { Loading, Message } from "./ui";
 
 /** Shows our admin view to our staff, inside its menu, and sends others to its login. */
 export function RequireStaff({ children }: { children: React.ReactNode }) {
@@ -24,7 +24,7 @@ export function RequireStaff({ children }: { children: React.ReactNode }) {
   }
 
   if (!me.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return <OpsShell me={me.data}>{children}</OpsShell>;

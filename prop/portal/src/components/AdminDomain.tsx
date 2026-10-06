@@ -9,7 +9,7 @@ import { useCheckDomain, useDomain, useFirmSettings, useRemoveDomain, useSaveDom
 
 import { CopyButton } from "./CopyButton";
 import { ConfirmDialog } from "./Dialog";
-import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /**
  * The firm's own domain for its portal (ADR 0039): the firm adds it, puts two DNS records at its domain host, and the
@@ -24,7 +24,7 @@ export function AdminDomain() {
   }
 
   if (!domain.data || !settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = domain.data;

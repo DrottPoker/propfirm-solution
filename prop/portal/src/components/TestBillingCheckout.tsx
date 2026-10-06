@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/format";
 import { useCompleteTestBillingCheckout, useTestBillingCheckout } from "@/lib/queries";
 
-import { buttonClass, ErrorText, Message, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, Loading, Message, secondaryButtonClass } from "./ui";
 
 /**
  * The page where a firm pays the platform or saves a card while payments to the platform are test payments. No
@@ -22,7 +22,7 @@ export function TestBillingCheckout({ checkoutId }: { checkoutId: string }) {
   }
 
   if (!checkout.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const { purpose, status, lines, amount, currency, returnPath } = checkout.data;
@@ -44,12 +44,12 @@ export function TestBillingCheckout({ checkoutId }: { checkoutId: string }) {
             {lines.map((line) => (
               <li key={line.description} className="flex justify-between gap-3">
                 <span>{line.description}</span>
-                <span className="font-mono tabular-nums">{formatMoney(line.amount)}</span>
+                <span className="tabular-nums">{formatMoney(line.amount)}</span>
               </li>
             ))}
             <li className="flex justify-between gap-3 border-t border-border pt-1 font-medium">
               <span>Total</span>
-              <span className="font-mono tabular-nums">
+              <span className="tabular-nums">
                 {formatMoney(amount)} {currency}
               </span>
             </li>

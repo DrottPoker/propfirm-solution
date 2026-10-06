@@ -22,7 +22,7 @@ import {
   RocketIcon,
   ServerIcon,
 } from "./icons";
-import { AdminPage, buttonClass, Message, PageHeader, Panel, ProgressBar, secondaryButtonClass, StatTile } from "./ui";
+import { AdminPage, buttonClass, Loading, Message, PageHeader, Panel, ProgressBar, secondaryButtonClass, StatTile } from "./ui";
 import { WeeklyChart } from "./WeeklyChart";
 
 /** Our own admin view's start page (ADR 0024): what needs us first, then how the platform is doing. */
@@ -33,7 +33,7 @@ export function OpsHome() {
   }
 
   if (!overview.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = overview.data;
@@ -83,7 +83,7 @@ function NeedsUs({ items }: { items: NeedsUsItem[] }) {
         <h2 id="needs-us" className="font-semibold">
           Needs us
         </h2>
-        <span className="rounded-full bg-background px-2 font-mono text-xs text-muted">{items.length}</span>
+        <span className="rounded-full bg-background px-2 text-xs text-muted">{items.length}</span>
       </div>
       {items.length === 0 ? (
         <p className="flex items-center gap-2.5 border-t border-border px-5 py-4 text-sm text-muted">
@@ -157,7 +157,7 @@ function Funnel({ overview }: { overview: OpsOverview }) {
             <li key={step.label} className="flex flex-col gap-1.5 text-sm">
               <span className="flex justify-between gap-3">
                 <span>{step.label}</span>
-                <span className="font-mono tabular-nums">
+                <span className="tabular-nums">
                   {step.value}
                   {step !== steps[0] && funnel.signedUp > 0 && <span className="text-muted"> · {share}%</span>}
                 </span>

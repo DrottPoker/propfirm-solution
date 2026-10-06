@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Billing, Charge, Slots } from "./api/types";
-import { billingNotice, cardLabel, chargeAmountText, chargeLabel, expansionText, invoiceUrl, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges, vatOn, vatText } from "./billing";
+import { billingNotice, cardLabel, chargeAmountText, chargeLabel, expansionText, invoiceUrl, monthlyPriceFor, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges, vatOn, vatText } from "./billing";
 
 const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, suspended: false, warning: true };
 
@@ -163,5 +163,13 @@ describe("chargeAmountText", () => {
   it("says when VAT is in the amount, and how much", () => {
     expect(chargeAmountText({ amount: 625, netAmount: 500, vatAmount: 125 }, "USD")).toBe("625.00 USD incl. VAT (500.00 + 125.00 VAT)");
     expect(chargeAmountText({ amount: 500, netAmount: 500, vatAmount: 0 }, "USD")).toBe("500.00 USD");
+  });
+});
+
+describe("monthlyPriceFor", () => {
+  it("is the package, and each slot beyond it at its tier's price, as Prop.Api counts it", () => {
+    const prices = { packagePrice: 500, slotPrices: [{ from: 26, price: 5 }, { from: 101, price: 4 }] };
+
+    expect([10, 25, 26, 100, 101, 150].map((slots) => monthlyPriceFor(prices, slots))).toEqual([500, 500, 505, 875, 879, 1_075]);
   });
 });

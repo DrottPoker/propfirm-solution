@@ -43,6 +43,10 @@ internal static class PortalAuth
 
     public static string SchemeOf(string role) => role == PortalRoles.Admin ? AdminScheme : TraderScheme;
 
+    /// <summary>
+    /// Starts the user's session. Every way an administrator logs in comes here, the password, the link after signing up, an
+    /// invitation and a new password, so the time is kept for the Team page. Traders' logins are not kept.
+    /// </summary>
     public static async Task SignInAsync(HttpContext context, PortalUser user)
     {
         var scheme = SchemeOf(user.Role);
@@ -56,10 +60,15 @@ internal static class PortalAuth
         ];
         await context.SignInAsync(scheme, new ClaimsPrincipal(new ClaimsIdentity(claims, scheme)));
 
-        // Logging in to the admin panel uses it, which keeps the firm's sandbox open, or opens it again (ADR 0045).
         if (user.Role == PortalRoles.Admin)
         {
-            await context.RequestServices.GetRequiredService<FirmActivity>().SeenAsync(user.FirmId, context.RequestAborted);
+            var services = context.RequestServices;
+
+            // When each administrator last logged in, for the Team page.
+            await services.GetRequiredService<FirmAdmins>().LoggedInAsync(user.Id, services.GetRequiredService<TimeProvider>().GetUtcNow(), context.RequestAborted);
+
+            // Logging in to the admin panel uses it, which keeps the firm's sandbox open, or opens it again (ADR 0045).
+            await services.GetRequiredService<FirmActivity>().SeenAsync(user.FirmId, context.RequestAborted);
         }
     }
 

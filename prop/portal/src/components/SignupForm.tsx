@@ -7,6 +7,7 @@ import { SignupError, useAvailability, useSignUp } from "@/lib/queries";
 import { isValidFirmId, portalAddress, suggestFirmId } from "@/lib/signup";
 import { useDebounced } from "@/lib/useDebounced";
 
+import { PasswordInput } from "./PasswordInput";
 import { PlatformCard } from "./PlatformCard";
 import { RobotCheck } from "./RobotCheck";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
@@ -62,7 +63,7 @@ export function SignupForm() {
   const fieldError = signUp.error instanceof SignupError ? signUp.error.field : null;
 
   return (
-    <PlatformCard title={`Start your prop firm on ${platform.name}`}>
+    <PlatformCard title="Start your prop firm">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">Firm name</span>
@@ -111,20 +112,26 @@ export function SignupForm() {
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-muted">Password</span>
-          <input
-            type="password"
+        <div className="flex flex-col gap-1 text-sm">
+          <label htmlFor="signup-password" className="text-muted">
+            Password
+          </label>
+          <PasswordInput
+            id="signup-password"
             autoComplete="new-password"
             required
             minLength={platform.minimumPasswordLength}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={fieldClass}
             aria-invalid={fieldError === "password"}
+            aria-describedby={platform.minimumPasswordLength > 1 ? "signup-password-hint" : undefined}
           />
-          {platform.minimumPasswordLength > 1 && <span className="text-xs text-muted">At least {platform.minimumPasswordLength} characters.</span>}
-        </label>
+          {platform.minimumPasswordLength > 1 && (
+            <span id="signup-password-hint" className="text-xs text-muted">
+              At least {platform.minimumPasswordLength} characters.
+            </span>
+          )}
+        </div>
 
         <label className="flex items-start gap-2 text-sm">
           <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-1" />

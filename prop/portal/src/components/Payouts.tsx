@@ -44,8 +44,8 @@ export function PayoutTable({ payouts, traderChecked }: { payouts: Payout[]; tra
           {payouts.map((payout) => (
             <tr key={payout.id} className="border-t border-border align-top">
               <td className="whitespace-nowrap py-2.5 text-muted">{formatDateTime(payout.requestedAt, payout.timeZone)}</td>
-              <td className={`${cell} text-right font-mono tabular-nums`}>{formatMoney(payout.profit)}</td>
-              <td className={`${cell} whitespace-nowrap text-right font-mono tabular-nums`}>
+              <td className={`${cell} text-right tabular-nums`}>{formatMoney(payout.profit)}</td>
+              <td className={`${cell} whitespace-nowrap text-right tabular-nums`}>
                 {formatMoney(payout.amount)} {payout.currency}
                 <span className="block font-sans text-xs text-muted">{payout.profitSplitPercent}% of the profit</span>
               </td>

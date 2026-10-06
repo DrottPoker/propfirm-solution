@@ -10,13 +10,14 @@ import { whenText } from "@/lib/admin";
 import type { SupportTicketCounts, SupportTicketGroup, SupportTicketSummary } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { FieldError, useChallenges, useCloseTicket, useFirmTicket, useFirmTickets, useMe, useOpenTicketWithTrader, useTraderAccounts } from "@/lib/queries";
-import { filesProblem, lastAuthorName, supportGroupLabels, supportGroups, supportLimits, waitingText } from "@/lib/support";
+import { filesProblem, lastAuthorName, replyValues, supportGroupLabels, supportGroups, supportLimits, ticketAccountStatus, waitingText } from "@/lib/support";
 import { useDebounced } from "@/lib/useDebounced";
 
 import { TeamOnlyNote } from "./BeforeApproval";
-import { PlusIcon, SearchIcon } from "./icons";
+import { PlusIcon, SearchIcon, SupportIcon } from "./icons";
+import { SavedRepliesMenu, SavedRepliesSheet, type SavedRepliesStart } from "./SavedReplies";
 import { Conversation, FilePicker, MessageField, MessageForm, TicketStatusBadge } from "./SupportThread";
-import { AdminPage, buttonClass, ErrorText, fieldClass, FilterTabs, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, Badge, buttonClass, EmptyState, ErrorText, fieldClass, FilterTabs, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /** A ticket that has waited this long for the firm is marked. */
 const lateAfterMs = 24 * 60 * 60 * 1000;
@@ -94,7 +95,7 @@ export function AdminTickets({ initialGroup, initialSearch }: { initialGroup: Su
         {tickets.isPending ? (
           <p className="px-4 py-6 text-sm text-muted">Loading...</p>
         ) : rows.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted">{emptyText(group, query.trim() !== "")}</p>
+          <EmptyState icon={<SupportIcon className="size-6" />} title={emptyText(group, query.trim() !== "")} />
         ) : (
           <ul className={`flex flex-col transition-opacity ${tickets.isPlaceholderData ? "opacity-60" : ""}`}>
             {rows.map((ticket) => (
@@ -128,7 +129,7 @@ function TicketRow({ ticket, now, firmName }: { ticket: SupportTicketSummary; no
       <Link href={`/admin/support/${ticket.id}`} className="flex flex-col gap-1.5 px-4 py-3.5 hover:bg-background/50 sm:flex-row sm:items-start sm:gap-4">
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span className="font-mono text-sm text-accent">#{ticket.number}</span>
+            <span className="text-sm text-accent">#{ticket.number}</span>
             <span className="min-w-0 truncate font-medium">{ticket.subject}</span>
             <TicketStatusBadge ticket={ticket} viewer="admin" firmName={firmName} />
           </span>
@@ -314,23 +315,28 @@ export function AdminNewTicket({ initialEmail, initialAccountId }: { initialEmai
   );
 }
 
-/** One of the firm's tickets: the trader and the account, the conversation, and the firm's answer. */
+/**
+ * One of the firm's tickets: the trader and the account with where it is now, the conversation, and the firm's answer,
+ * which can start from one of the firm's saved replies.
+ */
 export function AdminTicket({ ticketId }: { ticketId: string }) {
   const ticket = useFirmTicket(ticketId);
   const me = useMe("admin");
   const branding = useBranding();
   const close = useCloseTicket("admin", ticketId);
+  const [savedReplies, setSavedReplies] = useState<SavedRepliesStart | null>(null);
 
   if (ticket.isError) {
     return <Message text={ticket.error.message} />;
   }
 
   if (!ticket.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = ticket.data;
   const trader = data.traderName ? `${data.traderName} (${data.traderEmail})` : data.traderEmail;
+  const account = data.account ? ticketAccountStatus(data.account) : null;
   return (
     <AdminPage>
       <PageHeader
@@ -369,7 +375,9 @@ export function AdminTicket({ ticketId }: { ticketId: string }) {
               Closed {formatDateTime(data.closedAt)} by {data.closedBy === "Trader" ? "the trader" : (data.closedByAdmin ?? "your team")}. A new message opens it again.
             </p>
           )}
-          <MessageForm ticket={data} viewer="admin" />
+          <MessageForm ticket={data} viewer="admin" tools={<SavedRepliesMenu values={replyValues(data, branding.name)} onManage={setSavedReplies} />} />
+          {/* Beside the answer's form, not in it, so the panel's own form never sends the answer. */}
+          {savedReplies && <SavedRepliesSheet start={savedReplies} onClose={() => setSavedReplies(null)} />}
         </div>
         <Panel title="Trader">
           <dl className="flex flex-col gap-3 text-sm">
@@ -395,6 +403,15 @@ export function AdminTicket({ ticketId }: { ticketId: string }) {
                 )}
               </dd>
             </div>
+            {account && (
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs text-muted">Account status</dt>
+                <dd className="flex flex-wrap items-center gap-2">
+                  {account.stage}
+                  <Badge tone={account.tone}>{account.label}</Badge>
+                </dd>
+              </div>
+            )}
           </dl>
           <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-sm">
             <Link href={`/admin/accounts?search=${encodeURIComponent(data.traderEmail)}`} className="text-accent hover:underline">

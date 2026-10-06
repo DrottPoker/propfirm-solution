@@ -116,7 +116,7 @@ function Navigation({ path }: { path: string }) {
             <link.icon className="size-4 shrink-0" />
             <span className="flex-1">{link.label}</span>
             {link.badge && badge > 0 && (
-              <span className={`min-w-5 rounded-full px-1.5 text-center font-mono text-[11px] font-medium text-foreground tabular-nums ${link.badge === "unpaid" ? "bg-loss/25" : "bg-accent/20"}`}>
+              <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] font-medium text-foreground tabular-nums ${link.badge === "unpaid" ? "bg-loss/25" : "bg-accent/20"}`}>
                 {badge}
                 <span className="sr-only"> {badgeText[link.badge]}</span>
               </span>

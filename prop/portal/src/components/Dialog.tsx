@@ -63,7 +63,7 @@ export function Modal({ open, onClose, title, description, children, footer }: D
       aria-labelledby={titleId}
       onClose={onClose}
       onClick={(event) => event.target === ref.current && onClose()}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-xl border border-border bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border bg-panel p-0 text-foreground shadow-float backdrop:bg-black/60 backdrop:backdrop-blur-sm open:animate-pop"
     >
       {open && (
         <div className="flex flex-col gap-4 pb-5">
@@ -86,7 +86,7 @@ export function Sheet({ open, onClose, title, description, children, footer }: D
       aria-labelledby={titleId}
       onClose={onClose}
       onClick={(event) => event.target === ref.current && onClose()}
-      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md border-l border-border bg-panel p-0 text-foreground shadow-2xl backdrop:bg-black/60"
+      className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md border-l border-border bg-panel p-0 text-foreground shadow-float backdrop:bg-black/60 backdrop:backdrop-blur-sm open:animate-slide-in"
     >
       {open && (
         <div className="flex h-full flex-col">

@@ -9,7 +9,7 @@ import { loginWithNext } from "@/lib/next";
 import { useMe, useMyAccounts, useTerminalLink } from "@/lib/queries";
 
 import { AuthCard } from "./PasswordReset";
-import { buttonClass, ErrorText, Message } from "./ui";
+import { buttonClass, ErrorText, Loading, Message } from "./ui";
 
 /**
  * The firm's traders log in to the trading terminal here, since their trading password is never shown: logged in to the
@@ -29,7 +29,7 @@ export function TerminalLogin({ tradingAccountId }: { tradingAccountId: string |
     return <Message text="The portal cannot be reached right now. Try again shortly." />;
   }
 
-  return me.data ? <OpenTerminal tradingAccountId={tradingAccountId} /> : <Message text="Loading..." />;
+  return me.data ? <OpenTerminal tradingAccountId={tradingAccountId} /> : <Loading />;
 }
 
 function OpenTerminal({ tradingAccountId }: { tradingAccountId: string | null }) {

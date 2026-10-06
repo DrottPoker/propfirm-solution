@@ -36,6 +36,21 @@ export function slotsSummary(slots: Slots): string {
   return `${taken} of ${slots.slots} slots taken${byOrders}. ${slots.free} free.`;
 }
 
+/**
+ * A month's price for a number of slots, without VAT: the package, and each slot beyond it at its tier's price. The
+ * same rule as Prop.Api's BillingRules.MonthlyPrice, for the calculator on the front page.
+ */
+export function monthlyPriceFor(prices: Pick<Prices, "packagePrice" | "slotPrices">, slots: number): number {
+  let total = prices.packagePrice;
+  prices.slotPrices.forEach((tier, i) => {
+    const last = i + 1 < prices.slotPrices.length ? prices.slotPrices[i + 1].from - 1 : Number.MAX_SAFE_INTEGER;
+    if (slots >= tier.from) {
+      total += (Math.min(slots, last) - tier.from + 1) * tier.price;
+    }
+  });
+  return total;
+}
+
 /** The monthly prices: the package first, then each tier beyond it, for example "Slots 26 to 100: 5.00 USD each per month". */
 export function monthlyPrices(prices: Prices): string[] {
   const tiers = prices.slotPrices.map((tier, i) => {

@@ -10,7 +10,8 @@ import { challengeSizes, challengesFromTemplate, sizeName } from "@/lib/newChall
 import { priceCurrencies } from "@/lib/orders";
 import { useChallengeTemplates, useChallenges, useFirmSettings, useSaveChallenge, useSavePrice } from "@/lib/queries";
 
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { PhaseJourney } from "./PhaseJourney";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /**
  * New challenges from a template: one for each account size the firm sells, each with its price. The rules can be
@@ -27,7 +28,7 @@ export function NewChallenges() {
   }
 
   if (!settings.data || !templates.data || !challenges.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
@@ -113,10 +114,13 @@ function Form({ templates, existing, currency }: { templates: ChallengeTemplate[
                 role="radio"
                 aria-checked={selected}
                 onClick={() => setTemplateId(t.id)}
-                className={`flex flex-col gap-1.5 rounded-lg border p-4 text-left text-sm ${selected ? "border-accent bg-accent/5" : "border-border hover:border-muted"}`}
+                className={`flex flex-col gap-3 rounded-xl border p-4 text-left text-sm transition duration-200 ease-out-soft ${selected ? "border-accent bg-accent/5 shadow-raised" : "border-border hover:-translate-y-0.5 hover:border-muted/50"}`}
               >
-                <span className="font-medium">{t.name}</span>
-                <span className="text-xs text-muted">{count === 0 ? "Funded from the start" : `${count} ${count === 1 ? "phase" : "phases"}, then funded`}</span>
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-medium">{t.name}</span>
+                  <span className="text-xs text-muted">{count === 0 ? "Funded from the start" : `${count} ${count === 1 ? "phase" : "phases"}, then funded`}</span>
+                </span>
+                <PhaseJourney challenge={t.definition} compact />
                 <span className="text-xs text-muted">{t.description}</span>
               </button>
             );
@@ -148,7 +152,7 @@ function Form({ templates, existing, currency }: { templates: ChallengeTemplate[
                   value={prices[size] ?? ""}
                   onChange={(e) => setPrices({ ...prices, [size]: e.target.value })}
                   placeholder="No price"
-                  className={`${fieldClass} w-28 py-1.5 text-right font-mono disabled:opacity-50`}
+                  className={`${fieldClass} w-28 py-1.5 text-right disabled:opacity-50`}
                 />
               </li>
             );

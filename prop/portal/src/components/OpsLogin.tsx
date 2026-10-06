@@ -7,6 +7,7 @@ import { useId, useState } from "react";
 import { useOps } from "@/app/providers";
 import { useOpsLogin } from "@/lib/opsQueries";
 
+import { PasswordInput } from "./PasswordInput";
 import { passwordPaths } from "./PasswordReset";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
 
@@ -46,15 +47,7 @@ export function OpsLogin() {
               Forgot password?
             </Link>
           </span>
-          <input
-            id={passwordId}
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={fieldClass}
-          />
+          <PasswordInput id={passwordId} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 
         <ErrorText error={login.error} />

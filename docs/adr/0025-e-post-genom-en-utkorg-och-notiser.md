@@ -18,6 +18,9 @@ Mejlen som fanns skickades direkt i anropet. Ett mejl som inte gick iväg loggad
 - **Firman stänger av eller sätter på varje slag** under Notifications i adminpanelen. Valen sparas i `firms.email_settings` som slag och sant eller falskt. Ett slag som firman aldrig valt skickas, så att nya slag är på från början. Firmor som skickar egna mejl från webhooks stänger av våra.
 - **Mejlen till traders går i firmans namn** och länkar till kontot i firmans portal. Mejlen till administratörerna går till alla firmans administratörer.
 - **Inbjudningar och länkar för lösenord kan inte stängas av**, eftersom de behövs för att komma in. Länkarna för lösenord köas också i utkorgen.
+- **Mejlen till administratörerna kommer från oss, som ren text och som HTML i Kronants utseende** (tillägg efter genomgången av UI och UX). Samma mall gäller alla våra mejl till firmor och vår personal: ordmärket överst, texten som stycken, en mässingsfärgad knapp för huvudlänken och en lugn sidfot med plattformens namn och varför mottagaren får mejlet, och för notiserna att de väljs under Notifications. HTML:en görs av den rena texten, så de säger samma sak. Se [specen för propfirm-tjänsten](../spec/propfirm-tjanst.md).
+- **Firman ser varje notis innan den skickas** (tillägg efter genomgången av UI och UX). "Show the email" under Notifications visar mejlet som vi skulle skicka det nu, i firmans namn och utseende och om firmans egen challenge, med en påhittad trader och påhittade siffror. Det byggs av samma kod som de riktiga mejlen, så förhandsvisningen kan inte visa något annat än det som skickas, och det köas, skickas och sparas aldrig. Se [specen för portalen](../spec/portal.md).
+- **Köparen får kvittot** i mejlet efter köpet. En köpare som redan har lösenord får det i ett eget mejl som köas i samma transaktion som betalningen. Det kan inte stängas av. Se [specen för köp i portalen](../spec/kop.md).
 
 ## Konsekvenser
 

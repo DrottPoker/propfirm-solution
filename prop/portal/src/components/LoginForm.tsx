@@ -7,6 +7,7 @@ import { useId, useState } from "react";
 import { useLogin, useShop, type Role } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
+import { PasswordInput } from "./PasswordInput";
 import { passwordPaths } from "./PasswordReset";
 import { buttonClass, ErrorText, fieldClass } from "./ui";
 
@@ -46,15 +47,7 @@ export function LoginForm({ role, next = null }: { role: Role; next?: string | n
               Forgot password?
             </Link>
           </span>
-          <input
-            id={passwordId}
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className={fieldClass}
-          />
+          <PasswordInput id={passwordId} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 
         <ErrorText error={login.error} />

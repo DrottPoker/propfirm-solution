@@ -11,7 +11,8 @@ namespace Prop.Api.Support;
 
 /// <summary>
 /// Support tickets in the portal (ADR 0041): the trader's own tickets, and the firm's in its admin panel, where it can also
-/// write to a trader first. A message, with up to three files, is sent as a form, so the files go with it in one request.
+/// write to a trader first and keep saved replies to start its answers from. A message, with up to three files, is sent
+/// as a form, so the files go with it in one request.
 /// </summary>
 internal static class SupportEndpoints
 {
@@ -41,6 +42,10 @@ internal static class SupportEndpoints
         admin.MapPost("/support/tickets/{ticketId:guid}/messages", AnswerAsync).DisableAntiforgery().RequireRateLimiting(WriteRateLimit);
         admin.MapPost("/support/tickets/{ticketId:guid}/close", CloseTicketAsync);
         admin.MapGet("/support/attachments/{attachmentId:guid}", GetAttachmentAsync);
+        admin.MapGet("/support/saved-replies", ListSavedRepliesAsync);
+        admin.MapPost("/support/saved-replies", AddSavedReplyAsync);
+        admin.MapPut("/support/saved-replies/{replyId:guid}", ChangeSavedReplyAsync);
+        admin.MapDelete("/support/saved-replies/{replyId:guid}", RemoveSavedReplyAsync);
         return admin;
     }
 
@@ -275,6 +280,67 @@ internal static class SupportEndpoints
             ? UploadedFiles.Download(context, found.Content, found.Attachment.ContentType, found.Attachment.FileName)
             : UnknownAttachment();
 
+    /// <summary>The firm's saved replies by title, with {trader} and {firm} as they were written.</summary>
+    private static async Task<Ok<List<SavedReplyResponse>>> ListSavedRepliesAsync(HttpContext context, SavedReplyStore replies, CancellationToken cancellationToken) =>
+        TypedResults.Ok((await replies.ListAsync(PortalFirmFilter.FirmOf(context).Id, cancellationToken)).Select(SavedReplyResponse.From).ToList());
+
+    /// <summary>
+    /// Saves a reply for all the firm's administrators, with <c>title</c> and <c>body</c>. 422 without them or when they are
+    /// too long, and 409 when the firm has a reply with the same title, or as many replies as it can have.
+    /// </summary>
+    private static async Task<Results<Created<SavedReplyResponse>, ProblemHttpResult>> AddSavedReplyAsync(
+        SavedReplyRequest request,
+        HttpContext context,
+        SavedReplyStore replies,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var (title, body) = SavedReplyRules.Clean(request);
+        if (SavedReplyRules.Refusal(title, body) is { } refused)
+        {
+            return ProblemOf(refused);
+        }
+
+        var now = time.GetUtcNow();
+        var reply = new SavedReply(Guid.CreateVersion7(now), PortalFirmFilter.FirmOf(context).Id, title, body, now, now);
+        return await replies.AddAsync(reply, cancellationToken) switch
+        {
+            SavedReplyOutcome.Saved => TypedResults.Created($"/api/portal/admin/support/saved-replies/{reply.Id}", SavedReplyResponse.From(reply)),
+            SavedReplyOutcome.TooMany => Problem(
+                StatusCodes.Status409Conflict,
+                $"You have {SupportRules.MaxSavedReplies} saved replies, as many as a firm can have. Delete one you no longer use first."),
+            _ => TitleTaken(title),
+        };
+    }
+
+    /// <summary>Changes the firm's saved reply, with <c>title</c> and <c>body</c> as when it is saved.</summary>
+    private static async Task<Results<Ok<SavedReplyResponse>, ProblemHttpResult>> ChangeSavedReplyAsync(
+        Guid replyId,
+        SavedReplyRequest request,
+        HttpContext context,
+        SavedReplyStore replies,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var (title, body) = SavedReplyRules.Clean(request);
+        if (SavedReplyRules.Refusal(title, body) is { } refused)
+        {
+            return ProblemOf(refused);
+        }
+
+        var now = time.GetUtcNow();
+        return await replies.ChangeAsync(PortalFirmFilter.FirmOf(context).Id, replyId, title, body, now, cancellationToken) switch
+        {
+            SavedReplyOutcome.Saved => TypedResults.Ok(new SavedReplyResponse(replyId, title, body, now)),
+            SavedReplyOutcome.Unknown => UnknownReply(),
+            _ => TitleTaken(title),
+        };
+    }
+
+    /// <summary>Removes the firm's saved reply. Answers already sent with it stay as they are.</summary>
+    private static async Task<Results<NoContent, ProblemHttpResult>> RemoveSavedReplyAsync(Guid replyId, HttpContext context, SavedReplyStore replies, CancellationToken cancellationToken) =>
+        await replies.RemoveAsync(PortalFirmFilter.FirmOf(context).Id, replyId, cancellationToken) ? TypedResults.NoContent() : UnknownReply();
+
     // The files of the form, each read up to one byte past the limit and one file past the most, so the service can say
     // what is wrong without a large file being read whole.
     private static async Task<List<UploadedAttachment>> ReadFilesAsync(IFormFileCollection? files, CancellationToken cancellationToken)
@@ -323,6 +389,11 @@ internal static class SupportEndpoints
     private static ProblemHttpResult UnknownTicket() => Problem(StatusCodes.Status404NotFound, "No such ticket.");
 
     private static ProblemHttpResult UnknownAttachment() => Problem(StatusCodes.Status404NotFound, "No such file.");
+
+    private static ProblemHttpResult UnknownReply() => Problem(StatusCodes.Status404NotFound, "No such saved reply.");
+
+    private static ProblemHttpResult TitleTaken(string title) =>
+        ProblemOf(new SupportResult.Refused(StatusCodes.Status409Conflict, $"You already have a saved reply called \"{title}\". Choose another title.", "title"));
 
     private static ProblemHttpResult Problem(int statusCode, string title) => TypedResults.Problem(statusCode: statusCode, title: title);
 

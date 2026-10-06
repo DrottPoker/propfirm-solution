@@ -8,7 +8,7 @@ import { loadFavorites, saveFavorites, toggleFavorite } from "@/lib/favorites";
 import { formatPrice, formatSignedPercent } from "@/lib/format";
 import { categoriesOf, categoryOf, type Category } from "@/lib/instruments";
 import { useDaySummary } from "@/lib/queries";
-import { useTradingStore } from "@/lib/store";
+import { useTradingStore, type PriceMove } from "@/lib/store";
 
 import { SearchIcon, StarIcon } from "./icons";
 import { Sparkline } from "./Sparkline";
@@ -45,10 +45,10 @@ export function Watchlist({
   };
 
   return (
-    <aside className="flex min-h-0 flex-col rounded-lg border border-border bg-panel">
+    <aside className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-card">
       <div className="flex flex-col gap-3 p-3">
         <h2 className="font-semibold">Watchlist</h2>
-        <label className="flex items-center gap-2 rounded-md border border-border bg-raised px-2.5 py-1.5 text-muted focus-within:border-accent">
+        <label className="flex items-center gap-2 rounded-lg border border-border bg-raised px-2.5 py-1.5 text-muted transition-colors duration-150 focus-within:border-accent">
           <SearchIcon className="size-4 shrink-0" />
           <input
             value={search}
@@ -65,7 +65,7 @@ export function Watchlist({
               type="button"
               onClick={() => setFilter(f)}
               aria-pressed={f === filter}
-              className={`flex-1 rounded-md px-2 py-1.5 ${f === filter ? "bg-accent/20 font-medium text-foreground" : "text-muted hover:bg-raised hover:text-foreground"}`}
+              className={`flex-1 rounded-md px-2 py-1.5 transition duration-150 active:translate-y-px ${f === filter ? "bg-accent/15 font-medium text-accent" : "text-muted hover:bg-raised hover:text-foreground"}`}
             >
               {f}
             </button>
@@ -133,7 +133,7 @@ function Row({
 
   return (
     <tr
-      className={`cursor-pointer border-l-2 ${isSelected ? "border-accent bg-accent/10" : "border-transparent hover:bg-raised"}`}
+      className={`cursor-pointer border-l-2 transition-colors duration-150 ${isSelected ? "border-accent bg-accent/10" : "border-transparent hover:bg-raised"}`}
       onClick={() => onSelect(symbol)}
     >
       <td className="py-2 pl-2.5">
@@ -146,7 +146,7 @@ function Row({
               e.stopPropagation();
               onToggleFavorite(symbol);
             }}
-            className={isFavorite ? "text-accent" : "text-muted/60 hover:text-foreground"}
+            className={`transition-colors duration-150 ${isFavorite ? "text-accent" : "text-muted/60 hover:text-foreground"}`}
           >
             <StarIcon filled={isFavorite} />
           </button>
@@ -156,9 +156,15 @@ function Row({
         </span>
       </td>
       <td className={`px-1 py-2 text-right font-mono tabular-nums ${move === "up" ? "text-profit" : move === "down" ? "text-loss" : ""}`}>
-        {formatPrice(price?.bid, digits)}
+        <Flash bid={price?.bid} move={move}>
+          {formatPrice(price?.bid, digits)}
+        </Flash>
       </td>
-      <td className="px-1 py-2 text-right font-mono tabular-nums">{formatPrice(price?.ask, digits)}</td>
+      <td className="px-1 py-2 text-right font-mono tabular-nums">
+        <Flash bid={price?.bid} move={move}>
+          {formatPrice(price?.ask, digits)}
+        </Flash>
+      </td>
       <td
         className={`px-1 py-2 text-right font-mono tabular-nums ${day.change === null ? "text-muted" : day.change >= 0 ? "text-profit" : "text-loss"}`}
         title={day.change === null ? "Less than 24 hours of prices" : "Change of the bid over 24 hours"}
@@ -169,5 +175,19 @@ function Row({
         <Sparkline points={day.points} />
       </td>
     </tr>
+  );
+}
+
+const flashes: Record<PriceMove, string> = { up: "animate-flash-up", down: "animate-flash-down" };
+
+/**
+ * A price that lights up briefly green when the bid rose and red when it fell. Keyed by the bid, so each new bid
+ * starts the flash again; the row renders on every price anyway, so this costs no extra renders.
+ */
+function Flash({ bid, move, children }: { bid: number | undefined; move: PriceMove | undefined; children: React.ReactNode }) {
+  return (
+    <span key={bid} className={`-mx-1 inline-block rounded px-1 ${move ? flashes[move] : ""}`}>
+      {children}
+    </span>
   );
 }

@@ -13,7 +13,7 @@ import { filesProblem, lastAuthorName, supportLimits, traderTicketNote } from "@
 
 import { PlusIcon } from "./icons";
 import { Conversation, FilePicker, MessageField, MessageForm, TicketStatusBadge } from "./SupportThread";
-import { buttonClass, ErrorText, fieldClass, Message, secondaryButtonClass, TraderPage } from "./ui";
+import { buttonClass, ErrorText, fieldClass, Loading, Message, secondaryButtonClass, TraderPage } from "./ui";
 
 /** The trader's tickets to the firm, the latest written in first, with a way to open a new one. */
 export function TraderTickets() {
@@ -25,7 +25,7 @@ export function TraderTickets() {
   }
 
   if (!tickets.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const rows = tickets.data.pages.flatMap((p) => p.tickets);
@@ -34,7 +34,7 @@ export function TraderTickets() {
     <TraderPage narrow>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
+          <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">Support</h1>
           <p className="text-muted">Ask {branding.name} about your accounts, payouts or anything else. The answers come here, and by email.</p>
         </div>
         <Link href="/support/new" className={`${buttonClass} flex items-center gap-1.5`}>
@@ -112,7 +112,7 @@ export function NewTicket({ initialAccountId }: { initialAccountId: string | nul
         <span aria-hidden="true">/</span> <span className="text-foreground">New ticket</span>
       </nav>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">New ticket</h1>
+        <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">New ticket</h1>
         <p className="text-muted">{branding.name} answers here, and you get an email when it does.</p>
       </div>
       <form
@@ -217,7 +217,7 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
   }
 
   if (!ticket.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = ticket.data;
@@ -232,7 +232,7 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="break-words text-2xl font-semibold tracking-tight">{data.subject}</h1>
+            <h1 className="font-serif text-3xl leading-tight tracking-tight break-words">{data.subject}</h1>
             <TicketStatusBadge ticket={data} viewer="trader" firmName={branding.name} />
           </div>
           <p className="text-sm text-muted">

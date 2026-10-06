@@ -21,7 +21,7 @@ export async function signUp(page: Page, firmName: string, shortName: string) {
   await expect(page.getByLabel("Short name")).toHaveValue(shortName);
   await expect(page.getByText("Available")).toBeVisible();
   await page.getByLabel("Your email").fill(`owner@${shortName}.e2e.example`);
-  await page.getByLabel("Password").fill(ownerPassword);
+  await page.getByLabel("Password", { exact: true }).fill(ownerPassword);
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Create my firm" }).click();
   await expect(page).toHaveURL(`http://${shortName}.localhost:${portalPort}/admin/get-started`);
@@ -38,6 +38,12 @@ export async function waitForSandbox(page: Page) {
 /** A link in the admin panel's menu. Links with something waiting have its count after the name. */
 export function adminLink(page: Page, name: string) {
   return page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: new RegExp(`^${name}`) });
+}
+
+/** One of the firm's settings, which are together under Settings in the admin panel's menu. */
+export async function openSetting(page: Page, name: string) {
+  await adminLink(page, "Settings").click();
+  await page.getByRole("main").getByRole("link", { name: new RegExp(`^${name}`) }).click();
 }
 
 /**
@@ -75,7 +81,7 @@ export async function acceptInvitation(page: Page, invitation: string) {
 
 /** The firm chooses our built-in KYC before the first payout, which nothing chooses for it and going live waits for. */
 export async function chooseBuiltInKyc(page: Page) {
-  await adminLink(page, "KYC").click();
+  await openSetting(page, "KYC");
   await page.getByRole("radio", { name: /^Our built-in KYC/ }).check();
   await page.getByRole("radio", { name: /^Before the first payout/ }).check();
   await page.getByRole("button", { name: "Save" }).click();

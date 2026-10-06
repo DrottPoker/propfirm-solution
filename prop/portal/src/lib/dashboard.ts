@@ -1,5 +1,6 @@
 import type { AccountDetails, ChallengeStatus, FloorFigure, StageSummary } from "./api/types";
-import { daysBetween, dayBefore, formatDate, formatDateTime, formatMoney, formatPrice, formatShortDate } from "./format";
+import { failureLabels } from "./challenge";
+import { daysBetween, dayBefore, formatDate, formatDateTime, formatMoney, formatPrice, formatShortDate, formatSignedMoney } from "./format";
 
 // What the trader's dashboard shows, worked out from what Prop.Api sends. Money is only shown here, never
 // calculated: ratios decide colors, and dates decide how many days are left.
@@ -30,6 +31,15 @@ export function floorState(floor: Pick<FloorFigure, "headroom" | "distance">): F
 
   const left = floor.headroom / floor.distance;
   return left < 0.1 ? "danger" : left < 0.25 ? "warning" : "ok";
+}
+
+/** The share of a loss limit's distance still left, in percent from 0 to 100. A limit without a distance counts as all left. */
+export function roomShare(floor: Pick<FloorFigure, "headroom" | "distance">): number {
+  if (floor.distance == null || floor.distance <= 0) {
+    return 100;
+  }
+
+  return Math.min(100, Math.max(0, (100 * floor.headroom) / floor.distance));
 }
 
 export const floorStateTone: Record<FloorState, Tone> = { ok: "neutral", warning: "warning", danger: "loss" };
@@ -317,6 +327,8 @@ export type Objective = {
   /** Where the progress would be with the open trades closed now, drawn lighter behind it. */
   ghost?: number;
   segments?: { filled: number; total: number };
+  /** For a loss limit with a live level: the share of its distance still left, in percent, and how close it is. */
+  room?: { share: number; state: FloorState };
 };
 
 export function objectivesOf(details: AccountDetails): Objective[] {
@@ -444,8 +456,9 @@ function lossLimit(details: AccountDetails, floorId: string, title: string): Obj
       key: floorId,
       title,
       state: state === "ok" ? "kept" : state,
-      stateText: state === "ok" ? "Kept" : "Close",
-      detail: `Equity may fall ${formatMoney(floor.headroom)} more${floorId === "daily" ? " today" : ""}, to ${formatMoney(floor.level)}.${reset}`,
+      stateText: `${formatMoney(Math.max(floor.headroom, 0))} left`,
+      detail: `Equity may not fall below ${formatMoney(floor.level)}${floorId === "daily" ? " today" : ""}.${reset}`,
+      room: { share: roomShare(floor), state },
     };
   }
 
@@ -474,4 +487,143 @@ function deadline(key: string, title: string, verb: string, due: Deadline, detai
 export function profitSplitText(details: AccountDetails): string | null {
   const split = details.challenge.funded.profitSplitPercent;
   return split == null ? null : `${split}% of the profit is yours`;
+}
+
+/** A step the trader can take next on an account, such as "Trade on 2 more days", for the line under its figures. */
+export type NextStep = { key: string; text: string; tone: "info" | "warning" | "profit" };
+
+/** What the trader can do next on an account that trades: reach the target, trade more days, meet a deadline or ask for a payout. */
+export function nextStepsOf(details: AccountDetails): NextStep[] {
+  const { account, results } = details;
+  if (account.status !== "Active" || account.paused) {
+    return [];
+  }
+
+  const days = (count: number) => `${count} more ${count === 1 ? "day" : "days"}`;
+  const steps: NextStep[] = [];
+  if (account.funded) {
+    const quote = account.nextPayout;
+    if (quote?.canRequest) {
+      steps.push({ key: "payout", text: `Ask for your payout of ${formatMoney(quote.amount)} ${account.currency}`, tone: "profit" });
+    } else if (quote && quote.tradingDays < quote.minTradingDays) {
+      steps.push({ key: "days", text: `Trade on ${days(quote.minTradingDays - quote.tradingDays)} before the next payout`, tone: "info" });
+    } else if (quote && quote.profit <= 0) {
+      steps.push({ key: "profit", text: "Make a profit to earn a payout", tone: "info" });
+    }
+  } else {
+    if (results.targetRequired != null && results.targetGained != null && results.targetGained < results.targetRequired) {
+      steps.push({ key: "target", text: `Make ${formatMoney(results.targetRequired - results.targetGained)} more to reach the profit target`, tone: "info" });
+    }
+
+    if (account.minTradingDays > 0 && account.tradingDays < account.minTradingDays) {
+      steps.push({ key: "days", text: `Trade on ${days(account.minTradingDays - account.tradingDays)}`, tone: "info" });
+    }
+
+    const timeLimit = deadlineOf(details, account.stageDeadline);
+    if (timeLimit) {
+      steps.push({ key: "time-limit", text: deadlineText("Pass", timeLimit), tone: isClose(timeLimit) ? "warning" : "info" });
+    }
+  }
+
+  const inactivity = deadlineOf(details, account.inactivityDeadline);
+  if (inactivity) {
+    steps.push({ key: "activity", text: deadlineText("Open a trade", inactivity), tone: isClose(inactivity) ? "warning" : "info" });
+  }
+
+  return steps;
+}
+
+function isClose(due: Deadline): boolean {
+  return due.daysLeft != null && due.daysLeft <= deadlineWarningDays;
+}
+
+/** A moment worth celebrating on an account: a passed phase, a funded account, or a paid payout with its amount. */
+export type Milestone = { key: string; kind: "passed" | "funded" | "paid"; title: string; detail: string; at: string; amount?: number };
+
+/**
+ * The account's latest milestone and when it happened, while the account goes on: a payout was paid, the account
+ * became funded, or a phase was passed. The page celebrates it once, if it is recent.
+ */
+export function latestMilestone(details: AccountDetails, firmName: string): Milestone | null {
+  const { account, challenge, stages, payouts } = details;
+  if (hasEnded(account.status)) {
+    return null;
+  }
+
+  const paid = payouts.filter((p) => p.status === "Paid" && p.paidAt).sort((a, b) => Date.parse(b.paidAt!) - Date.parse(a.paidAt!))[0];
+  if (paid) {
+    return {
+      key: `${account.id}:paid:${paid.id}`,
+      kind: "paid",
+      title: "Payout paid",
+      detail: `${firmName} has sent your ${formatMoney(paid.amount)} ${paid.currency}. Your certificate for it is ready to share.`,
+      at: paid.paidAt!,
+      amount: paid.amount,
+    };
+  }
+
+  if (account.funded) {
+    const started = stages.find((s) => s.stage === challenge.evaluation.length)?.startedAt;
+    const split = challenge.funded.profitSplitPercent;
+    return started
+      ? {
+          key: `${account.id}:funded`,
+          kind: "funded",
+          title: "You're funded",
+          detail: `You now trade ${firmName}'s capital${split != null ? ` and keep ${split}% of the profit` : ""}.`,
+          at: started,
+        }
+      : null;
+  }
+
+  const passed = stages.filter((s) => s.progress === "Passed" && s.passedAt).at(-1);
+  if (!passed?.passedAt) {
+    return null;
+  }
+
+  const how =
+    passed.result == null
+      ? ""
+      : ` with ${formatSignedMoney(passed.result)}${passed.tradingDays == null ? "" : ` in ${passed.tradingDays} trading ${passed.tradingDays === 1 ? "day" : "days"}`}.`;
+  const next = account.status === "AwaitingFunding" ? `${firmName} is reviewing your funded account.` : `Next up: ${account.stageName}.`;
+  return {
+    key: `${account.id}:passed:${passed.stage}`,
+    kind: "passed",
+    title: `${passed.name} passed`,
+    detail: `${how ? `You passed it${how} ` : ""}${next}`,
+    at: passed.passedAt,
+  };
+}
+
+/** One moment in how a challenge failed: when, and what happened. */
+export type StoryStep = { when: string; text: string };
+
+/** How a breached challenge failed, as a short timeline: the breach, the positions closed after it, and how it ended. */
+export function breachStory(details: AccountDetails): StoryStep[] {
+  const { breach } = details;
+  if (!breach) {
+    return [];
+  }
+
+  const steps: StoryStep[] = [
+    {
+      when: formatDateTime(breach.time, details.challenge.tradingDay.timeZone),
+      text: `Equity fell to ${formatMoney(breach.equity)}, below the ${failureLabels[breach.reason]} at ${formatMoney(breach.level)}.`,
+    },
+  ];
+  const closes = breach.closes ?? [];
+  if (closes.length > 0) {
+    const commission = closes.reduce((sum, c) => sum + c.commission, 0);
+    const prices = closes.map((c) => `${c.symbol} at ${formatPrice(c.closePrice)}`).join(", ");
+    steps.push({
+      when: "Right after",
+      text: `Every open position was closed at the next price: ${prices}.${commission > 0 ? ` Closing ${closes.length === 1 ? "it" : "them"} cost ${formatMoney(commission)} in commission.` : ""}`,
+    });
+  }
+
+  steps.push({
+    when: "Then",
+    text: breach.balanceAfter == null ? "The challenge ended." : `The challenge ended with a balance of ${formatMoney(breach.balanceAfter)}.`,
+  });
+  return steps;
 }

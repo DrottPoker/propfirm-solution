@@ -4,6 +4,7 @@ import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./
 import type { CommandResponse, EventEnvelope, PlaceOrderRequest, Timeframe } from "./api/types";
 import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
+import { newEvents } from "./notices";
 import { useTradingStore } from "./store";
 
 const accountPath = (accountId: string) => ({ params: { path: { accountId } } });
@@ -192,9 +193,11 @@ export async function fetchEvents(accountId: string, query: EventQuery): Promise
   return queryResult(await api.GET("/api/accounts/{accountId}/events", { params: { path: { accountId }, query } }), "events");
 }
 
-// Commands add their events to the store right away. The same events also arrive in realtime and are merged.
+// Commands add their events to the store right away, and tell the trader of them. The same events also arrive in
+// realtime, are merged and are told only once.
 function addEvents(response: CommandResponse) {
   useTradingStore.getState().addEvents(response.events);
+  newEvents.announce(response.events);
 }
 
 export function usePlaceOrder(accountId: string) {

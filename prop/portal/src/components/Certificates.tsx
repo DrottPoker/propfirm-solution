@@ -4,15 +4,15 @@ import { useEffect, useState } from "react";
 
 import { useBranding } from "@/app/providers";
 import type { AccountDetails } from "@/lib/api/types";
-import { certificateHeight, certificatesOf, certificateSvg, certificateWidth, type Certificate } from "@/lib/certificate";
+import { certificateColors, certificateHeight, certificatesOf, certificateSvg, certificateWidth, shareText, type Certificate } from "@/lib/certificate";
 import { useMe, useSetMyName } from "@/lib/queries";
-import { defaultColors } from "@/lib/theme";
 
-import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass, Skeleton } from "./ui";
 
 /**
  * The trader's certificates for the account, to download as an image and share: a passed challenge and every paid
- * payout. They carry the trader's name, so a trader without one writes it first, rather than sharing the email address.
+ * payout, in the firm's colors and logo. They carry the trader's name, so a trader without one writes it first,
+ * rather than sharing the email address.
  */
 export function Certificates({ details }: { details: AccountDetails }) {
   const branding = useBranding();
@@ -20,25 +20,32 @@ export function Certificates({ details }: { details: AccountDetails }) {
   const logo = useLogoData(branding.logoUrl);
   const certificates = certificatesOf(details);
   const traderName = me.data?.name;
-  const accent = branding.colors.accent ?? defaultColors.accent;
+  const colors = certificateColors(branding.colors);
 
   return (
-    <Panel title="Certificates">
-      {!me.data ? (
-        <p className="text-sm text-muted">Loading...</p>
-      ) : !traderName ? (
-        <NameForm firmName={branding.name} />
-      ) : (
-        <>
-          <p className="text-sm text-muted">Download them as images to share.</p>
-          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {certificates.map((certificate) => (
-              <CertificateCard key={certificate.key} certificate={certificate} svg={certificateSvg(certificate, branding.name, traderName, accent, logo)} />
-            ))}
-          </ul>
-        </>
-      )}
-    </Panel>
+    <div id="certificates" className="scroll-mt-20">
+      <Panel title="Certificates">
+        {!me.data ? (
+          <Skeleton className="aspect-[8/5] w-full max-w-md rounded-xl" />
+        ) : !traderName ? (
+          <NameForm firmName={branding.name} />
+        ) : (
+          <>
+            <p className="text-sm text-muted">Download them as images, or share them where you like.</p>
+            <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {certificates.map((certificate) => (
+                <CertificateCard
+                  key={certificate.key}
+                  certificate={certificate}
+                  firmName={branding.name}
+                  svg={certificateSvg(certificate, branding.name, traderName, colors, logo)}
+                />
+              ))}
+            </ul>
+          </>
+        )}
+      </Panel>
+    </div>
   );
 }
 
@@ -72,23 +79,66 @@ function NameForm({ firmName }: { firmName: string }) {
   );
 }
 
-function CertificateCard({ certificate, svg }: { certificate: Certificate; svg: string }) {
+function CertificateCard({ certificate, firmName, svg }: { certificate: Certificate; firmName: string; svg: string }) {
   const [error, setError] = useState<Error | null>(null);
   const source = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  const text = shareText(certificate, firmName);
 
   return (
-    <li className="flex flex-col gap-2.5">
+    <li className="group flex flex-col gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- a generated data URL, which next/image cannot optimize */}
-      <img src={source} alt={`${certificate.title}: ${certificate.headline}`} className="w-full rounded-lg border border-border" />
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm">{certificate.headline}</span>
-        <button type="button" onClick={() => download(source, certificate.fileName).catch(setError)} className={`${secondaryButtonClass} shrink-0 text-sm`}>
+      <img
+        src={source}
+        alt={`${certificate.title}: ${certificate.headline}`}
+        className="w-full rounded-xl border border-border shadow-raised transition-transform duration-500 ease-out-soft group-hover:-translate-y-1 group-hover:-rotate-[0.6deg]"
+      />
+      <span className="text-sm font-medium">{certificate.headline}</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => download(source, certificate.fileName).catch(setError)} className={`${secondaryButtonClass} text-sm`}>
           Download
+        </button>
+        <button type="button" onClick={() => share(source, certificate.fileName, text).catch(setError)} className={`${secondaryButtonClass} text-sm`}>
+          Share
+        </button>
+        <button type="button" onClick={() => openShare(`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${portalUrl()}`)} className={`${secondaryButtonClass} text-sm`}>
+          Post on X
+        </button>
+        <button type="button" onClick={() => openShare(`https://www.linkedin.com/sharing/share-offsite/?url=${portalUrl()}`)} className={`${secondaryButtonClass} text-sm`}>
+          LinkedIn
         </button>
       </div>
       <ErrorText error={error} />
     </li>
   );
+}
+
+// The firm's shop, which a shared post links to, so others can find the firm.
+function portalUrl(): string {
+  return encodeURIComponent(`${window.location.origin}/buy`);
+}
+
+function openShare(url: string) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+// The image itself, where the device can share files, such as a phone. Elsewhere it is downloaded to share by hand.
+async function share(source: string, fileName: string, text: string): Promise<void> {
+  const blob = await pngOf(source);
+  const file = new File([blob], fileName, { type: "image/png" });
+  if (navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], text });
+    } catch (error) {
+      // Closing the share sheet is not an error.
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        throw error;
+      }
+    }
+
+    return;
+  }
+
+  save(blob, fileName);
 }
 
 // The firm's logo as a data URL, so it is part of the image. It is on the portal's own address, so it can be read.
@@ -122,8 +172,12 @@ function dataUrlOf(blob: Blob): Promise<string> {
   });
 }
 
-// The image is drawn on a canvas and saved as a PNG, which every app can open.
 async function download(source: string, fileName: string): Promise<void> {
+  save(await pngOf(source), fileName);
+}
+
+// The image is drawn on a canvas as a PNG, which every app can open.
+async function pngOf(source: string): Promise<Blob> {
   const image = new Image();
   image.src = source;
   await image.decode();
@@ -136,6 +190,10 @@ async function download(source: string, fileName: string): Promise<void> {
     throw new Error("The image could not be made. Try again.");
   }
 
+  return blob;
+}
+
+function save(blob: Blob, fileName: string) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = fileName;

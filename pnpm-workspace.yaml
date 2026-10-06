@@ -1,6 +1,7 @@
 packages:
   - trading/terminal
   - prop/portal
+  - shared/web/design
 
 # Native postinstall scripts are not needed by the apps today
 allowBuilds:

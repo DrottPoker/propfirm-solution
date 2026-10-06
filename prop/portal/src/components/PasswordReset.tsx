@@ -8,7 +8,8 @@ import { useOps } from "@/app/providers";
 import { useConfirmPasswordReset, useLinkCheck, useRequestPasswordReset, type PasswordAudience } from "@/lib/passwordQueries";
 
 import { FirmName } from "./FirmName";
-import { buttonClass, ErrorText, fieldClass, Message } from "./ui";
+import { PasswordInput } from "./PasswordInput";
+import { buttonClass, ErrorText, fieldClass, Loading, Message } from "./ui";
 
 /** Where each audience logs in, asks for a link and lands after choosing a password. */
 export const passwordPaths: Record<PasswordAudience, { login: string; forgot: string; home: string }> = {
@@ -80,7 +81,7 @@ export function ResetPasswordForm({ audience, token }: { audience: PasswordAudie
   }
 
   if (!check.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
@@ -141,11 +142,11 @@ export function PasswordFields({
     <>
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-muted">Password</span>
-        <input type="password" autoComplete="new-password" required value={password} onChange={(e) => onPassword(e.target.value)} className={fieldClass} />
+        <PasswordInput autoComplete="new-password" required value={password} onChange={(e) => onPassword(e.target.value)} />
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="text-muted">Repeat password</span>
-        <input type="password" autoComplete="new-password" required value={repeated} onChange={(e) => onRepeated(e.target.value)} className={fieldClass} />
+        <PasswordInput autoComplete="new-password" required value={repeated} onChange={(e) => onRepeated(e.target.value)} />
       </label>
     </>
   );

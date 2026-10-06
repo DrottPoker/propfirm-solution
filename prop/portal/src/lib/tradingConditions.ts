@@ -1,4 +1,5 @@
 import type { TradingConditionsSymbol, TradingSymbolRequest } from "./api/types";
+import { instrumentGroup, type InstrumentGroup } from "./instruments";
 
 /** One instrument as the form edits it: whether it is traded, and its conditions as typed. */
 export type ConditionRow = {
@@ -50,4 +51,16 @@ export function conditionsRequest(rows: ConditionRow[]): { symbols: TradingSymbo
   }
 
   return { symbols };
+}
+
+/** Conditions typed once for many instruments. An empty one leaves each instrument's own as it is. */
+export type BulkConditions = Pick<ConditionRow, "leverage" | "spreadMarkupPoints" | "commissionPerLotPerSide">;
+
+/**
+ * The rows with the conditions set on every instrument that is traded in the group, or in every group. The form checks
+ * them when it is saved, as when they are typed one by one.
+ */
+export function applyToGroup(rows: ConditionRow[], group: InstrumentGroup | "All", conditions: BulkConditions): ConditionRow[] {
+  const typed = Object.fromEntries(Object.entries(conditions).filter(([, value]) => value.trim() !== "").map(([key, value]) => [key, value.trim()]));
+  return rows.map((row) => (row.enabled && (group === "All" || instrumentGroup(row.symbol) === group) ? { ...row, ...typed } : row));
 }

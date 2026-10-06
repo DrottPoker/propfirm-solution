@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
-import type { EngineEvent, InstrumentInfo, PositionSnapshot, Side } from "@/lib/api/types";
-import { balanceOperationName, closeReasons, describeEvent, isWarning, netResult, positionCommission, rejectionText, shortId, type DigitsOf } from "@/lib/events";
+import type { EngineEvent, PositionSnapshot, Side } from "@/lib/api/types";
+import { balanceOperationName, closeReasons, describeEvent, isWarning, netResult, positionCommission, rejectionText, type DigitsOf } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume } from "@/lib/format";
 import { useCancelOrder, useClosePosition, useModifyStops, usePointValue } from "@/lib/queries";
 import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
@@ -12,6 +12,7 @@ import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
 import { StopUnitToggle } from "./StopUnitToggle";
+import { showError } from "./TradeNotices";
 
 const tabs = ["Positions", "Orders", "History", "Events"] as const;
 type Tab = (typeof tabs)[number];
@@ -22,18 +23,13 @@ type BalanceOperation = Extract<EngineEvent, { kind?: "BalanceAdjusted" }>;
 // The generated kind is optional, so a plain comparison does not narrow the other branch.
 const isBalanceOperation = (e: ClosedPosition | BalanceOperation): e is BalanceOperation => e.kind === "BalanceAdjusted";
 
-export function BottomPanel({ accountId, instruments }: { accountId: string; instruments: InstrumentInfo[] }) {
+// A refusal comes and goes in a corner like a fill, so it is seen wherever the trader looks.
+const onError = (e: Error) => showError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.");
+
+export function BottomPanel({ accountId, digitsOf }: { accountId: string; digitsOf: DigitsOf }) {
   const [tab, setTab] = useState<Tab>("Positions");
-  const [error, setError] = useState<string | null>(null);
   const account = useTradingStore((s) => s.account);
   const events = useTradingStore((s) => s.events);
-
-  const digitsOf = useMemo<DigitsOf>(() => {
-    const bySymbol = new Map(instruments.map((i) => [i.symbol, i.digits]));
-    return (symbol) => bySymbol.get(symbol) ?? 5;
-  }, [instruments]);
-
-  const onError = (e: Error) => setError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.");
 
   const counts: Record<Tab, number | null> = {
     Positions: account?.positions.length ?? 0,
@@ -43,8 +39,8 @@ export function BottomPanel({ accountId, instruments }: { accountId: string; ins
   };
 
   return (
-    <section className="flex min-h-0 flex-col rounded-lg border border-border bg-panel text-sm">
-      <nav className="flex items-center gap-1 border-b border-border px-2" role="tablist">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-panel text-sm shadow-card">
+      <nav className="flex items-center gap-1 overflow-x-auto border-b border-border px-2" role="tablist">
         {tabs.map((t) => (
           <button
             key={t}
@@ -52,17 +48,12 @@ export function BottomPanel({ accountId, instruments }: { accountId: string; ins
             role="tab"
             aria-selected={t === tab}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-2.5 font-medium ${t === tab ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
+            className={`-mb-px border-b-2 px-3 py-2.5 font-medium whitespace-nowrap transition-colors duration-150 ${t === tab ? "border-accent text-foreground" : "border-transparent text-muted hover:text-foreground"}`}
           >
             {t}
             {counts[t] ? ` (${counts[t]})` : ""}
           </button>
         ))}
-        {error && (
-          <button type="button" className="ml-auto px-2 text-loss" onClick={() => setError(null)} title="Dismiss">
-            {error}
-          </button>
-        )}
       </nav>
       <div className="min-h-0 flex-1 overflow-y-auto" role="tabpanel">
         {tab === "Positions" && <Positions accountId={accountId} positions={account?.positions ?? []} digitsOf={digitsOf} onError={onError} />}
@@ -93,15 +84,14 @@ function Positions({
   }
 
   return (
-    <Table headers={["Position", "Symbol", "Side", "Volume", "Open price", "Current price", "SL", "TP", "Margin", "Unrealized P/L", ""]}>
+    <Table headers={["Symbol", "Side", "Volume", "Open price", "Current price", "SL", "TP", "Margin", "Unrealized P/L", ""]}>
       {positions.map((p) => {
         const digits = digitsOf(p.symbol);
         return editing === p.positionId ? (
           <EditStops key={p.positionId} accountId={accountId} position={p} digits={digits} onDone={() => setEditing(null)} onError={onError} />
         ) : (
-          <tr key={p.positionId} className="border-t border-border hover:bg-raised/50">
-            <Cell className="font-mono text-muted">{shortId(p.positionId)}</Cell>
-            <Cell className="font-medium">{p.symbol}</Cell>
+          <tr key={p.positionId} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
+            <SymbolCell symbol={p.symbol} title={`Position ${p.positionId}`} />
             <Cell>
               <SideBadge side={p.side} />
             </Cell>
@@ -209,7 +199,7 @@ function EditStops({
 
   const save = () => {
     if (!resolved.ok) {
-      onError(new Error(resolved.error));
+      showError(resolved.error);
       return;
     }
 
@@ -218,14 +208,18 @@ function EditStops({
 
   return (
     <tr className="border-t border-border bg-accent/5">
-      <Cell>{shortId(position.positionId)}</Cell>
-      <Cell>{position.symbol}</Cell>
+      <SymbolCell symbol={position.symbol} title={`Position ${position.positionId}`} />
       <td colSpan={9} className="px-3 py-1">
         <span className="flex items-center gap-2">
           <StopInput label="SL" value={fields[unit].stopLoss} onChange={(value) => setField("stopLoss", value)} />
           <StopInput label="TP" value={fields[unit].takeProfit} onChange={(value) => setField("takeProfit", value)} />
           <StopUnitToggle unit={unit} currency={pointValue?.currency ?? currency ?? "Money"} onChange={switchUnit} />
-          <button type="button" className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-40" disabled={modify.isPending} onClick={save}>
+          <button
+            type="button"
+            className="rounded-md bg-accent px-3 py-1 text-xs font-medium text-accent-foreground transition duration-150 hover:brightness-110 active:translate-y-px disabled:opacity-40"
+            disabled={modify.isPending}
+            onClick={save}
+          >
             Save
           </button>
           <ActionButton onClick={onDone}>Cancel</ActionButton>
@@ -261,13 +255,12 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   }
 
   return (
-    <Table headers={["Order", "Symbol", "Type", "Side", "Volume", "Price", "SL", "TP", "Placed", ""]}>
+    <Table headers={["Symbol", "Type", "Side", "Volume", "Price", "SL", "TP", "Placed", ""]}>
       {orders.map((o) => {
         const digits = digitsOf(o.symbol);
         return (
-          <tr key={o.orderId} className="border-t border-border hover:bg-raised/50">
-            <Cell className="font-mono text-muted">{shortId(o.orderId)}</Cell>
-            <Cell className="font-medium">{o.symbol}</Cell>
+          <tr key={o.orderId} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
+            <SymbolCell symbol={o.symbol} title={`Order ${o.orderId}`} />
             <Cell>{o.type}</Cell>
             <Cell>
               <SideBadge side={o.side} />
@@ -304,13 +297,13 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
   }
 
   return (
-    <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Result"]}>
+    <Table headers={["Closed", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Result"]}>
       {rows.map((c) => {
         if (isBalanceOperation(c)) {
           return (
-            <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
-              <Cell>{formatTime(c.timestamp, timeZone)}</Cell>
-              <td colSpan={8} className="px-3 py-1.5 text-muted">
+            <tr key={`${c.operationId}-${c.timestamp}`} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
+              <Cell number>{formatTime(c.timestamp, timeZone)}</Cell>
+              <td colSpan={7} className="px-3 py-1.5 text-muted">
                 {balanceOperationName(c.amount)}
               </td>
               <Cell number className={c.amount >= 0 ? "text-profit" : "text-loss"}>
@@ -324,10 +317,9 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
         const commission = positionCommission(c, events);
         const result = netResult(c, events);
         return (
-          <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
-            <Cell>{formatTime(c.timestamp, timeZone)}</Cell>
-            <Cell className="font-mono text-muted">{shortId(c.positionId)}</Cell>
-            <Cell className="font-medium">{c.symbol}</Cell>
+          <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
+            <Cell number>{formatTime(c.timestamp, timeZone)}</Cell>
+            <SymbolCell symbol={c.symbol} title={`Position ${c.positionId}`} />
             <Cell>
               <SideBadge side={c.side} />
             </Cell>
@@ -390,6 +382,15 @@ function Cell({ children, number, className = "" }: { children: React.ReactNode;
   return <td className={`px-3 py-1.5 whitespace-nowrap ${number ? "font-mono tabular-nums" : ""} ${className}`}>{children}</td>;
 }
 
+// The id of a position or order means nothing to a trader, so it is only there when the mouse rests on the symbol.
+function SymbolCell({ symbol, title }: { symbol: string; title: string }) {
+  return (
+    <td className="px-3 py-1.5 font-medium whitespace-nowrap" title={title}>
+      {symbol}
+    </td>
+  );
+}
+
 function SideBadge({ side }: { side: Side }) {
   const color = side === "Buy" ? "border-buy/40 bg-buy/10 text-buy" : "border-sell/40 bg-sell/10 text-sell";
   return <span className={`rounded border px-1.5 py-0.5 text-xs font-medium ${color}`}>{side}</span>;
@@ -411,7 +412,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-md border border-border px-3 py-1 text-xs font-medium text-muted hover:text-foreground disabled:opacity-40 ${danger ? "hover:border-loss/50 hover:text-loss" : "hover:border-muted"}`}
+      className={`rounded-md border border-border px-3 py-1 text-xs font-medium text-muted transition duration-150 hover:bg-raised hover:text-foreground active:translate-y-px disabled:opacity-40 ${danger ? "hover:border-loss/50 hover:text-loss" : "hover:border-muted"}`}
     >
       {children}
     </button>

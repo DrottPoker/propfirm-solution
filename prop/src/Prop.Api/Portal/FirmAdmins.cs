@@ -11,8 +11,8 @@ using Prop.Api.Review;
 
 namespace Prop.Api.Portal;
 
-/// <summary>One of the firm's administrators.</summary>
-internal sealed record FirmAdmin(Guid Id, string Email, DateTimeOffset CreatedAt);
+/// <summary>One of the firm's administrators, and when they last logged in, if they have since we began to keep it.</summary>
+internal sealed record FirmAdmin(Guid Id, string Email, DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt);
 
 /// <summary>An invitation that waits for the person to choose a password.</summary>
 internal sealed record PendingAdminInvite(string Email, DateTimeOffset ExpiresAt);
@@ -136,16 +136,28 @@ internal sealed class FirmAdmins(NpgsqlDataSource dataSource, DatabaseSchema sch
     public async Task<IReadOnlyList<FirmAdmin>> ListAsync(string firmId, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);
-        await using var command = dataSource.CreateCommand("select id, email, created_at from firm_admins where firm_id = $1 order by created_at, normalized_email");
+        await using var command = dataSource.CreateCommand(
+            "select id, email, created_at, last_login_at from firm_admins where firm_id = $1 order by created_at, normalized_email");
         command.Parameters.AddWithValue(firmId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var admins = new List<FirmAdmin>();
         while (await reader.ReadAsync(cancellationToken))
         {
-            admins.Add(new FirmAdmin(reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2)));
+            admins.Add(new FirmAdmin(
+                reader.GetGuid(0), reader.GetString(1), reader.GetFieldValue<DateTimeOffset>(2), reader.IsDBNull(3) ? null : reader.GetFieldValue<DateTimeOffset>(3)));
         }
 
         return admins;
+    }
+
+    /// <summary>The administrator logged in now, by password, a link or an invitation. The Team page shows it.</summary>
+    public async Task LoggedInAsync(Guid adminId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update firm_admins set last_login_at = $2 where id = $1");
+        command.Parameters.AddWithValue(adminId);
+        command.Parameters.AddWithValue(now);
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>The emails of the firm's administrators, the first first, in the caller's transaction.</summary>

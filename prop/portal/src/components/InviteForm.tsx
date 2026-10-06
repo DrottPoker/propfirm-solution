@@ -7,7 +7,7 @@ import { useLinkCheck } from "@/lib/passwordQueries";
 import { useAcceptAdminInvite, useAcceptInvite, useConfirmInvite, type Role } from "@/lib/queries";
 
 import { AuthCard, LinkProblem, passwordPaths, PasswordFields } from "./PasswordReset";
-import { buttonClass, ErrorText, Message } from "./ui";
+import { buttonClass, ErrorText, Loading, Message } from "./ui";
 
 /**
  * A trader, or a new administrator, opens the invitation and chooses a password for the portal. The link is checked first,
@@ -35,7 +35,7 @@ export function InviteForm({ token, role = "trader" }: { token: string | null; r
   }
 
   if (!check.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const { status, email, hasPassword } = check.data;

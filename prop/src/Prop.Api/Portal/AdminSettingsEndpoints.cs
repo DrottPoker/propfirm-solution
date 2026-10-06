@@ -39,7 +39,9 @@ internal static class AdminSettingsEndpoints
         admin.MapGet("/firm", GetFirm);
         admin.MapPut("/firm/branding", SetBrandingAsync);
         admin.MapPut("/firm/email-settings", SetEmailSettingsAsync);
+        admin.MapGet("/firm/email-settings/{kind}/preview", PreviewEmailAsync);
         admin.MapPut("/firm/support-email", SetSupportEmailAsync);
+        admin.MapPut("/firm/shop-payouts", SetShopPayoutsAsync);
         admin.MapPut("/firm/logo", UploadLogoAsync).DisableAntiforgery();
         admin.MapDelete("/firm/logo", RemoveLogoAsync);
         admin.MapPost("/firm/api-key", CreateApiKeyAsync);
@@ -172,6 +174,39 @@ internal static class AdminSettingsEndpoints
         return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
 
+    /// <summary>
+    /// The notification email of the kind as it would go out for the firm now, in its name and look and about its first
+    /// challenge, with a sample trader, account, payout and support ticket. Nothing is sent, queued or saved. 404 for a kind
+    /// there is no email of.
+    /// </summary>
+    private static async Task<Results<Ok<NotificationPreviewResponse>, ProblemHttpResult>> PreviewEmailAsync(
+        string kind,
+        HttpContext context,
+        ClaimsPrincipal principal,
+        Notifications notifications,
+        ChallengeCatalog challenges,
+        PriceCatalog prices,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (!NotificationKinds.All.Contains(kind))
+        {
+            return AccountActions.Problem(StatusCodes.Status404NotFound, $"There is no email called {kind}.");
+        }
+
+        var firm = PortalFirmFilter.FirmOf(context);
+        var preview = notifications.Preview(
+            firm,
+            await challenges.ListAsync(firm.Id, cancellationToken),
+            await prices.ListAsync(firm.Id, cancellationToken),
+            kind,
+            principal.FindFirstValue(ClaimTypes.Email) ?? "",
+            time.GetUtcNow());
+        var message = preview.Message;
+        return TypedResults.Ok(new NotificationPreviewResponse(
+            preview.Kind, preview.Audience, message.Subject, message.Html ?? throw new InvalidOperationException($"The email {kind} has no HTML."), message.Body));
+    }
+
     /// <summary>Where replies to the emails to the firm's traders go. Empty for nowhere.</summary>
     private static async Task<Results<Ok<FirmSettingsResponse>, ProblemHttpResult>> SetSupportEmailAsync(
         SupportEmailRequest request,
@@ -192,6 +227,27 @@ internal static class AdminSettingsEndpoints
 
         var firm = PortalFirmFilter.FirmOf(context);
         await store.SetSupportEmailAsync(firm.Id, email, time.GetUtcNow(), cancellationToken);
+        var saved = await ReloadAsync(firm, store, firms, cancellationToken);
+        return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
+    }
+
+    /// <summary>
+    /// Whether the shop shows what the firm paid out to traders in the last 30 days and how soon. Off until the firm turns
+    /// it on, since it makes the firm's own figures public.
+    /// </summary>
+    private static async Task<Ok<FirmSettingsResponse>> SetShopPayoutsAsync(
+        ShopPayoutsRequest request,
+        HttpContext context,
+        FirmStore store,
+        FirmCatalog firms,
+        OrderService orders,
+        IOptions<SandboxOptions> sandbox,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        await store.SetShopShowsPayoutsAsync(firm.Id, request.Show, time.GetUtcNow(), cancellationToken);
         var saved = await ReloadAsync(firm, store, firms, cancellationToken);
         return TypedResults.Ok(FirmSettingsResponse.From(saved, sandbox.Value, platform.Value, ShopEndpoints.SettingsOf(saved, orders, platform.Value)));
     }
@@ -394,7 +450,7 @@ internal static class AdminSettingsEndpoints
         var all = await admins.ListAsync(firm.Id, cancellationToken);
         var invites = await admins.ListInvitesAsync(firm.Id, time.GetUtcNow(), cancellationToken);
         return TypedResults.Ok(new AdminsResponse(
-            [.. all.Select(a => new AdminResponse(a.Id, a.Email, a.CreatedAt, a.Id == me))],
+            [.. all.Select(a => new AdminResponse(a.Id, a.Email, a.CreatedAt, a.LastLoginAt, a.Id == me))],
             [.. invites.Select(i => new AdminInviteResponse(i.Email, i.ExpiresAt))]));
     }
 
@@ -498,7 +554,8 @@ public sealed record WelcomeRequest(string? Token);
 /// the sandbox. <paramref name="Payments"/> is how its portal takes payment. <paramref name="EmailSettings"/> has every
 /// notification email by kind, and whether the firm sends it, and <paramref name="SupportEmail"/> is where replies to the
 /// emails to its traders go. <paramref name="FirmApiUrl"/> is where the firm's own systems reach the firm API, and
-/// <paramref name="OpenApiUrl"/> its description for code generators.
+/// <paramref name="OpenApiUrl"/> its description for code generators. <paramref name="ShopShowsPayouts"/> is whether the
+/// shop shows what the firm paid out lately.
 /// </summary>
 public sealed record FirmSettingsResponse(
     string Id,
@@ -516,7 +573,8 @@ public sealed record FirmSettingsResponse(
     IReadOnlyDictionary<string, bool> EmailSettings,
     Uri FirmApiUrl,
     Uri OpenApiUrl,
-    string? SupportEmail)
+    string? SupportEmail,
+    bool ShopShowsPayouts)
 {
     internal static FirmSettingsResponse From(Firm firm, SandboxOptions sandbox, PlatformOptions platform, PaymentSettingsResponse payments) =>
         new(
@@ -535,14 +593,24 @@ public sealed record FirmSettingsResponse(
             NotificationKinds.All.ToDictionary(kind => kind, kind => NotificationKinds.IsOn(firm, kind)),
             new Uri(platform.ApiUrl!, "api/firm/v1/"),
             new Uri(platform.ApiUrl!, "openapi/v1.json"),
-            firm.SupportEmail);
+            firm.SupportEmail,
+            firm.ShopShowsPayouts);
 }
 
 /// <summary>Where replies to the emails to the firm's traders go. Empty for nowhere.</summary>
 public sealed record SupportEmailRequest(string? Email);
 
+/// <summary>Whether the shop shows what the firm paid out to traders in the last 30 days and how soon.</summary>
+public sealed record ShopPayoutsRequest(bool Show);
+
 /// <summary>Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting.</summary>
 public sealed record EmailSettingsRequest(IReadOnlyDictionary<string, bool>? Settings);
+
+/// <summary>
+/// A notification email as it would go out for the firm now, with sample data: who it goes to, its subject, and the same
+/// email as HTML and as plain text.
+/// </summary>
+public sealed record NotificationPreviewResponse(string Kind, EmailAudience Audience, string Subject, string Html, string Text);
 
 /// <summary>The portal's colors to override, as #rrggbb. The logo is uploaded on its own.</summary>
 public sealed record BrandingRequest(IReadOnlyDictionary<string, string>? Colors);
@@ -561,8 +629,11 @@ public sealed record WebhookSecretResponse(string Secret);
 /// <summary>A ready-made challenge with its default values, to adjust and save as the firm's own.</summary>
 public sealed record ChallengeTemplateResponse(string Id, string Name, string Description, ChallengeDefinition Definition);
 
-/// <summary><paramref name="IsYou"/> marks the administrator who asked.</summary>
-public sealed record AdminResponse(Guid Id, string Email, DateTimeOffset CreatedAt, bool IsYou);
+/// <summary>
+/// <paramref name="LastLoginAt"/> is when the administrator last logged in, empty for one who has not since we began to keep
+/// it, and <paramref name="IsYou"/> marks the administrator who asked.
+/// </summary>
+public sealed record AdminResponse(Guid Id, string Email, DateTimeOffset CreatedAt, DateTimeOffset? LastLoginAt, bool IsYou);
 
 public sealed record AdminInviteRequest(string? Email);
 

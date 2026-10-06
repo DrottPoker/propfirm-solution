@@ -19,16 +19,18 @@ import { CommandRejectedError } from "@/lib/api/client";
 import type { InstrumentInfo, Timeframe } from "@/lib/api/types";
 import { applyPrice, timeframes, toBar, type Bar } from "@/lib/candles";
 import { chartTrades } from "@/lib/chartTrades";
+import { kronant, mix, withAlpha } from "@/lib/colors";
 import { dayFigures } from "@/lib/daySummary";
 import { rejectionText } from "@/lib/events";
 import { formatChartTick, formatMinute, formatPrice, formatSignedPercent, formatSignedPrice, timeZoneName, type ChartTick } from "@/lib/format";
 import { spreadPoints } from "@/lib/instruments";
 import { useOrderDraft, type GhostLine } from "@/lib/orderDraft";
 import { useCandles, useDaySummary, useModifyStops, usePointValue } from "@/lib/queries";
+import { useSettings } from "@/lib/settings";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
-import { CollapseIcon, ExpandIcon } from "./icons";
+import { CollapseIcon, ExpandIcon, VolumeBarsIcon } from "./icons";
 import { KeepInView } from "./KeepInView";
 import { PriceMenu, type MenuPlacement, type StopLineRef } from "./PriceMenu";
 import { grabDistance, StopHandles, usePositionLines } from "./positionLines";
@@ -48,37 +50,46 @@ const defaultBarSpacing = 6;
 const defaultRightOffset = 0;
 const resetAnimationMs = 150;
 
+// The volume is a low band under the candles, so it is there to glance at without pulling the eye from the price.
+const volumeBand = 0.13;
+const priceMargins = { withVolume: { top: 0.08, bottom: 0.2 }, withoutVolume: { top: 0.08, bottom: 0.08 } };
+
+// The buttons above the chart: the timeframes, the volume and full screen.
+const toolClass = "shrink-0 rounded-md py-1 font-medium transition duration-150 ease-out-soft active:translate-y-px";
+
+// Kronant's colors: candles in green and red on the panel, and lines of our own, such as the last price, in brass.
 const colors = {
-  background: "#0d1320",
-  text: "#8591a5",
-  grid: "#151d2c",
-  border: "#1d2738",
-  crosshair: "#52607a",
-  up: "#22c55e",
-  down: "#f04438",
-  upVolume: "rgba(34, 197, 94, 0.35)",
-  downVolume: "rgba(240, 68, 56, 0.35)",
-  last: "#2f7cf6",
-  open: "#2f7cf6",
-  stopLoss: "#f04438",
-  takeProfit: "#22c55e",
-  buy: "#12b76a",
-  sell: "#ef4444",
+  background: kronant.panel,
+  text: kronant.muted,
+  grid: mix(kronant.border, kronant.panel, 0.45),
+  border: kronant.border,
+  crosshair: mix(kronant.muted, kronant.panel, 0.6),
+  up: kronant.profit,
+  down: kronant.loss,
+  // Faint, since every candle has about as many prices and full colors would look like a barcode.
+  upVolume: withAlpha(kronant.profit, 0.14),
+  downVolume: withAlpha(kronant.loss, 0.14),
+  last: kronant.brass,
+  open: kronant.brass,
+  stopLoss: kronant.loss,
+  takeProfit: kronant.profit,
+  buy: kronant.profit,
+  sell: kronant.loss,
   // 75 % opaque, so the candles show through the line.
-  tradeLine: "rgba(133, 145, 165, 0.75)",
+  tradeLine: withAlpha(kronant.muted, 0.75),
   // The order being filled in, at half the strength of real lines.
   ghost: {
-    entry: "rgba(47, 124, 246, 0.5)",
-    stopLoss: "rgba(240, 68, 56, 0.5)",
-    takeProfit: "rgba(34, 197, 94, 0.5)",
+    entry: withAlpha(kronant.brass, 0.5),
+    stopLoss: withAlpha(kronant.loss, 0.5),
+    takeProfit: withAlpha(kronant.profit, 0.5),
   } satisfies Record<GhostLine["kind"], string>,
   // The chart draws labels without transparency, so these are the ghost colors mixed half and half with the panel.
   ghostLabel: {
-    entry: "rgb(30, 72, 139)",
-    stopLoss: "rgb(127, 44, 44)",
-    takeProfit: "rgb(24, 108, 63)",
+    entry: mix(kronant.brass, kronant.panel, 0.5),
+    stopLoss: mix(kronant.loss, kronant.panel, 0.5),
+    takeProfit: mix(kronant.profit, kronant.panel, 0.5),
   } satisfies Record<GhostLine["kind"], string>,
-  ghostText: "rgb(184, 191, 203)",
+  ghostText: mix(kronant.foreground, kronant.panel, 0.75),
 };
 
 /**
@@ -100,6 +111,8 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   const lastBarRef = useRef<Bar | undefined>(undefined);
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
   const fullScreen = useFullScreen(sectionRef);
+  const showVolume = useSettings((s) => s.chartVolume);
+  const changeSetting = useSettings((s) => s.change);
 
   const symbol = instrument?.symbol ?? null;
   const candles = useCandles(accountId, symbol, timeframe);
@@ -112,15 +125,22 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       return;
     }
 
+    // The axes' figures in the monospace, like every other price. The chart draws on a canvas, so it needs the name.
+    const fontFamily = getComputedStyle(container).getPropertyValue("--font-code").trim();
     const chart = createChart(container, {
       autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: colors.background }, textColor: colors.text, fontSize: 11 },
+      layout: {
+        background: { type: ColorType.Solid, color: colors.background },
+        textColor: colors.text,
+        fontSize: 11,
+        ...(fontFamily ? { fontFamily } : {}),
+      },
       grid: { vertLines: { color: colors.grid }, horzLines: { color: colors.grid } },
       crosshair: {
         vertLine: { color: colors.crosshair, labelBackgroundColor: colors.border },
         horzLine: { color: colors.crosshair, labelBackgroundColor: colors.border },
       },
-      rightPriceScale: { borderColor: colors.border, scaleMargins: { top: 0.08, bottom: 0.22 } },
+      rightPriceScale: { borderColor: colors.border, scaleMargins: priceMargins.withVolume },
       timeScale: {
         borderColor: colors.border,
         timeVisible: true,
@@ -144,7 +164,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       lastValueVisible: false,
       priceLineVisible: false,
     });
-    volume.priceScale().applyOptions({ scaleMargins: { top: 0.84, bottom: 0 } });
+    volume.priceScale().applyOptions({ scaleMargins: { top: 1 - volumeBand, bottom: 0 } });
     const markers = new TradeMarkers({ buy: colors.buy, sell: colors.sell, line: colors.tradeLine, outline: colors.background });
     series.attachPrimitive(markers);
     const handles = new StopHandles();
@@ -169,6 +189,12 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       keepInViewRef.current = null;
     };
   }, []);
+
+  // Without the volume, the candles take its place.
+  useEffect(() => {
+    volumeRef.current?.applyOptions({ visible: showVolume });
+    chartRef.current?.priceScale("right").applyOptions({ scaleMargins: showVolume ? priceMargins.withVolume : priceMargins.withoutVolume });
+  }, [showVolume]);
 
   // Bars stay in UTC seconds; only the labels are in the account's time zone, like every other time on screen.
   useEffect(() => {
@@ -249,22 +275,39 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   useTradeMarkers(markersRef, symbol, timeframe);
 
   return (
-    <section ref={sectionRef} className="flex min-w-0 flex-col rounded-lg border border-border bg-panel">
+    <section
+      ref={sectionRef}
+      className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-card [&:fullscreen]:rounded-none"
+    >
       {instrument ? <QuoteHeader accountId={accountId} instrument={instrument} /> : <div className="h-14 border-b border-border" />}
 
-      <div className="flex items-center gap-1 border-b border-border px-3 py-1.5 text-xs">
+      <div className="@container flex items-center gap-1 overflow-x-auto border-b border-border px-3 py-1.5 text-xs">
         {timeframes.map((tf) => (
           <button
             key={tf}
             type="button"
             onClick={() => setTimeframe(tf)}
             aria-pressed={tf === timeframe}
-            className={`rounded-md px-2.5 py-1 font-medium ${tf === timeframe ? "bg-accent/20 text-foreground" : "text-muted hover:bg-raised hover:text-foreground"}`}
+            className={`${toolClass} px-2 @md:px-2.5 ${tf === timeframe ? "bg-accent/15 text-accent" : "text-muted hover:bg-raised hover:text-foreground"}`}
           >
             {tf}
           </button>
         ))}
-        <span className="ml-auto text-muted" title={`Candles show the bid. Times are in ${timeZone}, the time zone of the account's trading day.`}>
+        <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-border" />
+        <button
+          type="button"
+          onClick={() => changeSetting("chartVolume", !showVolume)}
+          aria-pressed={showVolume}
+          title={showVolume ? "Hide the tick volume under the candles" : "Show the tick volume under the candles"}
+          className={`${toolClass} flex items-center gap-1.5 px-2 ${showVolume ? "text-foreground" : "text-muted hover:bg-raised hover:text-foreground"}`}
+        >
+          <VolumeBarsIcon className={`size-3.5 ${showVolume ? "text-accent" : ""}`} />
+          <span className="@max-md:sr-only">Volume</span>
+        </button>
+        <span
+          className="ml-auto shrink-0 pl-2 whitespace-nowrap text-muted @max-xl:hidden"
+          title={`Candles show the bid. Times are in ${timeZone}, the time zone of the account's trading day.`}
+        >
           Bid · {timeZoneName(timeZone)}
         </span>
         <button
@@ -272,7 +315,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
           onClick={fullScreen.toggle}
           aria-label={fullScreen.active ? "Exit full screen" : "Full screen"}
           title={fullScreen.active ? "Exit full screen" : "Full screen"}
-          className="ml-2 rounded-md p-1.5 text-muted hover:bg-raised hover:text-foreground"
+          className={`${toolClass} ml-2 p-1.5 text-muted hover:bg-raised hover:text-foreground`}
         >
           {fullScreen.active ? <CollapseIcon /> : <ExpandIcon />}
         </button>
@@ -297,7 +340,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
           />
         )}
         {message && (
-          <p role="alert" className="absolute top-2 left-2 rounded-md border border-loss/40 bg-panel px-3 py-1.5 text-sm text-loss shadow-lg">
+          <p role="alert" className="absolute top-2 left-2 animate-fade rounded-lg border border-loss/40 bg-panel px-3 py-1.5 text-sm text-loss shadow-float">
             {message}
           </p>
         )}
@@ -306,7 +349,8 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   );
 }
 
-// The symbol, the live bid and how it moved over the last 24 hours.
+// The symbol, the live bid and how it moved over the last 24 hours. A narrow chart, such as on a phone, keeps the
+// symbol, the bid and the change in percent.
 function QuoteHeader({ accountId, instrument }: { accountId: string; instrument: InstrumentInfo }) {
   const { symbol, digits } = instrument;
   const price = useTradingStore((s) => s.prices[symbol]);
@@ -314,20 +358,20 @@ function QuoteHeader({ accountId, instrument }: { accountId: string; instrument:
   const changeColor = day.change === null ? "text-muted" : day.change >= 0 ? "text-profit" : "text-loss";
 
   return (
-    <div className="flex h-14 items-center gap-x-5 gap-y-1 overflow-hidden border-b border-border px-3">
-      <span className="flex items-center gap-2">
+    <div className="@container flex h-14 items-center gap-x-5 gap-y-1 overflow-hidden border-b border-border px-3">
+      <span className="flex shrink-0 items-center gap-2">
         <SymbolIcon base={instrument.baseCurrency} quote={instrument.quoteCurrency} />
         <span className="text-base font-semibold">{symbol}</span>
       </span>
-      <span className="flex items-baseline gap-2">
+      <span className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
         <span className="font-mono text-xl font-semibold tabular-nums">{formatPrice(price?.bid, digits)}</span>
         {day.change !== null && (
           <span className={`font-mono text-sm tabular-nums ${changeColor}`} title="Change of the bid over 24 hours">
-            {formatSignedPrice(day.change, digits)} ({formatSignedPercent(day.changePercent)})
+            <span className="@max-md:hidden">{formatSignedPrice(day.change, digits)} </span>({formatSignedPercent(day.changePercent)})
           </span>
         )}
       </span>
-      <span className="flex gap-4 text-xs whitespace-nowrap">
+      <span className="flex gap-4 text-xs whitespace-nowrap @max-3xl:hidden">
         <Stat label="24h high" value={formatPrice(day.high, digits)} />
         <Stat label="24h low" value={formatPrice(day.low, digits)} />
         <Stat label="Spread" value={price ? `${spreadPoints(price.bid, price.ask, digits)} points` : "-"} />

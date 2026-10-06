@@ -6,10 +6,11 @@ import type { FirmSettings } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { deliveryNote, firmApiCalls, startChallengeExample } from "@/lib/integrations";
 import { useChallenges, useFirmSettings, useNewApiKey, useNewWebhookSecret, useSaveWebhook, useSendTestWebhook, useWebhookOverview } from "@/lib/queries";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { CopyButton } from "./CopyButton";
 import { ConfirmDialog } from "./Dialog";
-import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass } from "./ui";
 
 /** How the firm's own systems work with the platform: the firm API, webhooks, and the addresses they need. */
 export function AdminIntegrations() {
@@ -19,7 +20,7 @@ export function AdminIntegrations() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = settings.data;
@@ -52,6 +53,7 @@ function Row({ label, value, mono = false }: { label: string; value: string; mon
 function Integration({ settings }: { settings: FirmSettings }) {
   const newKey = useNewApiKey();
   const saveWebhook = useSaveWebhook();
+  useSavedNote(saveWebhook);
   const newSecret = useNewWebhookSecret();
   const [webhookUrl, setWebhookUrl] = useState(settings.webhookUrl ?? "");
 
@@ -70,9 +72,8 @@ function Integration({ settings }: { settings: FirmSettings }) {
   const example = startChallengeExample(settings.firmApiUrl, challenges.data?.[0]?.id ?? "two-step-100k");
 
   return (
-    <Panel title="Integration">
+    <Panel title="Firm API">
       <div className="flex flex-col gap-3 text-sm">
-        <h3 className="font-medium">Firm API</h3>
         <p className="text-muted">
           Your website, checkout or CRM starts challenges and follows accounts through the firm API, with your key in the{" "}
           <span className="font-mono">X-Api-Key</span> header.
@@ -139,7 +140,6 @@ function Integration({ settings }: { settings: FirmSettings }) {
           )}
         </div>
         <ErrorText error={saveWebhook.error ?? newSecret.error} />
-        {saveWebhook.isSuccess && !secret && <p className="text-profit">Saved.</p>}
         {secret && <ShownOnce label="Your webhook secret" value={secret} />}
       </form>
       <Deliveries hasWebhook={settings.webhookUrl !== null} />

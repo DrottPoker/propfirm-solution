@@ -22,7 +22,7 @@ import { priceCurrencies } from "@/lib/orders";
 import { useChallengeFigures, useChallengeTemplates, useChallenges, usePrices, useSaveChallenge, useSavePrice } from "@/lib/queries";
 
 import { InfoIcon, PlusIcon, TrashIcon } from "./icons";
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, Panel, secondaryButtonClass } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, Panel, secondaryButtonClass } from "./ui";
 
 type PriceForm = { amount: string; currency: string; forSale: boolean };
 
@@ -50,7 +50,7 @@ export function ChallengeEditor({
   }
 
   if (!challenges.data || !templates.data || !prices.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const existing = challengeId ? challenges.data.find((c) => c.id === challengeId) : undefined;
@@ -135,7 +135,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
           </Link>{" "}
           <span aria-hidden="true">/</span> <span className="text-foreground">{isNew ? "New challenge" : initial.name}</span>
         </nav>
-        <h1 className="text-2xl font-semibold tracking-tight">{isNew ? (initial.name ? `New challenge from ${initial.name.replace(/ copy$/, "")}` : "New challenge") : `Change ${initial.name}`}</h1>
+        <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">{isNew ? (initial.name ? `New challenge from ${initial.name.replace(/ copy$/, "")}` : "New challenge") : `Change ${initial.name}`}</h1>
         {!isNew && (
           <p className="flex items-center gap-2 text-muted">
             <InfoIcon className="size-4 shrink-0" />
@@ -180,7 +180,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
           </Panel>
 
           <Panel
-            title="Stages"
+            title="Phases"
             actions={<span className="text-xs text-muted">Up to three phases before funded, or none to fund traders from the start. Losses are in percent of the account size.</span>}
           >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -218,7 +218,7 @@ function EditorForm({ initial, initialPrice, isNew }: { initial: ChallengeForm; 
                     value={price.amount}
                     onChange={(e) => setPrice({ ...price, amount: e.target.value, forSale: e.target.value.trim() === "" ? false : price.forSale })}
                     placeholder="No price"
-                    className={`${fieldClass} w-32 text-right font-mono`}
+                    className={`${fieldClass} w-32 text-right`}
                   />
                   <select aria-label="Price currency" value={price.currency} onChange={(e) => setPrice({ ...price, currency: e.target.value })} className={fieldClass}>
                     {priceCurrencies.map((c) => (
@@ -289,7 +289,7 @@ function StageCard({
 
   return (
     <fieldset className={`flex min-w-0 flex-col gap-3.5 rounded-lg border p-4 ${funded ? "border-profit/35" : "border-border"}`}>
-      <legend className={`px-1.5 text-xs font-medium uppercase tracking-wider ${funded ? "text-profit" : "text-muted"}`}>{funded ? "Funded" : "Evaluation"}</legend>
+      <legend className={`px-1.5 text-xs font-semibold uppercase tracking-[0.14em] ${funded ? "text-profit" : "text-muted"}`}>{funded ? "Funded" : "Phase before funded"}</legend>
       <TextField
         label="Name"
         value={stage.name}
@@ -380,7 +380,7 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
   const size = amountOf(form.initialBalance, "100");
 
   return (
-    <aside aria-labelledby="preview" className="flex flex-col gap-4 rounded-lg border border-border bg-panel p-5 xl:sticky xl:top-6">
+    <aside aria-labelledby="preview" className="flex flex-col gap-4 rounded-xl border border-border bg-panel p-5 shadow-card xl:sticky xl:top-6">
       <h2 id="preview" className="font-semibold">
         What traders see
       </h2>
@@ -388,7 +388,7 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
         <span className="text-xs text-muted">In your shop</span>
         <span className="flex items-baseline justify-between gap-2">
           <strong className="font-semibold">{form.name || "Unnamed challenge"}</strong>
-          <span className="font-mono text-sm">{priceText(price)}</span>
+          <span className="text-sm">{priceText(price)}</span>
         </span>
         <span className="text-xs text-muted">
           {size === null ? "-" : formatMoney(size)} {form.currency} account ·{" "}
@@ -407,7 +407,7 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
             ))}
           </tr>
         </thead>
-        <tbody className="font-mono">
+        <tbody>
           <Row label="Target" cells={stages.map(({ stage, funded }) => (funded ? "None" : value(stage.profitTargetPercent)))} />
           <Row label="Daily loss" cells={stages.map(({ stage }) => value(stage.dailyLossPercent))} />
           <Row label="Max loss" cells={stages.map(({ stage }) => value(stage.maxLossPercent))} />
@@ -500,15 +500,16 @@ function TextField({
       onChange={(e) => onChange(e.target.value)}
       className={
         suffix
-          ? `min-w-0 flex-1 bg-transparent px-3 py-2 outline-none ${numeric ? "text-right font-mono" : ""}`
-          : `${fieldClass} w-full ${mono || numeric ? "font-mono" : ""} ${numeric ? "text-right" : ""} disabled:opacity-60`
+          ? `min-w-0 flex-1 bg-transparent px-3 py-2 outline-none ${numeric ? "text-right" : ""}`
+          : `${fieldClass} w-full ${mono ? "font-mono" : ""} ${numeric ? "text-right" : ""} disabled:opacity-60`
       }
     />
   );
   const field = suffix ? (
-    <span className="flex min-w-0 flex-1 items-center rounded border border-border bg-background focus-within:border-accent">
+    <span className="flex min-w-0 flex-1 items-center rounded-lg border border-border bg-background/60 transition-[border-color,box-shadow] focus-within:border-accent focus-within:ring-3 focus-within:ring-accent/20">
       {input}
-      <span className="pr-3 text-muted">{suffix}</span>
+      {/* An empty field shows its placeholder alone, such as "No rule", without the unit after it. */}
+      {(value !== "" || !placeholder) && <span className="pr-3 text-muted">{suffix}</span>}
     </span>
   ) : (
     input

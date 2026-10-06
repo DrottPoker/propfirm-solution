@@ -31,6 +31,7 @@ interface MenuItem {
 }
 
 interface MenuGroup {
+  key: string;
   /** Groups without a label are shown without a heading. */
   label: string | null;
   items: MenuItem[];
@@ -91,8 +92,9 @@ export function PriceMenu({
       : { label: kind === "stopLoss" ? "Stop loss" : "Take profit", onSelect: () => requestField(kind, price) };
   const title = `At ${formatPrice(price, digits)}`;
   const groups: MenuGroup[] = [
-    { label: null, items: [{ label: "Reset chart", detail: { text: "Alt+R", tone: "muted" }, onSelect: onResetChart }] },
+    { key: "view", label: null, items: [{ label: "Reset chart", detail: { text: "Alt+R", tone: "muted" }, onSelect: onResetChart }] },
     {
+      key: "order",
       label: "New order",
       items: [
         ...(ghost === "entry" ? [{ label: "Remove order price", onSelect: () => requestField("entry", null) }] : []),
@@ -110,10 +112,11 @@ export function PriceMenu({
       continue;
     }
 
-    const label = `${position.side} ${formatVolume(position.volume)} · ${position.positionId.slice(0, 8)}`;
+    const label = `${position.side} ${formatVolume(position.volume)} at ${formatPrice(position.openPrice, digits)}`;
     const onLine = line?.positionId === position.positionId ? line.kind : null;
     if (onLine) {
       groups.push({
+        key: position.positionId,
         label,
         items: [
           {
@@ -133,6 +136,7 @@ export function PriceMenu({
     const current = kind === "stopLoss" ? position.stopLoss : position.takeProfit;
     const amount = pointValue ? estimatedProfit(position.side, position.volume, position.openPrice, price, digits, pointValue.perLot) : null;
     groups.push({
+      key: position.positionId,
       label,
       items: [
         {
@@ -171,13 +175,14 @@ export function PriceMenu({
       style={{
         left: placement.x,
         top: placement.y,
-        transform: `translate(${placement.flipX ? "-100%" : "0"}, ${placement.flipY ? "-100%" : "0"})`,
+        translate: `${placement.flipX ? "-100%" : "0"} ${placement.flipY ? "-100%" : "0"}`,
+        transformOrigin: `${placement.flipX ? "right" : "left"} ${placement.flipY ? "bottom" : "top"}`,
       }}
-      className="absolute z-30 min-w-60 rounded-lg border border-border bg-panel p-1 text-sm shadow-2xl shadow-black/50"
+      className="absolute z-30 min-w-60 animate-pop rounded-xl border border-border bg-panel p-1 text-sm shadow-float"
     >
       {groups.map((group, index) => (
         <div
-          key={group.label ?? "view"}
+          key={group.key}
           role="group"
           aria-label={group.label ?? "Chart"}
           className={index > 0 ? "border-t border-border py-1" : "py-1"}
@@ -193,7 +198,7 @@ export function PriceMenu({
                 onClose();
                 item.onSelect();
               }}
-              className="flex w-full items-center justify-between gap-6 rounded-md px-2.5 py-1.5 text-left hover:bg-raised focus:bg-raised focus:outline-none"
+              className="flex w-full items-center justify-between gap-6 rounded-md px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-raised focus:bg-raised focus:outline-none"
             >
               <span>{item.label}</span>
               {item.detail && (

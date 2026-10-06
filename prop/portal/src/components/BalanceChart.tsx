@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { BalanceChangeKind, Performance } from "@/lib/api/types";
-import { balanceDomain, levelAt, linearScale, nearestIndex, niceTicks, stepPath, timeAxis } from "@/lib/chart";
+import { balanceDomain, levelAt, linearScale, nearestIndex, niceTicks, stepPath, timeAxis, type ChartLine, type LinePlace } from "@/lib/chart";
 import { formatAxisMoney, formatDateTime, formatMoney, formatSignedMoney } from "@/lib/format";
 import { useElementWidth } from "@/lib/useElementWidth";
 
@@ -56,15 +56,15 @@ export function BalanceChart({
     const end = Math.max(endTime, balance.at(-1)?.time ?? endTime);
     const start = Math.min(first, end - 60_000);
     const points = equity == null ? balance : [...balance, { time: end, value: equity, change: floating, kind: "Now" as const }];
-    const { domain, maxLossShown } = balanceDomain({
+    const { domain, places } = balanceDomain({
       balances: balance.map((b) => b.value),
       equity,
       target: performance.profitTarget,
       daily: daily.map((d) => d.level),
       maxLoss: maxLoss.map((m) => m.level),
-      minSpan: performance.initialBalance * 0.02,
+      minSpan: performance.initialBalance * 0.01,
     });
-    return { balance, points, daily, maxLoss, first, start, end, domain, maxLossShown };
+    return { balance, points, daily, maxLoss, first, start, end, domain, places };
   }, [performance, equity, floating, endTime]);
 
   // Until the first trade the balance is only where the stage started, which is no line to draw.
@@ -138,7 +138,7 @@ export function BalanceChart({
             {yTicks.map((tick) => (
               <g key={tick}>
                 <line x1={margin.left} x2={right} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeWidth={1} />
-                <text x={right + 8} y={y(tick)} dy="0.32em" className="fill-muted font-mono text-[11px] tabular-nums">
+                <text x={right + 8} y={y(tick)} dy="0.32em" className="fill-muted text-[11px] tabular-nums">
                   {formatAxisMoney(tick)}
                 </text>
               </g>
@@ -156,8 +156,10 @@ export function BalanceChart({
             ))}
 
             <path d={`${line}V${bottom}H${x(model.first)}Z`} className="fill-accent/10" />
-            {target != null && <line x1={margin.left} x2={right} y1={y(target)} y2={y(target)} className="stroke-profit" strokeWidth={1.5} strokeDasharray="6 4" />}
-            {model.daily.length > 0 && (
+            {target != null && model.places.target === "shown" && (
+              <line x1={margin.left} x2={right} y1={y(target)} y2={y(target)} className="stroke-profit" strokeWidth={1.5} strokeDasharray="6 4" />
+            )}
+            {model.daily.length > 0 && model.places.daily === "shown" && (
               <path
                 d={stepPath(model.daily.map((d) => ({ x: x(Math.max(d.time, model.start)), y: y(d.level) })), x(model.end))}
                 fill="none"
@@ -166,7 +168,7 @@ export function BalanceChart({
                 strokeDasharray="3 3"
               />
             )}
-            {model.maxLossShown && (
+            {model.places.maxLoss === "shown" && (
               <path
                 d={stepPath(model.maxLoss.map((d) => ({ x: x(Math.max(d.time, model.start)), y: y(d.level) })), x(model.end))}
                 fill="none"
@@ -188,6 +190,15 @@ export function BalanceChart({
           </svg>
         )}
 
+        <EdgeTags
+          lines={[
+            { line: "target", label: "Profit target", level: target },
+            { line: "daily", label: "Daily loss limit", level: lastDaily },
+            { line: "maxLoss", label: "Max loss limit", level: lastMaxLoss },
+          ]}
+          places={model.places}
+        />
+
         {current && (
           <div
             role="status"
@@ -195,10 +206,10 @@ export function BalanceChart({
             style={{ left: Math.min(Math.max(x(current.time) + 12, 0), Math.max(width - 232, 0)) }}
           >
             <span className="text-muted">{formatDateTime(new Date(current.time).toISOString(), timeZone)}</span>
-            <span className="font-mono text-sm font-medium">{formatMoney(current.value)}</span>
+            <span className="text-sm font-medium">{formatMoney(current.value)}</span>
             <span className="text-muted">
               {pointText(current)}
-              {current.change != null && current.kind !== "Created" && <span className="font-mono"> {formatSignedMoney(current.change)}</span>}
+              {current.change != null && current.kind !== "Created" && <span> {formatSignedMoney(current.change)}</span>}
               {current.kind === "Now" && current.change != null && " in open positions"}
             </span>
             {dailyAtCurrent != null && <span className="text-muted">Daily loss limit {formatMoney(dailyAtCurrent)}</span>}
@@ -209,17 +220,22 @@ export function BalanceChart({
       <figcaption className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted">
         <Key kind="line">Balance after each change</Key>
         {equity != null && <Key kind="dot">Equity now {formatMoney(equity)}</Key>}
-        {target != null && <Key kind="target">Profit target {formatMoney(target)}</Key>}
+        {target != null && (
+          <Key kind={model.places.target === "shown" ? "target" : "none"}>
+            Profit target {formatMoney(target)}
+            {placeText[model.places.target]}
+          </Key>
+        )}
         {lastDaily != null && (
-          <Key kind="daily">
+          <Key kind={model.places.daily === "shown" ? "daily" : "none"}>
             Daily loss limit {formatMoney(lastDaily)}
-            {model.daily.length > 1 && ", moves each day"}
+            {model.places.daily === "shown" ? model.daily.length > 1 && ", moves each day" : placeText[model.places.daily]}
           </Key>
         )}
         {lastMaxLoss != null && (
-          <Key kind={model.maxLossShown ? "max" : "none"}>
+          <Key kind={model.places.maxLoss === "shown" ? "max" : "none"}>
             Max loss limit {formatMoney(lastMaxLoss)}
-            {!model.maxLossShown && ", below the chart"}
+            {placeText[model.places.maxLoss]}
           </Key>
         )}
       </figcaption>
@@ -249,8 +265,8 @@ export function BalanceChart({
                 <tr key={`${point.time}-${i}`} className="border-t border-border">
                   <td className="py-1.5 text-muted">{formatDateTime(new Date(point.time).toISOString(), timeZone)}</td>
                   <td className="py-1.5 pl-4">{pointText(point)}</td>
-                  <td className="py-1.5 pl-4 text-right font-mono tabular-nums">{point.kind === "Created" ? "" : formatSignedMoney(point.change)}</td>
-                  <td className="py-1.5 pl-4 text-right font-mono tabular-nums">{formatMoney(point.value)}</td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums">{point.kind === "Created" ? "" : formatSignedMoney(point.change)}</td>
+                  <td className="py-1.5 pl-4 text-right tabular-nums">{formatMoney(point.value)}</td>
                 </tr>
               ))}
             </tbody>
@@ -258,6 +274,36 @@ export function BalanceChart({
         </div>
       </details>
     </figure>
+  );
+}
+
+const placeText: Record<LinePlace, string> = { shown: "", above: ", above the chart", below: ", below the chart" };
+
+const tagTones: Record<ChartLine, string> = { target: "text-profit", daily: "text-warning", maxLoss: "text-loss" };
+
+/** The lines too far from the balance to draw, named at the chart's top or bottom edge with an arrow. */
+function EdgeTags({ lines, places }: { lines: { line: ChartLine; label: string; level: number | null }[]; places: Record<ChartLine, LinePlace> }) {
+  const tags = lines.filter((l) => l.level != null && places[l.line] !== "shown");
+  const edge = (where: "above" | "below") => tags.filter((t) => places[t.line] === where);
+  return (
+    <>
+      {(["above", "below"] as const).map((where) =>
+        edge(where).length === 0 ? null : (
+          <div
+            key={where}
+            aria-hidden="true"
+            className="pointer-events-none absolute flex flex-wrap gap-1.5"
+            style={{ left: margin.left + 6, ...(where === "above" ? { top: margin.top + 4 } : { bottom: margin.bottom + 6 }) }}
+          >
+            {edge(where).map((tag) => (
+              <span key={tag.line} className={`rounded-full border border-border bg-panel/90 px-2 py-0.5 text-[11px] ${tagTones[tag.line]}`}>
+                {where === "above" ? "↑" : "↓"} {tag.label} {formatMoney(tag.level)}
+              </span>
+            ))}
+          </div>
+        ),
+      )}
+    </>
   );
 }
 

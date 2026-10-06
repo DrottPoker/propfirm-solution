@@ -81,7 +81,7 @@ function Application({ firm }: { firm: OpsFirm }) {
               {owners.map((owner, i) => (
                 <tr key={i} className="border-t border-border">
                   <td className="py-2.5">{owner.name ?? "-"}</td>
-                  <td className="py-2.5 text-right font-mono tabular-nums">{owner.sharePercent === null ? "-" : `${formatMoney(owner.sharePercent)} %`}</td>
+                  <td className="py-2.5 text-right tabular-nums">{owner.sharePercent === null ? "-" : `${formatMoney(owner.sharePercent)} %`}</td>
                 </tr>
               ))}
             </tbody>
@@ -161,7 +161,7 @@ function SandboxUse({ firm }: { firm: OpsFirm }) {
         {tiles.map((tile) => (
           <div key={tile.label} className="flex flex-col gap-0.5 rounded-md bg-background px-3.5 py-3">
             <dt className="text-xs text-muted">{tile.label}</dt>
-            <dd className="font-mono text-lg tabular-nums">{tile.value}</dd>
+            <dd className="text-lg tabular-nums">{tile.value}</dd>
           </div>
         ))}
       </dl>
@@ -233,7 +233,7 @@ function Checks({ firm }: { firm: OpsFirm }) {
       );
   };
   return (
-    <Panel title="Our checks" actions={<span className="font-mono text-xs text-muted">{`${done} of ${firm.checks.length} done`}</span>}>
+    <Panel title="Our checks" actions={<span className="text-xs text-muted">{`${done} of ${firm.checks.length} done`}</span>}>
       <ul className="flex flex-col">
         {firm.checks.map((item) => {
           const text = reviewChecks[item.item];

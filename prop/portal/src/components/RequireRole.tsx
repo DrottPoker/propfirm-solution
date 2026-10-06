@@ -9,7 +9,7 @@ import { useMe, type Role } from "@/lib/queries";
 import { AdminShell } from "./AdminShell";
 import { passwordPaths } from "./PasswordReset";
 import { PortalHeader } from "./PortalHeader";
-import { Message } from "./ui";
+import { Loading, Message } from "./ui";
 
 /**
  * Shows the page to someone logged in with the role, and sends others to the role's login, which returns to the page.
@@ -31,7 +31,7 @@ export function RequireRole({ role, children }: { role: Role; children: React.Re
   }
 
   if (!me.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return role === "admin" ? (

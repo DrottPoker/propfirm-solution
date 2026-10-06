@@ -9,7 +9,7 @@ import { cardLabel, chargeLabel, chargeStatusLabels, monthlyPrices, monthName } 
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { useOpsBilling } from "@/lib/opsQueries";
 
-import { AdminPage, Badge, FilterTabs, Message, PageHeader, Panel, StatTile } from "./ui";
+import { AdminPage, Badge, FilterTabs, Loading, Message, PageHeader, Panel, StatTile } from "./ui";
 
 type View = "unpaid" | "next" | "paid";
 
@@ -22,7 +22,7 @@ export function OpsBilling() {
   }
 
   if (!billing.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = billing.data;
@@ -104,9 +104,9 @@ function Unpaid({ charges }: { charges: OpsCharge[] }) {
           </td>
           <td className="px-4 py-3">
             {chargeLabel(charge)}
-            <span className="block font-mono text-xs text-muted">#{charge.number}</span>
+            <span className="block text-xs text-muted">#{charge.number}</span>
           </td>
-          <td className="px-4 py-3 text-right font-mono tabular-nums">
+          <td className="px-4 py-3 text-right tabular-nums">
             {formatMoney(charge.amount)} {charge.currency}
           </td>
           <td className="px-4 py-3">
@@ -150,8 +150,8 @@ function NextMonthRows({ billing }: { billing: OpsBillingOverview }) {
           <td className="px-4 py-3">
             <FirmLink id={firm.firmId} name={firm.firmName} />
           </td>
-          <td className="px-4 py-3 font-mono tabular-nums">{firm.slots}</td>
-          <td className="px-4 py-3 text-right font-mono tabular-nums">
+          <td className="px-4 py-3 tabular-nums">{firm.slots}</td>
+          <td className="px-4 py-3 text-right tabular-nums">
             {formatMoney(firm.amount)} {currency}
           </td>
           <td className="px-4 py-3">
@@ -184,9 +184,9 @@ function Paid({ charges }: { charges: OpsCharge[] }) {
           </td>
           <td className="px-4 py-3">
             {chargeLabel(charge)}
-            <span className="block font-mono text-xs text-muted">#{charge.number}</span>
+            <span className="block text-xs text-muted">#{charge.number}</span>
           </td>
-          <td className="px-4 py-3 text-right font-mono tabular-nums">
+          <td className="px-4 py-3 text-right tabular-nums">
             {formatMoney(charge.amount)} {charge.currency}
           </td>
           <td className="px-4 py-3 text-muted">{charge.paidAt ? formatDate(charge.paidAt) : "-"}</td>
@@ -223,14 +223,14 @@ function Prices({ billing }: { billing: OpsBillingOverview }) {
       <dl className="flex flex-col gap-2.5 text-sm">
         <div className="flex justify-between gap-3">
           <dt className="text-muted">Startup fee</dt>
-          <dd className="font-mono tabular-nums">
+          <dd className="tabular-nums">
             {formatMoney(prices.startupFee)} {prices.currency}
           </dd>
         </div>
         {prices.reviewDeposit > 0 && (
           <div className="flex justify-between gap-3">
             <dt className="text-muted">Of it, the deposit at review</dt>
-            <dd className="font-mono tabular-nums">
+            <dd className="tabular-nums">
               {formatMoney(prices.reviewDeposit)} {prices.currency}
             </dd>
           </div>

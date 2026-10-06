@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { acceptInvitation, adminLink, signUp, startChallenge, waitForSandbox } from "./support";
+import { acceptInvitation, adminLink, openSetting, signUp, startChallenge, waitForSandbox } from "./support";
 
 test("a new firm chooses the built-in KYC, and a trader verifies with the test check", async ({ context, page }) => {
   await signUp(page, "Identity E2E Firm", "identity-e2e-firm");
   await waitForSandbox(page);
 
   // Nothing is chosen for the firm, and going live waits until it chooses.
-  await adminLink(page, "KYC").click();
+  await openSetting(page, "KYC");
   await expect(page.getByRole("heading", { name: "Why KYC matters" })).toBeVisible();
   await expect(page.getByText("Choose how your traders are checked. You need it before you go live.")).toBeVisible();
   await expect(page.getByRole("radio", { name: /^Our built-in KYC/ })).not.toBeChecked();

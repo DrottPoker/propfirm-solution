@@ -31,6 +31,7 @@ const settings: FirmSettings = {
   firmApiUrl: "http://localhost:5201/api/firm/v1/",
   openApiUrl: "http://localhost:5201/openapi/v1.json",
   supportEmail: null,
+  shopShowsPayouts: false,
 };
 
 const billing = {

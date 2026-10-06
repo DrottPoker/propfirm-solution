@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { InstrumentInfo } from "./api/types";
-import { categoriesOf, categoryOf, currencySign, initialInstrument, spreadPoints } from "./instruments";
+import { categoriesOf, categoryOf, currencySign, digitsLookup, initialInstrument, spreadPoints } from "./instruments";
 
 function instrument(symbol: string, baseCurrency: string, quoteCurrency: string): InstrumentInfo {
   return {
@@ -31,6 +31,15 @@ describe("categoriesOf", () => {
   it("lists the categories that have instruments in a fixed order", () => {
     expect(categoriesOf([instrument("XAUUSD", "XAU", "USD"), instrument("EURUSD", "EUR", "USD")])).toEqual(["Forex", "Metals"]);
     expect(categoriesOf([instrument("EURUSD", "EUR", "USD")])).toEqual(["Forex"]);
+  });
+});
+
+describe("digitsLookup", () => {
+  it("gives each known symbol its decimals and others 5", () => {
+    const digitsOf = digitsLookup([{ ...instrument("XAUUSD", "XAU", "USD"), digits: 2 }, instrument("EURUSD", "EUR", "USD")]);
+    expect(digitsOf("XAUUSD")).toBe(2);
+    expect(digitsOf("EURUSD")).toBe(5);
+    expect(digitsOf("BTCUSD")).toBe(5);
   });
 });
 

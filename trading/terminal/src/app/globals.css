@@ -1,20 +1,26 @@
 @import "tailwindcss";
+@import "@kronant/design/tokens.css";
 
-/* Dark trading theme. The terminal is our own brand (ADR 0009), so there are no per-firm colors. */
+/*
+ * Kronant's own look (ADR 0047): graphite surfaces, warm off-white text and a brass accent. The terminal is our brand
+ * (ADR 0009), so there are no per-firm colors. Buys and gains are green, sells and losses red.
+ */
 :root {
   color-scheme: dark;
-  --background: #060a12;
-  --panel: #0d1320;
-  --raised: #141c2c;
-  --border: #1d2738;
-  --foreground: #e3e8f0;
-  --muted: #8591a5;
-  --accent: #2f7cf6;
-  --buy: #12b76a;
-  --sell: #ef4444;
-  --profit: #22c55e;
-  --loss: #f04438;
-  --warning: #f59e0b;
+  --background: var(--kronant-background);
+  --panel: var(--kronant-panel);
+  --raised: var(--kronant-raised);
+  --border: var(--kronant-border);
+  --foreground: var(--kronant-foreground);
+  --muted: var(--kronant-muted);
+  --accent: var(--kronant-brass);
+  /* Text on the accent color, such as on a chosen tab. Dark, since brass is light. */
+  --accent-foreground: var(--kronant-brass-foreground);
+  --buy: var(--kronant-profit);
+  --sell: var(--kronant-loss);
+  --profit: var(--kronant-profit);
+  --loss: var(--kronant-loss);
+  --warning: var(--kronant-warning);
 }
 
 @theme inline {
@@ -25,19 +31,50 @@
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
   --color-buy: var(--buy);
   --color-sell: var(--sell);
   --color-profit: var(--profit);
   --color-loss: var(--loss);
   --color-warning: var(--warning);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Text in the grotesk, prices and number columns in the monospace, and the serif only in our wordmark. */
+  --font-sans: var(--font-text);
+  --font-mono: var(--font-code);
+  --font-serif: var(--font-display);
 }
 
+/* Figures line up in columns everywhere, also outside the monospace columns. */
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A fine grain over the background, so the dark page does not look flat. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.035;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/*
+ * Keyboard focus shows as a brass ring, never as the browser's default outline. In the base layer, so a field that
+ * marks focus with its border instead (outline-none) keeps doing so.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
+    outline-offset: 2px;
+  }
 }
 
 * {

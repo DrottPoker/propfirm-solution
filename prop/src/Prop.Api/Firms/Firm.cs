@@ -23,7 +23,8 @@ public enum FirmStatus
 /// <paramref name="Suspension"/> is set while we have suspended the firm. <paramref name="EmailSettings"/> are the
 /// notification emails the firm turned on or off by kind; a kind that is missing is on. <paramref name="AccountCurrency"/>
 /// is the currency of the accounts the firm chose, which its server on the trading platform is created with.
-/// <paramref name="SupportEmail"/> is where replies to the emails to its traders go.
+/// <paramref name="SupportEmail"/> is where replies to the emails to its traders go. <paramref name="ShopShowsPayouts"/> is
+/// whether its shop shows what it paid out lately, which the firm turns on itself.
 /// </summary>
 internal sealed record Firm(
     string Id,
@@ -37,7 +38,8 @@ internal sealed record Firm(
     FirmSuspension? Suspension,
     IReadOnlyDictionary<string, bool>? EmailSettings = null,
     string AccountCurrency = "USD",
-    string? SupportEmail = null);
+    string? SupportEmail = null,
+    bool ShopShowsPayouts = false);
 
 /// <summary>We suspended the firm, for a reason its administrators see (ADR 0021).</summary>
 internal sealed record FirmSuspension(DateTimeOffset At, string Reason);

@@ -10,7 +10,7 @@ import { asksForIdentity, identityStatus, myIdentityText } from "@/lib/identity"
 import { useDecideTestIdentity, useMyIdentity, useStartIdentity } from "@/lib/queries";
 
 import { CheckIcon, ShieldCheckIcon } from "./icons";
-import { Badge, buttonClass, dangerButtonClass, ErrorText, Message, secondaryButtonClass, TraderPage } from "./ui";
+import { Badge, buttonClass, dangerButtonClass, ErrorText, Loading, Message, secondaryButtonClass, TraderPage } from "./ui";
 
 /** The button that starts the check, or opens it again, on the provider's page or the firm's own. */
 function StartButton({ label, className = buttonClass }: { label: string; className?: string }) {
@@ -65,14 +65,14 @@ export function IdentityPage({ returned }: { returned: boolean }) {
   }
 
   if (!identity.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const waiting = returned && (identity.data.status === "Pending" || identity.data.status === "InReview") && !identity.data.verified;
   return (
     <TraderPage narrow>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Your identity</h1>
+        <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">Your identity</h1>
         <p className="text-muted">Who you are, checked once, before you are paid.</p>
       </div>
       {waiting && (
@@ -128,7 +128,7 @@ export function TestIdentityPage({ sessionId }: { sessionId: string | null }) {
   return (
     <main className="mx-auto flex w-full max-w-xl flex-col gap-5 px-4 py-10 sm:px-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Test ID check</h1>
+        <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">Test ID check</h1>
         <p className="text-muted">This is a test: no document is checked and nothing is charged. A real check opens our ID partner&apos;s page instead.</p>
       </div>
       {sessionId ? (

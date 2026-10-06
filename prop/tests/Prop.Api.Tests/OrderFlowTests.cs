@@ -1,5 +1,7 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 
 using Prop.Api.Tests.Support;
@@ -75,11 +77,78 @@ public sealed class OrderFlowTests(PostgresFixture postgres) : IClassFixture<Pos
         using var paid = await trader.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken);
         var order = await paid.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var accounts = await trader.GetFromJsonAsync<JsonElement>(Url("accounts"), TestContext.Current.CancellationToken);
+        var receipt = await factory.Emails.WaitForAsync("anna@test.example", "has started");
 
         Assert.Equal("anna@test.example", order.GetProperty("email").GetString());
         Assert.True(order.GetProperty("canLogIn").GetBoolean());
-        Assert.DoesNotContain(factory.Emails.Sent, e => e.To == "anna@test.example" || e.To == "someone.else@test.example");
         Assert.Equal(["quick-test-100k", Challenge], accounts.EnumerateArray().Select(a => a.GetProperty("account").GetProperty("challengeId").GetString()).Order());
+
+        // The trader can log in, so the email after the purchase has the receipt and a link to the account, but no invitation.
+        Assert.DoesNotContain(factory.Emails.Sent, e => e.To == "someone.else@test.example");
+        Assert.Single(factory.Emails.Sent, e => e.To == "anna@test.example");
+        Assert.DoesNotContain("token=", receipt.Body, StringComparison.Ordinal);
+        Assert.Contains($"/accounts/{order.GetProperty("accountId").GetGuid()}", receipt.Body, StringComparison.Ordinal);
+        Assert.Contains($"Order {order.GetProperty("number").GetInt64()}, paid ", receipt.Body, StringComparison.Ordinal);
+        Assert.Contains("Total paid: 9.00 USD", receipt.Body, StringComparison.Ordinal);
+    }
+
+    // The buyer gets the receipt in the email after paying, with the rules and how to get started, and as a PDF.
+    [Fact]
+    public async Task TheBuyerGetsTheReceiptByEmailAndAsAPdf()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        using var admin = await OpenTestShopAsync(factory, "acme");
+        using var code = await admin.PostAsJsonAsync(Url("admin/discounts"), new { code = "SAVE10", percentOff = 10m }, TestContext.Current.CancellationToken);
+        using var buyer = factory.CreatePortalClient(PropFactory.HostOf("acme"));
+        using var ordered = await buyer.PostAsJsonAsync(
+            Url("orders"),
+            new { challengeId = Challenge, email = "maja@test.example", acceptTerms = true, name = "Maja Lind", country = "SE", discountCode = "SAVE10" },
+            TestContext.Current.CancellationToken);
+        var created = await ordered.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        var orderId = created.GetProperty("orderId").GetGuid();
+        var token = TokenIn(created.GetProperty("checkoutUrl").GetString()!);
+
+        using var unpaid = await buyer.GetAsync(Url($"orders/{orderId}/receipt.pdf?token={token}"), TestContext.Current.CancellationToken);
+        (await buyer.PostAsJsonAsync(Url($"orders/{orderId}/test-payment"), new { token }, TestContext.Current.CancellationToken)).Dispose();
+        var paidOn = factory.Time.GetUtcNow().ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+        var email = factory.Emails.Sent.Single(e => e.To == "maja@test.example");
+        using var pdf = await buyer.GetAsync(Url($"orders/{orderId}/receipt.pdf?token={token}"), TestContext.Current.CancellationToken);
+        var pdfText = Encoding.Latin1.GetString(await pdf.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken));
+        using var wrongToken = await buyer.GetAsync(Url($"orders/{orderId}/receipt.pdf?token=not-the-token"), TestContext.Current.CancellationToken);
+        using var unknown = await buyer.GetAsync(Url($"orders/{Guid.CreateVersion7()}/receipt.pdf?token={token}"), TestContext.Current.CancellationToken);
+
+        Assert.Equal((HttpStatusCode.Created, HttpStatusCode.Created), (code.StatusCode, ordered.StatusCode));
+        Assert.Equal(HttpStatusCode.Conflict, unpaid.StatusCode);
+        Assert.Equal("The order is not paid, so it has no receipt yet.", await TitleOfAsync(unpaid));
+        foreach (var line in new[]
+        {
+            "http://acme.localhost:3002/invite?token=",
+            "How to get started",
+            "Phase 1 profit target: 10% (10,000.00 USD)",
+            "Daily loss limit: 5% (5,000.00 USD)",
+            "Profit split: 80% to you",
+            $"Order 1001, paid {paidOn}.",
+            "Two-step 100K: 99.00 USD\nDiscount, code SAVE10: -9.90 USD\nTotal paid: 89.10 USD\nPaid with: Test payment, no money was taken",
+            "You get this email because you bought a challenge from Firm acme.",
+        })
+        {
+            Assert.Contains(line, email.Body, StringComparison.Ordinal);
+        }
+
+        Assert.DoesNotContain("VAT", email.Body, StringComparison.Ordinal);
+        Assert.Contains(">89.10 USD</td>", email.Html, StringComparison.Ordinal);
+
+        Assert.Equal(HttpStatusCode.OK, pdf.StatusCode);
+        Assert.Equal("application/pdf", pdf.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("Receipt for Order 1001.pdf", pdf.Content.Headers.ContentDisposition?.FileNameStar);
+        Assert.Equal((true, true), (pdf.Headers.CacheControl?.Private, pdf.Headers.CacheControl?.NoStore));
+        Assert.StartsWith("%PDF-1.4", pdfText, StringComparison.Ordinal);
+        foreach (var expected in new[] { "(Receipt)", "(Firm acme)", "(Order 1001)", $"({paidOn})", "(Maja Lind)", "(Two-step 100K)", "(-9.90)", "(89.10 USD)", "(Test payment, no money was taken)" })
+        {
+            Assert.Contains(expected, pdfText, StringComparison.Ordinal);
+        }
+
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound), (wrongToken.StatusCode, unknown.StatusCode));
     }
 
     [Fact]

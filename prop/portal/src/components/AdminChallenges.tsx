@@ -8,8 +8,10 @@ import type { ChallengeDefinition, ChallengeFigures, ChallengePrice } from "@/li
 import { formatMoney } from "@/lib/format";
 import { priceCurrencies } from "@/lib/orders";
 import { useChallengeFigures, useChallenges, useFirmSettings, usePrices, useSavePrice } from "@/lib/queries";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { PlusIcon } from "./icons";
+import { PhaseJourney } from "./PhaseJourney";
 import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, Message, PageHeader, secondaryButtonClass } from "./ui";
 
 /** What the firm sells: each challenge with its stages, its price in the portal and how it is doing. */
@@ -66,51 +68,47 @@ function ChallengeCard({ challenge, price, figures }: { challenge: ChallengeDefi
   const first = challenge.evaluation[0] ?? challenge.funded;
   const timeLimits = challenge.evaluation.map((s) => s.maxDays).filter((d) => d != null);
   return (
-    <li className={`flex flex-col gap-4 rounded-lg border p-5 ${forSale ? "border-border bg-panel" : "border-dashed border-border"}`}>
+    <li
+      className={`flex flex-col gap-5 rounded-xl border p-5 transition duration-200 ease-out-soft hover:-translate-y-0.5 ${forSale ? "border-border bg-panel shadow-card hover:shadow-raised" : "border-dashed border-border bg-panel/40"}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="font-semibold">{challenge.name}</h2>
+          <h2 className="text-lg font-semibold tracking-tight">{challenge.name}</h2>
           <span className="text-sm text-muted">
-            <span className="font-mono">{challenge.id}</span> · {formatMoney(challenge.initialBalance)} {challenge.currency} account
+            {formatMoney(challenge.initialBalance)} {challenge.currency} account
           </span>
         </div>
         <Badge tone={forSale ? "profit" : "muted"}>{forSale ? "For sale" : price ? "Not for sale" : "No price"}</Badge>
       </div>
-      <ol aria-label="Stages" className="flex flex-wrap items-center gap-1.5 text-xs">
-        {challenge.evaluation.length === 0 && <li className="rounded-full border border-border px-2.5 py-1 text-muted">No evaluation</li>}
-        {challenge.evaluation.map((stage) => (
-          <li key={stage.name} className="flex items-center gap-1.5">
-            <span className="rounded-full border border-border px-2.5 py-1">
-              {stage.name} · {stage.profitTargetPercent}% target
-            </span>
-            <span aria-hidden="true" className="text-muted">
-              ›
-            </span>
-          </li>
-        ))}
-        <li className="rounded-full border border-profit/40 px-2.5 py-1 text-profit">
-          {challenge.funded.name} · {challenge.funded.profitSplitPercent}% split
-        </li>
-      </ol>
-      <p className="text-sm text-muted">
-        Daily loss {first.dailyLoss.percent}% · max loss {first.maxLoss.percent}% {first.maxLoss.kind.toLowerCase()}
-        {challenge.evaluation.length > 0 && first.minTradingDays > 0 && ` · at least ${first.minTradingDays} trading days a phase`}
-        {challenge.evaluation.length === 0 ? " · funded from the start" : timeLimits.length > 0 ? ` · a time limit of ${timeLimits.join(" and ")} days` : " · no time limit"}
-        {challenge.inactivityDays != null && ` · ends after ${challenge.inactivityDays} days without a trade`}
-      </p>
+      <PhaseJourney challenge={challenge} />
+      <ul aria-label="Rules" className="flex flex-wrap gap-1.5 text-xs">
+        {[
+          `Daily loss ${first.dailyLoss.percent}%`,
+          `Max loss ${first.maxLoss.percent}% ${first.maxLoss.kind === "Trailing" ? "trailing" : "fixed"}`,
+          challenge.evaluation.length > 0 && first.minTradingDays > 0 ? `${first.minTradingDays} trading days a phase` : null,
+          challenge.evaluation.length === 0 ? "Funded from the start" : timeLimits.length > 0 ? `Time limit ${timeLimits.join(" and ")} days` : "No time limit",
+          challenge.inactivityDays != null ? `Ends after ${challenge.inactivityDays} days without a trade` : null,
+        ]
+          .filter((rule): rule is string => rule !== null)
+          .map((rule) => (
+            <li key={rule} className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-muted">
+              {rule}
+            </li>
+          ))}
+      </ul>
       {figures && (
         <dl className="grid grid-cols-3 gap-3 border-t border-border pt-4 text-xs">
           <div className="flex flex-col gap-0.5">
             <dt className="text-muted">Trading now</dt>
-            <dd className="font-mono text-base">{figures.trading}</dd>
+            <dd className="text-base">{figures.trading}</dd>
           </div>
           <div className="flex flex-col gap-0.5">
             <dt className="text-muted">Started, 30 days</dt>
-            <dd className="font-mono text-base">{figures.startedLast30Days}</dd>
+            <dd className="text-base">{figures.startedLast30Days}</dd>
           </div>
           <div className="flex flex-col gap-0.5">
             <dt className="text-muted">Pass rate, 90 days</dt>
-            <dd className="font-mono text-base">{passRateText(figures.passRate)}</dd>
+            <dd className="text-base">{passRateText(figures.passRate)}</dd>
           </div>
         </dl>
       )}
@@ -131,8 +129,23 @@ function ChallengeCard({ challenge, price, figures }: { challenge: ChallengeDefi
  * The challenge's price in the shop and whether it is for sale, set on the card. A challenge without a price cannot be
  * for sale, but the firm can still start it for a trader.
  */
-export function PriceControl({ challenge, price }: { challenge: ChallengeDefinition; price?: ChallengePrice }) {
+/**
+ * A challenge's price, its currency and whether it is for sale. In the guide, the guide's Next button submits it by its
+ * form id, and then a changed price is saved before the guide goes on, and an unchanged or empty one goes on at once.
+ */
+export function PriceControl({
+  challenge,
+  price,
+  formId,
+  onDone,
+}: {
+  challenge: ChallengeDefinition;
+  price?: ChallengePrice;
+  formId?: string;
+  onDone?: () => void;
+}) {
   const save = useSavePrice();
+  useSavedNote(save);
   const defaultCurrency = priceCurrencies.some((c) => c === challenge.currency) ? challenge.currency : "USD";
   const [amount, setAmount] = useState(price ? String(price.amount) : "");
   const [currency, setCurrency] = useState(price?.currency ?? defaultCurrency);
@@ -154,17 +167,22 @@ export function PriceControl({ challenge, price }: { challenge: ChallengeDefinit
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (onDone && (!changed || (!hasPrice && !price))) {
+      onDone();
+      return;
+    }
+
     if (!(Number.isFinite(value) && value > 0)) {
       setProblem("Write the price as a number, for example 99 or 89.50.");
       return;
     }
 
     setProblem(null);
-    save.mutate({ challengeId: challenge.id, amount: value, currency, forSale });
+    save.mutate({ challengeId: challenge.id, amount: value, currency, forSale }, { onSuccess: () => onDone?.() });
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 border-t border-border pt-4 text-sm">
+    <form id={formId} onSubmit={submit} className="flex flex-col gap-2 border-t border-border pt-4 text-sm">
       <div className="flex flex-wrap items-center gap-3">
         <span className="flex gap-2">
           <input
@@ -179,7 +197,7 @@ export function PriceControl({ challenge, price }: { challenge: ChallengeDefinit
               }
             }}
             placeholder="Price"
-            className={`${fieldClass} w-28 py-1.5 text-right font-mono`}
+            className={`${fieldClass} w-28 py-1.5 text-right`}
           />
           <select aria-label={`Price currency of ${challenge.name}`} value={currency} onChange={(e) => setCurrency(e.target.value)} className={`${fieldClass} py-1.5`}>
             {priceCurrencies.map((c) => (
@@ -193,15 +211,13 @@ export function PriceControl({ challenge, price }: { challenge: ChallengeDefinit
           <input type="checkbox" checked={forSale} disabled={!hasPrice} onChange={(e) => setForSale(e.target.checked)} className="size-4 accent-accent" />
           For sale in your shop
         </label>
-        <button type="submit" disabled={!changed || !hasPrice || save.isPending} className={`${buttonClass} ml-auto py-1.5 text-sm`}>
-          {save.isPending ? "Saving..." : "Save price"}
-        </button>
+        {!onDone && (
+          <button type="submit" disabled={!changed || !hasPrice || save.isPending} className={`${buttonClass} ml-auto py-1.5 text-sm`}>
+            {save.isPending ? "Saving..." : "Save price"}
+          </button>
+        )}
+        {onDone && save.isPending && <span className="ml-auto text-muted">Saving...</span>}
       </div>
-      {save.isSuccess && !changed && (
-        <p role="status" className="text-xs text-profit">
-          Saved.
-        </p>
-      )}
       <ErrorText error={problem ? new Error(problem) : save.error} />
     </form>
   );

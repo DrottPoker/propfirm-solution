@@ -13,7 +13,7 @@ import { PayoutMethodPanel } from "./PayoutMethodPanel";
 import { IdentityPanel } from "./TraderIdentity";
 import { PayoutSteps } from "./PayoutPanel";
 import { PayoutBadge } from "./Payouts";
-import { Message, TraderPage } from "./ui";
+import { Loading, Message, TraderPage } from "./ui";
 
 /** Every payout from the trader's funded accounts, with what is paid, on its way and ready to ask for. */
 export function TraderPayouts() {
@@ -26,7 +26,7 @@ export function TraderPayouts() {
   }
 
   if (!payouts.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const { totals } = payouts.data;
@@ -34,11 +34,11 @@ export function TraderPayouts() {
   return (
     <TraderPage>
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Payouts</h1>
+        <h1 className="font-serif text-[2.35rem] leading-[1.05] tracking-tight">Payouts</h1>
         <p className="text-muted">Every payout from your funded accounts. {branding.name} sends the money and marks it as paid here.</p>
       </div>
 
-      <PayoutMethodPanel />
+      <PayoutMethodPanel funded={(accounts.data ?? []).some((a) => a.account.funded)} />
       <IdentityPanel />
 
       {totals.length > 0 && (
@@ -87,8 +87,8 @@ export function TraderPayouts() {
                       #{payout.accountNumber}
                     </Link>
                   </td>
-                  <td className="px-5 py-3 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-right font-mono tabular-nums">
+                  <td className="px-5 py-3 text-right tabular-nums">{formatMoney(payout.profit)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums">
                     {formatMoney(payout.amount)} {payout.currency}
                     <span className="block font-sans text-xs text-muted">{payout.profitSplitPercent}% of the profit</span>
                   </td>
@@ -116,19 +116,19 @@ function Totals({ total, readyOn }: { total: PayoutTotal; readyOn: { id: string;
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <div className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-4">
         <dt className="text-xs text-muted">Paid to you</dt>
-        <dd className="font-mono text-xl font-medium">
+        <dd className="text-xl font-medium">
           {formatMoney(total.paid)} <span className="text-sm text-muted">{total.currency}</span>
         </dd>
       </div>
       <div className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-4">
         <dt className="text-xs text-muted">On its way</dt>
-        <dd className="font-mono text-xl font-medium">
+        <dd className="text-xl font-medium">
           {formatMoney(total.onTheWay)} <span className="text-sm text-muted">{total.currency}</span>
         </dd>
       </div>
       <div className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-4">
         <dt className="text-xs text-muted">Ready to ask for</dt>
-        <dd className={`font-mono text-xl font-medium ${total.readyToRequest > 0 ? "text-profit" : ""}`}>
+        <dd className={`text-xl font-medium ${total.readyToRequest > 0 ? "text-profit" : ""}`}>
           {formatMoney(total.readyToRequest)} <span className="text-sm text-muted">{total.currency}</span>
         </dd>
         {readyOn.length > 0 && (

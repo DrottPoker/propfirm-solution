@@ -194,6 +194,7 @@ builder.Services.AddSingleton<OpsFirms>();
 builder.Services.AddSingleton<OpsFigures>();
 builder.Services.AddSingleton<SupportStore>();
 builder.Services.AddSingleton<SupportService>();
+builder.Services.AddSingleton<SavedReplyStore>();
 builder.Services.AddSingleton<IdentityStore>();
 builder.Services.AddSingleton<IdentityService>();
 builder.Services.AddSingleton<DiditChecker>();

@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 
+import { initials } from "@/lib/dashboard";
 import { formatDateTime } from "@/lib/format";
 import { useAdmins, useInviteAdmin, useRemoveAdmin, useWithdrawAdminInvite } from "@/lib/queries";
+import { lastLoginText } from "@/lib/team";
 
 import { ConfirmDialog } from "./Dialog";
-import { AdminPage, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
+import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
 
-/** The firm's administrators: who they are, invitations that wait, sent again or taken back, and removal. */
+/** The firm's administrators: who they are, when they last logged in, invitations that wait, sent again or taken back, and removal. */
 export function AdminTeam() {
   const admins = useAdmins();
   const remove = useRemoveAdmin();
@@ -25,10 +27,26 @@ export function AdminTeam() {
         <ErrorText error={admins.error ?? resend.error ?? withdraw.error} />
         <ul className="flex flex-col">
           {(admins.data?.admins ?? []).map((admin) => (
-            <li key={admin.id} className="flex flex-wrap items-center gap-3 border-t border-border py-2 text-sm first:border-t-0">
-              <span className="font-medium">{admin.email}</span>
-              {admin.isYou && <span className="rounded bg-accent/20 px-2 py-0.5 text-xs text-accent">You</span>}
-              <span className="text-muted">since {formatDateTime(admin.createdAt)}</span>
+            <li key={admin.id} className="flex flex-wrap items-center gap-3 border-t border-border py-3 text-sm first:border-t-0">
+              <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full border border-border bg-raised text-xs font-semibold">
+                {initials(admin.email)}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="flex items-center gap-2 font-medium">
+                  {admin.email}
+                  {admin.isYou && <Badge tone="accent">You</Badge>}
+                </span>
+                <span className="text-xs text-muted">
+                  Administrator since {formatDateTime(admin.createdAt)} ·{" "}
+                  {admin.lastLoginAt ? (
+                    <time dateTime={admin.lastLoginAt} title={formatDateTime(admin.lastLoginAt)}>
+                      {lastLoginText(admin.lastLoginAt, admins.dataUpdatedAt)}
+                    </time>
+                  ) : (
+                    lastLoginText(null, admins.dataUpdatedAt)
+                  )}
+                </span>
+              </span>
               {!admin.isYou && (
                 <button type="button" onClick={() => setRemoving({ id: admin.id, email: admin.email })} className="ml-auto text-muted hover:text-loss">
                   Remove

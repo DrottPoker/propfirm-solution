@@ -1,8 +1,10 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
+import { useState } from "react";
 
-import { formatTotals, namedWaitingAccounts, needsYouItems, passRateText, salesAndPayouts, type NeedsYouIcon, type NeedsYouItem } from "@/lib/admin";
+import { formatTotals, fourWeekChange, namedWaitingAccounts, needsYouItems, passRateText, salesAndPayouts, weeklySeries, type NeedsYouIcon, type NeedsYouItem } from "@/lib/admin";
 import type { AdminOverview, Billing, FirmSettings } from "@/lib/api/types";
 import { chargeAmountText, monthName, monthlyPrices } from "@/lib/billing";
 import { formatDate, formatMoney } from "@/lib/format";
@@ -12,7 +14,7 @@ import { useAdminOverview, useBilling, useChallenges, useFirmSettings, useFirmSu
 import { ActivityList, toneMarks } from "./ActivityList";
 import { AlertIcon, BagIcon, CheckIcon, ExternalIcon, LockIcon, PayoutIcon, ShieldCheckIcon, SupportIcon } from "./icons";
 import { StartChallengeButton } from "./StartChallenge";
-import { AdminPage, buttonClass, Message, PageHeader, Panel, ProgressBar, secondaryButtonClass, StatTile } from "./ui";
+import { AdminPage, buttonClass, Loading, Message, PageHeader, Panel, ProgressRing, secondaryButtonClass, Sparkline, StatTile } from "./ui";
 import { WeeklyChart } from "./WeeklyChart";
 
 /**
@@ -26,7 +28,7 @@ export function AdminHome() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   if (settings.data.status === "Provisioning") {
@@ -57,7 +59,7 @@ function LiveOverview({ settings }: { settings: FirmSettings }) {
   }
 
   if (!overview.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = overview.data;
@@ -116,58 +118,81 @@ const needsYouIcons: Record<NeedsYouIcon, (props: { className?: string }) => Rea
 /** What the firm has to do, the most urgent first, each with a way to do it. */
 function NeedsYou({ items }: { items: NeedsYouItem[] }) {
   return (
-    <section aria-labelledby="needs-you" className="flex flex-col rounded-lg border border-border bg-panel">
+    <section aria-labelledby="needs-you" className="flex flex-col rounded-xl border border-border bg-panel shadow-card">
       <div className="flex items-center gap-2.5 px-5 py-4">
         <h2 id="needs-you" className="font-semibold">
           Needs you
         </h2>
-        <span className="rounded-full bg-background px-2 font-mono text-xs text-muted">{items.length}</span>
+        <span className={`rounded-full px-2 text-xs font-medium ${items.length > 0 ? "bg-accent text-accent-foreground" : "bg-background text-muted"}`}>{items.length}</span>
       </div>
       {items.length === 0 ? (
         <p className="flex items-center gap-2.5 border-t border-border px-5 py-4 text-sm text-muted">
-          <CheckIcon className="size-4 text-profit" />
+          <span className="grid size-6 place-items-center rounded-full bg-profit/15 text-profit">
+            <CheckIcon className="size-3.5" />
+          </span>
           Nothing needs you right now.
         </p>
       ) : (
-        <ul>
-          {items.map((item, index) => {
-            const Icon = needsYouIcons[item.icon];
-            return (
-              <li key={item.key} className="flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-border px-5 py-3.5">
-                <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-lg ${toneMarks[item.tone]}`}>
-                  <Icon className="size-[18px]" />
-                </span>
-                <span className="flex min-w-0 flex-[1_1_20rem] flex-col gap-0.5">
-                  <strong className="font-semibold">{item.title}</strong>
-                  <span className="text-sm text-muted">{item.detail}</span>
-                </span>
-                <Link href={item.href} className={index === 0 ? buttonClass : secondaryButtonClass}>
-                  {item.action}
-                </Link>
-              </li>
-            );
-          })}
+        <ul className="stagger">
+          <AnimatePresence initial={false}>
+            {items.map((item, index) => {
+              const Icon = needsYouIcons[item.icon];
+              return (
+                <motion.li
+                  key={item.key}
+                  layout="position"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, x: 32, height: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.35 } }}
+                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-3 overflow-hidden border-t border-border px-5 py-3.5 transition-colors hover:bg-raised/40"
+                >
+                  <span aria-hidden="true" className={`grid size-9 shrink-0 place-items-center rounded-lg ${toneMarks[item.tone]}`}>
+                    <Icon className="size-[18px]" />
+                  </span>
+                  <span className="flex min-w-0 flex-[1_1_20rem] flex-col gap-0.5">
+                    <strong className="font-semibold">{item.title}</strong>
+                    <span className="text-sm text-muted">{item.detail}</span>
+                  </span>
+                  <Link href={item.href} className={index === 0 ? buttonClass : secondaryButtonClass}>
+                    {item.action}
+                  </Link>
+                </motion.li>
+              );
+            })}
+          </AnimatePresence>
         </ul>
       )}
     </section>
   );
 }
 
-/** The firm in four figures: what trades now, what it sold, what it paid out and how many pass. */
+/**
+ * The firm in four figures: what trades now, what it sold, what it paid out and how many pass. Sales and payouts have
+ * their curve over the weeks beside them, and how the last four weeks compare with the four before once there are eight.
+ */
 function Figures({ overview, currency, sells }: { overview: AdminOverview; currency: string; sells: boolean }) {
   const { accounts, payouts, sales, passRate } = overview;
+  const salesWeeks = weeklySeries(overview.weeks, "sales", currency);
+  const payoutWeeks = weeklySeries(overview.weeks, "payouts", currency);
   return (
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <StatTile label="Trading now" value={String(accounts.evaluation + accounts.funded)} note={`${accounts.evaluation} in evaluation · ${accounts.funded} funded`} />
       <StatTile
         label="Sales, last 30 days"
         value={formatTotals(sales.totals, currency)}
-        note={sales.orders > 0 || sells ? `${sales.orders} ${sales.orders === 1 ? "challenge" : "challenges"} bought in your portal` : "Your portal does not sell yet"}
+        note={
+          <TrendNote change={fourWeekChange(salesWeeks)}>
+            {sales.orders > 0 || sells ? `${sales.orders} ${sales.orders === 1 ? "challenge" : "challenges"} bought in your portal` : "Your portal does not sell yet"}
+          </TrendNote>
+        }
+        aside={salesWeeks.some((v) => v > 0) ? <Sparkline values={salesWeeks} /> : undefined}
       />
       <StatTile
         label="Payouts, last 30 days"
         value={formatTotals(payouts.paidLast30Days.totals, currency)}
         note={`${payouts.paidLast30Days.count} paid · ${formatTotals([...payouts.toApprove.totals, ...payouts.toPay.totals].reduce(sumByCurrency, []), currency)} waiting`}
+        aside={payoutWeeks.some((v) => v > 0) ? <Sparkline values={payoutWeeks} tone="profit" /> : undefined}
       />
       <StatTile
         label="Pass rate, last 90 days"
@@ -175,6 +200,21 @@ function Figures({ overview, currency, sells }: { overview: AdminOverview; curre
         note={passRate.ended === 0 ? "No evaluation has ended yet" : `${passRate.passed} of ${passRate.ended} ended evaluations reached funded`}
       />
     </dl>
+  );
+}
+
+/** A figure's note, with how the last four weeks compare with the four before when that is known. */
+function TrendNote({ change, children }: { change: number | null; children: React.ReactNode }) {
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5">
+      {change !== null && (
+        <span className={`rounded-full px-1.5 font-medium ${change >= 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
+          {change >= 0 ? "+" : ""}
+          {Math.round(change * 100)}% <span className="sr-only">compared with the four weeks before</span>
+        </span>
+      )}
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -198,7 +238,7 @@ function SlotsCard({ billing }: { billing: Billing }) {
       }
     >
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-2xl font-medium tabular-nums">{taken}</span>
+        <span className="text-2xl font-medium tabular-nums">{taken}</span>
         <span className="text-muted">{slots.slots === null ? (taken === 1 ? "open challenge, no limit" : "open challenges, no limit") : `of ${slots.slots} taken`}</span>
       </div>
       {slots.slots !== null && <SlotBreakdown slots={slots} usedLabel="Open challenges" />}
@@ -243,7 +283,7 @@ function SlotRow({ label, value, mark }: { label: string; value: number; mark: s
     <li className="flex items-center gap-2">
       <span aria-hidden="true" className={`size-2 rounded-sm ${mark}`} />
       <span className="flex-1">{label}</span>
-      <span className="font-mono tabular-nums">{value}</span>
+      <span className="tabular-nums">{value}</span>
     </li>
   );
 }
@@ -264,13 +304,16 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
   const billing = useBilling();
   const overview = useAdminOverview();
   const identity = useIdentitySettings();
+  const waiting = useWaitingAccounts(namedWaitingAccounts);
+  const support = useFirmSupportSummary();
+  const [showDone, setShowDone] = useState(false);
   const error = challenges.error ?? prices.error ?? billing.error ?? overview.error ?? identity.error;
   if (error) {
     return <Message text={error.message} />;
   }
 
   if (!challenges.data || !prices.data || !billing.data || !overview.data || !identity.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const steps = goLiveSteps({
@@ -282,6 +325,17 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
     identity: identity.data.readiness,
   });
   const done = steps.filter((s) => s.status === "done").length;
+  const items = needsYouItems({
+    payouts: overview.data.payouts,
+    waitingAccounts: waiting.data?.accounts ?? [],
+    waitingCount: waiting.data?.counts.awaitingFunding ?? 0,
+    challengeName: (id) => challenges.data.find((c) => c.id === id)?.name ?? id,
+    slots: billing.data.slots,
+    currency: settings.currency ?? "USD",
+    now: overview.dataUpdatedAt,
+    support: support.data ?? null,
+  });
+  const shown = steps.map((step, index) => ({ step, number: index + 1 })).filter(({ step }) => showDone || step.status !== "done");
   return (
     <AdminPage>
       <PageHeader
@@ -296,24 +350,30 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
           </div>
         }
       />
+      {items.length > 0 && <NeedsYou items={items} />}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-        <section aria-labelledby="steps" className="flex flex-col rounded-lg border border-border bg-panel">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4">
-            <h2 id="steps" className="font-semibold">
-              Steps to live
-            </h2>
-            <div className="flex min-w-48 flex-1 items-center gap-3">
-              <div className="flex-1">
-                <ProgressBar value={(done / steps.length) * 100} label={`${done} of ${steps.length} steps done`} />
-              </div>
-              <span className="font-mono text-sm text-muted">
-                {done} of {steps.length} done
+        <section aria-labelledby="steps" className="flex flex-col rounded-xl border border-border bg-panel shadow-card">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-5 py-4">
+            <ProgressRing value={(done / steps.length) * 100} label={`${done} of ${steps.length} steps done`} size={52}>
+              {done}/{steps.length}
+            </ProgressRing>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <h2 id="steps" className="font-semibold">
+                Steps to live
+              </h2>
+              <span className="text-sm text-muted">
+                {done} of {steps.length} done{done < steps.length ? ". The next one is at the top." : "."}
               </span>
             </div>
+            {done > 0 && (
+              <button type="button" aria-expanded={showDone} onClick={() => setShowDone(!showDone)} className="text-sm text-accent hover:underline">
+                {showDone ? "Hide the done steps" : `Show ${done} done`}
+              </button>
+            )}
           </div>
-          <ol>
-            {steps.map((step, index) => (
-              <StepRow key={step.key} step={step} number={index + 1} />
+          <ol className="stagger">
+            {shown.map(({ step, number }) => (
+              <StepRow key={step.key} step={step} number={number} />
             ))}
           </ol>
         </section>

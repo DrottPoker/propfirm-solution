@@ -24,7 +24,7 @@ import {
 import { DropZone } from "./DropZone";
 import { FirmLogo } from "./FirmLogo";
 import { AlertIcon, CheckIcon } from "./icons";
-import { AdminPage, buttonClass, ErrorText, Message, PageHeader, Panel, secondaryButtonClass, SegmentedControl } from "./ui";
+import { AdminPage, buttonClass, ErrorText, Loading, Message, PageHeader, Panel, secondaryButtonClass, SegmentedControl } from "./ui";
 
 const colorText: Record<ThemeColor, { label: string; hint: string }> = {
   accent: { label: "Brand color", hint: "Buttons, links and highlights" },
@@ -40,7 +40,54 @@ const colorText: Record<ThemeColor, { label: string; hint: string }> = {
 };
 
 /** Brand colors that white button text is easy to read on. */
-export const brandSwatches = ["#2563eb", "#7c3aed", "#0f766e", "#15803d", "#c2410c", "#be123c"];
+const brandSwatches = [
+  { color: "#2563eb", name: "Blue" },
+  { color: "#7c3aed", name: "Violet" },
+  { color: "#0f766e", name: "Teal" },
+  { color: "#15803d", name: "Green" },
+  { color: "#c2410c", name: "Orange" },
+  { color: "#be123c", name: "Rose" },
+];
+
+/** The brand colors to choose from, each with its name, and the chosen one's name and code under them. */
+export function BrandSwatches({
+  value,
+  onChoose,
+  disabled = false,
+  children,
+}: {
+  value: string;
+  onChoose: (color: string) => void;
+  disabled?: boolean;
+  /** More to choose with after the colors, such as a color picker. */
+  children?: React.ReactNode;
+}) {
+  const chosen = brandSwatches.find((s) => s.color === value.toLowerCase());
+  return (
+    <div className="flex flex-col gap-2">
+      <div role="group" aria-label="Brand colors" className="flex flex-wrap items-center gap-2.5">
+        {brandSwatches.map((swatch) => (
+          <button
+            key={swatch.color}
+            type="button"
+            title={swatch.name}
+            aria-label={`Brand color ${swatch.name}`}
+            aria-pressed={chosen === swatch}
+            disabled={disabled}
+            onClick={() => onChoose(swatch.color)}
+            className={`size-9 rounded-full border-2 p-0.5 transition-transform duration-200 ease-out-soft hover:scale-110 ${chosen === swatch ? "border-foreground" : "border-transparent"}`}
+          >
+            <span className="block size-full rounded-full" style={{ background: swatch.color }} />
+          </button>
+        ))}
+        {children}
+      </div>
+      <span className="text-xs text-muted">
+        {chosen ? chosen.name : "Your own color"} · <span className="font-mono">{value}</span>
+      </span>
+    </div>
+  );
+}
 
 /** Automatic is the easier to read of white and dark, worked out for each brand color. */
 const buttonTexts: { label: string; value: string | null }[] = [
@@ -60,7 +107,7 @@ export function PortalDesign() {
   }
 
   if (!settings.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return <Design key={JSON.stringify(settings.data.colors)} settings={settings.data} />;
@@ -160,24 +207,12 @@ function Design({ settings }: { settings: FirmSettings }) {
           </Panel>
 
           <Panel title="Brand color">
-            <div role="group" aria-label="Brand colors" className="flex flex-wrap items-center gap-2.5">
-              {brandSwatches.map((swatch) => (
-                <button
-                  key={swatch}
-                  type="button"
-                  aria-label={`Brand color ${swatch}`}
-                  aria-pressed={effective("accent").toLowerCase() === swatch}
-                  onClick={() => setBrandColor(swatch)}
-                  className={`size-9 rounded-full border-2 p-0.5 ${effective("accent").toLowerCase() === swatch ? "border-foreground" : "border-transparent"}`}
-                >
-                  <span className="block size-full rounded-full" style={{ background: swatch }} />
-                </button>
-              ))}
+            <BrandSwatches value={effective("accent")} onChoose={setBrandColor}>
               <label className="flex h-9 cursor-pointer items-center gap-2 rounded-full border border-dashed border-border px-3 text-sm text-muted hover:text-foreground">
                 <input type="color" aria-label="Other brand color" value={effective("accent")} onChange={(e) => setBrandColor(e.target.value)} className="size-5 cursor-pointer rounded border-0 bg-transparent p-0" />
                 Other
               </label>
-            </div>
+            </BrandSwatches>
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">Text on buttons</span>
               <div role="group" aria-label="Text on buttons" className="flex gap-0.5 self-start rounded-md border border-border p-0.5 text-sm">
@@ -305,25 +340,55 @@ export function Logo({ settings, hardToSee, colorsWait = true }: { settings: Fir
 
   return (
     <Panel title="Logo">
-      {settings.logoUrl && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background p-3">
+      {settings.logoUrl ? (
+        <FileTarget
+          busy={upload.isPending}
+          onFile={(file) => upload.mutate(file, { onSuccess: () => router.refresh() })}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-background p-4"
+        >
           <FirmLogo src={settings.logoUrl} alt="Your logo" className="h-10 max-w-[12rem]" />
-          <button type="button" disabled={remove.isPending} onClick={() => remove.mutate(undefined, { onSuccess: () => router.refresh() })} className="text-sm text-muted hover:text-loss">
-            {remove.isPending ? "Removing..." : "Remove"}
-          </button>
-        </div>
+          <span className="flex items-center gap-2">
+            <label className={`${secondaryButtonClass} cursor-pointer text-sm has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent`}>
+              {upload.isPending ? "Uploading..." : "Replace"}
+              <input
+                type="file"
+                aria-label="Logo file"
+                accept={logoTypes}
+                disabled={upload.isPending}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    upload.mutate(file, { onSuccess: () => router.refresh() });
+                  }
+
+                  e.target.value = "";
+                }}
+                className="sr-only"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(undefined, { onSuccess: () => router.refresh() })}
+              className={`${secondaryButtonClass} text-sm hover:text-loss`}
+            >
+              {remove.isPending ? "Removing..." : "Remove"}
+            </button>
+          </span>
+        </FileTarget>
+      ) : (
+        <DropZone
+          label="Logo file"
+          title="Drop your logo here, or "
+          hint="PNG, JPEG, WebP or SVG, at most 1 MB. About 40 px high in the portal."
+          accept={logoTypes}
+          busy={upload.isPending}
+          onFile={(file) => upload.mutate(file, { onSuccess: () => router.refresh() })}
+        />
       )}
-      <DropZone
-        label="Logo file"
-        title={settings.logoUrl ? "Drop a new logo here, or " : "Drop your logo here, or "}
-        hint="PNG, JPEG, WebP or SVG, at most 1 MB. About 40 px high in the portal."
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-        busy={upload.isPending}
-        onFile={(file) => upload.mutate(file, { onSuccess: () => router.refresh() })}
-      />
       <p className="text-xs text-muted">
         {settings.logoUrl
-          ? `Saved as soon as it is uploaded, and your traders see it at once.${colorsWait ? " The colors wait for Save design." : ""}`
+          ? `Saved as soon as it is uploaded, and your traders see it at once. Drop a new file on it to replace it.${colorsWait ? " The colors wait for Save design." : ""}`
           : "Without a logo, your firm's name is shown. A logo is saved as soon as it is uploaded."}
       </p>
       {hardToSee && (
@@ -334,6 +399,33 @@ export function Logo({ settings, hardToSee, colorsWait = true }: { settings: Fir
       )}
       <ErrorText error={upload.error ?? remove.error} />
     </Panel>
+  );
+}
+
+const logoTypes = "image/png,image/jpeg,image/webp,image/svg+xml";
+
+// The logo's box, which a new file can also be dropped on.
+function FileTarget({ busy, onFile, className, children }: { busy: boolean; onFile: (file: File) => void; className: string; children: React.ReactNode }) {
+  const [dragging, setDragging] = useState(false);
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file && !busy) {
+          onFile(file);
+        }
+      }}
+      className={`${className} transition-colors ${dragging ? "border-accent bg-accent/5" : ""}`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -372,7 +464,7 @@ function Preview({ colors, settings }: { colors: ThemeColors; settings: FirmSett
           <PreviewCard
             name="One-step 50K"
             number="#1005 · 50,000.00 USD"
-            stage="Evaluation"
+            stage="Phase 1"
             equity="48,230.40"
             result="-1,769.60"
             resultTone="text-loss"
@@ -413,8 +505,8 @@ function PreviewCard(props: {
         <span className="self-start rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium">{props.stage}</span>
       </div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-lg font-medium">{props.equity}</span>
-        <span className={`font-mono ${props.resultTone}`}>{props.result}</span>
+        <span className="text-lg font-medium">{props.equity}</span>
+        <span className={`${props.resultTone}`}>{props.result}</span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-border">
         <div className="h-full rounded-full bg-profit" style={{ width: `${props.progress}%` }} />
@@ -422,11 +514,11 @@ function PreviewCard(props: {
       <div className="flex justify-between gap-2 border-t border-border pt-2.5 text-[11px]">
         <span className="flex flex-col">
           <span className="text-muted">Daily loss limit</span>
-          <span className={`font-mono text-[13px] ${props.dailyTone ?? ""}`}>{props.daily}</span>
+          <span className={`text-[13px] ${props.dailyTone ?? ""}`}>{props.daily}</span>
         </span>
         <span className="flex flex-col items-end">
           <span className="text-muted">Max loss limit</span>
-          <span className={`font-mono text-[13px] ${props.maxTone ?? ""}`}>{props.max}</span>
+          <span className={`text-[13px] ${props.maxTone ?? ""}`}>{props.max}</span>
         </span>
       </div>
       <div className="flex justify-end gap-1.5 text-xs">

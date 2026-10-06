@@ -28,6 +28,7 @@ internal static class ShopEndpoints
         portal.MapPost("/shop/discount", QuoteDiscountAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/orders", CreateOrderAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapGet("/orders/{orderId:guid}", GetBuyerOrderAsync);
+        portal.MapGet("/orders/{orderId:guid}/receipt.pdf", ReceiptAsync);
         portal.MapPost("/orders/{orderId:guid}/invite", ResendInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/orders/{orderId:guid}/password", ChoosePasswordAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/orders/{orderId:guid}/test-payment", PayTestOrderAsync);
@@ -74,7 +75,13 @@ internal static class ShopEndpoints
     private static Uri WebhookUrlOf(Firm firm, PlatformOptions platform) => new(platform.ApiUrl!, $"api/payments/v1/stripe/{firm.Id}");
 
     // A shop whose slots are all taken stops selling, so no buyer pays for a challenge that cannot start.
-    private static async Task<Ok<ShopResponse>> GetShopAsync(HttpContext context, OrderService service, SlotService slots, CancellationToken cancellationToken)
+    private static async Task<Ok<ShopResponse>> GetShopAsync(
+        HttpContext context,
+        OrderService service,
+        SlotService slots,
+        PayoutQueries payouts,
+        TimeProvider time,
+        CancellationToken cancellationToken)
     {
         var firm = PortalFirmFilter.FirmOf(context);
         var items = await service.ShopAsync(firm, cancellationToken);
@@ -85,7 +92,23 @@ internal static class ShopEndpoints
             service.ProviderOf(firm) == PaymentProvider.Test,
             await service.TeamOnlyAsync(firm, cancellationToken),
             firm.Payments.TermsUrl,
-            [.. items.Select(i => new ShopItemResponse(i.Challenge, i.Price.Amount, i.Price.Currency))]));
+            [.. items.Select(i => new ShopItemResponse(i.Challenge, i.Price.Amount, i.Price.Currency))],
+            firm.ShopShowsPayouts ? await ShopPayoutsAsync(firm, payouts, time, cancellationToken) : null));
+    }
+
+    /// <summary>
+    /// What the firm paid out in the last 30 days and how soon, counted as on its overview, so test payouts count only
+    /// while the firm is in the sandbox. Null when it paid none, since a shop says nothing rather than zero.
+    /// </summary>
+    private static async Task<ShopPayoutsResponse?> ShopPayoutsAsync(Firm firm, PayoutQueries payouts, TimeProvider time, CancellationToken cancellationToken)
+    {
+        var summary = await payouts.SummaryAsync(firm.Id, time.GetUtcNow() - AdminPanelEndpoints.RecentWindow, cancellationToken);
+        return summary.Paid.Count == 0
+            ? null
+            : new ShopPayoutsResponse(
+                summary.Paid.Count,
+                MoneyTotalResponse.From(summary.Paid.Totals),
+                summary.AverageTimeToPay is { } average ? Math.Round(average.TotalDays, 1) : null);
     }
 
     /// <summary>
@@ -163,6 +186,36 @@ internal static class ShopEndpoints
             : UnknownOrder();
     }
 
+    /// <summary>
+    /// The paid order's receipt as a PDF, in the firm's name, for whoever has the link to the order. An order that is not
+    /// paid has none yet.
+    /// </summary>
+    private static async Task<Results<FileContentHttpResult, ProblemHttpResult>> ReceiptAsync(
+        Guid orderId,
+        string? token,
+        HttpContext context,
+        OrderService service,
+        OrderStore orders,
+        IOptions<PlatformOptions> platform,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        if (await BuyerOrderAsync(firm, orderId, token, orders, time, cancellationToken) is not { } order)
+        {
+            return UnknownOrder();
+        }
+
+        if (order.Status != OrderStatus.Paid)
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, "The order is not paid, so it has no receipt yet.");
+        }
+
+        var receipt = await service.ReceiptAsync(firm, order, cancellationToken);
+        context.Response.Headers.CacheControl = "private, no-store";
+        return TypedResults.File(ReceiptPdf.Render(receipt, firm, platform.Value.Name), "application/pdf", $"Receipt for {receipt.Title}.pdf");
+    }
+
     /// <summary>Emails the invitation to the portal again, for a buyer who did not get it.</summary>
     private static async Task<Results<Accepted, ProblemHttpResult>> ResendInviteAsync(
         Guid orderId,
@@ -179,7 +232,7 @@ internal static class ShopEndpoints
             return UnknownOrder();
         }
 
-        return await service.SendInviteAsync(firm, order, OrderSources.Buyer, cancellationToken) switch
+        return await service.SendInviteAsync(firm, order, null, OrderSources.Buyer, cancellationToken) switch
         {
             InviteOutcome.Sent => TypedResults.Accepted((string?)null),
             InviteOutcome.NotNeeded => AccountActions.Problem(StatusCodes.Status409Conflict, "You already have a password. Log in with it."),

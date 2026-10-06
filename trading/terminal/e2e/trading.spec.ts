@@ -41,7 +41,7 @@ async function submitLogin(page: Page, email: string, withPassword: string) {
   await page.goto("/login");
   await page.getByRole("button", { name: "I have a password for the terminal" }).click();
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(withPassword);
+  await page.getByLabel("Password", { exact: true }).fill(withPassword);
   await page.getByRole("button", { name: "Log in" }).click();
 }
 
@@ -50,6 +50,9 @@ async function logIn(page: Page, email: string) {
   await submitLogin(page, email, password);
   await expect(page.getByRole("button", { name: "User menu" })).toBeVisible();
 }
+
+/** The note in the corner when a buy of 1 lot of EURUSD fills, for example "Bought 1.00 EURUSD at 1.08724". */
+const boughtNote = /^Bought 1\.00 EURUSD at \d\.\d{5}$/;
 
 /** Log out is in the menu behind the trader's initials. */
 async function logOut(page: Page) {
@@ -72,7 +75,7 @@ test("a firm with a portal has its traders log in there", async ({ page }) => {
 
   const portal = page.getByRole("link", { name: `Log in through ${server.name}` });
   await expect(portal).toHaveAttribute("href", "http://localhost:3002/terminal");
-  await expect(page.getByLabel("Password")).toHaveCount(0);
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
 });
 
 test("a wrong password is refused", async ({ page, request }) => {
@@ -105,10 +108,14 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue(/^\d+\.\d{5}$/);
 
   await buy.click();
-  await expect(page.getByRole("status")).toHaveText("Buy filled.");
+  await expect(page.getByText(boughtNote)).toBeVisible();
   await expect(page.getByRole("tab", { name: "Positions (1)" })).toBeVisible();
+  // The position's id is no column of its own, only a tooltip on the symbol.
+  await expect(page.getByRole("columnheader", { name: "Position" })).toHaveCount(0);
+  await expect(page.getByRole("cell", { name: "EURUSD", exact: true })).toHaveAttribute("title", /^Position [0-9a-f-]{36}$/);
 
   await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByText(/^Buy 1\.00 EURUSD closed at \d\.\d{5}$/)).toBeVisible();
   await expect(page.getByRole("tab", { name: "Positions", exact: true })).toBeVisible();
 
   await page.getByRole("tab", { name: "History" }).click();
@@ -117,6 +124,18 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
   await page.getByRole("tab", { name: "Events" }).click();
   await expect(page.getByText(/^Closed Buy 1\.00 EURUSD/)).toBeVisible();
 
+  // The sound on fills is off until the trader turns it on in the menu, and stays as chosen.
+  await page.getByRole("button", { name: "User menu" }).click();
+  const sound = page.getByRole("switch", { name: "Sound on fills" });
+  await expect(sound).toHaveAttribute("aria-checked", "false");
+  await sound.click();
+  await expect(sound).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.getByRole("button", { name: "User menu" }).click();
+  await expect(page.getByRole("switch", { name: "Sound on fills" })).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+
   await logOut(page);
   await expect(page).toHaveURL(/\/login$/);
 });
@@ -124,7 +143,7 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
 /** The stop loss cell of the only open position: its price and the estimated result there. */
 async function stopLossCell(page: Page) {
   const row = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Close", exact: true }) });
-  const text = (await row.getByRole("cell").nth(6).innerText()).trim();
+  const text = (await row.getByRole("cell").nth(5).innerText()).trim();
   const match = /^(\d+\.\d{5})\s+([+-][\d,]+\.\d{2})$/.exec(text);
   expect(match, `stop loss cell "${text}"`).not.toBeNull();
   return { price: Number(match![1]), amount: Number(match![2].replace(",", "")) };
@@ -163,7 +182,7 @@ test("stops are set as amounts, and the stop loss is dragged on the chart", asyn
   // A refused order keeps what was typed, so it can be corrected. A buy's stop loss must be below the price.
   await page.getByLabel("Stop loss", { exact: true }).fill("9.00000");
   await buy.click();
-  await expect(page.getByRole("status")).toHaveText("Refused: the stop loss is on the wrong side of the price");
+  await expect(page.getByText("Refused: the stop loss is on the wrong side of the price", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue("9.00000");
 
   // 100 USD of loss and 200 USD of profit become prices for each side before the order is sent.
@@ -174,7 +193,7 @@ test("stops are set as amounts, and the stop loss is dragged on the chart", asyn
   await expect(page.getByText(/^TP \d\.\d{5}$/)).toHaveCount(2);
 
   await buy.click();
-  await expect(page.getByRole("status")).toHaveText("Buy filled.");
+  await expect(page.getByText(boughtNote)).toBeVisible();
   // The order panel is cleared for the next order, except the volume.
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("Take profit", { exact: true })).toHaveValue("");
@@ -222,7 +241,7 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   // An open buy gets a stop loss below the price. The menu names the position.
   await page.getByRole("button", { name: "Lower stop loss" }).click();
   await buy.click();
-  await expect(page.getByRole("status")).toHaveText("Buy filled.");
+  await expect(page.getByText(boughtNote)).toBeVisible();
   const before = await stopLossCell(page);
   const line = await findStopLine(page);
   await page.mouse.click(line.x, line.y + 20, { button: "right" });
@@ -234,7 +253,7 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   await page.mouse.click(moved.x, moved.y, { button: "right" });
   await menu.getByRole("group", { name: /^Buy 1\.00/ }).getByRole("menuitem", { name: "Remove stop loss" }).click();
   const positionRow = page.getByRole("row").filter({ has: page.getByRole("button", { name: "Close", exact: true }) });
-  await expect(positionRow.getByRole("cell").nth(6)).toHaveText("-");
+  await expect(positionRow.getByRole("cell").nth(5)).toHaveText("-");
 
   // Reset chart closes the menu like any choice. Escape closes it without one.
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
@@ -244,6 +263,42 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   await expect(menu).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
+});
+
+test("the order ticket says what the order means and remembers the volume per symbol", async ({ page, request }) => {
+  const trader = await createTrader(request, "summary");
+  await setFloor(request, trader.accountId, "daily", 95_000);
+
+  await logIn(page, trader.email);
+  await expect(page.getByRole("button", { name: /^buy/i })).toBeEnabled();
+  const summary = page.getByRole("region", { name: "What this order means" });
+  await expect(summary).toContainText(/Margin\s*[\d,]+\.\d{2} USD/);
+  await expect(summary).toContainText(/Pip value\s*10\.00 USD/);
+  await expect(summary).toContainText("Set a stop loss to see what the order risks.");
+
+  // Half a lot with a stop loss a pip below the bid risks the spread and a pip, a tiny share of the 5,000.00 left.
+  const volume = page.getByLabel("Volume (lots)", { exact: true });
+  await volume.fill("0.50");
+  await expect(summary).toContainText(/Pip value\s*5\.00 USD/);
+  await page.getByRole("button", { name: "Lower stop loss" }).click();
+  await expect(summary).toContainText(/Risks \d+\.\d{2} USD, (under 0\.1|\d\.\d)% of today's room/);
+
+  // Gold starts from the default, and EURUSD from the volume chosen for it, also after a reload.
+  const watchlist = page.getByRole("complementary").filter({ has: page.getByRole("heading", { name: "Watchlist" }) });
+  await watchlist.getByRole("button", { name: "XAUUSD", exact: true }).click();
+  await expect(volume).toHaveValue("1.00");
+  await watchlist.getByRole("button", { name: "EURUSD", exact: true }).click();
+  await expect(volume).toHaveValue("0.50");
+
+  // The volume under the chart can be hidden, and stays hidden.
+  const volumeToggle = page.getByRole("button", { name: "Volume", exact: true });
+  await expect(volumeToggle).toHaveAttribute("aria-pressed", "true");
+  await volumeToggle.click();
+  await expect(volumeToggle).toHaveAttribute("aria-pressed", "false");
+
+  await page.reload();
+  await expect(page.getByLabel("Volume (lots)", { exact: true })).toHaveValue("0.50");
+  await expect(page.getByRole("button", { name: "Volume", exact: true })).toHaveAttribute("aria-pressed", "false");
 });
 
 test("the account is shown as the firm's portal names it, with its target and limits", async ({ page, request }) => {

@@ -133,7 +133,7 @@ function StartChallengeSheet({ onClose }: { onClose: () => void }) {
                   </span>
                 </span>
                 {price && (
-                  <span className="whitespace-nowrap font-mono text-xs text-muted">
+                  <span className="whitespace-nowrap text-xs text-muted">
                     {formatMoney(price.amount)} {price.currency}
                   </span>
                 )}

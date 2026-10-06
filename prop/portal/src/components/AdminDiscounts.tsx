@@ -7,7 +7,8 @@ import { discountStatus, discountText, endOfDay } from "@/lib/discounts";
 import { formatDate } from "@/lib/format";
 import { useChallenges, useCreateDiscount, useDiscountCommand, useDiscounts, usePrices } from "@/lib/queries";
 
-import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
+import { TagIcon } from "./icons";
+import { AdminPage, Badge, buttonClass, EmptyState, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
 
 /** The firm's discount codes for its shop: new codes, how often each was used, and turning them off (ADR 0036). */
 export function AdminDiscounts() {
@@ -29,7 +30,7 @@ export function AdminDiscounts() {
         {discounts.isPending ? (
           <p className="text-sm text-muted">Loading...</p>
         ) : (discounts.data ?? []).length === 0 ? (
-          <p className="text-sm text-muted">No codes yet.</p>
+          <EmptyState icon={<TagIcon className="size-6" />} title="No codes yet" text="Make one above. Buyers type it in your shop, and it can be for a new try after a failed challenge." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[48rem] text-sm">
@@ -99,7 +100,7 @@ function CodeRow({
         {code.forRetries && <span className="block text-xs text-muted">Only for a new try after a failed challenge</span>}
         {code.expiresAt && <span className="block text-xs text-muted">Until {formatDate(code.expiresAt)}</span>}
       </td>
-      <td className="py-2.5 pl-4 text-right font-mono tabular-nums">{code.maxUses == null ? code.uses : `${code.uses} of ${code.maxUses}`}</td>
+      <td className="py-2.5 pl-4 text-right tabular-nums">{code.maxUses == null ? code.uses : `${code.uses} of ${code.maxUses}`}</td>
       <td className="py-2.5 pl-4">
         <Badge tone={status.tone}>{status.label}</Badge>
       </td>
@@ -184,7 +185,7 @@ function NewCode() {
                 inputMode="decimal"
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                className={`${fieldClass} w-24 font-mono`}
+                className={`${fieldClass} w-24`}
               />
               <select aria-label="Kind of discount" value={kind} onChange={(e) => setKind(e.target.value as "percent" | "amount")} className={fieldClass}>
                 <option value="percent">% off</option>
@@ -203,7 +204,7 @@ function NewCode() {
             <span className="text-muted">
               Most uses <span className="text-xs">(optional)</span>
             </span>
-            <input inputMode="numeric" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="No limit" className={`${fieldClass} font-mono`} />
+            <input inputMode="numeric" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="No limit" className={`${fieldClass}`} />
           </label>
         </div>
 

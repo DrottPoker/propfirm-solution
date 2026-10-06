@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { admin, adminLink, logIn, traderPassword } from "./support";
+import { admin, adminLink, logIn, openSetting, traderPassword } from "./support";
 
 // The development firm sells its challenges with test payments (appsettings.Development.json), so a purchase
 // runs the whole way without a payment provider.
@@ -13,9 +13,12 @@ test("a visitor buys a challenge with a test payment, and the firm sees the paid
   await expect(page).toHaveURL(/\/buy$/);
   await expect(page.getByText("Test payments: you pay on a test page, and no money is taken.")).toBeVisible();
 
-  // The challenges are price tables, sizes as columns. The buyer gives the email, name and country.
+  // Each program is a card with its price, and every rule side by side further down. The buyer gives the email, name and
+  // country in a panel from the side.
+  await expect(page.getByRole("heading", { name: "Quick test 100K" })).toBeVisible();
+  await page.getByText("Compare every rule").click();
   await expect(page.getByRole("row", { name: /^Price/ }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Buy Quick test 100K" }).click();
+  await page.getByRole("button", { name: "Buy Quick test 100K", exact: true }).click();
   await page.getByLabel("Your email").fill(buyer);
   await page.getByLabel("Your name").fill("Ann Buyer");
   await page.getByLabel("Country").selectOption("SE");
@@ -62,7 +65,7 @@ test("the firm makes a discount code, and a buyer pays less with it", async ({ p
   // The buyer types the code and sees the price with it before paying.
   const shop = await context.newPage();
   await shop.goto("/buy");
-  await shop.getByRole("button", { name: "Buy Quick test 100K" }).click();
+  await shop.getByRole("button", { name: "Buy Quick test 100K", exact: true }).click();
   await shop.getByLabel("Your email").fill(buyer);
   await shop.getByLabel("Your name").fill("Dee Count");
   await shop.getByLabel("Country").selectOption("SE");
@@ -97,7 +100,7 @@ test("a logged-in trader buys with their own email and goes straight to the new 
   await page.getByRole("main").getByRole("link", { name: "Buy a challenge" }).click();
   await expect(page).toHaveURL(/\/buy$/);
 
-  await page.getByRole("button", { name: "Buy Quick test 100K" }).click();
+  await page.getByRole("button", { name: "Buy Quick test 100K", exact: true }).click();
   await expect(page.getByText("You buy as test@test.com")).toBeVisible();
   await page.getByLabel("Your name").fill("Test Trader");
   await page.getByLabel("Country").selectOption("SE");
@@ -108,4 +111,24 @@ test("a logged-in trader buys with their own email and goes straight to the new 
   await expect(page).toHaveURL(/\/accounts\/[0-9a-f-]+$/);
   await expect(page.getByRole("heading", { name: "Quick test 100K" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Objectives for Phase 1" })).toBeVisible();
+});
+
+// The shop shows what the firm paid out only when the firm turns it on, and then only once it has paid one in the last
+// 30 days, so it says the same as the line the firm sees under Checkout.
+test("the firm chooses to show its payouts in the shop", async ({ page }) => {
+  await logIn(page, "/admin/login", admin.email, admin.password);
+  await openSetting(page, "Checkout");
+  const toggle = page.getByRole("switch", { name: "Show your payouts in the shop" });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByText("Buyers would see")).toBeVisible();
+
+  await toggle.click();
+  await expect(page.getByText("Saved.")).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByText("Buyers see", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Nothing yet\.|paid out to traders in the last 30 days/).first()).toBeVisible();
+  const paidAny = (await page.getByText(/^Nothing yet\./).count()) === 0;
+
+  await page.goto("/buy");
+  await expect(page.getByRole("list", { name: /paid out$/ })).toHaveCount(paidAny ? 1 : 0);
 });

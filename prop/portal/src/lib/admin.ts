@@ -19,7 +19,7 @@ export const groupLabels: Record<AccountGroup, string> = {
 };
 
 /** Where an account is, in a few words for the list of accounts, with its tone. */
-export function accountStatus(account: Account): { label: string; tone: StatusTone } {
+export function accountStatus(account: Pick<Account, "status" | "paused">): { label: string; tone: StatusTone } {
   switch (account.status) {
     case "Failed":
       return { label: "Failed", tone: "loss" };
@@ -35,7 +35,7 @@ export function accountStatus(account: Account): { label: string; tone: StatusTo
 }
 
 /** The stage an account is on, for example "Phase 1" or "Funded". */
-export function stageLabel(account: Account): string {
+export function stageLabel(account: Pick<Account, "status" | "stageName">): string {
   return account.status === "AwaitingFunding" ? "Every stage passed" : account.stageName;
 }
 
@@ -305,4 +305,24 @@ export function shortAmount(value: number): string {
 
 function days(count: number): string {
   return count === 1 ? "1 trading day" : `${count} trading days`;
+}
+
+/** One currency's amounts per week, oldest first, for a small curve such as on a figure's tile. */
+export function weeklySeries(weeks: Week[], pick: "sales" | "payouts", currency: string): number[] {
+  return weeks.map((week) => week[pick].find((t) => t.currency === currency)?.amount ?? 0);
+}
+
+/**
+ * How the last four weeks compare with the four before them, as a share of change, or null when there are not eight
+ * weeks yet or nothing in the four before, which no share can be taken of.
+ */
+export function fourWeekChange(series: number[]): number | null {
+  if (series.length < 8) {
+    return null;
+  }
+
+  const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+  const recent = sum(series.slice(-4));
+  const before = sum(series.slice(-8, -4));
+  return before === 0 ? null : (recent - before) / before;
 }

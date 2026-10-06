@@ -21,9 +21,10 @@ import {
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { useBilling, useBillingQuote, useChangeCard, usePayCharge, useRetryCharge, useSetAutoExpand, useSetSlots, useVerification } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
+import { useSavedNote } from "@/lib/useSavedNote";
 
 import { CompanyDetails } from "./Application";
-import { AdminPage, buttonClass, ErrorText, fieldClass, Message, PageHeader, Panel, secondaryButtonClass, Tabs } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, Loading, Message, PageHeader, Panel, secondaryButtonClass, Tabs } from "./ui";
 
 type BillingTab = "billing" | "company";
 
@@ -49,7 +50,7 @@ export function AdminBilling({ returnedFromCheckout, tab }: { returnedFromChecko
   }
 
   if (!billing.data || sandbox) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   const data = billing.data;
@@ -96,7 +97,7 @@ function ApprovedCompany() {
     return <Message text="Your company details cannot be loaded right now. Try again shortly." />;
   }
 
-  return verification.data ? <CompanyDetails verification={verification.data} /> : <Message text="Loading..." />;
+  return verification.data ? <CompanyDetails verification={verification.data} /> : <Loading />;
 }
 
 /** After a payment page, the provider tells the platform the payment went through. Until then, the page waits. */
@@ -152,16 +153,16 @@ export function ChargeLines({ lines, vat, vatAmount, total, currency }: { lines:
         {lines.map((line) => (
           <tr key={line.description} className="border-t border-border">
             <td className="py-1">{line.description}</td>
-            <td className="py-1 text-right font-mono tabular-nums">{formatMoney(line.amount)}</td>
+            <td className="py-1 text-right tabular-nums">{formatMoney(line.amount)}</td>
           </tr>
         ))}
         <tr className="border-t border-border text-muted">
           <td className="py-1">{vat.treatment === "ReverseCharge" ? "VAT (reverse charge)" : `VAT ${vat.percent}%`}</td>
-          <td className="py-1 text-right font-mono tabular-nums">{formatMoney(vatAmount)}</td>
+          <td className="py-1 text-right tabular-nums">{formatMoney(vatAmount)}</td>
         </tr>
         <tr className="border-t border-border font-medium">
           <td className="py-1">Total</td>
-          <td className="py-1 text-right font-mono tabular-nums">
+          <td className="py-1 text-right tabular-nums">
             {formatMoney(total)} {currency}
           </td>
         </tr>
@@ -194,6 +195,7 @@ export function SlotsUsage({ billing }: { billing: Billing }) {
 /** The slots now and from next month, and the form that changes them. */
 function SlotsPanel({ billing }: { billing: Billing }) {
   const setSlots = useSetSlots();
+  useSavedNote(setSlots);
   const [slots, setValue] = useState(String(billing.nextMonthSlots ?? billing.slots.slots ?? ""));
   const count = wholeNumber(slots);
   const quote = useBillingQuote(useDebounced(count, 300));
@@ -220,7 +222,6 @@ function SlotsPanel({ billing }: { billing: Billing }) {
         <p className="text-xs text-muted">More slots are paid now for the rest of the month. Fewer apply from the next month that is not paid yet.</p>
         <QuoteView quote={quote.data} />
         <ErrorText error={setSlots.error ?? quote.error} />
-        {setSlots.isSuccess && <p className="text-sm text-profit">Saved.</p>}
         <button
           type="submit"
           disabled={!quote.data || quote.data.problem !== null || kind === "Unchanged" || setSlots.isPending}
@@ -239,6 +240,7 @@ function SlotsPanel({ billing }: { billing: Billing }) {
 
 function AutoExpand({ billing }: { billing: Billing }) {
   const save = useSetAutoExpand();
+  useSavedNote(save);
   const [enabled, setEnabled] = useState(billing.autoExpandStep !== null);
   const [step, setStep] = useState(String(billing.autoExpandStep ?? 10));
   const [problem, setProblem] = useState<string | null>(null);
@@ -266,7 +268,6 @@ function AutoExpand({ billing }: { billing: Billing }) {
         </button>
       </form>
       {enabled && expansion && <p className="text-sm text-muted">{expansionText(expansion, billing.prices.currency)}</p>}
-      {save.isSuccess && <p className="text-sm text-profit">Saved.</p>}
       <ErrorText error={problem ? new Error(problem) : save.error} />
     </Panel>
   );
@@ -410,7 +411,7 @@ export function Charges({ charges, title = "Charges" }: { charges: Charge[]; tit
                     #{charge.number} <span className="text-muted">{chargeKindLabels[charge.kind]}</span>
                   </td>
                   <td className="py-2">{chargeLabel(charge)}</td>
-                  <td className="py-2 text-right font-mono whitespace-nowrap tabular-nums">
+                  <td className="py-2 text-right whitespace-nowrap tabular-nums">
                     {formatMoney(charge.amount)} {charge.currency}
                     {charge.vatAmount > 0 && <span className="block font-sans text-xs text-muted">incl. {formatMoney(charge.vatAmount)} VAT</span>}
                   </td>

@@ -1,0 +1,187 @@
+/*
+ * The design tokens both web apps share (ADR 0047): our own brand colors, depth, shapes and motion. Each app imports
+ * this file after Tailwind and maps the colors it uses onto its own theme. A firm's portal keeps the firm's colors; the
+ * Kronant colors are ours, for the platform's pages, our admin view and the terminal.
+ */
+
+:root {
+  /* Kronant: graphite surfaces, warm off-white text and a brass accent. */
+  --kronant-background: #0d0e11;
+  --kronant-panel: #15171b;
+  --kronant-raised: #1c1f25;
+  --kronant-border: #272a31;
+  --kronant-foreground: #ece7df;
+  --kronant-muted: #8f8a81;
+  --kronant-brass: #c9a35b;
+  --kronant-brass-foreground: #15120c;
+  --kronant-profit: #34c38f;
+  --kronant-loss: #ef5a50;
+  --kronant-warning: #f0883e;
+
+  /*
+   * Depth: a faint light edge along the top of a surface, as if lit from above, and soft shadows that grow with
+   * elevation. light-dark() follows the color scheme, so shadows stay gentle on a light theme.
+   */
+  --edge-light: inset 0 1px 0 0 light-dark(rgb(255 255 255 / 0.7), rgb(255 255 255 / 0.045));
+  --shadow-tint: light-dark(rgb(15 23 42 / 0.07), rgb(0 0 0 / 0.42));
+  --shadow-tint-strong: light-dark(rgb(15 23 42 / 0.14), rgb(0 0 0 / 0.6));
+
+  /* A fine grain over large dark surfaces, so they do not look flat and digital. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/*
+ * Motion is short and calm, decelerating into place: 150 ms for small things, 260 ms for most, 480 ms for whole pages.
+ * Depth is a soft shadow that grows with elevation: a card, something raised above it, and something floating over the
+ * page such as a menu or a dialog.
+ */
+@theme {
+  --shadow-card: var(--edge-light), 0 1px 2px var(--shadow-tint), 0 10px 28px -18px var(--shadow-tint-strong);
+  --shadow-raised: var(--edge-light), 0 2px 4px var(--shadow-tint), 0 18px 40px -20px var(--shadow-tint-strong);
+  --shadow-float: var(--edge-light), 0 4px 8px var(--shadow-tint), 0 28px 64px -24px var(--shadow-tint-strong);
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --animate-enter: enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade: fade 260ms ease-out both;
+  --animate-pop: pop 260ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  --animate-grow-x: grow-x 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-pulse-dot: pulse-dot 2s ease-out infinite;
+  --animate-slide-in: slide-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-draw: draw 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-ring-fill: ring-fill 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-flash-up: flash-up 700ms ease-out;
+  --animate-flash-down: flash-down 700ms ease-out;
+}
+
+/* The keyframes, outside @theme so the classes below always have them. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes pulse-dot {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* A panel coming in from the right edge, such as a side sheet. */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
+/* A line drawn from its start, with pathLength="1" and stroke-dasharray="1". */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* A ring filled from empty, with pathLength="100" and stroke-dasharray="100". */
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: 100;
+  }
+}
+
+@keyframes flash-up {
+  from {
+    background-color: color-mix(in oklab, var(--color-profit, #22c55e) 28%, transparent);
+  }
+}
+
+@keyframes flash-down {
+  from {
+    background-color: color-mix(in oklab, var(--color-loss, #ef4444) 28%, transparent);
+  }
+}
+
+/* Children of a .stagger come in one after another. */
+.stagger > * {
+  animation: enter 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger > :nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.stagger > :nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.stagger > :nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.stagger > :nth-child(5) {
+  animation-delay: 160ms;
+}
+
+.stagger > :nth-child(n + 6) {
+  animation-delay: 200ms;
+}
+
+/* A loading placeholder: a soft band of light passing over it. */
+.skeleton {
+  background: linear-gradient(
+      90deg,
+      color-mix(in oklab, currentColor 5%, transparent) 0%,
+      color-mix(in oklab, currentColor 11%, transparent) 50%,
+      color-mix(in oklab, currentColor 5%, transparent) 100%
+    )
+    0 0 / 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* For people who asked their system for less motion, nothing moves or blinks. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

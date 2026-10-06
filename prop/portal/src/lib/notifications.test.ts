@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isOn, notificationKinds } from "./notifications";
+import { isOn, notificationKinds, recipientText } from "./notifications";
 
 describe("the notification emails", () => {
   it("are listed once each, to the team first", () => {
@@ -13,5 +13,10 @@ describe("the notification emails", () => {
     expect(isOn({}, "firmSale")).toBe(true);
     expect(isOn({ firmSale: false }, "firmSale")).toBe(false);
     expect(isOn({ firmSale: true }, "firmSale")).toBe(true);
+  });
+
+  it("say who they go to in their preview", () => {
+    expect(recipientText("Team")).toBe("To each administrator on your team");
+    expect(recipientText("Trader")).toBe("To the trader");
   });
 });

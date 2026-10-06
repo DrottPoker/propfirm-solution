@@ -66,5 +66,23 @@ public sealed class TraderEmailsTests
         Assert.Contains("background:#2563eb;color:#ffffff", email.Html, StringComparison.Ordinal);
         Assert.DoesNotContain("Reply to this email", email.Body, StringComparison.Ordinal);
         Assert.Contains("within 1 hour", email.Body, StringComparison.Ordinal);
+        Assert.EndsWith("You get this email because you trade with Acme <Capital> & Co.\n\nAcme <Capital> & Co", email.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailto:", email.Html, StringComparison.Ordinal);
+    }
+
+    // The footer has the firm's name, its support address and why the trader gets the email, and no stray period.
+    [Fact]
+    public void TheFooterSaysWhoSentTheEmailAndWhy()
+    {
+        var email = TraderEmails.ChallengeStarted(Firm, "Two-step 50K", "anna@test.example", new Uri("https://acme.example/accounts/1"));
+
+        Assert.EndsWith(
+            "Questions? Reply to this email.\n\nYou get this email because Acme <Capital> & Co started a challenge for you.\n\nAcme <Capital> & Co\nsupport@acme.example",
+            email.Body,
+            StringComparison.Ordinal);
+        Assert.Contains("font-weight:600\">Acme &lt;Capital&gt; &amp; Co</p>", email.Html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="mailto:support@acme.example" """, email.Html, StringComparison.Ordinal);
+        Assert.Contains(">You get this email because Acme &lt;Capital&gt; &amp; Co started a challenge for you.</p>", email.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain("&amp; Co.", email.Html, StringComparison.Ordinal);
     }
 }

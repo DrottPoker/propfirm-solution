@@ -1,11 +1,23 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { createContext, useContext, useId, useRef, useState } from "react";
 
 import type { SupportTicket } from "@/lib/api/types";
 import { formatDateTime } from "@/lib/format";
 import { useWriteInTicket } from "@/lib/queries";
-import { acceptedFiles, attachmentUrl, authorName, charactersLeft, filesProblem, isImage, supportLimits, ticketStatus, type SupportViewer, type TicketState } from "@/lib/support";
+import {
+  acceptedFiles,
+  attachmentUrl,
+  authorName,
+  charactersLeft,
+  filesProblem,
+  insertText,
+  isImage,
+  supportLimits,
+  ticketStatus,
+  type SupportViewer,
+  type TicketState,
+} from "@/lib/support";
 import { fileSize } from "@/lib/verification";
 
 import { CloseIcon, FileIcon, PaperclipIcon } from "./icons";
@@ -112,7 +124,7 @@ export function FilePicker({ files, onChange, disabled }: { files: File[]; onCha
   );
 }
 
-/** The message box, its characters left near the limit, and why it cannot be sent. */
+/** The message box, its characters left near the limit, and why it cannot be sent. Tools for the box, if any, stand beside its label. */
 export function MessageField({
   value,
   onChange,
@@ -121,6 +133,8 @@ export function MessageField({
   invalid,
   disabled,
   rows = 5,
+  aside,
+  inputRef,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -129,15 +143,28 @@ export function MessageField({
   invalid?: boolean;
   disabled?: boolean;
   rows?: number;
+  aside?: React.ReactNode;
+  inputRef?: React.Ref<HTMLTextAreaElement>;
 }) {
   const id = useId();
   const left = charactersLeft(value, supportLimits.message);
+  const labelled = (
+    <label htmlFor={id} className="text-muted">
+      {label}
+    </label>
+  );
   return (
     <div className="flex flex-col gap-1 text-sm">
-      <label htmlFor={id} className="text-muted">
-        {label}
-      </label>
+      {aside ? (
+        <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
+          {labelled}
+          {aside}
+        </div>
+      ) : (
+        labelled
+      )}
       <textarea
+        ref={inputRef}
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -152,16 +179,45 @@ export function MessageField({
   );
 }
 
+/** What tools beside the message box get from it: a way to put text in the message at the cursor, and whether it is being sent. */
+export type MessageBox = { insert: (text: string) => void; disabled: boolean };
+
+const MessageBoxContext = createContext<MessageBox | null>(null);
+
+/** The message box that a tool, such as the admin panel's saved replies, stands beside in a MessageForm. */
+export function useMessageBox(): MessageBox {
+  const box = useContext(MessageBoxContext);
+  if (!box) {
+    throw new Error("A tool for the message box is only used in a MessageForm.");
+  }
+
+  return box;
+}
+
 /**
  * Writes in the ticket. The trader's message opens a closed ticket again. An administrator can answer and close the
- * ticket at once, for an answer that solves it.
+ * ticket at once, for an answer that solves it. Tools, such as the admin panel's saved replies, stand beside the box and
+ * reach it with useMessageBox.
  */
-export function MessageForm({ ticket, viewer }: { ticket: SupportTicket; viewer: SupportViewer }) {
+export function MessageForm({ ticket, viewer, tools }: { ticket: SupportTicket; viewer: SupportViewer; tools?: React.ReactNode }) {
   const write = useWriteInTicket(viewer, ticket.id);
+  const box = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const closed = ticket.status === "Closed";
+
+  // The text goes in at the cursor, which then stands after it, so it can be edited before it is sent.
+  const insert = (text: string) => {
+    const field = box.current;
+    const next = insertText(body, text, field?.selectionStart ?? body.length, field?.selectionEnd ?? body.length);
+    setBody(next.value);
+    setProblem(null);
+    requestAnimationFrame(() => {
+      field?.focus();
+      field?.setSelectionRange(next.cursor, next.cursor);
+    });
+  };
 
   const send = (close: boolean) => {
     const filesWrong = filesProblem(files);
@@ -198,6 +254,8 @@ export function MessageForm({ ticket, viewer }: { ticket: SupportTicket; viewer:
         placeholder={viewer === "admin" ? "The trader gets your answer by email, in your firm's name." : undefined}
         invalid={problem !== null && body.trim().length === 0}
         disabled={write.isPending}
+        aside={tools && <MessageBoxContext value={{ insert, disabled: write.isPending }}>{tools}</MessageBoxContext>}
+        inputRef={box}
       />
       <FilePicker files={files} onChange={setFiles} disabled={write.isPending} />
       {problem && (

@@ -117,10 +117,20 @@ function round(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+/** A line in the balance chart besides the balance: the profit target or one of the loss limits. */
+export type ChartLine = "daily" | "target" | "maxLoss";
+
+/** Where a line is: in the chart, or above or below it with only its name at the edge. */
+export type LinePlace = "shown" | "above" | "below";
+
+/** How much taller than the balance's own range the chart may grow to hold a line, before the line is named instead. */
+const lineRoom = 3;
+
 /**
- * The value range of the balance chart. It holds the balance, equity now, the profit target and the daily loss
- * limit. It holds the max loss limit too, unless that would make the range more than 60 % taller and flatten
- * everything else. The limit is then left out of the chart and named below it instead.
+ * The value range of the balance chart. It follows the balance and equity now, so a small move can be seen. The daily
+ * loss limit, the profit target and the max loss limit are held too, in that order, each only while it keeps the range
+ * within three times the balance's own. A line left out is named at the chart's top or bottom edge instead, and comes
+ * into the chart as the balance gets near it.
  */
 export function balanceDomain(input: {
   balances: number[];
@@ -129,17 +139,30 @@ export function balanceDomain(input: {
   daily: number[];
   maxLoss: number[];
   minSpan: number;
-}): { domain: [number, number]; maxLossShown: boolean } {
-  const base = [...input.balances, ...(input.equity == null ? [] : [input.equity]), ...(input.target == null ? [] : [input.target]), ...input.daily];
-  const baseDomain = valueDomain(base, input.minSpan);
-  if (input.maxLoss.length === 0) {
-    return { domain: baseDomain, maxLossShown: false };
+}): { domain: [number, number]; places: Record<ChartLine, LinePlace> } {
+  const held = [...input.balances, ...(input.equity == null ? [] : [input.equity])];
+  const own = valueDomain(held, input.minSpan);
+  const limit = (own[1] - own[0]) * lineRoom;
+  const places: Record<ChartLine, LinePlace> = { daily: "shown", target: "shown", maxLoss: "shown" };
+  const lines: [ChartLine, number[]][] = [
+    ["daily", input.daily],
+    ["target", input.target == null ? [] : [input.target]],
+    ["maxLoss", input.maxLoss],
+  ];
+  for (const [line, levels] of lines) {
+    if (levels.length === 0) {
+      continue;
+    }
+
+    const wider = valueDomain([...held, ...levels], input.minSpan);
+    if (wider[1] - wider[0] <= limit) {
+      held.push(...levels);
+    } else {
+      places[line] = Math.min(...levels) > own[1] ? "above" : "below";
+    }
   }
 
-  const withMaxLoss = valueDomain([...base, ...input.maxLoss], input.minSpan);
-  return withMaxLoss[1] - withMaxLoss[0] <= (baseDomain[1] - baseDomain[0]) * 1.6
-    ? { domain: withMaxLoss, maxLossShown: true }
-    : { domain: baseDomain, maxLossShown: false };
+  return { domain: valueDomain(held, input.minSpan), places };
 }
 
 const minute = 60_000;

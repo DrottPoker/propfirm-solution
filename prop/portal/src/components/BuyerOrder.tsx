@@ -10,9 +10,10 @@ import { formatMoney } from "@/lib/format";
 import { buyerStage } from "@/lib/orders";
 import { useBuyerOrder, useChooseOrderPassword, useResendInvite } from "@/lib/queries";
 
+import { SuccessMark, useConfetti } from "./Celebrate";
 import { FirmName } from "./FirmName";
 import { PasswordFields } from "./PasswordReset";
-import { buttonClass, ErrorText, Message, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, Loading, Message, secondaryButtonClass } from "./ui";
 
 /**
  * The buyer's order, where the payment provider sends the buyer back. It waits for the provider to confirm the
@@ -26,25 +27,62 @@ export function BuyerOrderView({ orderId, token }: { orderId: string; token: str
   }
 
   if (!order.data) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
+  const paid = ["log-in", "choose-password", "invited", "get-invite"].includes(buyerStage(order.data).kind);
   return (
     <main className="flex flex-1 items-center justify-center p-6">
-      <section className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-border bg-panel p-6">
-        <div className="flex flex-col gap-1">
-          <FirmName size="lg" />
-          <h1 className="text-sm text-muted">Order {order.data.number}</h1>
-        </div>
-        <p className="flex flex-wrap justify-between gap-2 text-sm">
-          <span>{order.data.challengeName}</span>
-          <span className="font-mono tabular-nums">
-            {formatMoney(order.data.amount)} {order.data.currency}
-          </span>
-        </p>
+      <section className="stagger flex w-full max-w-lg flex-col gap-5 rounded-2xl border border-border bg-panel p-7 shadow-raised">
+        <FirmName size="lg" />
+        {paid && <Welcome />}
+        <dl className="flex flex-col gap-1.5 rounded-xl border border-border bg-background/40 p-4 text-sm">
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">Order {order.data.number}</dt>
+            <dd>{order.data.challengeName}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-muted">{paid ? "Paid" : "To pay"}</dt>
+            <dd className="font-medium">
+              {formatMoney(order.data.amount)} {order.data.currency}
+            </dd>
+          </div>
+          {paid && (
+            <a href={`/api/portal/orders/${order.data.id}/receipt.pdf?token=${encodeURIComponent(token)}`} className="mt-1 self-start text-accent hover:underline">
+              Download the receipt (PDF)
+            </a>
+          )}
+        </dl>
         <Stage order={order.data} token={token} />
+        {paid && <NextSteps />}
       </section>
     </main>
+  );
+}
+
+// The moment the payment went through: a check drawn in a ring, and a short burst of confetti.
+function Welcome() {
+  useConfetti(true);
+  return (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <SuccessMark />
+      <h1 className="font-serif text-4xl tracking-tight">You&apos;re in.</h1>
+    </div>
+  );
+}
+
+/** What to do now that the challenge has started, in three steps. */
+function NextSteps() {
+  const steps = ["Choose your password, or log in, to open your account.", "Open the terminal from your account. It runs in the browser.", "Place your first trade. Each day you trade counts toward the trading days."];
+  return (
+    <ol aria-label="What happens next" className="flex flex-col gap-2.5 border-t border-border pt-4 text-sm">
+      {steps.map((step, index) => (
+        <li key={step} className="flex items-start gap-3">
+          <span className="grid size-6 shrink-0 place-items-center rounded-full border border-accent/40 bg-accent/10 text-xs font-semibold text-accent">{index + 1}</span>
+          <span className="text-muted">{step}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -55,7 +93,10 @@ function Stage({ order, token }: { order: BuyerOrder; token: string }) {
     case "waiting":
       return (
         <div role="status" className="flex flex-col gap-3 text-sm">
-          <p>Waiting for the payment to be confirmed. This page updates by itself.</p>
+          <p className="flex items-center gap-2.5">
+            <span aria-hidden="true" className="size-2 animate-pulse-dot rounded-full bg-accent text-accent/40" />
+            Waiting for the payment to be confirmed. This page updates by itself.
+          </p>
           {order.checkoutUrl && (
             <a href={order.checkoutUrl} className="text-accent hover:underline">
               Not paid yet? Go to the payment.

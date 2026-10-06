@@ -60,20 +60,19 @@ describe("timeTicks", () => {
 });
 
 describe("balanceDomain", () => {
-  const near = { balances: [100_000, 101_000], equity: 101_200, target: 105_000, daily: [96_000], minSpan: 2_000 };
+  it("follows the balance, and names the lines far from it at the edge", () => {
+    const { domain, places } = balanceDomain({ balances: [100_000, 100_040], equity: 100_090, target: 110_000, daily: [95_000], maxLoss: [90_000], minSpan: 1_000 });
 
-  it("holds the max loss limit when it does not flatten the rest", () => {
-    const { domain, maxLossShown } = balanceDomain({ ...near, maxLoss: [94_000] });
-
-    expect(maxLossShown).toBe(true);
-    expect(domain[0]).toBeLessThan(94_000);
+    expect(places).toEqual({ daily: "below", target: "above", maxLoss: "below" });
+    expect(domain[0]).toBeGreaterThan(99_000);
+    expect(domain[1]).toBeLessThan(101_000);
   });
 
-  it("leaves a far max loss limit out of the chart", () => {
-    const { domain, maxLossShown } = balanceDomain({ ...near, maxLoss: [80_000] });
+  it("holds a line once the balance comes near it", () => {
+    const { domain, places } = balanceDomain({ balances: [100_000, 98_000], equity: 97_600, target: 110_000, daily: [96_500], maxLoss: [90_000], minSpan: 1_000 });
 
-    expect(maxLossShown).toBe(false);
-    expect(domain[0]).toBeGreaterThan(90_000);
+    expect(places).toEqual({ daily: "shown", target: "above", maxLoss: "below" });
+    expect(domain[0]).toBeLessThan(96_500);
   });
 });
 

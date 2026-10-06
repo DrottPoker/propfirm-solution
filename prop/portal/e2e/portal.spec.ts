@@ -63,8 +63,9 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
   expect((await login.json()).accounts).toContain(tradingAccountId);
   await trader.close();
 
-  // The firm cancels the account, and its trading account is closed. The dialog asks first.
-  await page.getByRole("button", { name: "Cancel account" }).click();
+  // The firm cancels the account from the menu of seldom used actions, and its trading account is closed. The dialog asks first.
+  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("menuitem", { name: "Cancel account" }).click();
   await page.getByRole("dialog").getByLabel(/^Reason/).fill("Refunded.");
   await page.getByRole("dialog").getByRole("button", { name: "Cancel account" }).click();
   await expect(page.getByText(/^Cancelled by the firm on /)).toBeVisible();

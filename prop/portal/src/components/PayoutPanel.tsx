@@ -10,6 +10,7 @@ import { payoutNote, payoutStatusLabels } from "@/lib/payouts";
 import { useMyIdentity, useMyPayoutMethod, useRequestPayout } from "@/lib/queries";
 
 import { ConfirmDialog } from "./Dialog";
+import { AnimatedMoney } from "./Live";
 import { PayoutBadge } from "./Payouts";
 import { buttonClass, ErrorText, Panel, StepBar } from "./ui";
 
@@ -33,14 +34,14 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
   const current = payouts.find((p) => inProgress.includes(p.status));
   if (current) {
     return (
-      <section aria-labelledby="payout-heading" className="flex flex-col gap-4 rounded-xl border border-border bg-panel p-6">
+      <section id="payout" aria-labelledby="payout-heading" className="flex scroll-mt-20 flex-col gap-4 rounded-2xl border border-border bg-panel p-6 shadow-card">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h2 id="payout-heading" className="text-sm font-medium text-muted">
               Payout on its way
             </h2>
-            <p className="font-mono text-3xl font-medium">
-              {formatMoney(current.amount)} <span className="text-base text-muted">{current.currency}</span>
+            <p className="text-3xl font-medium">
+              <AnimatedMoney value={current.amount} /> <span className="text-base text-muted">{current.currency}</span>
             </p>
           </div>
           <PayoutBadge status={current.status} />
@@ -54,18 +55,22 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
 
   return (
     <section
+      id="payout"
       aria-labelledby="payout-heading"
-      className={`flex flex-wrap items-center justify-between gap-6 rounded-xl border bg-panel p-6 ${quote.canRequest ? "border-profit/50" : "border-border"}`}
+      className={`relative isolate flex scroll-mt-20 flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border bg-panel p-6 shadow-card ${quote.canRequest ? "border-profit/50" : "border-border"}`}
     >
+      {quote.canRequest && (
+        <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(60%_140%_at_0%_0%,color-mix(in_oklab,var(--profit)_14%,transparent),transparent)]" />
+      )}
       <div className="flex min-w-0 flex-col gap-1.5">
         <h2 id="payout-heading" className={`text-sm font-medium ${quote.canRequest ? "text-profit" : "text-muted"}`}>
           {quote.canRequest ? "Payout ready" : "Next payout"}
         </h2>
-        <p className="font-mono text-3xl font-medium">
-          {formatMoney(quote.amount)} <span className="text-base text-muted">{account.currency}</span>
+        <p className="text-3xl font-medium">
+          <AnimatedMoney value={quote.amount} /> <span className="text-base text-muted">{account.currency}</span>
         </p>
         <p className="text-sm text-muted">
-          Your {quote.profitSplitPercent}% of the profit of <span className="font-mono text-foreground">{formatMoney(quote.profit)}</span>.
+          Your {quote.profitSplitPercent}% of the profit of <span className="text-foreground">{formatMoney(quote.profit)}</span>.
           {quote.minTradingDays > 0 && ` ${quote.tradingDays} of ${quote.minTradingDays} trading days since your last payout.`}
         </p>
         {quote.minTradingDays > 0 && (
@@ -75,7 +80,7 @@ export function PayoutPanel({ details }: { details: AccountDetails }) {
         )}
         {quote.consistencyPercent != null && quote.bestDayProfit != null && (
           <p className="text-sm text-muted">
-            Best day <span className="font-mono text-foreground">{formatMoney(quote.bestDayProfit)}</span>, at most {quote.consistencyPercent}% of the profit.
+            Best day <span className="text-foreground">{formatMoney(quote.bestDayProfit)}</span>, at most {quote.consistencyPercent}% of the profit.
           </p>
         )}
       </div>
@@ -185,8 +190,8 @@ export function PayoutHistory({ payouts }: { payouts: Payout[] }) {
             {payouts.map((payout) => (
               <tr key={payout.id} className="border-t border-border align-top">
                 <td className="whitespace-nowrap py-3 text-muted">{formatDateTime(payout.requestedAt, payout.timeZone)}</td>
-                <td className="py-3 pl-6 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
-                <td className="whitespace-nowrap py-3 pl-6 text-right font-mono tabular-nums">
+                <td className="py-3 pl-6 text-right tabular-nums">{formatMoney(payout.profit)}</td>
+                <td className="whitespace-nowrap py-3 pl-6 text-right tabular-nums">
                   {formatMoney(payout.amount)} {payout.currency}
                 </td>
                 <td className="py-3 pl-6">

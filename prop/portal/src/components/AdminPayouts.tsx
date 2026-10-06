@@ -12,7 +12,8 @@ import { useAdminPayouts, useFirmSettings, usePayoutSummary } from "@/lib/querie
 import { PayoutDecisions } from "./PayoutDecisions";
 import { PayTo } from "./PayTo";
 import { PayoutBadge } from "./Payouts";
-import { AdminPage, ErrorText, FilterTabs, PageHeader, StatTile } from "./ui";
+import { PayoutIcon } from "./icons";
+import { AdminPage, EmptyState, ErrorText, FilterTabs, PageHeader, StatTile } from "./ui";
 
 /** How long a payout may wait for approval before it is shown as late. */
 const lateAfterDays = 2;
@@ -91,7 +92,11 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
         {payouts.isPending ? (
           <p className="px-4 py-6 text-sm text-muted">Loading...</p>
         ) : (payouts.data ?? []).length === 0 ? (
-          <p className="px-4 py-6 text-sm text-muted">{viewId === "to-approve" ? "No payout waits for your approval." : viewId === "to-pay" ? "No approved payout waits to be paid." : "No payouts here."}</p>
+          <EmptyState
+            icon={<PayoutIcon className="size-6" />}
+            title={viewId === "to-approve" ? "No payout waits for your approval" : viewId === "to-pay" ? "No approved payout waits to be paid" : "No payouts here"}
+            text="Funded traders ask for payouts from their accounts in your portal."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[68rem] text-sm">
@@ -135,19 +140,19 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                       <td className="px-4 py-3.5">
                         {payout.email}
                         <span className="block text-xs text-muted">
-                          <Link href={`/admin/accounts/${payout.accountId}`} className="font-mono text-accent hover:underline">
+                          <Link href={`/admin/accounts/${payout.accountId}`} className="text-accent hover:underline">
                             #{payout.accountNumber}
                           </Link>{" "}
                           {challengeName}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3.5 text-right">
-                        <span className="font-mono font-medium tabular-nums">
+                        <span className="font-medium tabular-nums">
                           {formatMoney(payout.amount)} {payout.currency}
                         </span>
                         <span className="block text-xs text-muted">{payout.profitSplitPercent}% of the profit</span>
                       </td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums">{formatMoney(payout.profit)}</td>
+                      <td className="px-4 py-3.5 text-right tabular-nums">{formatMoney(payout.profit)}</td>
                       <td className="max-w-64 px-4 py-3.5">
                         <PayTo method={payout.payTo} />
                         {namesDiffer(identityName, payout.payTo?.accountHolder) && (
@@ -160,7 +165,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
                         ) : (
                           <>
                             {paidBefore === 1 ? "1 payout" : `${paidBefore} payouts`}
-                            <span className="block font-mono text-xs text-muted">
+                            <span className="block text-xs text-muted">
                               {formatMoney(paidBeforeAmount)} {payout.currency}
                             </span>
                           </>

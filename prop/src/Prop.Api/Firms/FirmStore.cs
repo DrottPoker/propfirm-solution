@@ -23,7 +23,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
                f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url,
                f.suspended_at, f.suspension_reason, (select l.sha256 from firm_logos l where l.firm_id = f.id), f.email_settings,
-               f.account_currency, f.support_email
+               f.account_currency, f.support_email, f.shop_shows_payouts
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -193,6 +193,10 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
     public Task SetSupportEmailAsync(string firmId, string? supportEmail, DateTimeOffset now, CancellationToken cancellationToken) =>
         UpdateAsync("support_email = $2", firmId, [Text(supportEmail)], now, cancellationToken);
 
+    /// <summary>Whether the firm's shop shows what the firm paid out lately.</summary>
+    public Task SetShopShowsPayoutsAsync(string firmId, bool show, DateTimeOffset now, CancellationToken cancellationToken) =>
+        UpdateAsync("shop_shows_payouts = $2", firmId, [show], now, cancellationToken);
+
     public Task SetColorsAsync(string firmId, IReadOnlyDictionary<string, string> colors, DateTimeOffset now, CancellationToken cancellationToken) =>
         UpdateAsync("colors = $2", firmId, [Colors(colors)], now, cancellationToken);
 
@@ -333,7 +337,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 reader.IsDBNull(19) ? null : new FirmSuspension(reader.GetFieldValue<DateTimeOffset>(19), reader.GetString(20)),
                 JsonSerializer.Deserialize<Dictionary<string, bool>>(reader.GetString(22)) ?? [],
                 reader.GetString(23),
-                reader.IsDBNull(24) ? null : reader.GetString(24)));
+                reader.IsDBNull(24) ? null : reader.GetString(24),
+                reader.GetBoolean(25)));
         }
 
         return firms;

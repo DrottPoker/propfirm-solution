@@ -106,3 +106,17 @@ export function daysBetween(fromIsoDate: string, toIsoDate: string): number {
 function isPlainDate(iso: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(iso);
 }
+
+/** An amount without cents when it has none, such as "5,000" or "2,500.50", for the shop where round sums read better. */
+export function wholeAmount(value: number): string {
+  return Number.isInteger(value) ? value.toLocaleString("en-US") : formatMoney(value);
+}
+
+/** A price as a buyer reads it, with the currency's sign and without cents when it has none, such as "$349" or "€199.50". */
+export function priceText(price: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: Number.isInteger(price) ? 0 : 2 }).format(price);
+  } catch {
+    return `${formatMoney(price)} ${currency}`;
+  }
+}

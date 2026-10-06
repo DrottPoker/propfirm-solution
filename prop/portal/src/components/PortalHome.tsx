@@ -7,7 +7,7 @@ import { useMe, useShop } from "@/lib/queries";
 
 import { AccountsOverview } from "./AccountsOverview";
 import { RequireRole } from "./RequireRole";
-import { Message } from "./ui";
+import { Loading } from "./ui";
 
 /**
  * The portal's front page: a trader's accounts, and for a visitor the firm's shop, where new traders start. A portal that
@@ -28,7 +28,7 @@ export function PortalHome() {
   }, [visitor, shop.data, shop.isError, router]);
 
   if (visitor || me.isPending) {
-    return <Message text="Loading..." />;
+    return <Loading />;
   }
 
   return (
