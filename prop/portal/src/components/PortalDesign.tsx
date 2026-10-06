@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import type { FirmSettings } from "@/lib/api/types";
-import { imageLuminance, logoHardToSee } from "@/lib/logoContrast";
+import { imageEdges, logoHardToSee } from "@/lib/logoContrast";
 import { useFirmSettings, useRemoveLogo, useSaveColors, useUploadLogo } from "@/lib/queries";
 import {
   contrastRatio,
@@ -76,7 +76,9 @@ function Design({ settings }: { settings: FirmSettings }) {
   const dirty = JSON.stringify(sorted(colors)) !== JSON.stringify(sorted(initial));
   const preset = presetOf(colors);
   const ratio = contrastRatio(effective("accent"), effective("accent-foreground"));
-  const logoLuminance = useLogoLuminance(settings.logoUrl);
+  const logoEdges = useLogoEdges(settings.logoUrl);
+  // The logo stands on the panels, such as the header, in the colors being chosen.
+  const logoHard = logoEdges !== null && logoHardToSee(logoEdges, effective("panel"));
   const [view, setView] = useState<"settings" | "preview">("settings");
 
   const setColor = (name: ThemeColor, value: string | null) =>
@@ -125,7 +127,7 @@ function Design({ settings }: { settings: FirmSettings }) {
       </div>
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
         <div className={`flex-col gap-5 ${view === "preview" ? "hidden xl:flex" : "flex"}`}>
-          <Logo settings={settings} hardToSee={logoLuminance !== null && logoHardToSee(logoLuminance, effective("panel"))} />
+          <Logo settings={settings} hardToSee={logoHard} />
 
           <Panel title="Theme">
             <div role="group" aria-label="Theme" className="grid grid-cols-3 gap-2">
@@ -149,6 +151,12 @@ function Design({ settings }: { settings: FirmSettings }) {
               })}
             </div>
             {preset === null && <p className="text-xs text-muted">Your own colors. Choose a theme to start again from it.</p>}
+            {logoHard && (
+              <p role="status" className="flex gap-2 text-xs text-warning">
+                <AlertIcon className="size-4 shrink-0" />
+                Your logo is hard to see on this theme. See Logo above.
+              </p>
+            )}
           </Panel>
 
           <Panel title="Brand color">
@@ -269,13 +277,13 @@ function sorted(colors: ThemeColors): [string, string | undefined][] {
   return themeColors.map((name) => [name, colors[name]]);
 }
 
-/** How light the firm's logo is on average, once it has been read, to warn about one that disappears on the background. */
-export function useLogoLuminance(logoUrl: string | null): number | null {
-  const [measured, setMeasured] = useState<{ url: string; luminance: number | null } | null>(null);
+/** The firm's logo's outline, once it has been read, to warn about a logo that disappears on the background. */
+export function useLogoEdges(logoUrl: string | null): number[] | null {
+  const [measured, setMeasured] = useState<{ url: string; edges: number[] | null } | null>(null);
   useEffect(() => {
     let current = true;
     if (logoUrl) {
-      void imageLuminance(logoUrl).then((luminance) => current && setMeasured({ url: logoUrl, luminance }));
+      void imageEdges(logoUrl).then((edges) => current && setMeasured({ url: logoUrl, edges }));
     }
 
     return () => {
@@ -283,11 +291,14 @@ export function useLogoLuminance(logoUrl: string | null): number | null {
     };
   }, [logoUrl]);
 
-  return measured && measured.url === logoUrl ? measured.luminance : null;
+  return measured && measured.url === logoUrl ? measured.edges : null;
 }
 
-/** The firm's logo, uploaded and saved at once. Without one, the portal shows the firm's name. */
-export function Logo({ settings, hardToSee }: { settings: FirmSettings; hardToSee: boolean }) {
+/**
+ * The firm's logo, uploaded and saved at once. Without one, the portal shows the firm's name. On the design page the
+ * colors wait for Save design, which the text says; in the guide they are saved at once too.
+ */
+export function Logo({ settings, hardToSee, colorsWait = true }: { settings: FirmSettings; hardToSee: boolean; colorsWait?: boolean }) {
   const router = useRouter();
   const upload = useUploadLogo();
   const remove = useRemoveLogo();
@@ -312,7 +323,7 @@ export function Logo({ settings, hardToSee }: { settings: FirmSettings; hardToSe
       />
       <p className="text-xs text-muted">
         {settings.logoUrl
-          ? "Saved as soon as it is uploaded, and your traders see it at once. The colors wait for Save design."
+          ? `Saved as soon as it is uploaded, and your traders see it at once.${colorsWait ? " The colors wait for Save design." : ""}`
           : "Without a logo, your firm's name is shown. A logo is saved as soon as it is uploaded."}
       </p>
       {hardToSee && (

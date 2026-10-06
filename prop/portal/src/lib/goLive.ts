@@ -1,5 +1,6 @@
 import type { Billing, ChallengeDefinition, ChallengePrice, FirmSettings, IdentityReadiness } from "./api/types";
 import { formatMoney } from "./format";
+import { reviewTime } from "./review";
 
 /** Where a step to live is: done, the next to do, still to do, waiting for us, or not possible yet. */
 export type StepStatus = "done" | "current" | "todo" | "waiting" | "locked";
@@ -139,7 +140,7 @@ function reviewStep(review: Billing["review"], deposit: string | null): GoLiveSt
   const step = { key: "review", title: "Send your company for review" };
   switch (review) {
     case "Submitted":
-      return { ...step, status: "waiting", detail: "We are reviewing your firm, usually within a day, and email you when we have.", action: { label: "Our answer", href: "/admin/go-live?step=answer" } };
+      return { ...step, status: "waiting", detail: `We are reviewing your firm, usually ${reviewTime}, and email you when we have.`, action: { label: "Our answer", href: "/admin/go-live?step=answer" } };
     case "ChangesRequested":
       return { ...step, status: "todo", detail: "We asked for changes. Make them and send the application again, with no new deposit.", action: { label: "Make the changes", href: "/admin/go-live?step=details" } };
     case "Approved":
@@ -150,7 +151,7 @@ function reviewStep(review: Billing["review"], deposit: string | null): GoLiveSt
       return {
         ...step,
         status: "todo",
-        detail: `Company details, owners and links.${deposit ? ` You pay a ${deposit} deposit when you send it, taken off the startup fee.` : ""} We usually answer within a day.`,
+        detail: `Company details, owners and links.${deposit ? ` You pay a ${deposit} deposit when you send it, taken off the startup fee.` : ""} We usually answer ${reviewTime}.`,
         action: { label: review === "Draft" ? "Continue the application" : "Start the application", href: "/admin/go-live" },
       };
   }

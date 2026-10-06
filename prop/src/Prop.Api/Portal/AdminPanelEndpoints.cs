@@ -38,6 +38,7 @@ internal static class AdminPanelEndpoints
         admin.MapGet("/accounts", SearchAccountsAsync);
         admin.MapGet("/accounts/{accountId:guid}/trader", GetTraderAsync);
         admin.MapPut("/accounts/{accountId:guid}/trader/checks/{item}", SetTraderCheckAsync);
+        admin.MapPut("/accounts/{accountId:guid}/trader/name", SetTraderNameAsync);
         admin.MapGet("/accounts/{accountId:guid}/email-trader", PreviewTraderEmailAsync);
         admin.MapPost("/accounts/{accountId:guid}/email-trader", EmailTraderAsync);
         admin.MapGet("/accounts/{accountId:guid}/performance", GetPerformanceAsync);
@@ -172,6 +173,34 @@ internal static class AdminPanelEndpoints
         var traderId = view.Account.TraderId;
         await checks.SetAsync(traderId, item, request.Checked, principal.FindFirstValue(ClaimTypes.Email) ?? "", time.GetUtcNow(), cancellationToken);
         return TypedResults.Ok(TraderCheckResponse.All((await checks.ListAsync([traderId], cancellationToken))[traderId]));
+    }
+
+    /// <summary>
+    /// The firm writes or corrects the name of the account's trader, which the trader writes only once, for the
+    /// certificates and the firm's emails. 204, or 422 without a name or with more than 100 characters.
+    /// </summary>
+    private static async Task<Results<NoContent, ProblemHttpResult>> SetTraderNameAsync(
+        Guid accountId,
+        TraderNameRequest request,
+        HttpContext context,
+        ChallengeQueries accounts,
+        PortalUsers users,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        var name = request.Name?.Trim() ?? "";
+        if (name.Length == 0 || name.Length > OrderService.MaxBuyerNameLength)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, FormattableString.Invariant($"Write the trader's name, in at most {OrderService.MaxBuyerNameLength} characters."));
+        }
+
+        if (await accounts.GetAsync(firm.Id, accountId, cancellationToken) is not { } view)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        await users.ChangeTraderNameAsync(view.Account.TraderId, name, cancellationToken);
+        return TypedResults.NoContent();
     }
 
     /// <summary>

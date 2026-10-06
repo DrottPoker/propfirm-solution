@@ -160,9 +160,11 @@ function Checkout({
   const askDetails = !me?.name || !me.country;
   const form = useRef<HTMLFormElement>(null);
 
-  // The form comes after the tables, so the buyer is taken to it.
+  // The form comes after the tables, so the buyer is taken to all of it, from its heading, and can start typing.
   useEffect(() => {
-    form.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const current = form.current;
+    (current?.closest("section") ?? current)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    current?.querySelector<HTMLElement>("input[required], select[required]")?.focus({ preventScroll: true });
   }, []);
 
   // A code from the link is applied at once, so the buyer sees the price with it.

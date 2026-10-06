@@ -98,7 +98,7 @@ export function AdminOrders() {
                 {(orders.data ?? []).map((order) => (
                   <tr key={order.id} className="border-t border-border align-top">
                     <td className="whitespace-nowrap px-4 py-3">
-                      <span className="font-mono">#{order.number}</span>
+                      <span className="font-mono">{order.number}</span>
                       <span className="block text-xs text-muted">{formatDateTime(order.createdAt)}</span>
                     </td>
                     <td className="px-4 py-3">
@@ -182,7 +182,7 @@ function OrderDialog({ order, kind, onClose }: { order: Order; kind: "mark-paid"
     <Modal
       open
       onClose={onClose}
-      title={paid ? `Mark order #${order.number} of ${amount} as paid?` : `Mark order #${order.number} as refunded?`}
+      title={paid ? `Mark order ${order.number} of ${amount} as paid?` : `Mark order ${order.number} as refunded?`}
       description={paid ? `${order.email}. Its challenge starts at once.` : `${order.email}. The account is not cancelled: cancel it on the account if you want to.`}
       footer={
         <>

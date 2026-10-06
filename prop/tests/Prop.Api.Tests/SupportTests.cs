@@ -19,6 +19,22 @@ public sealed class SupportTests(PostgresFixture postgres) : IClassFixture<Postg
 
     private static readonly byte[] Pdf = [.. "%PDF-1.7 a document"u8];
 
+    // A trader with a name is named by it to the firm, with the email address beside it in the text.
+    [Fact]
+    public async Task TheFirmsEmailNamesTheTraderByName()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var accountId = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+        using var trader = await factory.LogInAsTraderAsync(accountId);
+        (await trader.PutAsJsonAsync(Url("me/name"), new { name = "Anna Berg" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+
+        using var opened = await PostFormAsync(trader, "support/tickets", new() { ["subject"] = "A question", ["body"] = "Hi" });
+        await JsonAsync(opened, HttpStatusCode.Created);
+
+        var toAdmin = await factory.Emails.WaitForAsync(Admin, "New support ticket #1 from Anna Berg");
+        Assert.Contains("Anna Berg (anna@test.example) opened support ticket #1, \"A question\":", toAdmin.Body, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task TheTraderAsksAndTheFirmAnswersInTheTicket()
     {

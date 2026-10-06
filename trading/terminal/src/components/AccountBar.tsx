@@ -25,7 +25,7 @@ const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text
 /**
  * The firm, the account as the firm's portal names it, its figures and the distance to every loss limit and to the
  * profit target, so the trader always sees them. A trader with several accounts, such as one per challenge stage,
- * switches between them here.
+ * switches between them here. On a phone the figures take a row of their own under the firm, scrolled sideways.
  */
 export function AccountBar({
   accounts,
@@ -45,7 +45,7 @@ export function AccountBar({
   const back = backLink(current, server);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-panel px-4 text-sm">
+    <header className="flex shrink-0 flex-wrap items-center gap-x-4 border-b border-border bg-panel px-4 text-sm max-lg:pt-2 lg:h-14 lg:flex-nowrap">
       <span className="flex shrink-0 flex-col justify-center gap-0.5">
         <FirmMark server={server} />
         {back && (
@@ -61,10 +61,10 @@ export function AccountBar({
         title="Prices and figures come live from the trading service"
       >
         <span className="size-1.5 rounded-full bg-current" />
-        {connection.label}
+        <span className="max-sm:sr-only">{connection.label}</span>
       </span>
 
-      <div className="flex h-full min-w-0 flex-1 items-stretch overflow-x-auto">
+      <div className="flex h-full min-w-0 flex-1 items-stretch overflow-x-auto max-lg:order-last max-lg:-mx-4 max-lg:mt-2 max-lg:h-12 max-lg:basis-full max-lg:border-t max-lg:border-border max-lg:*:first:border-l-0">
         {account && (
           <>
             <AccountPicker
@@ -93,7 +93,9 @@ export function AccountBar({
         )}
       </div>
 
-      <UserMenu email={email} serverName={server.name} />
+      <div className="max-lg:ml-auto">
+        <UserMenu email={email} serverName={server.name} />
+      </div>
     </header>
   );
 }
@@ -101,7 +103,7 @@ export function AccountBar({
 /** The firm's logo, or its name when it has none, as in its portal. Logos are on the firms' own addresses, so they are not optimized. */
 function FirmMark({ server }: { server: ServerInfo }) {
   return server.logoUrl ? (
-    <Image src={server.logoUrl} alt={server.name} width={112} height={28} unoptimized className="h-6 w-auto max-w-40 object-contain object-left" />
+    <Image src={server.logoUrl} alt={server.name} width={112} height={28} unoptimized loading="eager" className="h-6 w-auto max-w-40 object-contain object-left" />
   ) : (
     <span className="text-base leading-tight font-semibold tracking-tight">{server.name}</span>
   );

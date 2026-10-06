@@ -40,6 +40,15 @@ describe("initials", () => {
   it("takes two letters from the email address", () => {
     expect([initials("anna@test.com"), initials("anna.berg@test.com"), initials("bo_ek@test.com"), initials("x@test.com")]).toEqual(["AN", "AB", "BE", "X"]);
   });
+
+  it("takes them from the name when there is one", () => {
+    expect([initials("owner@test.com", "Maja Lind"), initials("owner@test.com", " maja  von lind "), initials("owner@test.com", "Maja"), initials("owner@test.com", " ")]).toEqual([
+      "ML",
+      "ML",
+      "MA",
+      "OW",
+    ]);
+  });
 });
 
 describe("currentTradingDay", () => {
@@ -140,7 +149,11 @@ describe("objectivesOf", () => {
       ["days", "progress", "2 of 4"],
       ["activity", "info", "Trade by 4 Nov (29 days)"],
     ]);
-    expect(objectives[0]).toMatchObject({ progress: 25, detail: "2,500.00 of 10,000.00 · reach a balance of 110,000.00" });
+    expect(objectives[0]).toMatchObject({
+      progress: 25,
+      ghost: 28,
+      detail: "2,500.00 of 10,000.00 · reach a balance of 110,000.00. Closed trades count: with your open ones closed now, it would be 2,800.00.",
+    });
     expect(objectives[1].detail).toMatch(/^Equity may fall 5,800.00 more today, to 97,000.00. It starts again /);
     expect(objectives[3].segments).toEqual({ filled: 2, total: 4 });
   });

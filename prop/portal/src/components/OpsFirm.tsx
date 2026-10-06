@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { formatTotals, passRateText } from "@/lib/admin";
 import type { OpsFirm as Firm } from "@/lib/api/types";
-import { cardLabel, chargeLabel, chargeStatusLabels, monthName } from "@/lib/billing";
+import { cardLabel, chargeAmountText, chargeLabel, chargeStatusLabels, monthName } from "@/lib/billing";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { daysSince, latePayouts, mailtoAdmins, opsFirmTabs, stageOf, stageViews, type OpsFirmTab } from "@/lib/ops";
 import { useOpsAction, useOpsFirm } from "@/lib/opsQueries";
@@ -325,8 +325,8 @@ function PlanFacts({ firm }: { firm: Firm }) {
   } else if (billing.plan === "Paid") {
     facts.push(["Plan", `${billing.slots.slots ?? 0} slots this month`]);
     if (billing.nextCharge) {
-      facts.push(["Each month", `${formatMoney(billing.nextCharge.amount)} ${billing.currency}`]);
-      facts.push(["Next charge", `${formatMoney(billing.nextCharge.amount)} ${billing.currency} on ${formatDate(billing.nextCharge.chargeAt)}, for ${monthName(billing.nextCharge.month)}`]);
+      facts.push(["Each month", chargeAmountText(billing.nextCharge, billing.currency)]);
+      facts.push(["Next charge", `${chargeAmountText(billing.nextCharge, billing.currency)} on ${formatDate(billing.nextCharge.chargeAt)}, for ${monthName(billing.nextCharge.month)}`]);
     }
 
     facts.push(["Card", billing.card ? cardLabel(billing.card) : "None saved"]);

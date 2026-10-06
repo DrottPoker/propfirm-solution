@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 
 using Npgsql;
 
+using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
 using Prop.Api.Support;
@@ -86,7 +87,8 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
                 break;
             case FundingAwaited:
                 await ToTraderAsync(connection, firm, account, NotificationKinds.TraderPassed, PassedEmail(firm, account, accountUrl), now, cancellationToken);
-                await ToAdminsAsync(connection, firm, NotificationKinds.FirmFundingAwaited, to => FundingAwaitedEmail(firm, account, to), now, cancellationToken);
+                var passer = await TraderOfAsync(connection, firm, account.Email, cancellationToken);
+                await ToAdminsAsync(connection, firm, NotificationKinds.FirmFundingAwaited, to => FundingAwaitedEmail(firm, account, passer, to), now, cancellationToken);
                 break;
             case StageStarted started when started.Stage == definition.FundedStage:
                 await ToTraderAsync(connection, firm, account, NotificationKinds.TraderFunded, FundedEmail(firm, account, accountUrl), now, cancellationToken);
@@ -98,7 +100,9 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
                 await ToTraderAsync(connection, firm, account, NotificationKinds.TraderEnded, ExpiredEmail(firm, account, expired, accountUrl), now, cancellationToken);
                 break;
             case PayoutWithdrawn withdrawn:
-                await ToAdminsAsync(connection, firm, NotificationKinds.FirmPayoutRequested, to => PayoutRequestedEmail(firm, account, withdrawn.Payout, to), now, cancellationToken);
+                var requester = await TraderOfAsync(connection, firm, account.Email, cancellationToken);
+                await ToAdminsAsync(
+                    connection, firm, NotificationKinds.FirmPayoutRequested, to => PayoutRequestedEmail(firm, account, withdrawn.Payout, requester, to), now, cancellationToken);
                 break;
             case PayoutApproved approved:
                 await ToTraderAsync(connection, firm, account, NotificationKinds.TraderPayouts, PayoutApprovedEmail(firm, account, approved.Payout, accountUrl), now, cancellationToken);
@@ -114,7 +118,7 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
         }
     }
 
-    /// <summary>A challenge was bought in the firm's portal and paid for.</summary>
+    /// <summary>A challenge was bought in the firm's portal and paid for. The buyer is named as <see cref="Person"/> names them.</summary>
     public Task QueueSaleAsync(
         NpgsqlConnection connection,
         Firm firm,
@@ -351,35 +355,36 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
     private static EmailMessage ToTrader(Firm firm, NotifiedAccount account, string subject, IReadOnlyList<string> paragraphs, Uri accountUrl) =>
         TraderEmails.Create(firm, account.Email, subject, paragraphs, "Open your account", accountUrl);
 
-    private EmailMessage FundingAwaitedEmail(Firm firm, NotifiedAccount account, string to) =>
+    private EmailMessage FundingAwaitedEmail(Firm firm, NotifiedAccount account, TraderName trader, string to) =>
         ToAdmin(
             to,
-            $"{account.Email} passed {account.Definition.Name}",
-            $"{account.Email} passed every phase of {account.Definition.Name}, and account #{account.Number} waits for your approval of the funded account. Approve it when your checks, such as KYC, are done:",
+            $"{trader.Short} passed {account.Definition.Name}",
+            $"{trader.Full} passed every phase of {account.Definition.Name}, and account #{account.Number} waits for your approval of the funded account. Approve it when your checks, such as KYC, are done:",
             new Uri(firm.Portal.Url, $"admin/accounts/{account.Id}"));
 
-    private EmailMessage PayoutRequestedEmail(Firm firm, NotifiedAccount account, Payout payout, string to) =>
+    private EmailMessage PayoutRequestedEmail(Firm firm, NotifiedAccount account, Payout payout, TraderName trader, string to) =>
         ToAdmin(
             to,
-            $"Payout request of {Money(payout.Amount, account.Definition.Currency)} from {account.Email}",
-            $"{account.Email} asked for a payout of {Money(payout.Amount, account.Definition.Currency)} from account #{account.Number}, {payout.ProfitSplitPercent.ToString("0.##", CultureInfo.InvariantCulture)}% of a profit of {Money(payout.Profit, account.Definition.Currency)}. Approve it after your checks, send the money and mark it as paid:",
+            $"Payout request of {Money(payout.Amount, account.Definition.Currency)} from {trader.Short}",
+            $"{trader.Full} asked for a payout of {Money(payout.Amount, account.Definition.Currency)} from account #{account.Number}, {payout.ProfitSplitPercent.ToString("0.##", CultureInfo.InvariantCulture)}% of a profit of {Money(payout.Profit, account.Definition.Currency)}. Approve it after your checks, send the money and mark it as paid:",
             new Uri(firm.Portal.Url, "admin/payouts"));
 
     private EmailMessage SaleEmail(Firm firm, string buyer, string challengeName, long orderNumber, decimal amount, string currency, Guid? accountId, string to) =>
         ToAdmin(
             to,
             $"New sale: {challengeName} for {Money(amount, currency)}",
-            $"{buyer} bought {challengeName} for {Money(amount, currency)} in your portal (order #{orderNumber}).{(accountId is null ? " No account could be started for it, so see the order in your admin panel." : " The challenge has started.")}",
+            $"{buyer} bought {challengeName} for {Money(amount, currency)} in your portal (order {orderNumber}).{(accountId is null ? " No account could be started for it, so see the order in your admin panel." : " The challenge has started.")}",
             new Uri(firm.Portal.Url, accountId is { } id ? $"admin/accounts/{id}" : "admin/orders"));
 
     private EmailMessage SupportTicketEmail(Firm firm, SupportTicket ticket, string message, int files, bool opened, string to)
     {
         var about = ticket.Account is { } account ? $" about account #{account.Number}" : "";
         var attached = files > 0 ? $"{TraderEmails.FilesNote(files)}\n\n" : "";
+        var trader = new TraderName(ticket.TraderName, ticket.TraderEmail);
         return ToAdmin(
             to,
-            opened ? $"New support ticket #{ticket.Number} from {ticket.TraderEmail}" : $"{ticket.TraderEmail} wrote in support ticket #{ticket.Number}",
-            $"{ticket.TraderEmail} {(opened ? "opened" : "wrote in")} support ticket #{ticket.Number}{about}, \"{ticket.Subject}\":\n\n{Quote(message)}\n\n{attached}Answer in your admin panel:",
+            opened ? $"New support ticket #{ticket.Number} from {trader.Short}" : $"{trader.Short} wrote in support ticket #{ticket.Number}",
+            $"{trader.Full} {(opened ? "opened" : "wrote in")} support ticket #{ticket.Number}{about}, \"{ticket.Subject}\":\n\n{Quote(message)}\n\n{attached}Answer in your admin panel:",
             new Uri(firm.Portal.Url, $"admin/support/{ticket.Id}"));
     }
 
@@ -407,7 +412,30 @@ internal sealed class Notifications(IOptions<PlatformOptions> platform)
             {platform.Value.Name}
             """);
 
+    /// <summary>
+    /// The trader's name, kept from the first order that gave it or written by the trader, when there is one. Admin emails
+    /// name the trader by it, with the email address beside it in the text.
+    /// </summary>
+    private static async Task<TraderName> TraderOfAsync(NpgsqlConnection connection, Firm firm, string email, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand("select name from traders where firm_id = $1 and normalized_email = $2", connection);
+        command.Parameters.AddWithValue(firm.Id);
+        command.Parameters.AddWithValue(Emails.Normalize(email));
+        return new TraderName(await command.ExecuteScalarAsync(cancellationToken) as string, email);
+    }
+
+    /// <summary>A person as the admin emails name them: "Maja Lind (maja@example.com)", or the email address without a name.</summary>
+    public static string Person(string? name, string email) => new TraderName(name, email).Full;
+
     private static string Money(decimal amount, string currency) => $"{amount.ToString("N2", CultureInfo.InvariantCulture)} {currency}";
 
     private static string Day(DateOnly day) => day.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+}
+
+/// <summary>A trader as the admin emails name them: the name alone in a subject, and with the email address in the text.</summary>
+internal readonly record struct TraderName(string? Name, string Email)
+{
+    public string Short => string.IsNullOrWhiteSpace(Name) ? Email : Name.Trim();
+
+    public string Full => string.IsNullOrWhiteSpace(Name) ? Email : $"{Name.Trim()} ({Email})";
 }

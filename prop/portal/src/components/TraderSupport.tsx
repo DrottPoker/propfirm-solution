@@ -13,7 +13,7 @@ import { filesProblem, lastAuthorName, supportLimits, traderTicketNote } from "@
 
 import { PlusIcon } from "./icons";
 import { Conversation, FilePicker, MessageField, MessageForm, TicketStatusBadge } from "./SupportThread";
-import { buttonClass, ErrorText, fieldClass, Message, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, fieldClass, Message, secondaryButtonClass, TraderPage } from "./ui";
 
 /** The trader's tickets to the firm, the latest written in first, with a way to open a new one. */
 export function TraderTickets() {
@@ -31,7 +31,7 @@ export function TraderTickets() {
   const rows = tickets.data.pages.flatMap((p) => p.tickets);
   const now = tickets.dataUpdatedAt;
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <TraderPage narrow>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
@@ -82,7 +82,7 @@ export function TraderTickets() {
           )}
         </section>
       )}
-    </main>
+    </TraderPage>
   );
 }
 
@@ -104,7 +104,7 @@ export function NewTicket({ initialAccountId }: { initialAccountId: string | nul
   const choices = [...(accounts.data ?? [])].sort((a, b) => b.account.number - a.account.number);
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <TraderPage narrow>
       <nav aria-label="Breadcrumb" className="text-sm text-muted">
         <Link href="/support" className="hover:text-foreground">
           Support
@@ -191,7 +191,7 @@ export function NewTicket({ initialAccountId }: { initialAccountId: string | nul
           </button>
         </div>
       </form>
-    </main>
+    </TraderPage>
   );
 }
 
@@ -222,7 +222,7 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
 
   const data = ticket.data;
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <TraderPage narrow gap="gap-5">
       <nav aria-label="Breadcrumb" className="text-sm text-muted">
         <Link href="/support" className="hover:text-foreground">
           Support
@@ -261,6 +261,6 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
       <Conversation ticket={data} viewer="trader" names={{ firm: branding.name, trader: me.data?.email ?? "You", me: me.data?.email ?? "" }} />
       <p className="text-sm text-muted">{traderTicketNote(data, branding.name)}</p>
       <MessageForm ticket={data} viewer="trader" />
-    </main>
+    </TraderPage>
   );
 }

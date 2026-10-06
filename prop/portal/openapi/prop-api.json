@@ -997,6 +997,35 @@
         }
       }
     },
+    "/api/portal/me/name": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TraderNameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortalMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/password-reset": {
       "post": {
         "tags": [
@@ -2733,6 +2762,39 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/trader/name": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TraderNameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -12058,6 +12120,21 @@
           }
         },
         "description": "A trader's ID check as the firm sees it: where it is, who checked, what the document said, why it was declined, and\nwhen it was decided."
+      },
+      "TraderNameRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The name a trader without one writes, or the firm corrects, which the portal, the certificates and the firm's emails show."
       },
       "TraderPayoutsResponse": {
         "required": [

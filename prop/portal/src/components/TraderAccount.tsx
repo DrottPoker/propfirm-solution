@@ -15,7 +15,7 @@ import { ChallengeRules } from "./ChallengeRules";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { PayoutHistory, PayoutPanel } from "./PayoutPanel";
 import { StageTiles } from "./StageSteps";
-import { Badge, buttonClass, Message, ProgressBar, secondaryButtonClass, StepBar, type BadgeTone } from "./ui";
+import { Badge, buttonClass, Message, ProgressBar, secondaryButtonClass, StepBar, TraderPage, type BadgeTone } from "./ui";
 
 type Section = { id: string; shows: (details: AccountDetails) => boolean; render: (details: AccountDetails, now: number) => React.ReactNode };
 
@@ -49,7 +49,7 @@ export function TraderAccount({ accountId }: { accountId: string }) {
 
   const details = account.data;
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6">
+    <TraderPage>
       <nav aria-label="Breadcrumb" className="text-sm text-muted">
         <Link href="/" className="hover:text-foreground">
           Accounts
@@ -64,7 +64,7 @@ export function TraderAccount({ accountId }: { accountId: string }) {
             {section.render(details, account.dataUpdatedAt)}
           </div>
         ))}
-    </main>
+    </TraderPage>
   );
 }
 
@@ -267,7 +267,7 @@ export function Objectives({ details }: { details: AccountDetails }) {
                 <span className="font-medium">{objective.title}</span>
                 {objective.stateText && <span className={`whitespace-nowrap text-xs font-medium ${style.text}`}>{objective.stateText}</span>}
               </div>
-              {objective.progress != null && <ProgressBar value={objective.progress} label={`${objective.title}, ${objective.progress}%`} />}
+              {objective.progress != null && <ProgressBar value={objective.progress} ghost={objective.ghost} label={`${objective.title}, ${objective.progress}%`} />}
               {objective.segments && (
                 <StepBar filled={objective.segments.filled} total={objective.segments.total} label={`${objective.segments.filled} of ${objective.segments.total}`} />
               )}

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import type { Billing, Charge, ChargeLine, Quote, Vat } from "@/lib/api/types";
 import {
   cardLabel,
+  chargeAmountText,
   chargeKindLabels,
   chargeLabel,
   chargeStatusLabels,
@@ -313,8 +314,7 @@ function Payment({ billing }: { billing: Billing }) {
           <div className="flex flex-col gap-0.5">
             <dt className="text-muted">Next payment</dt>
             <dd>
-              {monthName(next.month)}: {next.slots} slots, {formatMoney(next.amount)} {billing.prices.currency}
-              {next.vatAmount > 0 && ` with ${formatMoney(next.vatAmount)} VAT`}, charged on {formatDate(next.chargeAt)}
+              {monthName(next.month)}: {next.slots} slots, {chargeAmountText(next, billing.prices.currency)}, charged on {formatDate(next.chargeAt)}
             </dd>
           </div>
         )}

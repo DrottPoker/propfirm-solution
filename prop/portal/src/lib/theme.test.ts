@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { contrastRatio, defaultColors, presetOf, readableContrast, readableTextOn, themeColors, themePresets, themeStyle, withPreset } from "./theme";
+import { colorSchemeOf, contrastRatio, defaultColors, presetOf, readableContrast, readableTextOn, themeColors, themePresets, themeStyle, withPreset } from "./theme";
 
 describe("themeStyle", () => {
   it("turns the firm's colors into the theme's CSS variables", () => {
@@ -26,6 +26,23 @@ describe("themeStyle", () => {
 
   it("keeps the default look without a firm", () => {
     expect(themeStyle(null)).toEqual({});
+  });
+
+  // The browser's own controls, such as checkboxes and date pickers, follow the scheme.
+  it("makes the color scheme light on a light background, and leaves the default dark one otherwise", () => {
+    const light = themePresets.find((p) => p.id === "light")!;
+    const navy = themePresets.find((p) => p.id === "navy")!;
+
+    expect(themeStyle({ colors: light.colors }).colorScheme).toBe("light");
+    expect(themeStyle({ colors: navy.colors }).colorScheme).toBeUndefined();
+  });
+});
+
+describe("colorSchemeOf", () => {
+  it("is light on light backgrounds and dark on dark ones", () => {
+    expect(colorSchemeOf("#f5f6f8")).toBe("light");
+    expect(colorSchemeOf("#ffffff")).toBe("light");
+    expect(colorSchemeOf(defaultColors.background)).toBe("dark");
   });
 });
 

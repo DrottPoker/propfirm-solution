@@ -47,6 +47,7 @@ internal static class PortalEndpoints
         portal.MapPost("/invites/accept", AcceptInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/invites/confirm", ConfirmInviteAsync).RequireRateLimiting(PortalAuth.LoginRateLimit);
         portal.MapPost("/me/confirm-email", SendEmailConfirmationAsync).RequireAuthorization(PortalAuth.TraderPolicy).RequireRateLimiting(PortalAuth.LoginRateLimit);
+        portal.MapPut("/me/name", SetMyNameAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapPasswordResets();
         portal.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Trader)));
         portal.MapGet("/me", MeAsync).RequireAuthorization(PortalAuth.TraderPolicy);
@@ -216,6 +217,35 @@ internal static class PortalEndpoints
         var confirmed = (await users.FindByIdAsync(trader.Id, PortalRoles.Trader, cancellationToken))!;
         await PortalAuth.SignInAsync(context, confirmed);
         return TypedResults.Ok(PortalMeResponse.Of(confirmed, firm.Name));
+    }
+
+    /// <summary>
+    /// The logged-in trader writes the name the portal and the certificates show, when the trader has none, for example
+    /// after the firm started the challenge. 409 when the trader has a name already, which the firm knows the trader by.
+    /// </summary>
+    private static async Task<Results<Ok<PortalMeResponse>, ProblemHttpResult>> SetMyNameAsync(
+        TraderNameRequest request,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        PortalUsers users,
+        CancellationToken cancellationToken)
+    {
+        var firm = PortalFirmFilter.FirmOf(context);
+        var name = request.Name?.Trim() ?? "";
+        if (name.Length == 0 || name.Length > OrderService.MaxBuyerNameLength)
+        {
+            return AccountActions.Problem(StatusCodes.Status422UnprocessableEntity, FormattableString.Invariant($"Write your name, in at most {OrderService.MaxBuyerNameLength} characters."));
+        }
+
+        var traderId = PortalAuth.UserIdOf(principal);
+        if (!await users.SetTraderNameAsync(traderId, name, cancellationToken))
+        {
+            return AccountActions.Problem(StatusCodes.Status409Conflict, $"Your name is set already. Ask {firm.Name} if it needs changing.");
+        }
+
+        return await users.FindByIdAsync(traderId, PortalRoles.Trader, cancellationToken) is { } trader
+            ? TypedResults.Ok(PortalMeResponse.Of(trader, firm.Name))
+            : AccountActions.Problem(StatusCodes.Status401Unauthorized, "Log in again.");
     }
 
     /// <summary>Emails the logged-in trader a new link that confirms the email. 409 when it is confirmed already.</summary>

@@ -1,4 +1,5 @@
 import type { AccountDetails, StageRules, StageSummary } from "@/lib/api/types";
+import { hasEnded } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/format";
 
 import { Panel } from "./ui";
@@ -39,6 +40,8 @@ const rows: Row[] = [
 export function ChallengeRules({ details, audience = "trader" }: { details: AccountDetails; audience?: "trader" | "firm" }) {
   const { challenge, stages, account } = details;
   const allRules = [...challenge.evaluation, challenge.funded];
+  // An account that has ended has no stage now.
+  const now = (stage: StageSummary) => stage.stage === account.stage && stage.progress === "Current" && !hasEnded(account.status);
   return (
     <Panel title={audience === "firm" ? "Rules the trader bought" : "Rules of this challenge"}>
       <div className="overflow-x-auto">
@@ -49,7 +52,7 @@ export function ChallengeRules({ details, audience = "trader" }: { details: Acco
               {stages.map((stage) => (
                 <th key={stage.stage} scope="col" className={`py-2 pl-4 font-normal ${stage.stage === account.stage ? "font-medium text-foreground" : ""}`}>
                   {stage.name}
-                  {stage.stage === account.stage && stage.progress === "Current" && " · now"}
+                  {now(stage) && " · now"}
                 </th>
               ))}
             </tr>

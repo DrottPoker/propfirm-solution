@@ -10,7 +10,7 @@ import { asksForIdentity, identityStatus, myIdentityText } from "@/lib/identity"
 import { useDecideTestIdentity, useMyIdentity, useStartIdentity } from "@/lib/queries";
 
 import { CheckIcon, ShieldCheckIcon } from "./icons";
-import { Badge, buttonClass, dangerButtonClass, ErrorText, Message, secondaryButtonClass } from "./ui";
+import { Badge, buttonClass, dangerButtonClass, ErrorText, Message, secondaryButtonClass, TraderPage } from "./ui";
 
 /** The button that starts the check, or opens it again, on the provider's page or the firm's own. */
 function StartButton({ label, className = buttonClass }: { label: string; className?: string }) {
@@ -70,7 +70,7 @@ export function IdentityPage({ returned }: { returned: boolean }) {
 
   const waiting = returned && (identity.data.status === "Pending" || identity.data.status === "InReview") && !identity.data.verified;
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <TraderPage narrow>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Your identity</h1>
         <p className="text-muted">Who you are, checked once, before you are paid.</p>
@@ -84,7 +84,7 @@ export function IdentityPage({ returned }: { returned: boolean }) {
       <Link href="/payouts" className="self-start text-sm text-accent hover:underline">
         Back to Payouts
       </Link>
-    </main>
+    </TraderPage>
   );
 }
 

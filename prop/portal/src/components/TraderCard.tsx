@@ -10,11 +10,11 @@ import { initials } from "@/lib/dashboard";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { birthDate, countryText, identityStatus } from "@/lib/identity";
 import { providerLabels } from "@/lib/orders";
-import { useEmailTrader, useInvite, useSetTraderCheck, useTraderEmailPreview, useTraderSummary } from "@/lib/queries";
+import { useEmailTrader, useInvite, useSetTraderCheck, useSetTraderName, useTraderEmailPreview, useTraderSummary } from "@/lib/queries";
 
 import { ConfirmDialog } from "./Dialog";
 import { CopyIcon, MailIcon } from "./icons";
-import { Badge, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
+import { Badge, buttonClass, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
 
 /**
  * The account's trader as the firm sees them: since when, the firm's own checks of them, their way into the portal, what
@@ -22,6 +22,7 @@ import { Badge, ErrorText, fieldClass, secondaryButtonClass } from "./ui";
  */
 export function TraderCard({ account, challengeName }: { account: Account; challengeName: (id: string) => string }) {
   const trader = useTraderSummary(account.id);
+  const [naming, setNaming] = useState(false);
   if (trader.isError) {
     return (
       <aside className="rounded-lg border border-border bg-panel p-5">
@@ -39,7 +40,7 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
     <aside aria-labelledby="trader-heading" className="flex flex-col gap-5 rounded-lg border border-border bg-panel p-5">
       <div className="flex items-center gap-3">
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full border border-border bg-background text-sm font-semibold">
-          {initials(data.email)}
+          {initials(data.email, data.name)}
         </span>
         <div className="flex min-w-0 flex-col">
           <h2 id="trader-heading" className="truncate font-semibold">
@@ -56,9 +57,13 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
             <Link href={`/admin/support?group=All&search=${encodeURIComponent(data.email)}`} className="text-accent hover:underline">
               Support tickets
             </Link>
+            <button type="button" onClick={() => setNaming(true)} className="text-accent hover:underline">
+              {data.name ? "Change name" : "Add name"}
+            </button>
           </span>
         </div>
       </div>
+      {naming && <NameForm accountId={account.id} name={data.name} onDone={() => setNaming(false)} />}
 
       <dl className="grid grid-cols-2 gap-3 text-xs">
         <div className="flex flex-col gap-0.5">
@@ -103,7 +108,7 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
       <div className="flex flex-col gap-2 border-t border-border pt-4 text-sm">
         <h3 className="text-xs font-medium uppercase tracking-wider text-muted">This account</h3>
         <dl className="flex flex-col gap-2">
-          <Row label="Started by">{data.order ? `Order #${data.order.number}, ${providerLabels[data.order.provider]}` : "Your firm"}</Row>
+          <Row label="Started by">{data.order ? `Order ${data.order.number}, ${providerLabels[data.order.provider]}` : "Your firm"}</Row>
           {data.order && (
             <Row label="Price">
               {formatMoney(data.order.amount)} {data.order.currency}
@@ -274,5 +279,37 @@ function PortalAccess({ account, trader }: { account: Account; trader: TraderSum
         </div>
       )}
     </div>
+  );
+}
+
+// The trader writes a name only once, for the certificates, so the firm writes or corrects it here.
+function NameForm({ accountId, name, onDone }: { accountId: string; name: string | null; onDone: () => void }) {
+  const save = useSetTraderName(accountId);
+  const [text, setText] = useState(name ?? "");
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (text.trim()) {
+          save.mutate(text.trim(), { onSuccess: onDone });
+        }
+      }}
+      className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm"
+    >
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">The trader&apos;s name, on the certificates and in your emails</span>
+        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={100} autoFocus className={fieldClass} />
+      </label>
+      <div className="flex gap-2">
+        <button type="submit" disabled={save.isPending || !text.trim()} className={`${buttonClass} text-sm`}>
+          {save.isPending ? "Saving..." : "Save name"}
+        </button>
+        <button type="button" onClick={onDone} className={`${secondaryButtonClass} text-sm`}>
+          Cancel
+        </button>
+      </div>
+      <ErrorText error={save.error} />
+    </form>
   );
 }

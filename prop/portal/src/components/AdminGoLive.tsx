@@ -12,6 +12,7 @@ import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { goLiveStateLabels, goLiveStates, goLiveStepKeys, goLiveStepOf, goLiveStepTitles, type GoLiveStepKey, type GoLiveStepState } from "@/lib/goLivePage";
 import { readinessText } from "@/lib/identity";
 import { providerLabels } from "@/lib/orders";
+import { reviewTime } from "@/lib/review";
 import { useActivate, useBilling, useBillingQuote, useFirmSettings, useSubmitApplication, useVerification } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
 import { applicationFieldLabels, depositDue } from "@/lib/verification";
@@ -76,7 +77,7 @@ export function AdminGoLive({ step, returnedFromCheckout }: { step: string | nul
 
   return (
     <AdminPage narrow>
-      <PageHeader title="Go live" description="Four steps from the sandbox to real traders. We review every firm by hand before it goes live, usually within a day." />
+      <PageHeader title="Go live" description={`Four steps from the sandbox to real traders. We review every firm by hand before it goes live, usually ${reviewTime}.`} />
       {waiting && <PaymentConfirmation verification={v} billing={b} onDone={() => setWaiting(false)} />}
       {b.status === "Provisioning" ? (
         <Panel>
@@ -204,7 +205,7 @@ function DepositStep({ verification, billing, onDetails, onSent }: { verificatio
           </p>
         </div>
       ) : (
-        <p className="text-sm text-muted">There is no deposit. Send your company&apos;s details, and we review them by hand, usually within a day.</p>
+        <p className="text-sm text-muted">There is no deposit. Send your company&apos;s details, and we review them by hand, usually {reviewTime}.</p>
       )}
 
       {due && (
@@ -277,7 +278,7 @@ function AnswerStep({ verification, onGo }: { verification: Verification; onGo: 
     case "Submitted":
       return (
         <Panel title="Our answer">
-          <p className="text-sm">We are reviewing your application, usually within a day. We email you when we have decided.</p>
+          <p className="text-sm">We are reviewing your application, usually {reviewTime}. We email you when we have decided.</p>
           {verification.submittedAt && <p className="text-xs text-muted">Sent {formatDateTime(verification.submittedAt)}</p>}
         </Panel>
       );
@@ -313,7 +314,7 @@ function AnswerStep({ verification, onGo }: { verification: Verification; onGo: 
     default:
       return (
         <Panel title="Our answer">
-          <p className="text-sm text-muted">Send your company&apos;s details first. We answer here and by email, usually within a day.</p>
+          <p className="text-sm text-muted">Send your company&apos;s details first. We answer here and by email, usually {reviewTime}.</p>
           <button type="button" onClick={() => onGo("details")} className={`${secondaryButtonClass} self-start`}>
             Company details
           </button>

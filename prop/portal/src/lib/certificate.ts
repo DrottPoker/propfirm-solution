@@ -75,8 +75,8 @@ ${brand}
 }
 
 /**
- * The size of the trader's name, so that it fits inside the frame: 84 for a short name, smaller for a long one such as
- * an email address. A letter or digit in the serif font is at most about 0.6 of its size wide.
+ * The size of the trader's name, so that it fits inside the frame: 84 for a short name, smaller for a long one. A
+ * letter or digit in the serif font is at most about 0.6 of its size wide.
  */
 export function nameSize(name: string): number {
   return Math.max(32, Math.min(84, Math.floor((certificateWidth - 300) / (0.6 * Math.max(name.length, 1)))));

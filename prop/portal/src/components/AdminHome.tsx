@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { formatTotals, namedWaitingAccounts, needsYouItems, passRateText, salesAndPayouts, type NeedsYouIcon, type NeedsYouItem } from "@/lib/admin";
 import type { AdminOverview, Billing, FirmSettings } from "@/lib/api/types";
-import { monthName, monthlyPrices } from "@/lib/billing";
+import { chargeAmountText, monthName, monthlyPrices } from "@/lib/billing";
 import { formatDate, formatMoney } from "@/lib/format";
 import { goLiveSteps, type GoLiveStep, type StepStatus } from "@/lib/goLive";
 import { useAdminOverview, useBilling, useChallenges, useFirmSettings, useFirmSupportSummary, useIdentitySettings, usePrices, useWaitingAccounts } from "@/lib/queries";
@@ -201,24 +201,12 @@ function SlotsCard({ billing }: { billing: Billing }) {
         <span className="font-mono text-2xl font-medium tabular-nums">{taken}</span>
         <span className="text-muted">{slots.slots === null ? (taken === 1 ? "open challenge, no limit" : "open challenges, no limit") : `of ${slots.slots} taken`}</span>
       </div>
-      {slots.slots !== null && (
-        <>
-          <div role="img" aria-label={`${slots.used} used by open challenges, ${slots.reserved} held for orders, ${slots.free} free`} className="flex h-2 overflow-hidden rounded-full bg-background">
-            <span className={slots.warning ? "bg-warning" : "bg-accent"} style={{ width: `${(slots.used / Math.max(slots.slots, 1)) * 100}%` }} />
-            <span className={slots.warning ? "bg-warning/45" : "bg-accent/45"} style={{ width: `${(slots.reserved / Math.max(slots.slots, 1)) * 100}%` }} />
-          </div>
-          <ul className="flex flex-col gap-1.5 text-sm">
-            <SlotRow label="Open challenges" value={slots.used} mark={slots.warning ? "bg-warning" : "bg-accent"} />
-            <SlotRow label="Held for orders waiting for payment" value={slots.reserved} mark={slots.warning ? "bg-warning/45" : "bg-accent/45"} />
-            <SlotRow label="Free" value={slots.free ?? 0} mark="border border-border bg-background" />
-          </ul>
-        </>
-      )}
+      {slots.slots !== null && <SlotBreakdown slots={slots} usedLabel="Open challenges" />}
       <dl className="flex flex-col gap-2.5 border-t border-border pt-4 text-sm">
         {billing.plan === "Paid" ? (
           <>
             <PlanRow label="Your plan" value={slots.slots !== null && slots.slots > prices.packageSlots ? `${prices.packageSlots} in the package + ${slots.slots - prices.packageSlots} more` : `${prices.packageSlots} in the package`} />
-            {next && <PlanRow label="Next payment" value={`${formatMoney(next.amount)} ${prices.currency} on ${formatDate(next.chargeAt)}, for ${monthName(next.month)}`} />}
+            {next && <PlanRow label="Next payment" value={`${chargeAmountText(next, prices.currency)} on ${formatDate(next.chargeAt)}, for ${monthName(next.month)}`} />}
             <PlanRow label="More when full" value={billing.autoExpandStep === null ? "Off" : `${billing.autoExpandStep} at a time`} />
           </>
         ) : (
@@ -226,6 +214,27 @@ function SlotsCard({ billing }: { billing: Billing }) {
         )}
       </dl>
     </Panel>
+  );
+}
+
+/**
+ * The slots taken by open challenges, held for orders waiting for payment, and free, as a bar and a list, so a slot
+ * held by an order nobody paid is not taken for an account.
+ */
+function SlotBreakdown({ slots, usedLabel }: { slots: Billing["slots"]; usedLabel: string }) {
+  const total = Math.max(slots.slots ?? 0, 1);
+  return (
+    <>
+      <div role="img" aria-label={`${slots.used} used by open challenges, ${slots.reserved} held for orders, ${slots.free ?? 0} free`} className="flex h-2 overflow-hidden rounded-full bg-background">
+        <span className={slots.warning ? "bg-warning" : "bg-accent"} style={{ width: `${(slots.used / total) * 100}%` }} />
+        <span className={slots.warning ? "bg-warning/45" : "bg-accent/45"} style={{ width: `${(slots.reserved / total) * 100}%` }} />
+      </div>
+      <ul className="flex flex-col gap-1.5 text-sm">
+        <SlotRow label={usedLabel} value={slots.used} mark={slots.warning ? "bg-warning" : "bg-accent"} />
+        <SlotRow label="Held for orders waiting for payment" value={slots.reserved} mark={slots.warning ? "bg-warning/45" : "bg-accent/45"} />
+        <SlotRow label="Free" value={slots.free ?? 0} mark="border border-border bg-background" />
+      </ul>
+    </>
   );
 }
 
@@ -310,17 +319,15 @@ function SandboxOverview({ settings }: { settings: FirmSettings }) {
         </section>
         <div className="flex flex-col gap-5">
           <Panel title="Your sandbox">
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2.5">
               <div className="flex justify-between text-sm">
-                <span className="text-muted">Open test accounts</span>
-                <span className="font-mono">
+                <span className="text-muted">Test accounts</span>
+                <span className="tabular-nums">
                   {billing.data.slots.used + billing.data.slots.reserved}
-                  {billing.data.slots.slots !== null && ` of ${billing.data.slots.slots}`}
+                  {billing.data.slots.slots !== null && ` of ${billing.data.slots.slots} taken`}
                 </span>
               </div>
-              {billing.data.slots.slots !== null && (
-                <ProgressBar value={((billing.data.slots.used + billing.data.slots.reserved) / Math.max(billing.data.slots.slots, 1)) * 100} label="Open test accounts" tone="accent" />
-              )}
+              {billing.data.slots.slots !== null && <SlotBreakdown slots={billing.data.slots} usedLabel="Open test accounts" />}
             </div>
             <ul className="flex list-disc flex-col gap-1.5 pl-5 text-sm text-muted">
               <li>Test payments move no money.</li>

@@ -67,8 +67,14 @@ export function BalanceChart({
     return { balance, points, daily, maxLoss, first, start, end, domain, maxLossShown };
   }, [performance, equity, floating, endTime]);
 
-  if (model.balance.length === 0) {
-    return <p className="py-10 text-center text-sm text-muted">Nothing has happened on this stage&apos;s trading account yet.</p>;
+  // Until the first trade the balance is only where the stage started, which is no line to draw.
+  if (model.balance.every((b) => b.kind === "Created")) {
+    return (
+      <p className="py-10 text-center text-sm text-muted">
+        The chart starts with the first trade on this stage.
+        {model.balance[0] && ` The balance is ${formatMoney(model.balance[0].value)} until then.`}
+      </p>
+    );
   }
 
   const right = Math.max(width - margin.right, margin.left + 1);

@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
-/* The portal's default look. A firm overrides these tokens with its own colors. */
+/* The portal's default look. A firm overrides these tokens with its own colors, and with a light background the color
+   scheme too, so the browser draws checkboxes, date pickers and scrollbars to match. */
 :root {
+  color-scheme: dark;
   --background: #0b0e14;
   --panel: #11151c;
   --border: #1f2530;

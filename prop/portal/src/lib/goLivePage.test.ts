@@ -17,7 +17,7 @@ function states(changes: Partial<Verification> = {}, billingChanges: Partial<Bil
 
 describe("the way to live", () => {
   it("starts with the company's details, and the deposit once nothing is missing", () => {
-    expect(states()).toEqual({ details: "current", deposit: "todo", answer: "todo", payment: "locked" });
+    expect(states()).toEqual({ details: "current", deposit: "todo", answer: "locked", payment: "locked" });
     expect(states({ problems: [] })).toEqual({ details: "done", deposit: "current", answer: "todo", payment: "locked" });
   });
 

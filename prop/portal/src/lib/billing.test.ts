@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Billing, Charge, Slots } from "./api/types";
-import { billingNotice, cardLabel, chargeLabel, expansionText, invoiceUrl, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges, vatOn, vatText } from "./billing";
+import { billingNotice, cardLabel, chargeAmountText, chargeLabel, expansionText, invoiceUrl, monthlyPrices, slotsSummary, slotsTaken, unpaidCharges, vatOn, vatText } from "./billing";
 
 const slots: Slots = { limit: "Paid", slots: 50, used: 38, reserved: 2, free: 10, paid: true, suspended: false, warning: true };
 
@@ -155,5 +155,13 @@ describe("billingNotice", () => {
     const waiting = { ...renewal, id: "waiting", failure: null, attempts: 0 };
 
     expect(unpaidCharges({ ...billing, charges: [renewal, older, waiting, { ...renewal, id: "paid", canPay: false }] }).map((c) => c.id)).toEqual(["older", renewal.id]);
+  });
+});
+
+describe("chargeAmountText", () => {
+  // Prices are shown without VAT, so an amount with VAT in it says so.
+  it("says when VAT is in the amount, and how much", () => {
+    expect(chargeAmountText({ amount: 625, netAmount: 500, vatAmount: 125 }, "USD")).toBe("625.00 USD incl. VAT (500.00 + 125.00 VAT)");
+    expect(chargeAmountText({ amount: 500, netAmount: 500, vatAmount: 0 }, "USD")).toBe("500.00 USD");
   });
 });

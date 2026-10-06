@@ -106,7 +106,7 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
     case "PositionModified":
       return `Changed stops on ${shortId(event.positionId)}: SL ${event.stopLoss ?? "-"}, TP ${event.takeProfit ?? "-"}`;
     case "PositionClosed":
-      return `Closed ${event.side} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.closePrice, digitsOf(event.symbol))}${closedBecause[event.reason]}, profit ${formatMoney(event.profit)}`;
+      return `Closed ${event.side} ${formatVolume(event.volume)} ${event.symbol} at ${formatPrice(event.closePrice, digitsOf(event.symbol))}${closedBecause[event.reason]}, profit ${formatMoney(event.profit)} before commission`;
     case "EquityFloorSet":
       return `${floorLabel(event.floorId)} set at ${formatMoney(event.level)}`;
     case "EquityFloorRemoved":
@@ -141,6 +141,11 @@ type OpenedPosition = Extract<EngineEvent, { kind?: "PositionOpened" }>;
 export function positionCommission(closed: ClosedPosition, events: readonly EngineEvent[]): number {
   const opened = events.find((e): e is OpenedPosition => e.kind === "PositionOpened" && e.positionId === closed.positionId);
   return closed.commission + (opened?.commission ?? closed.commission);
+}
+
+/** What a closed position made after its commission, the result the firm's portal shows for it too. */
+export function netResult(closed: ClosedPosition, events: readonly EngineEvent[]): number {
+  return Math.round((closed.profit - positionCommission(closed, events)) * 100) / 100;
 }
 
 /** Money added to or taken from the account, for example a payout. Not a trading result. */

@@ -127,6 +127,15 @@ export function useSendEmailConfirmation() {
   });
 }
 
+/** The logged-in trader writes a name, when the trader has none, for the portal and the certificates. */
+export function useSetMyName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => resultOf(await api.PUT("/api/portal/me/name", { body: { name } }), "your name"),
+    onSuccess: (me) => queryClient.setQueryData(meKey("trader"), me),
+  });
+}
+
 /** Ends the role's session. A session with the other role stays. */
 export function useLogout(role: Role) {
   const queryClient = useQueryClient();
@@ -361,6 +370,22 @@ export function useSetTraderCheck(accountId: string) {
     // The answer has every check, so the card shows them at once.
     onSuccess: (checks) => queryClient.setQueryData<TraderSummary>(["trader-summary", accountId], (old) => (old ? { ...old, checks } : old)),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["firm-payouts"] }),
+  });
+}
+
+/** The firm writes or corrects the name of the account's trader, which the trader writes only once. */
+export function useSetTraderName(accountId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const result = await api.PUT("/api/portal/admin/accounts/{accountId}/trader/name", { params: { path: { accountId } }, body: { name } });
+      if (!result.response.ok) {
+        resultOf(result, "the trader's name");
+      }
+
+      return name;
+    },
+    onSuccess: (name) => queryClient.setQueryData<TraderSummary>(["trader-summary", accountId], (old) => (old ? { ...old, name } : old)),
   });
 }
 

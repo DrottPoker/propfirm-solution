@@ -2,6 +2,7 @@ import { formatTotals, type StatusTone } from "./admin";
 import type { Charge, OpsActivity, OpsCharge, OpsEvent, OpsFirm, OpsFirmGroup, OpsFirmListItem, OpsFirmStage, OpsNeedsUs, OpsWaitingPayout } from "./api/types";
 import { monthName } from "./billing";
 import { formatDate, formatMoney } from "./format";
+import { reviewTime } from "./review";
 
 // What our own admin view shows across the firms (ADR 0024). Prop.Api counts and sums; this only words and arranges it.
 
@@ -150,7 +151,7 @@ export function needsUsItems(needsUs: OpsNeedsUs, now: number): NeedsUsItem[] {
       icon: "review",
       tone: "accent",
       title: waiting.length === 1 ? `${oldest.name} waits for review` : `${waiting.length} applications wait for review`,
-      detail: `${waiting.length === 1 ? `Sent ${waitedText(oldest.since, now)} ago` : `${named}${more}`}. Firms are told we answer within a day.`,
+      detail: `${waiting.length === 1 ? `Sent ${waitedText(oldest.since, now)} ago` : `${named}${more}`}. Firms are told we answer ${reviewTime}.`,
       href: `/ops/firms/${encodeURIComponent(oldest.id)}`,
       action: `Review ${oldest.name}`,
     });

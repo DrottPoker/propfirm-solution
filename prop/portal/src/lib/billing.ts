@@ -66,6 +66,16 @@ export function vatText(vat: Vat): string {
 }
 
 /** The VAT on an amount without VAT, in whole cents. The service's own figure is what is charged. */
+/**
+ * A monthly payment's amount, saying whether VAT is in it: "625.00 USD incl. VAT (500.00 + 125.00 VAT)", or the amount
+ * alone without VAT. Prices elsewhere are without VAT, so an amount with it says so.
+ */
+export function chargeAmountText(charge: { amount: number; netAmount: number; vatAmount: number }, currency: string): string {
+  return charge.vatAmount > 0
+    ? `${formatMoney(charge.amount)} ${currency} incl. VAT (${formatMoney(charge.netAmount)} + ${formatMoney(charge.vatAmount)} VAT)`
+    : `${formatMoney(charge.amount)} ${currency}`;
+}
+
 export function vatOn(net: number, vat: Vat): number {
   return Math.round(net * vat.percent) / 100;
 }

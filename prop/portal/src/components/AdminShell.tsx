@@ -201,7 +201,7 @@ function Footer({ me }: { me: Me }) {
       </a>
       <div className="flex items-center gap-2.5 py-1 pl-2.5">
         <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full border border-border bg-background text-[11px] font-semibold">
-          {initials(me.email)}
+          {initials(me.email, me.name)}
         </span>
         <span className="min-w-0 flex-1 truncate text-muted">{me.email}</span>
         <button

@@ -71,8 +71,11 @@ const barTones: Record<"profit" | "accent" | "warning" | "loss", string> = {
   loss: "bg-loss",
 };
 
-/** A bar from 0 to 100, with its label for screen readers. */
-export function ProgressBar({ value, label, tone = "profit" }: { value: number; label: string; tone?: keyof typeof barTones }) {
+/**
+ * A bar from 0 to 100, with its label for screen readers. A ghost, such as where a target would be with the open
+ * trades closed, is drawn lighter behind the value, so it shows where it goes beyond it.
+ */
+export function ProgressBar({ value, label, tone = "profit", ghost }: { value: number; label: string; tone?: keyof typeof barTones; ghost?: number }) {
   const clamped = Math.min(100, Math.max(0, value));
   return (
     <div
@@ -81,9 +84,12 @@ export function ProgressBar({ value, label, tone = "profit" }: { value: number; 
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(clamped)}
-      className="h-1.5 overflow-hidden rounded-full bg-border"
+      className="relative h-1.5 overflow-hidden rounded-full bg-border"
     >
-      <div className={`h-full rounded-full ${barTones[tone]}`} style={{ width: `${clamped}%` }} />
+      {ghost !== undefined && (
+        <div className={`absolute inset-y-0 left-0 rounded-full opacity-35 ${barTones[tone]}`} style={{ width: `${Math.min(100, Math.max(0, ghost))}%` }} />
+      )}
+      <div className={`relative h-full rounded-full ${barTones[tone]}`} style={{ width: `${clamped}%` }} />
     </div>
   );
 }
@@ -105,6 +111,18 @@ export function SectionLabel({ id, children }: { id?: string; children: React.Re
     <h2 id={id} className="text-xs font-medium uppercase tracking-wider text-muted">
       {children}
     </h2>
+  );
+}
+
+/**
+ * A trader's page in the firm's portal, under its header and as wide as it, so every page starts at the same left
+ * edge. A narrow page, such as a form or a conversation, keeps a readable width from that edge.
+ */
+export function TraderPage({ children, narrow = false, gap = "gap-6" }: { children: React.ReactNode; narrow?: boolean; gap?: string }) {
+  return (
+    <main className={`mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-6 ${gap}`}>
+      {narrow ? <div className={`flex w-full max-w-4xl flex-col ${gap}`}>{children}</div> : children}
+    </main>
   );
 }
 

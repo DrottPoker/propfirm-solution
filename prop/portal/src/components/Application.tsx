@@ -13,12 +13,16 @@ import { AlertIcon } from "./icons";
 import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
 
 /**
- * The company's details for our review (ADR 0021): every field, with each one that is missing or wrong marked, and the
- * list of them by the buttons. Saved as a draft; the next step sends it. Read only once it cannot be changed.
+ * The company's details for our review (ADR 0021): every field, with each one that is missing or wrong marked once it
+ * has been left or the firm has saved, and then the list of them by the buttons. Saved as a draft; the next step sends
+ * it. Read only once it cannot be changed.
  */
 export function ApplicationEditor({ verification, onContinue }: { verification: Verification; onContinue: () => void }) {
   const [form, setForm] = useState<ApplicationForm>(() => formOf(verification.application));
   const [problem, setProblem] = useState<string | null>(null);
+  // What is missing is shown for a field once it has been left, and for all of them once the firm saves, not before.
+  const [attempted, setAttempted] = useState(false);
+  const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set());
   const save = useSaveApplication();
   const editable = verification.canEdit;
   const set = (changes: Partial<ApplicationForm>) => setForm((current) => ({ ...current, ...changes }));
@@ -30,7 +34,10 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
     problems[save.error.field] = save.error.message;
   }
 
+  const shown = (field: string): string | undefined => (attempted || touched.has(field) ? problems[field] : undefined);
+
   const send = (andContinue: boolean) => {
+    setAttempted(true);
     const parsed = applicationOf(form);
     if ("problem" in parsed) {
       setProblem(parsed.problem);
@@ -58,27 +65,35 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
         event.preventDefault();
         send(true);
       }}
+      onBlur={(event) => {
+        const field = event.target.getAttribute("name");
+        if (field && !touched.has(field)) {
+          setTouched(new Set(touched).add(field));
+        }
+      }}
       className="flex flex-col gap-6"
     >
       <Panel title="Company">
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="Legal name" value={form.companyName} onChange={(companyName) => set({ companyName })} disabled={!editable} problem={problems.companyName} />
+          <TextField name="companyName" label="Legal name" value={form.companyName} onChange={(companyName) => set({ companyName })} disabled={!editable} problem={shown("companyName")} />
           <TextField
+            name="registrationNumber"
             label="Registration number"
             value={form.registrationNumber}
             onChange={(registrationNumber) => set({ registrationNumber })}
             disabled={!editable}
-            problem={problems.registrationNumber}
+            problem={shown("registrationNumber")}
           />
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-muted">Country of registration</span>
             <select
+              name="country"
               aria-label="Country of registration"
-              aria-invalid={problems.country ? true : undefined}
+              aria-invalid={shown("country") ? true : undefined}
               value={form.country}
               onChange={(e) => set({ country: e.target.value, noVatNumber: form.noVatNumber && verification.euCountries.includes(e.target.value) })}
               disabled={!editable}
-              className={fieldOf(problems.country)}
+              className={fieldOf(shown("country"))}
             >
               <option value="">Choose a country</option>
               {countries.map((country) => (
@@ -87,17 +102,18 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
                 </option>
               ))}
             </select>
-            <FieldProblemText problem={problems.country} />
+            <FieldProblemText problem={shown("country")} />
           </label>
           <div className="flex flex-col gap-2">
             <TextField
+              name="vatNumber"
               label="VAT number"
               value={form.noVatNumber ? "" : form.vatNumber}
               onChange={(vatNumber) => set({ vatNumber })}
               disabled={!editable || form.noVatNumber}
               hint={inEu ? "With the country code first, for example SE559000123401." : "The company's VAT or tax number, if it has one."}
               optional={!inEu}
-              problem={problems.vatNumber}
+              problem={shown("vatNumber")}
             />
             {inEu && (
               <label className="flex items-center gap-2 text-sm">
@@ -106,68 +122,72 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
               </label>
             )}
           </div>
-          <TextField label="Website" value={form.website} onChange={(website) => set({ website })} disabled={!editable} placeholder="https://" optional problem={problems.website} />
+          <TextField name="website" label="Website" value={form.website} onChange={(website) => set({ website })} disabled={!editable} placeholder="https://" optional problem={shown("website")} />
           <label className="flex flex-col gap-1 text-sm sm:col-span-2">
             <span className="text-muted">Registered address</span>
             <textarea
+              name="address"
               aria-label="Registered address"
-              aria-invalid={problems.address ? true : undefined}
+              aria-invalid={shown("address") ? true : undefined}
               rows={3}
               value={form.address}
               onChange={(e) => set({ address: e.target.value })}
               disabled={!editable}
-              className={fieldOf(problems.address)}
+              className={fieldOf(shown("address"))}
             />
-            <FieldProblemText problem={problems.address} />
+            <FieldProblemText problem={shown("address")} />
           </label>
         </div>
       </Panel>
 
       <Panel title="Contact">
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="Contact person" value={form.contactName} onChange={(contactName) => set({ contactName })} disabled={!editable} problem={problems.contactName} />
-          <TextField label="Phone" value={form.contactPhone} onChange={(contactPhone) => set({ contactPhone })} disabled={!editable} optional problem={problems.contactPhone} />
+          <TextField name="contactName" label="Contact person" value={form.contactName} onChange={(contactName) => set({ contactName })} disabled={!editable} problem={shown("contactName")} />
+          <TextField name="contactPhone" label="Phone" value={form.contactPhone} onChange={(contactPhone) => set({ contactPhone })} disabled={!editable} optional problem={shown("contactPhone")} />
         </div>
       </Panel>
 
-      <Owners form={form} onChange={(owners) => set({ owners })} disabled={!editable} problem={problems.owners} />
+      <Owners form={form} onChange={(owners) => set({ owners })} disabled={!editable} problem={shown("owners")} />
 
       <Panel title="Your terms and links">
         <TextField
+          name="termsUrl"
           label="Your terms for traders"
           value={form.termsUrl}
           onChange={(termsUrl) => set({ termsUrl })}
           disabled={!editable}
           placeholder="https://"
           hint="Where your rules and payouts are described for your traders. The same address buyers accept in your shop, under Checkout: saving it here changes it there too."
-          problem={problems.termsUrl}
+          problem={shown("termsUrl")}
         />
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">Other links (optional)</span>
           <textarea
+            name="links"
             aria-label="Other links"
-            aria-invalid={problems.links ? true : undefined}
+            aria-invalid={shown("links") ? true : undefined}
             rows={3}
             value={form.links}
             onChange={(e) => set({ links: e.target.value })}
             disabled={!editable}
             placeholder="One https address per line, for example social media or reviews"
-            className={fieldOf(problems.links)}
+            className={fieldOf(shown("links"))}
           />
-          <FieldProblemText problem={problems.links} />
+          <FieldProblemText problem={shown("links")} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-muted">About your firm (optional)</span>
           <textarea
+            name="description"
             aria-label="About your firm"
             rows={4}
             value={form.description}
             onChange={(e) => set({ description: e.target.value })}
             disabled={!editable}
             placeholder="Who you are, how you sell challenges and how you pay out"
-            className={fieldOf(problems.description)}
+            className={fieldOf(shown("description"))}
           />
-          <FieldProblemText problem={problems.description} />
+          <FieldProblemText problem={shown("description")} />
         </label>
       </Panel>
 
@@ -175,7 +195,11 @@ export function ApplicationEditor({ verification, onContinue }: { verification: 
 
       {editable && (
         <Panel>
-          {missing.length > 0 && !changed ? (
+          {missing.length > 0 && !changed && !attempted ? (
+            <p className="text-sm text-muted">
+              {missing.length === 1 ? "One thing is left to fill in" : `${missing.length} things are left to fill in`} before you can send. We point them out when you save.
+            </p>
+          ) : missing.length > 0 && !changed ? (
             <div role="status" className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               <span className="flex items-center gap-2 font-medium">
                 <AlertIcon className="size-4 text-warning" />
@@ -259,11 +283,12 @@ function Owners({ form, onChange, disabled, problem }: { form: ApplicationForm; 
             <li key={index} className="flex flex-wrap items-end gap-3">
               <label className="flex flex-1 flex-col gap-1 text-sm">
                 <span className="text-muted">Name of owner {index + 1}</span>
-                <input aria-label={`Name of owner ${index + 1}`} value={owner.name} onChange={(e) => update(index, { name: e.target.value })} disabled={disabled} className={fieldClass} />
+                <input name="owners" aria-label={`Name of owner ${index + 1}`} value={owner.name} onChange={(e) => update(index, { name: e.target.value })} disabled={disabled} className={fieldClass} />
               </label>
               <label className="flex flex-col gap-1 text-sm">
                 <span className="text-muted">Share (%)</span>
                 <input
+                  name="owners"
                   aria-label={`Share of owner ${index + 1}`}
                   inputMode="decimal"
                   value={owner.share}
@@ -347,6 +372,7 @@ function Documents({ verification }: { verification: Verification }) {
 }
 
 function TextField({
+  name,
   label,
   value,
   onChange,
@@ -356,6 +382,7 @@ function TextField({
   optional = false,
   problem,
 }: {
+  name: string;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -372,6 +399,7 @@ function TextField({
         {optional && " (optional)"}
       </span>
       <input
+        name={name}
         aria-label={label}
         aria-invalid={problem ? true : undefined}
         value={value}

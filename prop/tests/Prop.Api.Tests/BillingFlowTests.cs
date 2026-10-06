@@ -173,7 +173,7 @@ public sealed class BillingFlowTests(PostgresFixture postgres) : IClassFixture<P
         using var paid = await CompleteAsync(admin, await ActivateAsync(admin, 30), declines: false);
         var live = await GetAsync(admin, "admin/overview");
 
-        Assert.Contains("tester@test.example bought Two-step 100K", sale.Body, StringComparison.Ordinal);
+        Assert.Contains("Ann Buyer (tester@test.example) bought Two-step 100K for 99.00 USD in your portal (order 1001).", sale.Body, StringComparison.Ordinal);
         Assert.Equal(1, inSandbox.GetProperty("sales").GetProperty("orders").GetInt32());
         Assert.Single(inSandbox.GetProperty("weeks").EnumerateArray().Last().GetProperty("sales").EnumerateArray());
         Assert.Equal(HttpStatusCode.NoContent, paid.StatusCode);

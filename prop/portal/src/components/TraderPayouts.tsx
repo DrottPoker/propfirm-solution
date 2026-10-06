@@ -13,7 +13,7 @@ import { PayoutMethodPanel } from "./PayoutMethodPanel";
 import { IdentityPanel } from "./TraderIdentity";
 import { PayoutSteps } from "./PayoutPanel";
 import { PayoutBadge } from "./Payouts";
-import { Message } from "./ui";
+import { Message, TraderPage } from "./ui";
 
 /** Every payout from the trader's funded accounts, with what is paid, on its way and ready to ask for. */
 export function TraderPayouts() {
@@ -32,7 +32,7 @@ export function TraderPayouts() {
   const { totals } = payouts.data;
   const ready = (accounts.data ?? []).filter((a) => a.account.nextPayout?.canRequest);
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <TraderPage>
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Payouts</h1>
         <p className="text-muted">Every payout from your funded accounts. {branding.name} sends the money and marks it as paid here.</p>
@@ -107,7 +107,7 @@ export function TraderPayouts() {
           </table>
         </div>
       )}
-    </main>
+    </TraderPage>
   );
 }
 

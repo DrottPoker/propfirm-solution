@@ -110,7 +110,7 @@ export function readableTextOn(color: string): string {
 /**
  * CSS variables for the firm's colors. Prop.Api already validates them; they are checked again here
  * because they end up in a style attribute. Text on a brand color the firm chose is the easier to read of white and
- * dark, unless the firm chose it too.
+ * dark, unless the firm chose it too. A light background makes the color scheme light, which is dark by default.
  */
 export function themeStyle(branding: Pick<Branding, "colors"> | null): Record<string, string> {
   const style: Record<string, string> = {};
@@ -125,7 +125,19 @@ export function themeStyle(branding: Pick<Branding, "colors"> | null): Record<st
     style["--accent-foreground"] = readableTextOn(style["--accent"]);
   }
 
+  if (style["--background"] && colorSchemeOf(style["--background"]) === "light") {
+    style.colorScheme = "light";
+  }
+
   return style;
+}
+
+/**
+ * Whether the browser should draw its own controls, such as checkboxes, date pickers and scrollbars, light or dark on
+ * the background: light where dark text is the easier to read on it.
+ */
+export function colorSchemeOf(background: string): "light" | "dark" {
+  return readableTextOn(background) === buttonTextColors.dark ? "light" : "dark";
 }
 
 /** How far apart two colors are in lightness, as WCAG's contrast ratio from 1 to 21. Text needs at least 4.5. */

@@ -10,7 +10,7 @@ import { defaultColors } from "@/lib/theme";
 
 import { PriceControl } from "./AdminChallenges";
 import { CheckIcon, ExternalIcon } from "./icons";
-import { brandSwatches, Logo, useLogoLuminance } from "./PortalDesign";
+import { brandSwatches, Logo, useLogoEdges } from "./PortalDesign";
 import { AdminPage, buttonClass, ErrorText, Message, Panel, secondaryButtonClass } from "./ui";
 
 /**
@@ -87,7 +87,7 @@ export function GetStarted({ step }: { step: GuideStep }) {
 function LookStep({ settings }: { settings: FirmSettings }) {
   const router = useRouter();
   const save = useSaveColors();
-  const luminance = useLogoLuminance(settings.logoUrl);
+  const edges = useLogoEdges(settings.logoUrl);
   const accent = settings.colors.accent ?? defaultColors.accent;
 
   // A new brand color gets the button text that is easy to read on it, as on the design page.
@@ -99,7 +99,7 @@ function LookStep({ settings }: { settings: FirmSettings }) {
 
   return (
     <>
-      <Logo settings={settings} hardToSee={luminance !== null && logoHardToSee(luminance, settings.colors.panel ?? defaultColors.panel)} />
+      <Logo settings={settings} colorsWait={false} hardToSee={edges !== null && logoHardToSee(edges, settings.colors.panel ?? defaultColors.panel)} />
       <Panel title="Brand color">
         <div role="group" aria-label="Brand colors" className="flex flex-wrap items-center gap-2.5">
           {brandSwatches.map((swatch) => (

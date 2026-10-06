@@ -89,11 +89,21 @@ export function deadlineText(verb: string, due: Deadline): string {
   return due.daysLeft === 1 ? `${verb} today` : `${verb} by ${formatShortDate(due.lastDay)} (${due.daysLeft - 1} ${due.daysLeft === 2 ? "day" : "days"})`;
 }
 
-/** The two letters on the trader's menu button, from the email address. */
-export function initials(email: string): string {
-  const name = email.split("@")[0] ?? "";
-  const parts = name.split(/[._+-]+/).filter((p) => p.length > 0);
-  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2);
+/** The two letters on a person's menu button: from the name when there is one, else from the email address. */
+export function initials(email: string, name?: string | null): string {
+  // A name gives its first and last word's first letters, as "Maja Lind" gives "ML".
+  const words = (name ?? "").trim().split(/\s+/).filter((w) => w.length > 0);
+  if (words.length > 1) {
+    return `${Array.from(words[0])[0]}${Array.from(words[words.length - 1])[0]}`.toUpperCase();
+  }
+
+  if (words.length === 1) {
+    return Array.from(words[0]).slice(0, 2).join("").toUpperCase();
+  }
+
+  const local = email.split("@")[0] ?? "";
+  const parts = local.split(/[._+-]+/).filter((p) => p.length > 0);
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : local.slice(0, 2);
   return letters.toUpperCase() || "?";
 }
 
@@ -304,6 +314,8 @@ export type Objective = {
   stateText: string;
   detail: string;
   progress?: number;
+  /** Where the progress would be with the open trades closed now, drawn lighter behind it. */
+  ghost?: number;
   segments?: { filled: number; total: number };
 };
 
@@ -315,6 +327,8 @@ export function objectivesOf(details: AccountDetails): Objective[] {
 
   if (results.targetRequired != null && results.targetGained != null && results.targetPercent != null) {
     const reached = results.targetPercent >= 100;
+    // The target counts the balance, so closed trades only. Open ones are shown as where it would be with them closed.
+    const withOpen = isTrading(details) && results.floating ? results.targetGained + results.floating : null;
     objectives.push(
       ended && !reached
         ? {
@@ -329,8 +343,11 @@ export function objectivesOf(details: AccountDetails): Objective[] {
             title: "Profit target",
             state: reached ? "reached" : "progress",
             stateText: reached ? "Reached" : "In progress",
-            detail: `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}`,
+            detail:
+              `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}. Closed trades count` +
+              (withOpen === null || reached ? "." : `: with your open ones closed now, it would be ${formatMoney(withOpen)}.`),
             progress: results.targetPercent,
+            ghost: withOpen === null || reached ? undefined : Math.min(100, Math.max(0, (100 * withOpen) / results.targetRequired)),
           },
     );
   }

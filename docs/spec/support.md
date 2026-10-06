@@ -74,7 +74,7 @@ Filerna hämtas med `Content-Disposition: attachment`, `X-Content-Type-Options: 
 
 | Slag | Till | När |
 |---|---|---|
-| `firmSupport` | Alla firmans administratörer | Ett ärende börjar vänta på firman: det öppnas, eller tradern skriver i ett besvarat eller stängt ärende. Mejlet har meddelandet citerat, högst 2 000 tecken, hur många filer det har och en länk till ärendet i adminpanelen. Fler meddelanden medan ärendet redan väntar ger inga fler mejl. |
+| `firmSupport` | Alla firmans administratörer | Ett ärende börjar vänta på firman: det öppnas, eller tradern skriver i ett besvarat eller stängt ärende. Ämnet nämner tradern vid namn när det finns, och texten med e-posten bredvid. Mejlet har meddelandet citerat, högst 2 000 tecken, hur många filer det har och en länk till ärendet i adminpanelen. Fler meddelanden medan ärendet redan väntar ger inga fler mejl. |
 | `traderSupportAnswers` | Tradern | Firman svarar, eller skriver först ("Message from {firma}: {rubrik}"). Mejlet kommer i firmans namn och utseende med hela meddelandet, hur många filer det har, om ärendet stängdes och knappen "Open the ticket". Det ber tradern svara i portalen, men ett svar på mejlet går till firmans supportadress. |
 
 Båda kan stängas av under Notifications i adminpanelen. Att stänga ett ärende utan svar mejlar ingen.

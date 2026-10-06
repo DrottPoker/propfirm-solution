@@ -26,7 +26,8 @@ export const goLiveStateLabels: Record<GoLiveStepState, string> = {
 
 /**
  * Where each step is, from our review and the billing. The details are done once nothing is missing, the deposit once
- * the application is sent, our answer once we have approved, and the last step once the firm is live.
+ * the application is sent, our answer once we have approved, and the last step once the firm is live. Only the step
+ * after the one to do now is next; the ones after it are later.
  */
 export function goLiveStates(verification: Verification, billing: Billing): Record<GoLiveStepKey, GoLiveStepState> {
   const review = verification.status;
@@ -44,7 +45,9 @@ export function goLiveStates(verification: Verification, billing: Billing): Reco
             ? "done"
             : review === "Rejected"
               ? "locked"
-              : "todo",
+              : ready
+                ? "todo"
+                : "locked",
     payment: live ? "done" : review === "Approved" ? "current" : "locked",
   };
 }

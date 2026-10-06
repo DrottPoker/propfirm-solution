@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { CommandRejectedError } from "@/lib/api/client";
 import type { EngineEvent, InstrumentInfo, PositionSnapshot, Side } from "@/lib/api/types";
-import { balanceOperationName, closeReasons, describeEvent, isWarning, positionCommission, rejectionText, shortId, type DigitsOf } from "@/lib/events";
+import { balanceOperationName, closeReasons, describeEvent, isWarning, netResult, positionCommission, rejectionText, shortId, type DigitsOf } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume } from "@/lib/format";
 import { useCancelOrder, useClosePosition, useModifyStops, usePointValue } from "@/lib/queries";
 import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
@@ -291,7 +291,8 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
   );
 }
 
-// Closed positions and balance operations such as payouts, newest first. Commission is for both opening and closing.
+// Closed positions and balance operations such as payouts, newest first. Commission is for both opening and closing, and
+// the result is after it, as in the firm's portal.
 function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
   const timeZone = useTimeZone();
   const rows = events
@@ -303,7 +304,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
   }
 
   return (
-    <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Profit"]}>
+    <Table headers={["Closed", "Position", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Result"]}>
       {rows.map((c) => {
         if (isBalanceOperation(c)) {
           return (
@@ -320,6 +321,8 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
         }
 
         const digits = digitsOf(c.symbol);
+        const commission = positionCommission(c, events);
+        const result = netResult(c, events);
         return (
           <tr key={`${c.positionId}-${c.timestamp}`} className="border-t border-border hover:bg-raised/50">
             <Cell>{formatTime(c.timestamp, timeZone)}</Cell>
@@ -332,9 +335,9 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
             <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
             <Cell number>{formatPrice(c.closePrice, digits)}</Cell>
             <Cell>{closeReasons[c.reason]}</Cell>
-            <Cell number>{formatMoney(positionCommission(c, events))}</Cell>
-            <Cell number className={c.profit >= 0 ? "text-profit" : "text-loss"}>
-              {formatSignedMoney(c.profit)}
+            <Cell number>{formatMoney(commission)}</Cell>
+            <Cell number className={result >= 0 ? "text-profit" : "text-loss"}>
+              <span title={`${formatSignedMoney(c.profit)} before ${formatMoney(commission)} commission`}>{formatSignedMoney(result)}</span>
             </Cell>
           </tr>
         );

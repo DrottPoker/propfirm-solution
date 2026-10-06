@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 import { shortAmount, weekBars, type WeekAmounts } from "@/lib/admin";
 import { formatMoney } from "@/lib/format";
 
@@ -12,8 +14,9 @@ function weekLabel(isoDate: string): string {
 
 /**
  * Two amounts side by side for each week, the current week last, in one currency: for example a firm's sales and
- * payouts. <code>series</code> names the two, the first drawn in the brand color. A table with the same figures is
- * there for screen readers.
+ * payouts. <code>series</code> names the two, the first drawn in the brand color and the second striped in it, so the
+ * two differ in any firm's colors without the second looking switched off. A table with the same figures is there for
+ * screen readers.
  */
 export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekAmounts[]; currency: string; series: [string, string]; caption: string }) {
   const { bars, ticks, otherCurrencies } = weekBars(weeks, currency);
@@ -23,6 +26,8 @@ export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekA
   const bar = Math.min(16, group / 3);
   const labelled = (index: number) => index === bars.length - 1 || (index % 3 === 0 && index < bars.length - 2);
   const [first, second] = series;
+  // An id of letters only, since it is used in url(#...).
+  const stripes = `stripes-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   return (
     <figure className="flex flex-col gap-3">
@@ -32,7 +37,7 @@ export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekA
           {first}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-sm bg-foreground/70" />
+          <span className="size-2.5 rounded-sm border border-accent" style={{ background: "repeating-linear-gradient(135deg, var(--accent) 0 1.5px, transparent 1.5px 3.5px)" }} />
           {second}
         </span>
       </div>
@@ -45,6 +50,11 @@ export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekA
           role="img"
           aria-label={`${first} and ${second.toLowerCase()} in ${currency} for each of the last ${bars.length} weeks. The table below has the figures.`}
         >
+          <defs>
+            <pattern id={stripes} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="2.5" height="5" className="fill-accent" />
+            </pattern>
+          </defs>
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} className="stroke-border" strokeWidth={1} />
@@ -60,7 +70,9 @@ export function WeeklyChart({ weeks, currency, series, caption }: { weeks: WeekA
                 <title>{`Week of ${weekLabel(week.start)}: ${first.toLowerCase()} ${formatMoney(week.first)} ${currency}, ${second.toLowerCase()} ${formatMoney(week.second)} ${currency}`}</title>
                 <rect x={plot.left + index * group} y={plot.top} width={group} height={plot.bottom - plot.top} className="fill-transparent" />
                 {week.first > 0 && <rect x={x - bar - 2} y={y(week.first)} width={bar} height={plot.bottom - y(week.first)} rx={2} className="fill-accent" />}
-                {week.second > 0 && <rect x={x + 2} y={y(week.second)} width={bar} height={plot.bottom - y(week.second)} rx={2} className="fill-foreground/70" />}
+                {week.second > 0 && (
+                  <rect x={x + 2.5} y={y(week.second) + 0.5} width={bar - 1} height={Math.max(0, plot.bottom - y(week.second) - 0.5)} rx={2} fill={`url(#${stripes})`} className="stroke-accent" strokeWidth={1} />
+                )}
                 {labelled(index) && (
                   <text x={x} y={height - 6} textAnchor="middle" className="fill-muted text-[11px]">
                     {index === bars.length - 1 ? "This week" : weekLabel(week.start)}

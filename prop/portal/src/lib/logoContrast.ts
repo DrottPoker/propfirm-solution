@@ -1,13 +1,20 @@
 import { contrastRatio } from "./theme";
 
-/** Below this contrast with the background, a logo is said to be hard to see. Logos are shapes, not text, so it is low. */
+/** Below this contrast with the background, a part of a logo is said to be hard to see. Logos are shapes, not text, so it is low. */
 export const logoContrast = 1.5;
 
 /**
- * The luminance of the image's visible pixels on average, from 0 for black to 1 for white, as WCAG counts it. Pixels
- * that are mostly transparent are left out. Null when the image cannot be read, for example from another address.
+ * The share of a logo's outline that may blend into the background before the logo is said to be hard to see: enough to
+ * catch white text beside a colored mark on a light theme, little enough that a few soft edge pixels do not count.
  */
-export async function imageLuminance(src: string): Promise<number | null> {
+export const hardToSeeShare = 0.3;
+
+/**
+ * The luminance of the pixels on the logo's outline, where the logo meets the background, from 0 for black to 1 for
+ * white, as WCAG counts it. Null when the image cannot be read, for example from another address, or when it has no
+ * transparent pixels, so its own background is what meets the portal's.
+ */
+export async function imageEdges(src: string): Promise<number[] | null> {
   const image = new Image();
   image.crossOrigin = "anonymous";
   image.src = src;
@@ -23,36 +30,64 @@ export async function imageLuminance(src: string): Promise<number | null> {
     }
 
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    return averageLuminance(context.getImageData(0, 0, canvas.width, canvas.height).data);
+    return edgeLuminances(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
   } catch {
     return null;
   }
 }
 
-/** The average luminance of RGBA pixels, weighted by how visible each is. Null without visible pixels. */
-export function averageLuminance(pixels: ArrayLike<number>): number | null {
-  let total = 0;
-  let weight = 0;
-  for (let i = 0; i + 3 < pixels.length; i += 4) {
-    const alpha = pixels[i + 3] / 255;
-    if (alpha < 0.1) {
-      continue;
+/**
+ * The luminance of every visible RGBA pixel next to a transparent one, or to the image's edge, which is where the
+ * background shows. Details inside the logo, such as white text on its own colored shape, are not on the outline and
+ * do not count. Null for an image without transparent pixels, or without visible ones.
+ */
+export function edgeLuminances(pixels: ArrayLike<number>, width: number, height: number): number[] | null {
+  const visible = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height && pixels[(y * width + x) * 4 + 3] >= 128;
+  let transparent = false;
+  for (let i = 3; i < pixels.length; i += 4) {
+    if (pixels[i] < 128) {
+      transparent = true;
+      break;
     }
-
-    const [r, g, b] = [pixels[i], pixels[i + 1], pixels[i + 2]].map((v) => {
-      const c = v / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    total += (0.2126 * r + 0.7152 * g + 0.0722 * b) * alpha;
-    weight += alpha;
   }
 
-  return weight > 0 ? total / weight : null;
+  if (!transparent) {
+    return null;
+  }
+
+  const edges: number[] = [];
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (visible(x, y) && (!visible(x - 1, y) || !visible(x + 1, y) || !visible(x, y - 1) || !visible(x, y + 1))) {
+        const i = (y * width + x) * 4;
+        edges.push(luminanceOf(pixels[i], pixels[i + 1], pixels[i + 2]));
+      }
+    }
+  }
+
+  return edges.length > 0 ? edges : null;
 }
 
-/** Whether a logo of this luminance is hard to see on the background color. */
-export function logoHardToSee(luminance: number, background: string): boolean {
+/** Whether a logo with this outline is hard to see on the background color: a good part of its outline blends into it. */
+export function logoHardToSee(edges: readonly number[], background: string): boolean {
+  if (edges.length === 0) {
+    return false;
+  }
+
+  const blending = edges.filter((luminance) => contrastRatio(grayOf(luminance), background) < logoContrast).length;
+  return blending / edges.length >= hardToSeeShare;
+}
+
+function luminanceOf(red: number, green: number, blue: number): number {
+  const [r, g, b] = [red, green, blue].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// A gray as light as the luminance, as a color contrastRatio takes.
+function grayOf(luminance: number): string {
   const gray = Math.round(255 * (luminance <= 0.0031308 ? luminance * 12.92 : 1.055 * luminance ** (1 / 2.4) - 0.055));
-  const hex = `#${Math.min(255, Math.max(0, gray)).toString(16).padStart(2, "0").repeat(3)}`;
-  return contrastRatio(hex, background) < logoContrast;
+  return `#${Math.min(255, Math.max(0, gray)).toString(16).padStart(2, "0").repeat(3)}`;
 }

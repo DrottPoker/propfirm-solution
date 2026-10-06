@@ -111,3 +111,40 @@ export function LogOutIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function CandlesIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 3v4M7 15v6M17 3v3M17 14v7" />
+      <rect x="4.5" y="7" width="5" height="8" rx="1" />
+      <rect x="14.5" y="6" width="5" height="8" rx="1" />
+    </Icon>
+  );
+}
+
+export function TradeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4v16M3 8l4-4 4 4" />
+      <path d="M17 20V4M13 16l4 4 4-4" />
+    </Icon>
+  );
+}
+
+export function ListIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3 6h.01M3 12h.01M3 18h.01" />
+    </Icon>
+  );
+}
+
+export function LayersIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </Icon>
+  );
+}

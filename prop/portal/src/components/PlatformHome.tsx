@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePlatform } from "@/app/providers";
 import { monthlyPrices } from "@/lib/billing";
 import { formatMoney } from "@/lib/format";
+import { reviewTime } from "@/lib/review";
 
 import { buttonClass, secondaryButtonClass } from "./ui";
 
@@ -19,7 +20,7 @@ const included: { title: string; text: string }[] = [
 
 const steps: { title: string; text: string }[] = [
   { title: "Try it in a sandbox", text: "Sign up in a minute, set up your challenges and shop, and trade with test accounts. Free, without a card." },
-  { title: "Apply to go live", text: "Tell us about the company and its owners. We check it, usually within a few working days." },
+  { title: "Apply to go live", text: `Tell us about the company and its owners. We check it, usually ${reviewTime}.` },
   { title: "Go live", text: "Pay the startup fee and your first month, and sell to real traders." },
 ];
 

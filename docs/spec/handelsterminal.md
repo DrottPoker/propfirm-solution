@@ -1,8 +1,8 @@
 # Spec: handelsterminalen
 
-- Fas: 3a och 3b, insättningar och uttag i historiken i 5, ny layout efter fas 6, pausade konton i 7, inloggning genom firmans portal och kontoraden som i portalen efter genomgången som ny firma
+- Fas: 3a och 3b, insättningar och uttag i historiken i 5, ny layout efter fas 6, pausade konton i 7, inloggning genom firmans portal och kontoraden som i portalen efter genomgången som ny firma, layouten för telefon och resultatet efter provision efter genomgången av UI och UX
 - Status: Implementerad i `trading/terminal`
-- Datum: 2026-10-05
+- Datum: 2026-10-06
 
 ## Syfte
 
@@ -56,7 +56,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
   Prisaxeln behåller webbläsarens egen meny. Menyn stängs av ett val, Esc, Tab, ett klick utanför eller scroll i grafen, och den går att styra med piltangenterna. Säger motorn nej visas skälet i grafen.
 - **Orderpanelen** har knappar för att stega volym, pris, stop loss och take profit. Volymen stegas med instrumentets steg inom dess gränser, och priser stegas en pip i taget (0,0001 för EURUSD, 0,01 för USDJPY och 0,1 för XAUUSD). Ett tomt pris börjar från bid. Under volymen visas kontraktsvärdet i basvalutan. Stop loss och take profit sätts som pris eller som belopp i kontots valuta (Price eller till exempel USD). Ett belopp räknas om till ett pris från där ordern öppnar: ask för ett köp, bid för en sälj, eller orderpriset för en limit- eller stoporder. Avståndet avrundas nedåt till hela punkter, så att beloppet inte överskrids. Med belopp stegar knapparna med vad en pip är värd vid volymen. Under SÄLJ och KÖP visas det andra sättet för varje sida: priserna när tradern skrev belopp, och de uppskattade beloppen när tradern skrev priser. När ordern har lagts töms pris, stop loss och take profit, medan volymen, ordertypen och valet mellan pris och belopp ligger kvar. En avvisad order tömmer ingenting, så att tradern kan rätta den. I positionstabellen visas det uppskattade resultatet bredvid stop loss och take profit, och Edit kan också ta belopp. Där räknas beloppen från öppningspriset. Panelen visar gruppens villkor för symbolen: hävstång, påslag på spreaden, provision och kontraktsstorlek. Det är en del av öppenheten mot traders.
 - **Pausat konto:** kontoraden visar Paused, orderpanelen säger att nya ordrar inte tas emot, och köp och sälj går inte att trycka på. Tradern kan stänga positioner och flytta stop loss och take profit, också genom att dra linjerna i grafen. Händelserna visar när kontot pausades och fick handla igen.
-- **Historik** listar stängda positioner och insättningar och uttag, till exempel en utbetalning, med det nyaste först. Skälet till en stängning står i vanliga ord: Manual, Stop loss, Take profit, Stop out, Loss limit eller Account closed. Ett uttag syns som en rad med beloppet i vinstkolumnen. Provisionen är positionens hela, både när den öppnades och när den stängdes. Saknas öppningen bland händelserna som hämtats räknas den som lika stor som stängningens, vilket den är om firman inte ändrade provisionen medan positionen var öppen.
+- **Historik** listar stängda positioner och insättningar och uttag, till exempel en utbetalning, med det nyaste först. Skälet till en stängning står i vanliga ord: Manual, Stop loss, Take profit, Stop out, Loss limit eller Account closed. Ett uttag syns som en rad med beloppet i resultatkolumnen. Resultatet är efter provisionen, samma som portalen visar för affären, och vinsten före provision står när muspekaren hålls över det. Händelsen säger "profit 8.00 before commission". Provisionen är positionens hela, både när den öppnades och när den stängdes. Saknas öppningen bland händelserna som hämtats räknas den som lika stor som stängningens, vilket den är om firman inte ändrade provisionen medan positionen var öppen.
 - **Händelser** listar allt som hänt kontot i vanliga meningar, till exempel "Closed Buy 1.00 EURUSD at 1.07500 by the loss limit" och "Trading ended: a loss limit was broken", aldrig motorns kodord. Avvisningar, brott mot golv och stop out markeras i gult. Vid brott mot ett golv visas priserna från beviset.
 - **Avvisningar** förklaras med vanliga ord, till exempel "Refused: not enough free margin" eller "Refused: the stop loss is on the wrong side of the price". Ett skäl som terminalen inte känner till visas som motorn skrev det.
 - **En tidszon:** alla tider i terminalen, i statusraden, grafen, ordrarna, historiken och händelserna, visas i kontots tidszon, den som handelsdagen följer, så att de stämmer med portalen. Zonens namn står i statusraden och i grafens huvud, till exempel "Stockholm time". Ett konto utan tidszon, eller med en som webbläsaren inte känner till, visas i UTC.
@@ -102,7 +102,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Begränsningar
 
-- Panelerna har fast storlek, och layouten är gjord för datorskärm.
+- Panelerna har fast storlek på en datorskärm. Smalare än 1 024 px, som på en telefon, visas en del i taget, vald i en rad flikar längst ned (Chart, Trade, Watchlist, Positions), kontoraden har siffrorna på en egen rad som skrollas i sidled och statusraden döljs. Ett val i bevakningslistan visar grafen.
 - Candles finns bara i tjänstens minne, så förändringen över 24 timmar visas först 24 timmar efter att tjänsten startade.
 - Varje rad i symbollistan hämtar sina egna candles för de senaste 24 timmarna. Med många symboler och traders behövs en samlad sammanfattning från tjänsten.
 - Terminalen får högst ett pris per symbol var 100:e ms, så tickvolymen i den senaste candlen kan vara lägre än tjänstens tills grafen laddas om.

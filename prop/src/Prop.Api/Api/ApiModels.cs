@@ -303,6 +303,9 @@ public sealed record PortalLoginRequest(string? Email, string? Password);
 
 public sealed record AcceptInviteRequest(string? Token, string? Password);
 
+/// <summary>The name a trader without one writes, or the firm corrects, which the portal, the certificates and the firm's emails show.</summary>
+public sealed record TraderNameRequest(string? Name);
+
 /// <summary>
 /// Who is logged in to the portal. <paramref name="Role"/> is trader or admin. <paramref name="EmailConfirmed"/> is false
 /// for a trader who chose a password on an order's page and has not opened the link from the email since.

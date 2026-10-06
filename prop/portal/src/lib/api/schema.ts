@@ -1175,6 +1175,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/me/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TraderNameRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PortalMeResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/password-reset": {
         parameters: {
             query?: never;
@@ -3288,6 +3327,45 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["TraderCheckResponse"][];
                     };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/trader/name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TraderNameRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -8795,6 +8873,10 @@ export interface components {
             reason: null | string;
             /** Format: date-time */
             decidedAt: null | string;
+        };
+        /** @description The name a trader without one writes, or the firm corrects, which the portal, the certificates and the firm's emails show. */
+        TraderNameRequest: {
+            name: null | string;
         };
         /** @description The trader's payouts from every account, newest first, with totals per currency. */
         TraderPayoutsResponse: {

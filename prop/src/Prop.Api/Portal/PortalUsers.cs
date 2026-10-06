@@ -79,6 +79,29 @@ internal sealed class PortalUsers(NpgsqlDataSource dataSource, DatabaseSchema sc
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// The trader's name, for a trader without one, such as a trader the firm started a challenge for. False when the trader
+    /// has a name already: it is kept from the first order that gave it, as the firm knows the trader by it.
+    /// </summary>
+    public async Task<bool> SetTraderNameAsync(Guid traderId, string name, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update traders set name = $2 where id = $1 and name is null");
+        command.Parameters.AddWithValue(traderId);
+        command.Parameters.AddWithValue(name);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
+    /// <summary>The trader's name as the firm corrects it, whether the trader had one or not.</summary>
+    public async Task ChangeTraderNameAsync(Guid traderId, string name, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update traders set name = $2 where id = $1");
+        command.Parameters.AddWithValue(traderId);
+        command.Parameters.AddWithValue(name);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     /// <summary>Whether the account is the trader's only one, so the trader has nothing at the firm from before it.</summary>
     public async Task<bool> IsOnlyAccountAsync(Guid traderId, Guid accountId, CancellationToken cancellationToken)
     {

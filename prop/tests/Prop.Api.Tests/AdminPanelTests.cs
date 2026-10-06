@@ -17,6 +17,32 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
 {
     private const string TwoStep = "two-step-100k";
 
+    // The chart starts in the week the firm started, and goes back at most 12 weeks once the firm is older.
+    [Fact]
+    public async Task TheWeeksStartWhenTheFirmDidAndAreAtMostTwelve()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+
+        var first = await WeekStartsAsync();
+        await factory.AdvanceAsync(TimeSpan.FromDays(22));
+        var later = await WeekStartsAsync();
+        await factory.AdvanceAsync(TimeSpan.FromDays(100));
+        var older = await WeekStartsAsync();
+
+        Assert.Equal(["2026-10-05"], first);
+        Assert.Equal(["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"], later);
+        Assert.Equal(12, older.Count);
+        Assert.Equal(("2026-11-16", "2027-02-01"), (older[0], older[^1]));
+
+        // Logged in each time, since a session does not last for months.
+        async Task<List<string?>> WeekStartsAsync()
+        {
+            using var admin = await factory.LogInAsAdminAsync();
+            var overview = await admin.GetFromJsonAsync<JsonElement>(Url("admin/overview"), TestContext.Current.CancellationToken);
+            return [.. overview.GetProperty("weeks").EnumerateArray().Select(w => w.GetProperty("start").GetString())];
+        }
+    }
+
     [Fact]
     public async Task TheOverviewShowsTheAccountsThePayoutsTheSalesAndWhatHappened()
     {
@@ -42,8 +68,9 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
         // Anna passed every evaluation stage and Bert failed his first, so one of two evaluations passed.
         Assert.Equal((1, 2), (overview.GetProperty("passRate").GetProperty("passed").GetInt32(), overview.GetProperty("passRate").GetProperty("ended").GetInt32()));
 
+        // The firm started this week, so there are no empty weeks from before it.
         var weeks = overview.GetProperty("weeks").EnumerateArray().ToList();
-        Assert.Equal(12, weeks.Count);
+        Assert.Single(weeks);
         Assert.Equal("2026-10-05", weeks[^1].GetProperty("start").GetString());
         Assert.Equal([("USD", 9m)], Totals(weeks[^1].GetProperty("sales")));
         Assert.Equal([("USD", 6_400m)], Totals(weeks[^1].GetProperty("payouts")));
@@ -168,6 +195,28 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.Equal("Your Two-step 100K with Demo Firm has started", preview.GetProperty("subject").GetString());
         Assert.Contains("http://localhost:3002/invite?token=...", preview.GetProperty("body").GetString(), StringComparison.Ordinal);
         Assert.Equal(sentBefore, factory.Emails.Sent.Count);
+    }
+
+    // The trader writes a name only once, so the firm is the one who corrects it.
+    [Fact]
+    public async Task TheFirmCorrectsTheTradersName()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync("anna@test.example", TwoStep)).GetProperty("id").GetGuid();
+        using var trader = await factory.LogInAsTraderAsync(id);
+        (await trader.PutAsJsonAsync(Url("me/name"), new { name = "Ana Berg" }, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+        using var admin = await factory.LogInAsAdminAsync();
+
+        using var empty = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/name"), new { name = "" }, TestContext.Current.CancellationToken);
+        using var unknown = await admin.PutAsJsonAsync(Url($"admin/accounts/{Guid.NewGuid()}/trader/name"), new { name = "Anna Berg" }, TestContext.Current.CancellationToken);
+        using var corrected = await admin.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/name"), new { name = " Anna Berg " }, TestContext.Current.CancellationToken);
+        var card = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/trader"), TestContext.Current.CancellationToken);
+        var me = await trader.GetFromJsonAsync<JsonElement>(Url("me"), TestContext.Current.CancellationToken);
+        using var byTrader = await trader.PutAsJsonAsync(Url($"admin/accounts/{id}/trader/name"), new { name = "Someone Else" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.NotFound, HttpStatusCode.NoContent), (empty.StatusCode, unknown.StatusCode, corrected.StatusCode));
+        Assert.Equal(("Anna Berg", "Anna Berg"), (card.GetProperty("name").GetString(), me.GetProperty("name").GetString()));
+        Assert.Equal(HttpStatusCode.Unauthorized, byTrader.StatusCode);
     }
 
     [Fact]

@@ -95,7 +95,7 @@ Tradern skickas till firmans adress med `order={id}&return={orderns sida}`. Firm
 ## Lösenordet efter köpet
 
 - En trader som är inloggad i portalen köper med sin egen e-postadress, och kontot syns direkt bland traderns konton.
-- Firmans administratörer får mejlet "New sale" med köparen, challengen, beloppet och ordernumret, om firman inte stängt av det under Notifications (ADR 0025). Det köas i samma transaktion som betalningen.
+- Firmans administratörer får mejlet "New sale" med köparen, med namnet först när det finns ("Ann Buyer (ann@example.com)"), challengen, beloppet och ordernumret, om firman inte stängt av det under Notifications (ADR 0025). Det köas i samma transaktion som betalningen.
 - En ny köpare väljer lösenord direkt på orderns sida och kommer till sitt konto. Det går bara när ordern startade traderns enda konto och tradern inte har något lösenord, så att någon som skriver en annans e-post aldrig kommer åt konton från förut (`canChoosePassword`).
 - Har tradern inget lösenord mejlar plattformen dessutom en inbjudan när ordern är betald, i firmans namn och utseende (ADR 0033). Länken gäller en gång i 7 dagar. Har köparen redan valt lösenord bekräftar länken e-posten, annars väljer köparen lösenordet med den. Innan vi har godkänt firman köper bara firmans administratörer (ADR 0043), och orderns sida säger bara att länken mejlats när den har det.
 - **Bara teamet köper innan firman får sälja.** Innan vi har godkänt firman, och med firmans egen betalsida innan firman är live, nekas en order från någon annan än firmans administratörer med 403, och `GET /shop` har `teamOnly`, så att butiken säger det. Riktiga pengar tas i portalen först när firman är live (ADR 0029 och 0043).

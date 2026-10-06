@@ -131,12 +131,15 @@ function TraderMenu({ me, path, canBuy, unread }: { me: Me; path: string; canBuy
           {unread > 0 && <span aria-hidden="true" className="size-2 rounded-full bg-accent" />}
         </span>
         <span aria-hidden="true" className="hidden text-xs font-semibold sm:inline">
-          {initials(me.email)}
+          {initials(me.email, me.name)}
         </span>
       </button>
       {open && (
         <div id={menuId} className="absolute right-0 z-20 mt-2 flex w-64 flex-col gap-1 rounded-lg border border-border bg-panel p-2 shadow-xl">
-          <p className="truncate px-3 py-2 text-muted">{me.email}</p>
+          <p className="flex flex-col px-3 py-2">
+            {me.name && <span className="truncate font-medium">{me.name}</span>}
+            <span className="truncate text-muted">{me.email}</span>
+          </p>
           <nav aria-label="Main" className="flex flex-col border-t border-border pt-1 sm:hidden">
             {traderLinks.map((link) => (
               <Link

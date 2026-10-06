@@ -5,29 +5,70 @@ import { useEffect, useState } from "react";
 import { useBranding } from "@/app/providers";
 import type { AccountDetails } from "@/lib/api/types";
 import { certificateHeight, certificatesOf, certificateSvg, certificateWidth, type Certificate } from "@/lib/certificate";
-import { useMe } from "@/lib/queries";
+import { useMe, useSetMyName } from "@/lib/queries";
 import { defaultColors } from "@/lib/theme";
 
-import { ErrorText, Panel, secondaryButtonClass } from "./ui";
+import { buttonClass, ErrorText, fieldClass, Panel, secondaryButtonClass } from "./ui";
 
-/** The trader's certificates for the account, to download as an image and share: a passed challenge and every paid payout. */
+/**
+ * The trader's certificates for the account, to download as an image and share: a passed challenge and every paid
+ * payout. They carry the trader's name, so a trader without one writes it first, rather than sharing the email address.
+ */
 export function Certificates({ details }: { details: AccountDetails }) {
   const branding = useBranding();
   const me = useMe("trader");
   const logo = useLogoData(branding.logoUrl);
   const certificates = certificatesOf(details);
-  const traderName = me.data?.name ?? details.account.email;
+  const traderName = me.data?.name;
   const accent = branding.colors.accent ?? defaultColors.accent;
 
   return (
     <Panel title="Certificates">
-      <p className="text-sm text-muted">Download them as images to share.</p>
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {certificates.map((certificate) => (
-          <CertificateCard key={certificate.key} certificate={certificate} svg={certificateSvg(certificate, branding.name, traderName, accent, logo)} />
-        ))}
-      </ul>
+      {!me.data ? (
+        <p className="text-sm text-muted">Loading...</p>
+      ) : !traderName ? (
+        <NameForm firmName={branding.name} />
+      ) : (
+        <>
+          <p className="text-sm text-muted">Download them as images to share.</p>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {certificates.map((certificate) => (
+              <CertificateCard key={certificate.key} certificate={certificate} svg={certificateSvg(certificate, branding.name, traderName, accent, logo)} />
+            ))}
+          </ul>
+        </>
+      )}
     </Panel>
+  );
+}
+
+// The name on the certificates, written once. The firm knows the trader by it, so only the firm changes it later.
+function NameForm({ firmName }: { firmName: string }) {
+  const setName = useSetMyName();
+  const [name, setNameText] = useState("");
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name.trim()) {
+          setName.mutate(name.trim());
+        }
+      }}
+      className="flex flex-col gap-3"
+    >
+      <p className="text-sm text-muted">Your certificates are ready. Write your name as it should stand on them. {firmName} knows you by it, so only they can change it afterwards.</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex min-w-60 flex-1 flex-col gap-1 text-sm">
+          <span className="text-muted">Your name</span>
+          <input value={name} onChange={(e) => setNameText(e.target.value)} maxLength={100} autoComplete="name" className={fieldClass} />
+        </label>
+        <button type="submit" disabled={setName.isPending || !name.trim()} className={buttonClass}>
+          {setName.isPending ? "Saving..." : "Show my certificates"}
+        </button>
+      </div>
+      <ErrorText error={setName.error} />
+    </form>
   );
 }
 

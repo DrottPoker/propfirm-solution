@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineEvent } from "./api/types";
-import { describeEvent, isWarning, positionCommission, rejectionText } from "./events";
+import { describeEvent, isWarning, netResult, positionCommission, rejectionText } from "./events";
 
 const digitsOf = (symbol: string) => (symbol === "XAUUSD" ? 2 : 5);
 const timestamp = "2026-10-05T08:00:00+00:00";
@@ -24,7 +24,7 @@ describe("describeEvent", () => {
       timestamp,
     };
 
-    expect(describeEvent(event, digitsOf)).toBe("Closed Buy 0.10 XAUUSD at 2660.00 by its take profit, profit 97.00");
+    expect(describeEvent(event, digitsOf)).toBe("Closed Buy 0.10 XAUUSD at 2660.00 by its take profit, profit 97.00 before commission");
   });
 
   it("describes a breach with equity and level", () => {
@@ -97,7 +97,7 @@ describe("describeEvent", () => {
     };
     const disabled: EngineEvent = { kind: "AccountDisabled", accountId: "demo", reason: "EquityFloor", timestamp };
 
-    expect(describeEvent(closed, digitsOf)).toBe("Closed Buy 1.00 EURUSD at 1.07500 by the loss limit, profit -500.00");
+    expect(describeEvent(closed, digitsOf)).toBe("Closed Buy 1.00 EURUSD at 1.07500 by the loss limit, profit -500.00 before commission");
     expect(describeEvent(disabled, digitsOf)).toBe("Trading ended: a loss limit was broken");
   });
 });
@@ -146,5 +146,11 @@ describe("positionCommission", () => {
 
   it("takes the opening commission to be the closing one when the opened event is not at hand", () => {
     expect(positionCommission(closed, [closed])).toBe(7);
+  });
+
+  // The same result as the firm's portal shows for the trade.
+  it("is taken off the profit for the result", () => {
+    expect(netResult(closed, [opened, closed])).toBe(93.5);
+    expect(netResult({ ...closed, profit: 8, commission: 3.5 }, [{ ...opened, commission: 3.5 }, closed])).toBe(1);
   });
 });

@@ -119,12 +119,32 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
         return new SalesFigures(orders, totals);
     }
 
-    /// <summary>Sales and paid payouts per week for <paramref name="weeks"/> weeks, the one with <paramref name="now"/> last.</summary>
+    /// <summary>
+    /// Sales and paid payouts per week for at most <paramref name="weeks"/> weeks, the one with <paramref name="now"/> last.
+    /// The first is the week the firm started: when it went live, or signed up while in the sandbox, so the weeks before
+    /// the firm counted anything are not shown as empty ones.
+    /// </summary>
     public async Task<List<WeekFigures>> WeeksAsync(string firmId, DateTimeOffset now, int weeks, CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
-        var thisWeek = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var thisWeek = WeekOf(now);
         var first = thisWeek.AddDays(-7 * (weeks - 1));
+        await using (var started = await CommandAsync(
+            """
+            select case when f.status = 'Live' then coalesce(b.activated_at, f.created_at) else f.created_at end
+            from firms f left join firm_billing b on b.firm_id = f.id
+            where f.id = $1
+            """,
+            [firmId],
+            cancellationToken))
+        {
+            if (await started.ExecuteScalarAsync(cancellationToken) is DateTime since)
+            {
+                var start = WeekOf(new DateTimeOffset(DateTime.SpecifyKind(since, DateTimeKind.Utc)));
+                first = start > first ? (start > thisWeek ? thisWeek : start) : first;
+            }
+        }
+
+        var count = (thisWeek.DayNumber - first.DayNumber) / 7 + 1;
         await using var command = await CommandAsync(
             $"""
             select 'sales', date_trunc('week', o.paid_at at time zone 'UTC')::date, o.currency, sum(o.amount)
@@ -149,11 +169,18 @@ internal sealed class AdminFigures(NpgsqlDataSource dataSource, DatabaseSchema s
 
         return
         [
-            .. Enumerable.Range(0, weeks).Select(i => first.AddDays(7 * i)).Select(week => new WeekFigures(
+            .. Enumerable.Range(0, count).Select(i => first.AddDays(7 * i)).Select(week => new WeekFigures(
                 week,
                 [.. rows.Where(r => r.Sale && r.Week == week).Select(r => r.Amount)],
                 [.. rows.Where(r => !r.Sale && r.Week == week).Select(r => r.Amount)])),
         ];
+    }
+
+    // The Monday, in UTC, of the week the time is in.
+    private static DateOnly WeekOf(DateTimeOffset time)
+    {
+        var day = DateOnly.FromDateTime(time.UtcDateTime);
+        return day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
     }
 
     /// <summary>

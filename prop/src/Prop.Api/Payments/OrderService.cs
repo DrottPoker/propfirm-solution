@@ -399,15 +399,16 @@ internal sealed partial class OrderService(
 
             var started = await accounts.StartAsync(connection, firm, order.Email, order.ChallengeId, null, order.Id, cancellationToken);
 
-            // The trader keeps the name and country from the first order that gave them.
+            // The trader keeps the name and country from the first order that gave them. The name kept names the buyer to the firm.
+            string? traderName;
             await using (var details = new NpgsqlCommand(
-                "update traders set name = coalesce(name, $3), country = coalesce(country, $4) where firm_id = $1 and normalized_email = $2", connection))
+                "update traders set name = coalesce(name, $3), country = coalesce(country, $4) where firm_id = $1 and normalized_email = $2 returning name", connection))
             {
                 details.Parameters.AddWithValue(firm.Id);
                 details.Parameters.AddWithValue(Emails.Normalize(order.Email));
                 details.Parameters.Add(OrderStore.Text(order.BuyerName));
                 details.Parameters.Add(OrderStore.Text(order.BuyerCountry));
-                await details.ExecuteNonQueryAsync(cancellationToken);
+                traderName = await details.ExecuteScalarAsync(cancellationToken) as string;
             }
             var problem = started.Account is not null
                 ? null
@@ -437,7 +438,7 @@ internal sealed partial class OrderService(
             await notifications.QueueSaleAsync(
                 connection,
                 firm,
-                paid.Email,
+                Notifications.Person(traderName ?? paid.BuyerName, paid.Email),
                 started.Account?.State.Definition.Name ?? order.ChallengeId,
                 paid.Number,
                 paid.Amount,

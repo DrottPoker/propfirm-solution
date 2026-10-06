@@ -34,7 +34,7 @@ export function BuyerOrderView({ orderId, token }: { orderId: string; token: str
       <section className="flex w-full max-w-md flex-col gap-4 rounded-lg border border-border bg-panel p-6">
         <div className="flex flex-col gap-1">
           <FirmName size="lg" />
-          <h1 className="text-sm text-muted">Order #{order.data.number}</h1>
+          <h1 className="text-sm text-muted">Order {order.data.number}</h1>
         </div>
         <p className="flex flex-wrap justify-between gap-2 text-sm">
           <span>{order.data.challengeName}</span>

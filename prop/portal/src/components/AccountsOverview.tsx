@@ -9,7 +9,7 @@ import { useMe, useMyAccounts, useSendEmailConfirmation, useShop } from "@/lib/q
 
 import { AccountCard } from "./AccountCard";
 import { VerifyIdentityNotice } from "./TraderIdentity";
-import { buttonClass, ErrorText, Message, SectionLabel } from "./ui";
+import { buttonClass, ErrorText, Message, SectionLabel, TraderPage } from "./ui";
 
 /**
  * The trader's start page: what needs attention, a card for every account that is trading or on its way, and the
@@ -36,7 +36,7 @@ export function AccountsOverview() {
   const canBuy = shop.data?.open === true;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6">
+    <TraderPage gap="gap-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Your accounts</h1>
         {current.length > 0 && (
@@ -88,7 +88,7 @@ export function AccountsOverview() {
       )}
 
       {ended.length > 0 && <EndedAccounts accounts={ended} />}
-    </main>
+    </TraderPage>
   );
 }
 

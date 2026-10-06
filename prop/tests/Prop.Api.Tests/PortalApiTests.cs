@@ -33,6 +33,34 @@ public sealed class PortalApiTests(PostgresFixture postgres) : IClassFixture<Pos
         Assert.Equal(HttpStatusCode.NotFound, nothing.StatusCode);
     }
 
+    // A trader the firm started a challenge for has no name, and writes one for the certificates. It is kept once
+    // written, as the firm knows the trader by it.
+    [Fact]
+    public async Task ATraderWithoutANameWritesItOnce()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = await StartAsync(factory);
+        using var trader = await factory.LogInAsTraderAsync(id);
+
+        var before = await trader.GetFromJsonAsync<JsonElement>(Url("me"), TestContext.Current.CancellationToken);
+        using var empty = await trader.PutAsJsonAsync(Url("me/name"), new { name = "  " }, TestContext.Current.CancellationToken);
+        using var tooLong = await trader.PutAsJsonAsync(Url("me/name"), new { name = new string('a', 101) }, TestContext.Current.CancellationToken);
+        using var saved = await trader.PutAsJsonAsync(Url("me/name"), new { name = " Anna Berg " }, TestContext.Current.CancellationToken);
+        var me = await saved.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
+        using var again = await trader.PutAsJsonAsync(Url("me/name"), new { name = "Someone Else" }, TestContext.Current.CancellationToken);
+        var after = await trader.GetFromJsonAsync<JsonElement>(Url("me"), TestContext.Current.CancellationToken);
+        using var anonymous = factory.CreatePortalClient();
+        using var notLoggedIn = await anonymous.PutAsJsonAsync(Url("me/name"), new { name = "Anna Berg" }, TestContext.Current.CancellationToken);
+
+        Assert.Equal(JsonValueKind.Null, before.GetProperty("name").ValueKind);
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.UnprocessableEntity), (empty.StatusCode, tooLong.StatusCode));
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        Assert.Equal("Anna Berg", me.GetProperty("name").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+        Assert.Equal("Anna Berg", after.GetProperty("name").GetString());
+        Assert.Equal(HttpStatusCode.Unauthorized, notLoggedIn.StatusCode);
+    }
+
     [Fact]
     public async Task ATraderChoosesAPasswordWithTheInvitationAndThenLogsInWithIt()
     {
