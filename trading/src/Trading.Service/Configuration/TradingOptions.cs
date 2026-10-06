@@ -31,9 +31,22 @@ public sealed class TradingOptions
             MaxQuoteAge);
 }
 
+/// <summary>What kind of market an instrument is. The terminal lists instruments by it.</summary>
+public enum InstrumentCategory
+{
+    Forex,
+    Metals,
+    Indices,
+    Commodities,
+    Crypto,
+}
+
 public sealed class InstrumentOptions
 {
     public string Symbol { get; init; } = "";
+
+    /// <summary>Required. Null only when the configuration lacks it, which stops the start.</summary>
+    public InstrumentCategory? Category { get; init; }
 
     public string BaseCurrency { get; init; } = "";
 

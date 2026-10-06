@@ -18,7 +18,8 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 | `EngineHealthCheck` | `/health` är friskt först när journalen är uppspelad, och bara så länge den går att skriva. |
 | `IPriceFeed` | Gränssnitt för prisflöden. En adapter per dataleverantör. Ger livepriser och historik för graferna. Flödets namn sparas med varje pris det ger. |
 | `SyntheticPriceFeed` | Slumpvandring för lokal utveckling. Samma frö ger samma priser. Historiken går bakåt från det senaste priset, så den slutar där livepriserna fortsätter. Standard. |
-| `TiingoPriceFeed` | Riktiga priser för valutor och guld från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. Historiken kommer från Tiingos staplar av mittpriset, sänkta med halva spreaden till bid (ADR 0048). |
+| `TiingoPriceFeed` | Riktiga priser för valutor och metaller från Tiingos gratisplan, för utveckling (ADR 0010). Hämtar de senaste priserna vid varje anslutning och skickar högst ett pris per symbol och kvart sekund. Historiken kommer från Tiingos staplar av mittpriset, sänkta med halva spreaden till bid (ADR 0048). Tiingo har inga index, råvaror eller krypto, så de instrumenten får inga priser. |
+| `CapitalComPriceFeed` | Riktiga priser för alla instrumentets kategorier från ett gratis demokonto hos Capital.com, för utveckling (ADR 0049). Öppnar en session, hämtar de senaste priserna, prenumererar på högst 40 instrument och pingar strömmen var fjärde minut. Historiken kommer från Capital.com:s staplar av bid, högst 950 per anrop. Capital.com:s namn (epic) skiljer sig för några symboler, till exempel GOLD för XAUUSD och J225 för JP225. |
 | `PriceFeedPump` | Flyttar priser från flödet till candles och motorn, när graferna är fyllda. |
 | `CandleStore` | Bygger candles av bid per symbol och tidsram (M1, M5, M15, M30, H1, H4, D1), av priser och av staplar. En stapel går in i sin egen tidsram och alla längre. Vet när graferna är fyllda efter en start. |
 | `ChartHistory`, `ChartRecorder` | Grafernas historik (ADR 0048). Laddar flödets historik vid ett byte, fyller graferna från sparade staplar vid start och sparar varje färdig minutstapel. |
@@ -96,7 +97,7 @@ Alla vägar börjar med `/api/accounts/{accountId}` och kräver att tradern är 
 | Metod och väg | Beskrivning |
 |---|---|
 | `GET` | Kontot värderat till senaste priser. Varje golv har `headroom`: hur långt equity kan falla innan golvet bryts. |
-| `GET /instruments` | Gruppens instrument med villkor: hävstång, påslag och provision. |
+| `GET /instruments` | Gruppens instrument med kategori (`Forex`, `Metals`, `Indices`, `Commodities` eller `Crypto`) och villkor: hävstång, påslag och provision. |
 | `GET /instruments/{symbol}/point-value` | Vad en punkt på en lot är värd i kontots valuta vid senaste växelkurs (`perLot`). Vinsten är punkter gånger volym gånger `perLot`, före avrundning och provision. Terminalen använder det för att sätta stop loss och take profit med belopp. 404 om gruppen inte handlar symbolen eller växelkursen saknas än. |
 | `GET /prices` | Senaste priser efter påslag. |
 | `GET /candles/{symbol}?timeframe=M1&count=500` | Candles av bid som kontot ser det, äldst först. Högst 5 000. Väntar tills graferna är byggda efter en start. |
@@ -126,7 +127,7 @@ För firmans egna system, till exempel propfirm-plattformen (ADR 0012). Alla vä
 | `PUT /accounts/{accountId}/details` | Hur terminalen visar kontot (ADR 0035): `{ "label", "profitTarget", "timeZone", "detailsUrl" }`. `label` är namnet, högst 100 tecken, `profitTarget` saldot som klarar fasen, `timeZone` handelsdagens zon (IANA, till exempel `Europe/Stockholm`) och `detailsUrl` kontot i firmans portal, en absolut http- eller https-adress. Tomt tar bort ett fält. Uppgifterna ligger utanför motorn och journalen, eftersom de bara är för visning. 422 för ett ogiltigt fält. |
 | `POST /accounts/{accountId}/balance-operations` | Sätter in eller tar ut pengar med `{ "operationId", "amount", "minBalance" }`. Ett negativt belopp är ett uttag. Samma `operationId` igen svarar 409 med `DuplicateId`, så ett nytt försök dras aldrig två gånger. Ett uttag som skulle lämna mindre än `minBalance`, ta mer än den fria marginalen eller bryta ett golv svarar 422 med `InsufficientFunds`. Golv som mäts från kontot följer med saldot (se [specen för handelsmotorn](handelsmotor.md)). |
 | `GET /events?after=0&limit=100&wait=0` | Firmans händelser efter ett löpnummer, äldst först, med `cursor` för nästa anrop. Högst 1 000 per anrop. Med `wait` väntar anropet upp till 30 sekunder på nya händelser. Bara sparade händelser visas, så ingen händelse kan försvinna vid en omstart. |
-| `GET /instruments` | Alla instrument på plattformen: symbol, bas- och kursvaluta, kontraktsstorlek och decimaler. |
+| `GET /instruments` | Alla instrument på plattformen: symbol, kategori, bas- och kursvaluta, kontraktsstorlek och decimaler. |
 | `GET /groups` | Firmans grupper med valuta, om villkoren kan ändras (`changeable`, bara grupper som skapats åt firman) och villkoren per symbol: hävstång, påslag i punkter och provision per lot och sida. |
 | `PUT /groups/{groupId}/symbols` | `{ "symbols": [{ "symbol", "leverage", "spreadMarkupPoints", "commissionPerLotPerSide" }] }`. Ersätter gruppens symboler och villkor, som gäller alla dess konton direkt. 404 för en grupp som inte är firmans, 422 med `InvalidGroup` för ogiltiga villkor, med `GroupNotChangeable` för en konfigurerad grupp och med `SymbolInUse` när en symbol som tas bort har öppna positioner eller ordrar. |
 
@@ -165,7 +166,7 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 
 | Sektion | Innehåll |
 |---|---|
-| `Trading` | Instrument, grupper, max ålder på priser och utvecklingskonton (`SeedAccounts`). |
+| `Trading` | Instrument, grupper, max ålder på priser och utvecklingskonton (`SeedAccounts`). Varje instrument har en kategori (`Category`), annars startar inte tjänsten. Index, råvaror och krypto har sig själva som basvaluta, till exempel US100 mot USD, på samma sätt som guld har XAU (ADR 0049). |
 | `SyntheticFeed` | Frö, intervall och startpriser per symbol. |
 | `Charts` | Hur många hela dagar historiken når bakåt (`History`, 30) och hur många av dem som laddas i minutstaplar (`MinuteHistory`, 2). |
 | `Realtime` | Takt för priser och konto. |
@@ -174,7 +175,7 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `Partners` | Partnerna som får skapa firmor: `Id`, `Name` och SHA-256 av nyckeln (`ApiKeySha256`). |
 | `Tenancy:NewTenantGroups` | Grupperna i `Trading:Groups` som en ny firma får en kopia av. Standard `standard`. |
 | `Tenancy:Currencies` | Kontovalutorna en ny firma kan välja: USD, EUR och GBP. Var och en behöver ett instrument mot USD, och starten stoppas annars. |
-| `PriceFeed` | `Provider` (`Synthetic` eller `Tiingo`). För Tiingo även `Tiingo:ApiKey`, som sätts med `dotnet user-secrets`. |
+| `PriceFeed` | `Provider` (`Synthetic`, `Tiingo` eller `CapitalCom`). För Tiingo även `Tiingo:ApiKey`, och för Capital.com `CapitalCom:ApiKey`, `CapitalCom:Identifier` (kontots e-post) och `CapitalCom:Password` (lösenordet för API-nyckeln). Nycklar och lösenord sätts med `dotnet user-secrets`. |
 | `ConnectionStrings:Trading` | Databasen för journalen. Lokalt Postgres från `deploy/docker-compose.yml`. |
 | `Cors:AllowedOrigins` | Webbadresser som får anropa API:t, till exempel terminalen på `http://localhost:3001`. |
 | `Terminal:Url` | Terminalens adress, till exempel `http://localhost:3001/`. Används i inloggningslänkar. |
@@ -185,8 +186,9 @@ I utveckling finns partnern `prop-platform` med nyckeln `dev-partner-key`, och f
 ## Begränsningar
 
 - Tjänsten startar bara i miljön Development. Före produktion behövs HTTPS, hantering av hemligheter och ett prisflöde med licens.
-- Tiingo-flödet får inte visas för andra. En leverantör för produktionen väntar på licensvillkoren.
-- Det finns inga handelstider. Med Tiingo kommer inga nya priser när marknaden är stängd, så ordrar avvisas med `StalePrice` efter `MaxQuoteAge`. Det syntetiska flödet går dygnet runt.
+- Tiingo- och Capital.com-flödena får inte visas för andra. En leverantör för produktionen väntar på licensvillkoren, och Nasdaq-100 och andra index kräver en egen licens.
+- Det finns inga handelstider. Med Tiingo och Capital.com kommer inga nya priser när marknaden är stängd, så ordrar avvisas med `StalePrice` efter `MaxQuoteAge`. Det gäller också index och råvaror i deras dagliga pauser. Det syntetiska flödet går dygnet runt.
+- Kontraktsstorlek, decimaler och villkor för index, råvaror och krypto är exempelvärden. Firmor som skapats före ADR 0049 har kvar sina grupper utan de nya instrumenten.
 - Tradern kan inte själv byta eller återställa lösenordet än. Firmans system kan byta det via admin-API:t.
 - Händelser skickas inte till firmor som webhooks, utan hämtas från händelseströmmen.
 - En firmas namn kan inte ändras efter att den skapats, och firmor kan inte tas bort. Grupperna i konfigurationen ändras bara i konfigurationen.
@@ -206,6 +208,6 @@ De flesta tester använder en journal i minnet som går via JSON som i Postgres.
 
 `PartnerApiTests` täcker partner-API:t: en ny firma handlar direkt i sin egen grupp, en firma i EUR handlar guld genom USD och en valuta som inte erbjuds nekas, dess traders ser gruppens instrument, priser och grafer som terminalen laddar, firman ser bara sina egna händelser och konton, servrar är unika och giltiga, bara partners skapar firmor, en partner ser bara sina egna firmor, en ny nyckel ersätter den gamla, nya firmor listas inte men deras traders loggar in, en firma listas och får sin portal som inloggning, en ogiltig adress nekas, firmor och grupper finns kvar efter en krasch och en vanlig omstart, och en grupp från ett avbrutet försök tas över.
 
-`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket, och historiken: att den görs om till bid utan oförändrade och ofärdiga staplar, och delas upp i anrop som håller sig inom Tiingos gräns. Testerna läser aldrig utvecklarens user secrets.
+`AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket, och historiken: att den görs om till bid utan oförändrade och ofärdiga staplar, och delas upp i anrop som håller sig inom Tiingos gräns, och att Tiingo bara får valutor och metaller. `CapitalComPriceFeedTests` täcker på samma sätt mot en låtsad Capital.com: inloggning med nyckel och lösenord, de senaste priserna, prenumeration och ping med sessionen, nya försök efter en nekad eller avslutad session, historik i bid utan oförändrade och ofärdiga staplar, perioder om högst 950 staplar, och att för många instrument stoppar starten. Testerna läser aldrig utvecklarens user secrets.
 
 `PostgresJournalTests`, `PostgresChartStoreTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler, tider och prisflöden kommer tillbaka exakt, att priser kan läsas från ett flöde, att bara priser har ett flöde, att flödet för det senaste priset går att få fram, att ett flödes historik bara ersätter dess egna tidigare staplar, att gamla staplar tas bort, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.

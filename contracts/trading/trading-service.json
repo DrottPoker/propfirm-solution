@@ -3149,9 +3149,20 @@
         },
         "description": "A symbol a group trades. Margin is the position's value divided by Leverage. SpreadMarkupPoints\nare added to the price feed's spread, and CommissionPerLotPerSide is charged in the account currency both on open\nand on close."
       },
+      "InstrumentCategory": {
+        "enum": [
+          "Forex",
+          "Metals",
+          "Indices",
+          "Commodities",
+          "Crypto"
+        ],
+        "description": "What kind of market an instrument is. The terminal lists instruments by it."
+      },
       "InstrumentInfo": {
         "required": [
           "symbol",
+          "category",
           "baseCurrency",
           "quoteCurrency",
           "contractSize",
@@ -3167,6 +3178,9 @@
         "properties": {
           "symbol": {
             "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InstrumentCategory"
           },
           "baseCurrency": {
             "type": "string"
@@ -3443,6 +3457,7 @@
       "PlatformInstrument": {
         "required": [
           "symbol",
+          "category",
           "baseCurrency",
           "quoteCurrency",
           "contractSize",
@@ -3455,6 +3470,9 @@
         "properties": {
           "symbol": {
             "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InstrumentCategory"
           },
           "baseCurrency": {
             "type": "string"

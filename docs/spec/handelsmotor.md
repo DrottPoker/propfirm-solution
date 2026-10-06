@@ -67,7 +67,7 @@ Varje fylld order blir en egen position, och positioner stängs var för sig. Et
 
 ### Konfiguration
 
-- **Instrument:** symbol, bas- och kursvaluta, kontraktsstorlek (100 000 för forex, 100 för guld), antal decimaler i priset och volymgränser i lots.
+- **Instrument:** symbol, bas- och kursvaluta, kontraktsstorlek (100 000 för forex, 100 för guld), antal decimaler i priset och volymgränser i lots. Index, råvaror och krypto har sig själva som basvaluta, till exempel US100 mot USD, så marginalen räknas med instrumentets eget pris som för guld.
 - **Grupp:** kontovaluta, nivå för stop out och villkor per symbol. Villkoren är hävstång, påslag på spread i punkter och provision per lot och sida. En grupp motsvarar en firmas handelsvillkor.
 - **Grupper i konfigurationen eller skapade med indata.** Grupper i konfigurationen finns från start. `CreateGroup` skapar fler medan motorn kör, med samma kontroller: kända symboler, varje symbol en gång, hävstång över noll och påslag och provision som inte är negativa. Ett id som redan finns avvisas med `DuplicateId`, och ogiltiga villkor med `InvalidGroup`. Exporterat tillstånd innehåller de skapade grupperna, men inte de konfigurerade. En skapad grupp som senare finns i konfigurationen stoppar återställningen.
 - **Ändrade villkor.** `ChangeGroupSymbols` gäller bara skapade grupper. En grupp i konfigurationen avvisas med `GroupNotChangeable`, eftersom konfigurationen bestämmer den. Villkoren kontrolleras som när gruppen skapas (`InvalidGroup`). En symbol som tas bort medan ett konto i gruppen har en position eller en väntande order i den avvisas med `SymbolInUse`. Öppna positioner och väntande ordrar får de nya villkoren direkt: hävstången ändrar marginalen, påslaget priset de värderas till och provisionen det som dras när de stängs. Konton med positioner eller ordrar kontrolleras mot golv och stop out med en gång, som efter ett nytt pris.
@@ -131,7 +131,8 @@ När marginalnivån (equity / använd marginal × 100) faller under gruppens niv
 - Vinst räknas i kursvalutan och räknas om till kontovalutan. Marginal räknas i basvalutan och räknas om på samma sätt.
 - Kursen hämtas från ett instrument som har valutaparet, åt något håll. Mittpriset för det råa priset används, utan påslag. Finns paret bara åt motsatt håll används 1 / mittpriset.
 - Har inget instrument paret räknas kursen genom USD: kursen till USD gånger kursen från USD, var och en på samma sätt (ADR 0030). Ett konto i EUR som handlar XAUUSD räknar marginalen med XAUUSD och 1 / EURUSD.
-- Saknas kurs, också genom USD, avvisas ordern med `NoConversionRate`. Ett USD-konto som handlar EURGBP behöver alltså både GBPUSD (för vinsten) och EURUSD (för marginalen).
+- Bara när konfigurationen varken har paret eller en väg genom USD räknas kursen genom en annan valuta, den första i konfigurationens ordning som har båda paren (ADR 0049). Ett USD-konto som handlar indexet DE40, som har EUR som kursvaluta, räknar marginalen med DE40 och EURUSD. Vägen väljs av konfigurationen, inte av vilka priser som finns, så tidigare indata ger samma händelser.
+- Saknas kurs avvisas ordern med `NoConversionRate`. Ett USD-konto som handlar EURGBP behöver alltså både GBPUSD (för vinsten) och EURUSD (för marginalen).
 
 ### Avrundning
 
@@ -193,7 +194,7 @@ Testerna ligger i `trading/tests/Trading.Engine.Tests`.
 - **Återställning:** uppspelningen startas om från exporterat tillstånd vid flera punkter och ska ge exakt samma resultat som utan omstart.
 - **Facit:** en uppspelning av 3 000 syntetiska EURUSD-priser jämförs med `Golden/replay-eurusd.jsonl`. Uppspelningen innehåller ordrar, stop loss, take profit, golv, en insättning, ett uttag och ett upprepat uttag, brott mot golvet, stop out och stängning av konto. Varje ändring i motorns utdata syns som en diff i facitfilen.
 - **Pausade konton (`SuspensionTests`):** väntande ordrar tas bort och positioner ligger kvar, inga nya ordrar, positioner kan stängas och få nya stoppar, stoppar och golv gäller, pengar kan flyttas och kontot stängas, kontot handlar igen efter återupptagandet, upprepade och avstängda konton avvisas, och pausen följer med en återställning.
-- **Valutor (`ConversionTests`):** vinst och marginal i en annan valuta än kontots, ett konto i EUR som handlar guld genom USD, och en order utan kurs, också genom USD.
+- **Valutor (`ConversionTests`):** vinst och marginal i en annan valuta än kontots, ett konto i EUR som handlar guld genom USD, ett konto i USD som handlar ett index i EUR genom EUR, och ordrar utan kurs, också genom USD och EUR.
 - **Grupper (`GroupTests`):** en skapad grupp handlar med sina egna villkor, id är unika, ogiltiga grupper avvisas, skapade grupper följer med en återställning, ögonblicksbilder från innan grupper kunde skapas går att läsa, en skapad grupp som blivit konfigurerad stoppar återställningen, och ändrade villkor: nya symboler och villkor som gäller öppna positioner direkt, högre hävstång som sänker marginalen, en symbol i bruk som inte kan tas bort, konfigurerade grupper som inte kan ändras, ogiltiga villkor och att ändringen följer med en återställning.
 - **Arkitektur:** `BannedSymbols.txt` stoppar klocka, slump och I/O vid bygget, och ett test kontrollerar att kärnan aldrig använder flyttal.
 

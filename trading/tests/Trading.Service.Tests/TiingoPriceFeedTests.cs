@@ -94,6 +94,20 @@ public sealed class TiingoPriceFeedTests
         Assert.Equal(("/tiingo/fx/top?tickers=eurusd,xauusd", "Token test-key"), request);
     }
 
+    // Tiingo's forex API has no indices, commodities or crypto.
+    [Fact]
+    public async Task StreamAsksOnlyForForexAndMetals()
+    {
+        await using var tiingo = await FakeTiingo.StartAsync(FakeTiingo.SendAndStay(Subscribed, EurUsdQuote));
+        var index = new InstrumentOptions { Symbol = "US100", Category = InstrumentCategory.Indices, BaseCurrency = "US100", QuoteCurrency = "USD", Digits = 1 };
+
+        await CollectAsync(CreateFeed(tiingo, extraInstrument: index), Symbols("EURUSD"));
+
+        using var subscription = JsonDocument.Parse(Assert.Single(tiingo.Subscriptions));
+        Assert.Equal(["eurusd", "xauusd"], subscription.RootElement.GetProperty("eventData").GetProperty("tickers").EnumerateArray().Select(t => t.GetString()));
+        Assert.Equal("/tiingo/fx/top?tickers=eurusd,xauusd", Assert.Single(tiingo.PriceRequests).Url);
+    }
+
     [Fact]
     public async Task StreamWorksWithoutTheLatestPrices()
     {
@@ -244,7 +258,7 @@ public sealed class TiingoPriceFeedTests
         return quotes;
     }
 
-    private static TiingoPriceFeed CreateFeed(FakeTiingo? tiingo = null, TimeSpan? idleTimeout = null)
+    private static TiingoPriceFeed CreateFeed(FakeTiingo? tiingo = null, TimeSpan? idleTimeout = null, InstrumentOptions? extraInstrument = null)
     {
         var options = new PriceFeedOptions
         {
@@ -263,8 +277,9 @@ public sealed class TiingoPriceFeedTests
         {
             Instruments =
             [
-                new InstrumentOptions { Symbol = "EURUSD", BaseCurrency = "EUR", QuoteCurrency = "USD", Digits = 5 },
-                new InstrumentOptions { Symbol = "XAUUSD", BaseCurrency = "XAU", QuoteCurrency = "USD", Digits = 2 },
+                new InstrumentOptions { Symbol = "EURUSD", Category = InstrumentCategory.Forex, BaseCurrency = "EUR", QuoteCurrency = "USD", Digits = 5 },
+                new InstrumentOptions { Symbol = "XAUUSD", Category = InstrumentCategory.Metals, BaseCurrency = "XAU", QuoteCurrency = "USD", Digits = 2 },
+                .. extraInstrument is null ? [] : new[] { extraInstrument },
             ],
         };
         return new TiingoPriceFeed(new NewClientFactory(), Options.Create(options), Options.Create(trading), NullLogger<TiingoPriceFeed>.Instance);

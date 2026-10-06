@@ -2049,9 +2049,15 @@ export interface components {
             /** Format: double */
             commissionPerLotPerSide: number;
         };
+        /**
+         * @description What kind of market an instrument is. The terminal lists instruments by it.
+         * @enum {unknown}
+         */
+        InstrumentCategory: "Forex" | "Metals" | "Indices" | "Commodities" | "Crypto";
         /** @description An instrument as one group trades it. */
         InstrumentInfo: {
             symbol: string;
+            category: components["schemas"]["InstrumentCategory"];
             baseCurrency: string;
             quoteCurrency: string;
             /** Format: double */
@@ -2142,6 +2148,7 @@ export interface components {
         /** @description An instrument on the platform. ContractSize is the units of the base currency in one lot. */
         PlatformInstrument: {
             symbol: string;
+            category: components["schemas"]["InstrumentCategory"];
             baseCurrency: string;
             quoteCurrency: string;
             /** Format: double */

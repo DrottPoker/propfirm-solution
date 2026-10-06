@@ -5,6 +5,7 @@ import { defaultVolume, parseVolumes, startVolume } from "./volumes";
 
 const gold: InstrumentInfo = {
   symbol: "XAUUSD",
+  category: "Metals",
   baseCurrency: "XAU",
   quoteCurrency: "USD",
   contractSize: 100,

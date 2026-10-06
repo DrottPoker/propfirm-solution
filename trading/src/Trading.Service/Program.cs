@@ -29,7 +29,10 @@ var isOpenApiGeneration = Assembly.GetEntryAssembly()?.GetName().Name == "GetDoc
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddOptions<TradingOptions>().Bind(builder.Configuration.GetSection(TradingOptions.SectionName));
+builder.Services.AddOptions<TradingOptions>()
+    .Bind(builder.Configuration.GetSection(TradingOptions.SectionName))
+    .Validate(o => o.Instruments.All(i => i.Category is not null), "Every instrument in Trading:Instruments needs a Category: Forex, Metals, Indices, Commodities or Crypto.")
+    .ValidateOnStart();
 builder.Services.AddOptions<SyntheticFeedOptions>().Bind(builder.Configuration.GetSection(SyntheticFeedOptions.SectionName));
 builder.Services.AddOptions<RealtimeOptions>().Bind(builder.Configuration.GetSection(RealtimeOptions.SectionName));
 builder.Services.AddOptions<JournalOptions>().Bind(builder.Configuration.GetSection(JournalOptions.SectionName));
@@ -55,11 +58,15 @@ builder.Services.AddOptions<LoginOptions>()
 builder.Services.AddOptions<PriceFeedOptions>()
     .Bind(builder.Configuration.GetSection(PriceFeedOptions.SectionName))
     .Validate(
-        o => o.Provider is PriceFeedOptions.SyntheticProvider or PriceFeedOptions.TiingoProvider,
-        "PriceFeed:Provider must be Synthetic or Tiingo.")
+        o => o.Provider is PriceFeedOptions.SyntheticProvider or PriceFeedOptions.TiingoProvider or PriceFeedOptions.CapitalComProvider,
+        "PriceFeed:Provider must be Synthetic, Tiingo or CapitalCom.")
     .Validate(
         o => o.Provider != PriceFeedOptions.TiingoProvider || o.Tiingo.ApiKey.Length > 0,
         "PriceFeed:Tiingo:ApiKey is required. Set it with dotnet user-secrets, never in a file.")
+    .Validate(
+        o => o.Provider != PriceFeedOptions.CapitalComProvider
+            || (o.CapitalCom.ApiKey.Length > 0 && o.CapitalCom.Identifier.Length > 0 && o.CapitalCom.Password.Length > 0),
+        "PriceFeed:CapitalCom:ApiKey, Identifier and Password are required. Set them with dotnet user-secrets, never in a file.")
     .ValidateOnStart();
 
 builder.Services.AddSingleton(TimeProvider.System);
@@ -129,14 +136,19 @@ builder.Services.AddRateLimiter(options =>
 });
 builder.Services.AddSingleton(_ => new CandleStore(CandleStore.DefaultCapacity));
 builder.Services.AddSingleton<ChartHistory>();
-if (builder.Configuration.GetValue<string>($"{PriceFeedOptions.SectionName}:Provider") == PriceFeedOptions.TiingoProvider)
+switch (builder.Configuration.GetValue<string>($"{PriceFeedOptions.SectionName}:Provider"))
 {
-    builder.Services.AddHttpClient(TiingoPriceFeed.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
-    builder.Services.AddSingleton<IPriceFeed, TiingoPriceFeed>();
-}
-else
-{
-    builder.Services.AddSingleton<IPriceFeed, SyntheticPriceFeed>();
+    case PriceFeedOptions.TiingoProvider:
+        builder.Services.AddHttpClient(TiingoPriceFeed.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+        builder.Services.AddSingleton<IPriceFeed, TiingoPriceFeed>();
+        break;
+    case PriceFeedOptions.CapitalComProvider:
+        builder.Services.AddHttpClient(CapitalComPriceFeed.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddSingleton<IPriceFeed, CapitalComPriceFeed>();
+        break;
+    default:
+        builder.Services.AddSingleton<IPriceFeed, SyntheticPriceFeed>();
+        break;
 }
 builder.Services.AddSingleton<SubscriptionRegistry>();
 

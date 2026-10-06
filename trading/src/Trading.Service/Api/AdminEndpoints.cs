@@ -351,9 +351,8 @@ internal static class AdminEndpoints
     }
 
     /// <summary>Every instrument on the platform. A firm's group trades some of them, with its own conditions.</summary>
-    private static Ok<IReadOnlyList<PlatformInstrument>> GetInstruments(EngineConfiguration configuration) =>
-        TypedResults.Ok<IReadOnlyList<PlatformInstrument>>(
-            [.. configuration.Instruments.OrderBy(i => i.Symbol, StringComparer.Ordinal).Select(PlatformInstrument.From)]);
+    private static Ok<IReadOnlyList<PlatformInstrument>> GetInstruments(MarketCatalog catalog) =>
+        TypedResults.Ok<IReadOnlyList<PlatformInstrument>>([.. catalog.All.Select(i => PlatformInstrument.From(i, catalog.CategoryOf(i.Symbol)))]);
 
     /// <summary>The firm's groups with the symbols they trade and their conditions. Only groups created for the firm can be changed.</summary>
     private static async Task<Ok<IReadOnlyList<FirmGroupResponse>>> ListGroupsAsync(HttpContext context, EngineHost engine, CancellationToken cancellationToken)

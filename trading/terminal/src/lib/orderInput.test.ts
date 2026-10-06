@@ -5,6 +5,7 @@ import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "./order
 
 const eurUsd: InstrumentInfo = {
   symbol: "EURUSD",
+  category: "Forex",
   baseCurrency: "EUR",
   quoteCurrency: "USD",
   contractSize: 100_000,

@@ -86,6 +86,38 @@ public sealed class ConversionTests
         Assert.Equal(RejectReason.NoConversionRate, EventAssert.Rejected(driver.Buy(0.10m, symbol: "XAUUSD")));
     }
 
+    // An index priced in EUR. Neither DE40 nor EUR goes through USD on its own, so the margin goes through EUR: DE40 to
+    // EUR with the index itself, then EUR to USD with EURUSD.
+    [Fact]
+    public void AnAccountInUsdTradesAnIndexInEurThroughEur()
+    {
+        var de40 = new Instrument("DE40", "DE40", "EUR", 1m, 1, 0.01m, 0.01m, 50m);
+        var driver = new EngineDriver(TestMarket.Configuration(instruments: [.. TestMarket.AllInstruments, de40]));
+        driver.CreateAccount();
+        driver.Quote(1.08000m, 1.08010m, "EURUSD");
+        driver.Quote(19_500.0m, 19_501.0m, "DE40");
+
+        driver.Buy(1.00m, symbol: "DE40");
+        // 1 lot x 1 x 19 500.5 EUR x 1.08005 / 100
+        Assert.Equal(210.62m, Assert.Single(driver.Account().Positions).Margin);
+
+        // 49 EUR at the mid rate 1.08005
+        driver.Quote(19_550.0m, 19_551.0m, "DE40");
+        Assert.Equal(52.92m, Assert.Single(driver.Account().Positions).Profit);
+    }
+
+    [Fact]
+    public void AnIndexInEurIsRejectedWithoutARateThroughEur()
+    {
+        // EURUSD is configured but has no price yet
+        var de40 = new Instrument("DE40", "DE40", "EUR", 1m, 1, 0.01m, 0.01m, 50m);
+        var driver = new EngineDriver(TestMarket.Configuration(instruments: [.. TestMarket.AllInstruments, de40]));
+        driver.CreateAccount();
+        driver.Quote(19_500.0m, 19_501.0m, "DE40");
+
+        Assert.Equal(RejectReason.NoConversionRate, EventAssert.Rejected(driver.Buy(1.00m, symbol: "DE40")));
+    }
+
     [Fact]
     public void GoldUsesItsContractSizeAndTheGroupLeverage()
     {

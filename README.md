@@ -92,7 +92,7 @@ I Claude Code-appen kan handelsplattformen och propfirm-plattformen startas i f�
 
 | Konfiguration | Startar |
 |---|---|
-| `trading-service` | Handelstjänsten med prisflödet från dina user secrets (se Riktiga priser från Tiingo) |
+| `trading-service` | Handelstjänsten med prisflödet från dina user secrets (se Riktiga priser från Capital.com och Riktiga priser från Tiingo) |
 | `trading-service-synthetic` | Handelstjänsten med syntetiska priser, till exempel när valutamarknaden är stängd |
 | `trading-terminal` | Handelsterminalen |
 | `prop-api` | Propfirm-tjänsten. Behöver handelstjänsten. |
@@ -266,9 +266,41 @@ dotnet user-secrets set "Identity:Didit:ApiKey" "din-nyckel" --project prop/src/
 
 Se [specen för ID-kontroll](docs/spec/id-kontroll.md) och [ADR 0042](docs/adr/0042-id-kontroll-med-en-extern-tjanst.md).
 
+## Riktiga priser från Capital.com
+
+Capital.com ger riktiga priser för alla 23 instrumenten, även index som Nasdaq-100 (US100), råvaror och krypto, från ett gratis demokonto (ADR 0049). Så skaffar du API-nyckeln:
+
+1. Skapa ett gratis konto på [capital.com](https://capital.com) och välj demokonto. Du behöver inte sätta in pengar.
+2. Slå på tvåstegsinloggning (2FA) under inställningarna. Utan den går det inte att skapa en nyckel.
+3. Gå till **Settings > API integrations** och klicka på **Generate API key**. Ge nyckeln ett namn och välj ett eget lösenord för den. Det lösenordet är inte samma som kontots.
+4. Kopiera nyckeln direkt. Den visas bara en gång.
+5. Spara uppgifterna utanför repot med user secrets. `Identifier` är e-postadressen du loggar in på Capital.com med, och `Password` är lösenordet du valde för nyckeln.
+
+```bash
+dotnet user-secrets set "PriceFeed:Provider" "CapitalCom" --project trading/src/Trading.Service
+```
+
+```bash
+dotnet user-secrets set "PriceFeed:CapitalCom:ApiKey" "din-nyckel" --project trading/src/Trading.Service
+```
+
+```bash
+dotnet user-secrets set "PriceFeed:CapitalCom:Identifier" "din-epost" --project trading/src/Trading.Service
+```
+
+```bash
+dotnet user-secrets set "PriceFeed:CapitalCom:Password" "nyckelns-lösenord" --project trading/src/Trading.Service
+```
+
+Starta sedan om handelstjänsten. Första starten hämtar 30 dagars historik för alla instrument, vilket kan ta omkring en minut. Säger loggen `error.null.accountId` godtas nyckeln, men inloggningen har inget handelskonto i den miljön. Har du bara ett riktigt konto, och inget demokonto, kan kopplingen läsa priserna därifrån i stället. Den läser bara priser och historik och kan aldrig lägga ordrar:
+
+```bash
+dotnet user-secrets set "PriceFeed:CapitalCom:ApiUrl" "https://api-capital.backend-capital.com/" --project trading/src/Trading.Service
+``` Säger den `error.invalid.details` är e-posten eller nyckelns lösenord fel. Capital.com:s priser är mäklarens egna och får bara användas under utvecklingen, inte visas för firmor. När marknaden för ett instrument är stängd, till exempel index i deras dagliga paus, avvisas ordrar som för gamla.
+
 ## Riktiga priser från Tiingo
 
-Tjänsten använder syntetiska priser som standard. För riktiga priser under utvecklingen (ADR 0010):
+Tjänsten använder syntetiska priser som standard. Tiingo har bara valutor och metaller, så index, råvaror och krypto får inga priser med Tiingo. För riktiga priser under utvecklingen (ADR 0010):
 
 1. Skapa ett gratis konto på [tiingo.com](https://www.tiingo.com) och kopiera din API-nyckel från [kontosidan för API](https://www.tiingo.com/account/api/token).
 2. Spara den utanför repot med user secrets:
@@ -283,7 +315,7 @@ dotnet user-secrets set "PriceFeed:Tiingo:ApiKey" "din-nyckel" --project trading
 
 Tiingos gratisplan tillåter inte att priserna visas för andra, så de är bara för utveckling. När valutamarknaden är stängd, från fredag kväll till söndag kväll, kommer inga nya priser och ordrar avvisas som för gamla. Använd då de syntetiska priserna. Gå tillbaka till syntetiska priser med `dotnet user-secrets remove "PriceFeed:Provider" --project trading/src/Trading.Service`. Testerna läser aldrig user secrets, så de påverkas inte av valet.
 
-Graferna visar bara det flöde som används just nu. När du byter flöde laddas 30 dagars historik vid starten: från Tiingo när du byter till Tiingo, och påhittad när du byter till de syntetiska priserna. Den påhittade historiken slutar där de riktiga priserna slutade, så graferna hoppar inte. Helgens påhittade priser försvinner alltså av sig själva, och en öppen terminal hämtar graferna igen när den återansluter. M1 och M5 får de senaste 2 dagarna och i dag, och längre tidsramar hela 30 dagar. Ett byte till Tiingo kostar ungefär 11 av gratisplanens 50 anrop i timmen. Om historiken inte går att hämta startar tjänsten ändå och försöker igen vid nästa start (ADR 0048).
+Graferna visar bara det flöde som används just nu. När du byter flöde laddas 30 dagars historik vid starten: från Tiingo eller Capital.com när du byter till dem, och påhittad när du byter till de syntetiska priserna. Den påhittade historiken slutar där de riktiga priserna slutade, så graferna hoppar inte. Helgens påhittade priser försvinner alltså av sig själva, och en öppen terminal hämtar graferna igen när den återansluter. M1 och M5 får de senaste 2 dagarna och i dag, och längre tidsramar hela 30 dagar. Ett byte till Tiingo kostar ungefär 11 av gratisplanens 50 anrop i timmen. Om historiken inte går att hämta startar tjänsten ändå och försöker igen vid nästa start (ADR 0048).
 
 ## Tester av hela flödet
 

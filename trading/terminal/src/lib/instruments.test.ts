@@ -3,9 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { InstrumentInfo } from "./api/types";
 import { categoriesOf, categoryOf, currencySign, digitsLookup, initialInstrument, spreadPoints } from "./instruments";
 
-function instrument(symbol: string, baseCurrency: string, quoteCurrency: string): InstrumentInfo {
+function instrument(symbol: string, baseCurrency: string, quoteCurrency: string, category: InstrumentInfo["category"] = "Forex"): InstrumentInfo {
   return {
     symbol,
+    category,
     baseCurrency,
     quoteCurrency,
     contractSize: 100_000,
@@ -20,16 +21,24 @@ function instrument(symbol: string, baseCurrency: string, quoteCurrency: string)
 }
 
 describe("categoryOf", () => {
-  it("puts metals by their ISO code and other pairs in forex", () => {
-    expect(categoryOf(instrument("XAUUSD", "XAU", "USD"))).toBe("Metals");
-    expect(categoryOf(instrument("XAGUSD", "XAG", "USD"))).toBe("Metals");
+  it("is the category the platform gives the instrument", () => {
+    expect(categoryOf(instrument("XAUUSD", "XAU", "USD", "Metals"))).toBe("Metals");
+    expect(categoryOf(instrument("US100", "US100", "USD", "Indices"))).toBe("Indices");
     expect(categoryOf(instrument("EURUSD", "EUR", "USD"))).toBe("Forex");
   });
 });
 
 describe("categoriesOf", () => {
   it("lists the categories that have instruments in a fixed order", () => {
-    expect(categoriesOf([instrument("XAUUSD", "XAU", "USD"), instrument("EURUSD", "EUR", "USD")])).toEqual(["Forex", "Metals"]);
+    expect(
+      categoriesOf([
+        instrument("BTCUSD", "BTC", "USD", "Crypto"),
+        instrument("XAUUSD", "XAU", "USD", "Metals"),
+        instrument("US100", "US100", "USD", "Indices"),
+        instrument("EURUSD", "EUR", "USD"),
+        instrument("USOIL", "USOIL", "USD", "Commodities"),
+      ]),
+    ).toEqual(["Forex", "Metals", "Indices", "Commodities", "Crypto"]);
     expect(categoriesOf([instrument("EURUSD", "EUR", "USD")])).toEqual(["Forex"]);
   });
 });

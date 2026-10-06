@@ -16,12 +16,15 @@ public sealed class TradingConditionsTests
         var instruments = await admin.GetJsonAsync("/api/admin/v1/instruments");
         var groups = await admin.GetJsonAsync("/api/admin/v1/groups");
 
-        Assert.Equal(12, instruments.GetArrayLength());
+        Assert.Equal(23, instruments.GetArrayLength());
         var silver = instruments.EnumerateArray().Single(i => i.GetProperty("symbol").GetString() == "XAGUSD");
-        Assert.Equal((5000m, 3), (silver.GetProperty("contractSize").GetDecimal(), silver.GetProperty("digits").GetInt32()));
+        Assert.Equal((5000m, 3, "Metals"), (silver.GetProperty("contractSize").GetDecimal(), silver.GetProperty("digits").GetInt32(), silver.GetProperty("category").GetString()));
+        Assert.Equal(
+            ["Commodities", "Crypto", "Forex", "Indices", "Metals"],
+            instruments.EnumerateArray().Select(i => i.GetProperty("category").GetString()).Distinct().Order(StringComparer.Ordinal));
         var group = Assert.Single(groups.EnumerateArray());
         Assert.Equal(("standard", "USD", false), (group.GetProperty("id").GetString(), group.GetProperty("currency").GetString(), group.GetProperty("changeable").GetBoolean()));
-        Assert.Equal(12, group.GetProperty("symbols").GetArrayLength());
+        Assert.Equal(23, group.GetProperty("symbols").GetArrayLength());
     }
 
     // The configured group belongs to the configuration, so only a firm created by a partner changes its conditions.
@@ -53,7 +56,7 @@ public sealed class TradingConditionsTests
                 symbols = new[]
                 {
                     new { symbol = "EURUSD", leverage = 30, spreadMarkupPoints = 0, commissionPerLotPerSide = 2.5m },
-                    new { symbol = "BTCUSD", leverage = 2, spreadMarkupPoints = 0, commissionPerLotPerSide = 0m },
+                    new { symbol = "DOGEUSD", leverage = 2, spreadMarkupPoints = 0, commissionPerLotPerSide = 0m },
                 },
             },
             HttpStatusCode.UnprocessableEntity);

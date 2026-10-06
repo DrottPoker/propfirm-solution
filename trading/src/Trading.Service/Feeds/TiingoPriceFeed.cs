@@ -65,11 +65,11 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
         _options = options.Value.Tiingo;
         _logger = logger;
 
-        // Tiingo names forex tickers in lower case, for example eurusd and xauusd.
-        _instruments = trading.Value.Instruments.ToDictionary(
-            i => i.Symbol.ToLowerInvariant(),
-            i => (i.Symbol, i.Digits),
-            StringComparer.OrdinalIgnoreCase);
+        // Tiingo names forex tickers in lower case, for example eurusd and xauusd. Its forex API has no indices,
+        // commodities or crypto, so those instruments have no prices with Tiingo.
+        _instruments = trading.Value.Instruments
+            .Where(i => i.Category is null or InstrumentCategory.Forex or InstrumentCategory.Metals)
+            .ToDictionary(i => i.Symbol.ToLowerInvariant(), i => (i.Symbol, i.Digits), StringComparer.OrdinalIgnoreCase);
         _tickers = [.. _instruments.Keys.Order(StringComparer.Ordinal)];
     }
 
@@ -120,22 +120,13 @@ internal sealed partial class TiingoPriceFeed : IPriceFeed
         }
 
         var bars = new List<ChartBar>();
-        foreach (var symbolBars in midBars.GroupBy(b => b.Symbol))
+        foreach (var bar in HistoryBars.LeaveOutUnmoved(midBars))
         {
-            Candle? previous = null;
-            foreach (var bar in symbolBars.OrderBy(b => b.Candle.Time))
-            {
-                var mid = bar.Candle;
-                var unmoved = mid.Open == mid.High && mid.High == mid.Low && mid.Low == mid.Close && mid.Close == previous?.Close;
-                previous = mid;
-                if (!unmoved)
-                {
-                    var half = halfSpreads.GetValueOrDefault(bar.Symbol);
-                    var digits = _instruments[bar.Symbol.ToLowerInvariant()].Digits;
-                    decimal Bid(decimal price) => decimal.Round(price - half, digits, MidpointRounding.ToNegativeInfinity);
-                    bars.Add(bar with { Candle = mid with { Open = Bid(mid.Open), High = Bid(mid.High), Low = Bid(mid.Low), Close = Bid(mid.Close) } });
-                }
-            }
+            var mid = bar.Candle;
+            var half = halfSpreads.GetValueOrDefault(bar.Symbol);
+            var digits = _instruments[bar.Symbol.ToLowerInvariant()].Digits;
+            decimal Bid(decimal price) => decimal.Round(price - half, digits, MidpointRounding.ToNegativeInfinity);
+            bars.Add(bar with { Candle = mid with { Open = Bid(mid.Open), High = Bid(mid.High), Low = Bid(mid.Low), Close = Bid(mid.Close) } });
         }
 
         LogHistoryFetched(_logger, bars.Count, calls);

@@ -58,7 +58,8 @@ export function Watchlist({
             className="w-full min-w-0 bg-transparent text-sm text-foreground outline-none placeholder:text-muted"
           />
         </label>
-        <div className="flex gap-1 text-xs" role="group" aria-label="Show symbols">
+        {/* Wraps onto a second row when a group has more categories than fit. */}
+        <div className="flex flex-wrap gap-1 text-xs" role="group" aria-label="Show symbols">
           {filters.map((f) => (
             <button
               key={f}

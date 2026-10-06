@@ -1,12 +1,11 @@
 import type { InstrumentInfo } from "./api/types";
 import type { DigitsOf } from "./events";
 
-export type Category = "Forex" | "Metals";
+/** The watchlist group of an instrument, set by the platform. */
+export type Category = InstrumentInfo["category"];
 
-// ISO 4217 codes for precious metals.
-const metals = new Set(["XAU", "XAG", "XPT", "XPD"]);
+const categoryOrder: readonly Category[] = ["Forex", "Metals", "Indices", "Commodities", "Crypto"];
 
-/** The watchlist group of an instrument. Every instrument is a currency pair, and metals are priced as one. */
 /** The symbol the terminal opens on: EURUSD, the most traded pair, when the group has it, otherwise the first. */
 export const preferredSymbol = "EURUSD";
 
@@ -15,13 +14,13 @@ export function initialInstrument<T extends { symbol: string }>(instruments: rea
 }
 
 export function categoryOf(instrument: InstrumentInfo): Category {
-  return metals.has(instrument.baseCurrency) ? "Metals" : "Forex";
+  return instrument.category;
 }
 
 /** The categories that have instruments, in a fixed order. */
 export function categoriesOf(instruments: readonly InstrumentInfo[]): Category[] {
   const present = new Set(instruments.map(categoryOf));
-  return (["Forex", "Metals"] as const).filter((c) => present.has(c));
+  return categoryOrder.filter((c) => present.has(c));
 }
 
 /** Price decimals by symbol, for the instruments the terminal knows. Unknown symbols get 5. */
@@ -48,6 +47,8 @@ const currencySigns: Record<string, string> = {
   XAG: "Ag",
   XPT: "Pt",
   XPD: "Pd",
+  BTC: "₿",
+  ETH: "Ξ",
 };
 
 /** A short sign for a currency or metal, for example € for EUR and Au for gold. */

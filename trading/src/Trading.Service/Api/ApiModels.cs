@@ -1,4 +1,5 @@
 using Trading.Engine;
+using Trading.Service.Configuration;
 using Trading.Service.Engine;
 
 namespace Trading.Service.Api;
@@ -59,6 +60,7 @@ public sealed record CommandResponse(IReadOnlyList<EventEnvelope> Events);
 /// <summary>An instrument on the platform. <paramref name="ContractSize"/> is the units of the base currency in one lot.</summary>
 public sealed record PlatformInstrument(
     string Symbol,
+    InstrumentCategory Category,
     string BaseCurrency,
     string QuoteCurrency,
     decimal ContractSize,
@@ -67,9 +69,10 @@ public sealed record PlatformInstrument(
     decimal VolumeStep,
     decimal VolumeMax)
 {
-    public static PlatformInstrument From(Instrument instrument) =>
+    public static PlatformInstrument From(Instrument instrument, InstrumentCategory category) =>
         new(
             instrument.Symbol,
+            category,
             instrument.BaseCurrency,
             instrument.QuoteCurrency,
             instrument.ContractSize,

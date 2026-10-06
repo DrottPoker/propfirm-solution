@@ -75,8 +75,12 @@ public sealed class PartnerApiTests
         var candles = await trader.GetJsonAsync("/api/accounts/ACME1/candles/EURUSD?timeframe=M1&count=10");
 
         Assert.Equal(
-            ["AUDUSD", "EURGBP", "EURJPY", "EURUSD", "GBPJPY", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "XAGUSD", "XAUUSD"],
+            [
+                "AUDUSD", "BTCUSD", "DE40", "ETHUSD", "EURGBP", "EURJPY", "EURUSD", "GBPJPY", "GBPUSD", "JP225", "NATGAS", "NZDUSD",
+                "UK100", "UKOIL", "US100", "US30", "US500", "USDCAD", "USDCHF", "USDJPY", "USOIL", "XAGUSD", "XAUUSD",
+            ],
             instruments.EnumerateArray().Select(i => i.GetProperty("symbol").GetString()));
+        Assert.Equal("Indices", instruments.EnumerateArray().Single(i => i.GetProperty("symbol").GetString() == "US100").GetProperty("category").GetString());
         Assert.Equal(2, instruments.EnumerateArray().Single(i => i.GetProperty("symbol").GetString() == "EURUSD").GetProperty("spreadMarkupPoints").GetInt32());
         Assert.Equal((1.07999m, 1.08011m), (price.GetProperty("bid").GetDecimal(), price.GetProperty("ask").GetDecimal()));
         Assert.Equal(1.07999m, candles.EnumerateArray().Last().GetProperty("close").GetDecimal());

@@ -12,12 +12,26 @@ internal sealed class PriceBook
     // (from, to) -> symbol to convert with, and whether the rate is inverted. First configured match wins.
     private readonly Dictionary<(string From, string To), (string Symbol, bool Inverse)> _conversions = [];
 
+    // Every currency and priced asset, in configuration order, so the currency a rate goes through is always the same.
+    private readonly List<string> _currencies = [];
+
+    // (from, to) -> the currency other than USD that the rate goes through, or null when there is none. Depends only on
+    // the configuration, so it is kept as it is found.
+    private readonly Dictionary<(string From, string To), string?> _otherRoutes = [];
+
     public PriceBook(IEnumerable<Instrument> instruments)
     {
         foreach (var instrument in instruments)
         {
             _conversions.TryAdd((instrument.BaseCurrency, instrument.QuoteCurrency), (instrument.Symbol, false));
             _conversions.TryAdd((instrument.QuoteCurrency, instrument.BaseCurrency), (instrument.Symbol, true));
+            foreach (var currency in new[] { instrument.BaseCurrency, instrument.QuoteCurrency })
+            {
+                if (!_currencies.Contains(currency, StringComparer.Ordinal))
+                {
+                    _currencies.Add(currency);
+                }
+            }
         }
     }
 
@@ -33,7 +47,9 @@ internal sealed class PriceBook
     /// <summary>
     /// Rate to multiply an amount in <paramref name="from"/> with to get <paramref name="to"/>. Uses the raw mid price of
     /// an instrument with the pair, or else the two rates through <see cref="CrossCurrency"/>, so an account in EUR can
-    /// trade AUDUSD with EURUSD and AUDUSD.
+    /// trade AUDUSD with EURUSD and AUDUSD. Only when the configuration has neither does the rate go through another
+    /// currency, the first in configuration order that has both pairs, so a USD account can trade the EUR index DE40 with
+    /// DE40 and EURUSD. The way is chosen from the configuration, and a missing price on it means no rate.
     /// </summary>
     public bool TryGetRate(string from, string to, out decimal rate)
     {
@@ -43,15 +59,44 @@ internal sealed class PriceBook
             return true;
         }
 
-        if (TryGetDirectRate(from, to, out rate))
+        if (TryGetDirectRate(from, to, out rate) || (IsRoute(CrossCurrency, from, to) && TryGetRateThrough(CrossCurrency, from, to, out rate)))
         {
             return true;
         }
 
-        if (!string.Equals(from, CrossCurrency, StringComparison.Ordinal) && !string.Equals(to, CrossCurrency, StringComparison.Ordinal)
-            && TryGetDirectRate(from, CrossCurrency, out var toCross) && TryGetDirectRate(CrossCurrency, to, out var fromCross))
+        // Rates that the pair itself or USD can give never go another way, so earlier inputs give the same events.
+        if (_conversions.ContainsKey((from, to)) || IsRoute(CrossCurrency, from, to))
         {
-            rate = toCross * fromCross;
+            rate = 0m;
+            return false;
+        }
+
+        if (!_otherRoutes.TryGetValue((from, to), out var through))
+        {
+            through = _currencies.FirstOrDefault(c => !string.Equals(c, CrossCurrency, StringComparison.Ordinal) && IsRoute(c, from, to));
+            _otherRoutes[(from, to)] = through;
+        }
+
+        if (through is not null)
+        {
+            return TryGetRateThrough(through, from, to, out rate);
+        }
+
+        rate = 0m;
+        return false;
+    }
+
+    private bool IsRoute(string through, string from, string to) =>
+        !string.Equals(from, through, StringComparison.Ordinal)
+        && !string.Equals(to, through, StringComparison.Ordinal)
+        && _conversions.ContainsKey((from, through))
+        && _conversions.ContainsKey((through, to));
+
+    private bool TryGetRateThrough(string through, string from, string to, out decimal rate)
+    {
+        if (TryGetDirectRate(from, through, out var toThrough) && TryGetDirectRate(through, to, out var fromThrough))
+        {
+            rate = toThrough * fromThrough;
             return true;
         }
 
