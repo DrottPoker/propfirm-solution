@@ -51,7 +51,8 @@ export async function openSetting(page: Page, name: string) {
  * and lands on the new account. The trader is not emailed, since the tests have no mail server.
  */
 export async function startChallenge(page: Page, email: string, challenge?: RegExp) {
-  await page.getByRole("button", { name: "Start a challenge" }).click();
+  // Before the first account, the empty list offers the same button as the page.
+  await page.getByRole("button", { name: "Start a challenge" }).first().click();
   const panel = page.getByRole("dialog", { name: "Start a challenge" });
   await panel.getByLabel("Trader's email").fill(email);
   if (challenge) {

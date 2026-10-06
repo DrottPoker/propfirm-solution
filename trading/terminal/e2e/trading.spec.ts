@@ -54,6 +54,17 @@ async function logIn(page: Page, email: string) {
 /** The note in the corner when a buy of 1 lot of EURUSD fills, for example "Bought 1.00 EURUSD at 1.08724". */
 const boughtNote = /^Bought 1\.00 EURUSD at \d\.\d{5}$/;
 
+/**
+ * Steps a buy's stop loss 20 pips below the bid. The synthetic prices move a few points a second, so a stop loss one
+ * pip away could close the position before the test is done with it.
+ */
+async function lowerStopLoss(page: Page) {
+  const lower = page.getByRole("button", { name: "Lower stop loss" });
+  for (let pip = 0; pip < 20; pip++) {
+    await lower.click();
+  }
+}
+
 /** Log out is in the menu behind the trader's initials. */
 async function logOut(page: Page) {
   await page.getByRole("button", { name: "User menu" }).click();
@@ -100,11 +111,11 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
   const buy = page.getByRole("button", { name: /^buy/i });
   await expect(buy).toBeEnabled();
 
-  // The steppers set volume and stop loss without typing. A stop loss starts one pip from the bid.
+  // The steppers set volume and stop loss without typing. A stop loss starts from the bid and moves a pip a step.
   await page.getByRole("button", { name: "Raise volume" }).click();
   await page.getByRole("button", { name: "Lower volume" }).click();
   await expect(page.getByLabel("Volume (lots)", { exact: true })).toHaveValue("1.00");
-  await page.getByRole("button", { name: "Lower stop loss" }).click();
+  await lowerStopLoss(page);
   await expect(page.getByLabel("Stop loss", { exact: true })).toHaveValue(/^\d+\.\d{5}$/);
 
   await buy.click();
@@ -239,7 +250,7 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   await expect(page.getByLabel("Take profit", { exact: true })).toHaveValue("");
 
   // An open buy gets a stop loss below the price. The menu names the position.
-  await page.getByRole("button", { name: "Lower stop loss" }).click();
+  await lowerStopLoss(page);
   await buy.click();
   await expect(page.getByText(boughtNote)).toBeVisible();
   const before = await stopLossCell(page);
