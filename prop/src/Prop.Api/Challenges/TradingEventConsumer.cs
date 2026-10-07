@@ -143,6 +143,10 @@ internal sealed partial class TradingEventConsumer(
                     breached.Raw,
                     cancellationToken);
                 break;
+            case TradingAccountReopened reopened:
+                // The rule engine reinstated the stage before the platform reopened the account.
+                await UpdateAsync(connection, "disabled = false, balance = $2, open_positions = 0", account, reopened.Balance, cancellationToken);
+                break;
             case TradingAccountDisabled:
                 await UpdateAsync(connection, "disabled = true", account, null, cancellationToken);
                 await challenges.ApplyAsync(connection, firm, accountId, _ => new AccountDisabled(time, account, sequence), null, cancellationToken);

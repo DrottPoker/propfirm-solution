@@ -154,6 +154,10 @@ public sealed record AccountSuspended(DateTimeOffset Timestamp, string AccountId
 public sealed record AccountResumed(DateTimeOffset Timestamp, string AccountId)
     : EngineEvent(Timestamp), IAccountEvent;
 
+/// <summary>A disabled account is open again with the balance, without floors (ADR 0053).</summary>
+public sealed record AccountReopened(DateTimeOffset Timestamp, string AccountId, decimal Balance)
+    : EngineEvent(Timestamp), IAccountEvent;
+
 /// <summary>Money was deposited (positive amount) or withdrawn (negative amount). Not a trading result.</summary>
 public sealed record BalanceAdjusted(DateTimeOffset Timestamp, string AccountId, string OperationId, decimal Amount, decimal BalanceAfter)
     : EngineEvent(Timestamp), IAccountEvent;

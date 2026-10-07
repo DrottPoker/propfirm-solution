@@ -308,6 +308,40 @@ internal static class PlatformEmails
             "Review the application",
             $"You get this email as staff of {platform}.");
 
+    /// <summary>To our staff: the price feed gave no price for a while though a market is open, and a draft incident waits (ADR 0053).</summary>
+    public static EmailMessage PriceFeedStopped(string platform, string to, DateTimeOffset since, Uri incidentUrl) =>
+        Create(
+            platform,
+            to,
+            "The price feed has stopped",
+            $"""
+            No price has come from the price feed since {since:yyyy-MM-dd HH:mm:ss} UTC, though a market is open. Traders cannot open, close or change positions until prices return.
+
+            A draft incident is ready. Check it, change what it says if needed, and publish it so the firms and their traders know:
+
+            {incidentUrl}
+            """,
+            "Open the incident",
+            $"You get this email as staff of {platform}.");
+
+    /// <summary>We published an incident that concerns the firm: what happened, and where the firm sees its accounts it reached (ADR 0053).</summary>
+    public static EmailMessage IncidentPublished(string platform, string firmName, string to, string title, string text, bool ongoing, Uri incidentUrl) =>
+        Create(
+            platform,
+            to,
+            ongoing ? $"Incident: {title}" : $"Resolved incident: {title}",
+            $"""
+            {(ongoing ? $"We have an incident on {platform} that concerns {firmName}:" : $"We had an incident on {platform} that concerned {firmName}. It is over:")}
+
+            {text}
+
+            In your admin panel you see which of your traders' accounts it reached, and you can reinstate a phase that ended or credit an account. Your traders see it on your status page and in the terminal.
+
+            {incidentUrl}
+            """,
+            "See the incident",
+            ToAdministrator(platform, firmName));
+
     /// <summary>We need the firm to change its application before we can approve it.</summary>
     public static EmailMessage ChangesRequested(string platform, string firmName, string to, string message, Uri goLiveUrl) =>
         Create(

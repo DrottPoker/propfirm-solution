@@ -373,6 +373,28 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         }
     }
 
+    /// <summary>Like ours: a disabled account opens again with the balance and no floors. Done if it is open.</summary>
+    public async Task ReopenAccountAsync(FirmTrading firm, string accountId, decimal balance, CancellationToken cancellationToken)
+    {
+        var reopened = await Call($"reopen {accountId} {balance.ToString(CultureInfo.InvariantCulture)}", () =>
+        {
+            var account = _accounts[accountId];
+            if (!account.Disabled)
+            {
+                return false;
+            }
+
+            account.Disabled = false;
+            account.Balance = balance;
+            account.Floors.Clear();
+            return true;
+        });
+        if (reopened)
+        {
+            Publish(accountId, "AccountReopened", _ => new JsonObject { ["balance"] = balance }, (s, t, id, raw, _) => new TradingAccountReopened(s, t, id, raw, balance));
+        }
+    }
+
     public Task SuspendAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken) =>
         SetSuspendedAsync(accountId, suspended: true);
 
@@ -448,6 +470,100 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         {
             return _details.GetValueOrDefault(accountId);
         }
+    }
+
+    private readonly Dictionary<(string AccountId, string PositionId), TradeReceipt> _receipts = [];
+    private readonly Dictionary<string, BreachReport> _breachReports = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TradingNotice> _notices = new(StringComparer.Ordinal);
+    private TradingImpact? _impact;
+
+    /// <summary>The receipt the platform gives for the position.</summary>
+    public void SetReceipt(TradeReceipt receipt)
+    {
+        lock (_lock)
+        {
+            _receipts[(receipt.AccountId, receipt.PositionId)] = receipt;
+        }
+    }
+
+    /// <summary>The report the platform gives for the account's broken loss limit.</summary>
+    public void SetBreachReport(BreachReport report)
+    {
+        lock (_lock)
+        {
+            _breachReports[report.AccountId] = report;
+        }
+    }
+
+    /// <summary>What the platform says a period did to the firm's accounts, whatever period is asked for.</summary>
+    public void SetImpact(TradingImpact impact)
+    {
+        lock (_lock)
+        {
+            _impact = impact;
+        }
+    }
+
+    /// <summary>The periods the platform was asked about, in order.</summary>
+    public List<(DateTimeOffset From, DateTimeOffset To)> ImpactRequests { get; } = [];
+
+    /// <summary>How the price feed is doing. Healthy, with every market open, until a test says otherwise.</summary>
+    public PriceFeedStatus? PriceFeed { get; set; }
+
+    public Task<TradeReceipt?> GetReceiptAsync(FirmTrading firm, string accountId, string positionId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_receipts.GetValueOrDefault((accountId, positionId)));
+        }
+    }
+
+    public Task<BreachReport?> GetBreachReportAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_breachReports.GetValueOrDefault(accountId));
+        }
+    }
+
+    public Task<TradingImpact> GetImpactAsync(FirmTrading firm, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            ImpactRequests.Add((from, to));
+            return Task.FromResult(_impact is null ? new TradingImpact(from, to, []) : _impact with { From = from, To = to });
+        }
+    }
+
+    public Task SetNoticeAsync(FirmTrading firm, TradingNotice? notice, CancellationToken cancellationToken) =>
+        Call($"notice {firm.Server}", () =>
+        {
+            if (notice is null)
+            {
+                _notices.Remove(firm.Server);
+            }
+            else
+            {
+                _notices[firm.Server] = notice;
+            }
+
+            return true;
+        });
+
+    /// <summary>The notice the firm's terminals show, or null.</summary>
+    public TradingNotice? NoticeOf(string server)
+    {
+        lock (_lock)
+        {
+            return _notices.GetValueOrDefault(server);
+        }
+    }
+
+    // Asked every few seconds, so it is not counted among the commands.
+    public Task<PriceFeedStatus> GetPriceFeedAsync(CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        return Task.FromResult(PriceFeed ?? new PriceFeedStatus("Synthetic", now, now, [new SymbolFeedStatus("EURUSD", now, true)]));
     }
 
     public Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken) =>

@@ -17,6 +17,7 @@ const kindText: Record<Point["kind"], string> = {
   Opened: "Position opened, commission",
   Closed: "Position closed",
   Adjusted: "Deposit or withdrawal",
+  Reopened: "Phase reinstated",
   Now: "Equity now",
 };
 

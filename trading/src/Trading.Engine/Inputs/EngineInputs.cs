@@ -115,6 +115,14 @@ public sealed record ResumeAccount(DateTimeOffset Timestamp, string AccountId)
     : EngineInput(Timestamp), IAccountCommand;
 
 /// <summary>
+/// Opens a disabled account again with <paramref name="Balance"/>, for example when an outage broke a loss limit and the
+/// firm reinstates the trader (ADR 0053). Its floors are removed, so the firm sets them again. Its positions and orders
+/// were closed when it was disabled.
+/// </summary>
+public sealed record ReopenAccount(DateTimeOffset Timestamp, string AccountId, decimal Balance)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
 /// Deposits a positive <paramref name="Amount"/> or withdraws a negative one. The caller chooses
 /// <paramref name="OperationId"/>, which is never reused on the account, so a retry cannot apply it twice.
 /// A withdrawal must leave the balance at or above <paramref name="MinBalance"/>, fit in the free margin

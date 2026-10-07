@@ -163,7 +163,7 @@ function EmailedNotice({ emailed, email }: { emailed: Exclude<Emailed, null>; em
 function Notices({ details }: { details: AccountDetails }) {
   const { account, breach, expiry, endedAt } = details;
   const timeZone = details.challenge.tradingDay.timeZone;
-  const notices: { tone: string; text: string }[] = [];
+  const notices: { tone: string; text: string; link?: { href: string; label: string } }[] = [];
   switch (account.status) {
     case "OpeningAccount":
       notices.push({ tone: "text-warning", text: `The trading account for ${account.stageName} is being opened.` });
@@ -181,6 +181,7 @@ function Notices({ details }: { details: AccountDetails }) {
           : expiry
             ? `Ended on ${formatDate(expiry.day)}: ${expiryLabels[expiry.reason]}`
             : "Failed.",
+        link: breach ? { href: `/admin/accounts/${account.id}/breach-report`, label: "See the breach report" } : undefined,
       });
       break;
     case "Cancelled":
@@ -204,8 +205,13 @@ function Notices({ details }: { details: AccountDetails }) {
   return notices.length === 0 ? null : (
     <div className="flex flex-col gap-2">
       {notices.map((notice) => (
-        <p key={notice.text} role="status" className={`rounded-lg border border-border bg-panel px-4 py-3 text-sm ${notice.tone}`}>
-          {notice.text}
+        <p key={notice.text} role="status" className={`flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-panel px-4 py-3 text-sm ${notice.tone}`}>
+          <span className="flex-1">{notice.text}</span>
+          {notice.link && (
+            <Link href={notice.link.href} className="font-medium text-accent hover:underline">
+              {notice.link.label}
+            </Link>
+          )}
         </p>
       ))}
     </div>

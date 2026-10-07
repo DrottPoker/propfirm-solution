@@ -103,10 +103,11 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         if (batch.Events.Count > 0)
         {
             await using var importer = await connection.BeginBinaryImportAsync(
-                "copy engine_events (sequence, account_id, group_id, kind, occurred_at, payload) from stdin (format binary)",
+                "copy engine_events (sequence, account_id, group_id, kind, occurred_at, payload, input_sequence) from stdin (format binary)",
                 cancellationToken);
-            foreach (var ((sequence, engineEvent), groupId) in batch.Events)
+            foreach (var journaled in batch.Events)
             {
+                var ((sequence, engineEvent), groupId) = journaled;
                 await importer.StartRowAsync(cancellationToken);
                 await importer.WriteAsync(sequence, NpgsqlDbType.Bigint, cancellationToken);
                 await WriteNullableTextAsync(importer, EventLog.AccountIdOf(engineEvent), cancellationToken);
@@ -115,6 +116,14 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
                 await importer.WriteAsync(engineEvent.GetType().Name, NpgsqlDbType.Text, cancellationToken);
                 await importer.WriteAsync(engineEvent.Timestamp, NpgsqlDbType.TimestampTz, cancellationToken);
                 await importer.WriteAsync(JsonSerializer.Serialize(engineEvent, Json), NpgsqlDbType.Jsonb, cancellationToken);
+                if (journaled.InputSequence is { } inputSequence)
+                {
+                    await importer.WriteAsync(inputSequence, NpgsqlDbType.Bigint, cancellationToken);
+                }
+                else
+                {
+                    await importer.WriteNullAsync(cancellationToken);
+                }
             }
 
             await importer.CompleteAsync(cancellationToken);
@@ -211,6 +220,98 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
         {
             yield return new Quote(reader.GetFieldValue<DateTimeOffset>(0), reader.GetString(1), reader.GetDecimal(2), reader.GetDecimal(3));
         }
+    }
+
+    public async Task<IReadOnlyList<RecordedEvent>> ReadPositionEventsAsync(string accountId, string positionId, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            """
+            select sequence, payload, input_sequence from engine_events
+            where account_id = $1 and coalesce(payload ->> 'positionId', payload ->> 'orderId') = $2
+            order by sequence
+            """);
+        command.Parameters.AddWithValue(accountId);
+        command.Parameters.AddWithValue(positionId);
+        return await ReadRecordedEventsAsync(command, cancellationToken);
+    }
+
+    public async Task<RecordedQuote?> FindQuoteAsync(string symbol, DateTimeOffset atOrBefore, long? notAfterInput, CancellationToken cancellationToken)
+    {
+        // Inputs with the same time are told apart by their sequence number.
+        await using var command = dataSource.CreateCommand(
+            """
+            select sequence, recorded_at, symbol, bid, ask, feed from engine_inputs
+            where kind = 'Quote' and symbol = $1 and recorded_at <= $2 and ($3::bigint is null or sequence <= $3)
+            order by recorded_at desc, sequence desc
+            limit 1
+            """);
+        command.Parameters.AddWithValue(symbol);
+        command.Parameters.AddWithValue(atOrBefore);
+        command.Parameters.Add(new NpgsqlParameter { Value = (object?)notAfterInput ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Bigint });
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken) ? ReadQuote(reader) : null;
+    }
+
+    public async IAsyncEnumerable<RecordedQuote> ReadQuotesBetweenAsync(
+        IReadOnlyCollection<string> symbols,
+        DateTimeOffset first,
+        DateTimeOffset last,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            """
+            select sequence, recorded_at, symbol, bid, ask, feed from engine_inputs
+            where kind = 'Quote' and symbol = any($1) and recorded_at between $2 and $3
+            order by sequence
+            """);
+        command.Parameters.AddWithValue(symbols.ToArray());
+        command.Parameters.AddWithValue(first);
+        command.Parameters.AddWithValue(last);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            yield return ReadQuote(reader);
+        }
+    }
+
+    public async Task<IReadOnlyList<RecordedEvent>> ReadGroupEventsSinceAsync(
+        IReadOnlyCollection<string> groupIds,
+        DateTimeOffset after,
+        long afterSequence,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            """
+            select sequence, payload, input_sequence from engine_events
+            where group_id = any($1) and occurred_at > $2 and sequence > $3
+            order by sequence
+            limit $4
+            """);
+        command.Parameters.AddWithValue(groupIds.ToArray());
+        command.Parameters.AddWithValue(after);
+        command.Parameters.AddWithValue(afterSequence);
+        command.Parameters.AddWithValue(limit);
+        return await ReadRecordedEventsAsync(command, cancellationToken);
+    }
+
+    private static RecordedQuote ReadQuote(NpgsqlDataReader reader) =>
+        new(
+            reader.GetInt64(0),
+            new Quote(reader.GetFieldValue<DateTimeOffset>(1), reader.GetString(2), reader.GetDecimal(3), reader.GetDecimal(4)),
+            reader.IsDBNull(5) ? null : reader.GetString(5));
+
+    // The SQL selects the sequence number, the payload and the input sequence number, in that order.
+    private static async Task<IReadOnlyList<RecordedEvent>> ReadRecordedEventsAsync(NpgsqlCommand command, CancellationToken cancellationToken)
+    {
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var events = new List<RecordedEvent>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new RecordedEvent(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))), reader.IsDBNull(2) ? null : reader.GetInt64(2)));
+        }
+
+        return events;
     }
 
     // The SQL takes the account or groups, a sequence number and a limit, in that order.

@@ -5,20 +5,12 @@ import { useState } from "react";
 import type { AccountDetails, DayResult, Trade, TradeStatistics } from "@/lib/api/types";
 import { isTrading, resultTone, toneText } from "@/lib/dashboard";
 import { formatDay, formatLots, formatMoney, formatPrice, formatRatio, formatShortDateTime, formatSignedMoney } from "@/lib/format";
+import { closeReasonLabels } from "@/lib/proof";
 import { tradesCsvUrl, usePerformance, useTrades, type Role } from "@/lib/queries";
 
 import { BalanceChart } from "./BalanceChart";
+import { TradeDetailsSheet } from "./TradeDetails";
 import { ErrorText, Panel, SegmentedControl, secondaryButtonClass } from "./ui";
-
-/** Close reasons from the trading platform, in words. An unknown one is shown as it is. */
-const closeReasons: Record<string, string> = {
-  Manual: "Manual",
-  StopLoss: "Stop loss",
-  TakeProfit: "Take profit",
-  StopOut: "Stop out",
-  EquityFloor: "Loss limit",
-  AccountClosed: "Account closed",
-};
 
 /**
  * How a stage has gone: its balance, its days, statistics and closed trades. The stage is chosen in one row above
@@ -156,6 +148,7 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
   const trades = useTrades(details.account.id, stage, details.historyVersion, role);
   const rows: Trade[] = trades.data?.pages.flatMap((p) => p.trades) ?? [];
   const timeZone = details.challenge.tradingDay.timeZone;
+  const [shown, setShown] = useState<string | null>(null);
 
   return (
     <Panel
@@ -173,7 +166,7 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
         <p className="text-sm text-muted">{trades.isPending ? "Loading..." : "No closed trades yet."}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] text-sm">
+          <table className="w-full min-w-[56rem] text-sm">
             <thead className="text-left text-muted">
               <tr>
                 <th scope="col" className="py-2 font-normal">
@@ -200,6 +193,9 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
                 <th scope="col" className="py-2 pl-4 text-right font-normal">
                   Result
                 </th>
+                <th scope="col" className="py-2 pl-4 font-normal">
+                  <span className="sr-only">Details</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -212,12 +208,22 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
                   <td className="py-2 pl-4 text-right tabular-nums">{formatPrice(trade.openPrice)}</td>
                   <td className="whitespace-nowrap py-2 pl-4 text-muted">
                     {formatShortDateTime(trade.closedAt, timeZone)}
-                    {trade.closeReason !== "Manual" && <span className="block text-xs">{closeReasons[trade.closeReason] ?? trade.closeReason}</span>}
+                    {trade.closeReason !== "Manual" && <span className="block text-xs">{closeReasonLabels[trade.closeReason] ?? trade.closeReason}</span>}
                   </td>
                   <td className="py-2 pl-4 text-right tabular-nums">{formatPrice(trade.closePrice)}</td>
                   <td className="py-2 pl-4 text-right tabular-nums">
                     <span className={toneText[resultTone(trade.result)]}>{formatSignedMoney(trade.result)}</span>
                     {trade.commission > 0 && <span className="block text-xs text-muted">after {formatMoney(trade.commission)} commission</span>}
+                  </td>
+                  <td className="py-2 pl-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setShown(trade.positionId)}
+                      aria-label={`Details of ${trade.side} ${formatLots(trade.volume)} ${trade.symbol}`}
+                      className="text-sm text-accent hover:underline"
+                    >
+                      Details
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -230,6 +236,7 @@ function ClosedTrades({ details, stage, role }: { details: AccountDetails; stage
           {trades.isFetchingNextPage ? "Loading..." : "Show more"}
         </button>
       )}
+      {shown && <TradeDetailsSheet role={role} accountId={details.account.id} positionId={shown} timeZone={timeZone} onClose={() => setShown(null)} />}
     </Panel>
   );
 }

@@ -10,6 +10,7 @@ using Prop.Api.History;
 using Prop.Api.Identity;
 using Prop.Api.Payments;
 using Prop.Api.Review;
+using Prop.Api.Trading;
 using Prop.Rules;
 
 namespace Prop.Api.Portal;
@@ -44,6 +45,8 @@ internal static class AdminPanelEndpoints
         admin.MapGet("/accounts/{accountId:guid}/performance", GetPerformanceAsync);
         admin.MapGet("/accounts/{accountId:guid}/trades", ListTradesAsync);
         admin.MapGet("/accounts/{accountId:guid}/trades.csv", DownloadTradesAsync);
+        admin.MapGet("/accounts/{accountId:guid}/trades/{positionId}/receipt", GetReceiptAsync);
+        admin.MapGet("/accounts/{accountId:guid}/breach-report", GetBreachReportAsync);
         admin.MapGet("/payouts", ListPayoutsAsync);
         admin.MapGet("/payouts/summary", GetPayoutSummaryAsync);
         admin.MapGet("/challenges/figures", ListChallengeFiguresAsync);
@@ -313,6 +316,28 @@ internal static class AdminPanelEndpoints
         CancellationToken cancellationToken,
         int? stage = null) =>
         HistoryActions.TradesCsvAsync(PortalFirmFilter.FirmOf(context), accountId, null, stage, queries, history, cancellationToken);
+
+    /// <summary>What one of the account's trades was, with the prices behind it (ADR 0053).</summary>
+    private static Task<Results<Ok<TradeReceipt>, ProblemHttpResult>> GetReceiptAsync(
+        Guid accountId,
+        string positionId,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken) =>
+        HistoryActions.ReceiptAsync(PortalFirmFilter.FirmOf(context), accountId, null, positionId, queries, history, trading, cancellationToken);
+
+    /// <summary>Why a loss limit was broken on the account's stage, by default the latest that has started (ADR 0053).</summary>
+    private static Task<Results<Ok<BreachReport>, ProblemHttpResult>> GetBreachReportAsync(
+        Guid accountId,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken,
+        int? stage = null) =>
+        HistoryActions.BreachReportAsync(PortalFirmFilter.FirmOf(context), accountId, null, stage, queries, history, trading, cancellationToken);
 
     /// <summary>
     /// The firm's payouts, optionally only those with the statuses: the newest first, or with <paramref name="oldestFirst"/>

@@ -178,7 +178,7 @@ export function endingText(details: AccountDetails): string {
 
 /**
  * Why the balance of a breached account ended where it did, often below the limit: every open position was closed at
- * the next price, and the commission for closing them was charged. Null when the breach closed nothing.
+ * the prices that broke it, and the commission for closing them was charged. Null when the breach closed nothing.
  */
 export function breachClosesText(details: AccountDetails): string | null {
   const closes = details.breach?.closes ?? [];
@@ -190,7 +190,7 @@ export function breachClosesText(details: AccountDetails): string | null {
   const commission = closes.reduce((sum, c) => sum + c.commission, 0);
   const charged = commission > 0 ? `, and ${formatMoney(commission)} in commission was charged for closing ${closes.length === 1 ? "it" : "them"}` : "";
   const balance = details.breach?.balanceAfter;
-  return `Then every open position was closed at the next price (${prices})${charged}${balance == null ? "" : `, so the balance ended at ${formatMoney(balance)}`}.`;
+  return `Then every open position was closed at those prices (${prices})${charged}${balance == null ? "" : `, so the balance ended at ${formatMoney(balance)}`}.`;
 }
 
 /** Where a failed challenge is bought again, with the firm's code for retries when it has one, and what it costs. */
@@ -617,7 +617,7 @@ export function breachStory(details: AccountDetails): StoryStep[] {
     const prices = closes.map((c) => `${c.symbol} at ${formatPrice(c.closePrice)}`).join(", ");
     steps.push({
       when: "Right after",
-      text: `Every open position was closed at the next price: ${prices}.${commission > 0 ? ` Closing ${closes.length === 1 ? "it" : "them"} cost ${formatMoney(commission)} in commission.` : ""}`,
+      text: `Every open position was closed at the prices that broke it: ${prices}.${commission > 0 ? ` Closing ${closes.length === 1 ? "it" : "them"} cost ${formatMoney(commission)} in commission.` : ""}`,
     });
   }
 

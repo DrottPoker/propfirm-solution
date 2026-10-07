@@ -153,6 +153,36 @@ export function useMarket(accountId: string, symbol: string | null): MarketHours
   return useMarketHours(accountId).data?.find((m) => m.symbol === symbol);
 }
 
+export const noticeKey = (accountId: string) => ["notice", accountId];
+
+/** The firm's notice for its terminals, such as an outage, or null. New ones arrive in realtime (ADR 0053). */
+export function useNotice(accountId: string) {
+  return useQuery({
+    queryKey: noticeKey(accountId),
+    queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}/notice", accountPath(accountId)), "the notice").notice,
+    staleTime: Infinity,
+  });
+}
+
+/** The details of one of the account's trades: its fills, the feed's prices behind them and the markup (ADR 0053). */
+export function useTradeDetails(accountId: string, positionId: string) {
+  return useQuery({
+    queryKey: ["trade-details", accountId, positionId],
+    queryFn: async () =>
+      queryResult(await api.GET("/api/accounts/{accountId}/positions/{positionId}/receipt", { params: { path: { accountId, positionId } } }), "the trade's details"),
+    staleTime: 30_000,
+  });
+}
+
+/** Why the account's loss limit was broken, which never changes once it was (ADR 0053). */
+export function useBreachReport(accountId: string) {
+  return useQuery({
+    queryKey: ["breach", accountId],
+    queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}/breach-report", accountPath(accountId)), "the breach report"),
+    staleTime: Infinity,
+  });
+}
+
 export const rulesKey = (accountId: string) => ["rules", accountId];
 
 /**

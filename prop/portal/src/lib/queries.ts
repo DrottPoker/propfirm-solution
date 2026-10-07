@@ -219,6 +219,41 @@ export function tradesCsvUrl(accountId: string, stage: number, role: Role = "tra
 /** How many closed trades are shown at first, and added by each "Show more". */
 export const tradesPerPage = 25;
 
+/** The details of one of the account's trades, with the feed's prices behind it (ADR 0053). Kept, since they never change. */
+export function useTradeDetails(accountId: string, positionId: string, role: Role = "trader") {
+  return useQuery({
+    queryKey: ["trade-details", role, accountId, positionId],
+    queryFn: async () => {
+      const request = { params: { path: { accountId, positionId } } };
+      return resultOf(
+        role === "admin"
+          ? await api.GET("/api/portal/admin/accounts/{accountId}/trades/{positionId}/receipt", request)
+          : await api.GET("/api/portal/accounts/{accountId}/trades/{positionId}/receipt", request),
+        "the trade's details",
+      );
+    },
+    staleTime: Infinity,
+  });
+}
+
+/** Why a loss limit was broken on the account's latest stage, with the prices behind it (ADR 0053). */
+export function useBreachReport(accountId: string, role: Role = "trader") {
+  return useQuery({
+    queryKey: ["breach-report", role, accountId],
+    queryFn: async () => {
+      const request = { params: { path: { accountId } } };
+      return resultOf(
+        role === "admin"
+          ? await api.GET("/api/portal/admin/accounts/{accountId}/breach-report", request)
+          : await api.GET("/api/portal/accounts/{accountId}/breach-report", request),
+        "the breach report",
+      );
+    },
+    staleTime: Infinity,
+    retry: (failures, error) => !(error instanceof ApiError && error.status === 404) && failures < 3,
+  });
+}
+
 /** The trader's payouts from every account, with totals per currency. */
 export function useMyPayouts() {
   return useQuery({
@@ -1615,5 +1650,68 @@ export function useSaveIdentitySettings() {
       void queryClient.invalidateQueries({ queryKey: ["verification"] });
       void queryClient.invalidateQueries({ queryKey: ["billing"] });
     },
+  });
+}
+
+/** The firm's status page, for anyone: whether everything runs, and the incidents of the last 90 days (ADR 0053). */
+export function useStatusPage() {
+  return useQuery({
+    queryKey: ["status-page"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/status"), "the status"),
+    refetchInterval: 60_000,
+  });
+}
+
+const incidentsKey = ["incidents", "firm"];
+
+/** The published incidents that concern the firm, and how many go on, for the menu (ADR 0053). */
+export function useFirmIncidents() {
+  return useQuery({
+    queryKey: incidentsKey,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/incidents"), "the incidents"),
+    refetchInterval: 60_000,
+  });
+}
+
+/** An incident with the firm's accounts it reached and what the firm did for them. */
+export function useFirmIncident(incidentId: string) {
+  return useQuery({
+    queryKey: [...incidentsKey, incidentId],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/incidents/{incidentId}", { params: { path: { incidentId } } }), "the incident"),
+  });
+}
+
+/** The firm's own words to its traders about the incident, or none. */
+export function useIncidentNote(incidentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (text: string) =>
+      ensureOk(await api.PUT("/api/portal/admin/incidents/{incidentId}/note", { params: { path: { incidentId } }, body: { text } }), "the note"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...incidentsKey, incidentId] }),
+  });
+}
+
+/** Opens a stage again that a broken loss limit ended during the incident. */
+export function useReinstate(incidentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { accountId: string; balance: number; keepTradingDays: boolean; reason: string }) =>
+      ensureOk(await api.POST("/api/portal/admin/incidents/{incidentId}/reinstate", { params: { path: { incidentId } }, body }), "the reinstatement"),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: incidentsKey }),
+        queryClient.invalidateQueries({ queryKey: ["firm-account"] }),
+        queryClient.invalidateQueries({ queryKey: ["firm-accounts"] }),
+      ]),
+  });
+}
+
+/** Puts an amount on an account the incident reached that still trades. */
+export function useCredit(incidentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { accountId: string; amount: number; reason: string }) =>
+      ensureOk(await api.POST("/api/portal/admin/incidents/{incidentId}/credit", { params: { path: { incidentId } }, body }), "the credit"),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: incidentsKey }),
   });
 }

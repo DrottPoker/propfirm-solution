@@ -101,6 +101,7 @@ internal sealed class InMemoryUserStore : IUserStore
     private readonly Dictionary<string, Guid> _owners = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AccountDetails> _details = new(StringComparer.Ordinal);
     private readonly Dictionary<string, AccountRules> _rules = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TerminalNotice> _notices = new(StringComparer.Ordinal);
     private readonly Dictionary<(Guid UserId, string Key), string> _settings = [];
 
     public Task<User?> CreateAsync(string tenantId, string email, string passwordHash, CancellationToken cancellationToken)
@@ -215,6 +216,31 @@ internal sealed class InMemoryUserStore : IUserStore
         lock (_lock)
         {
             return Task.FromResult(_rules.GetValueOrDefault(accountId));
+        }
+    }
+
+    public Task SetTenantNoticeAsync(string tenantId, TerminalNotice? notice, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            if (notice is null)
+            {
+                _notices.Remove(tenantId);
+            }
+            else
+            {
+                _notices[tenantId] = notice;
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<TerminalNotice?> TenantNoticeOfAsync(string tenantId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_notices.GetValueOrDefault(tenantId));
         }
     }
 

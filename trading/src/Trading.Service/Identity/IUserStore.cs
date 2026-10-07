@@ -35,6 +35,11 @@ public interface IUserStore
     /// <summary>The account's rules, or null when the firm's system has not told them.</summary>
     Task<AccountRules?> AccountRulesOfAsync(string accountId, CancellationToken cancellationToken);
 
+    /// <summary>Shows the notice at the top of the firm's terminals, or removes it with null (ADR 0053).</summary>
+    Task SetTenantNoticeAsync(string tenantId, TerminalNotice? notice, CancellationToken cancellationToken);
+
+    Task<TerminalNotice?> TenantNoticeOfAsync(string tenantId, CancellationToken cancellationToken);
+
     /// <summary>The user's settings in the terminal, by key, each the JSON the terminal stored.</summary>
     Task<IReadOnlyDictionary<string, string>> SettingsOfAsync(Guid userId, CancellationToken cancellationToken);
 
@@ -80,4 +85,16 @@ internal static class Emails
 {
     /// <summary>Email addresses are compared without case and surrounding spaces.</summary>
     public static string Normalize(string email) => email.Trim().ToUpperInvariant();
+}
+
+/// <summary>
+/// What the firm's terminals show at the top, for example that the price feed has stopped and what the firm does about
+/// it (ADR 0053). <paramref name="Url"/> is where the trader reads more, such as the firm's status page.
+/// </summary>
+public sealed record TerminalNotice(string Title, string Text, NoticeLevel Level, Uri? Url, DateTimeOffset UpdatedAt);
+
+public enum NoticeLevel
+{
+    Info,
+    Warning,
 }

@@ -530,6 +530,37 @@ public sealed partial class TradingEngine
         return null;
     }
 
+    private RejectReason? ApplyReopenAccount(ReopenAccount command, List<EngineEvent> events)
+    {
+        if (!TryLookup(_accountsById, command.AccountId, out var account))
+        {
+            return RejectReason.UnknownAccount;
+        }
+
+        if (account.Status != AccountStatus.Disabled)
+        {
+            return RejectReason.AccountNotDisabled;
+        }
+
+        if (command.Balance <= 0m || !_valuation.IsRounded(command.Balance, account.Group.Currency))
+        {
+            return RejectReason.InvalidAmount;
+        }
+
+        account.Balance = command.Balance;
+        account.Status = AccountStatus.Active;
+        events.Add(new AccountReopened(command.Timestamp, account.Id, command.Balance));
+
+        // The limits that ended the account would end it again, so the firm sets new ones.
+        foreach (var floorId in account.Floors.Keys.ToList())
+        {
+            account.Floors.Remove(floorId);
+            events.Add(new EquityFloorRemoved(command.Timestamp, account.Id, floorId));
+        }
+
+        return null;
+    }
+
     private RejectReason? ApplyAdjustBalance(AdjustBalance command, List<EngineEvent> events)
     {
         if (!TryGetOpenAccount(command.AccountId, out var account, out var accountRejection))

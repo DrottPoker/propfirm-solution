@@ -118,7 +118,7 @@ Vägarna börjar med `/api/portal/ops` och fungerar bara på `Platform:OpsUrl`. 
 | `POST /ops/logout` | Loggar ut. |
 | `GET /ops/me` | Vem som är inloggad. |
 | `GET /ops/overview` | Översikten ([ADR 0024](../adr/0024-var-adminvy-over-alla-firmor.md)): det som väntar på oss (`needsUs`: ansökningar att granska, debiteringar med nekat kort, firmor vars traders väntat mer än `lateAfterDays` dagar på en utbetalning och handelsservrar som inte blivit klara på 10 minuter), firmorna i varje grupp, vad firmorna betalar per månad, vad de betalat de senaste 30 dagarna per sort, öppna challenges hos live-firmor, betalningar per vecka i 12 veckor, hur långt firmorna som registrerat sig de senaste 90 dagarna kommit och de senaste händelserna. |
-| `GET /ops/waiting` | Antalet ansökningar att granska och debiteringar med nekat kort, för menyn. |
+| `GET /ops/waiting` | Antalet ansökningar att granska, debiteringar med nekat kort och utkast till incidenter (`incidentDrafts`), för menyn. |
 | `GET /ops/firms?group=&search=&limit=` | Firmorna i en grupp som sökningen hittar på namn, kortnamn eller en administratörs e-post: `All` (standard), `ToReview` (äldst först), `Sandbox`, `Live`, `Unpaid`, `Suspended` eller `Rejected`. Med steg, öppna och pausade challenges, gränsen, vad firman betalar per månad och antalet i varje grupp. `limit` 1 till 500, standard 200. |
 | `GET /ops/firms/{firmId}` | Firman: namn, status, adress, när den registrerades, administratörerna, ansökan med dokument, granskningens status, våra kontroller och vårt meddelande, vad den provat i sandlådan, hur den betalar oss (plan, platser, nästa debitering, kort, debiteringar), hur den går (konton, försäljning, andel som klarar) och betalar sina traders (utan vilka traderna är), avstängningen och historiken. |
 | `PUT /ops/firms/{firmId}/checks/{item}` | `{ "done" }`. Bockar i eller ur en av granskningens kontroller: `vat`, `register`, `owners`, `terms` eller `website`. Svarar med alla kontroller. 404 för en okänd kontroll, 409 när ansökan inte väntar på oss eller på ändringar. |
@@ -129,6 +129,12 @@ Vägarna börjar med `/api/portal/ops` och fungerar bara på `Platform:OpsUrl`. 
 | `POST /ops/firms/{firmId}/reject` | `{ "message" }`, krävs. 409 när ansökan inte är skickad. |
 | `POST /ops/firms/{firmId}/suspend` | `{ "reason" }`, krävs. 409 när firman redan är avstängd. |
 | `POST /ops/firms/{firmId}/unsuspend` | Slår på firman igen. 409 när den inte är avstängd. |
+| `GET /ops/incidents` | Incidenterna som började de senaste 90 dagarna och de som pågår, nyaste först, med anteckningen för oss och vem som skrev varje uppdatering, prisflödet just nu (`feed`, null när handelsplattformen inte svarar) och firmorna med konton som har positioner öppna (ADR 0053). |
+| `POST /ops/incidents` | `{ "kind", "title", "publicText", "internalNote", "startedAt", "endedAt", "firms" }`. Skriver ett utkast. `firms` är firmornas id eller null för alla. Rubriken har 1 till 120 tecken och texterna högst 2 000, början får inte vara i framtiden och slutet inte före början, annars 422. |
+| `PUT /ops/incidents/{id}` | Ändrar incidenten med samma fält. En publicerad incidents terminaler får ändringen direkt, och en firma som inte längre gäller förlorar meddelandet. En löst incident behöver sitt slut. |
+| `POST /ops/incidents/{id}/publish` | Publicerar utkastet: som pågående utan slut, annars som löst. Firmornas administratörer får ett mejl, och terminalerna meddelandet medan den pågår. 409 när den redan är publicerad. |
+| `POST /ops/incidents/{id}/updates` | `{ "status", "text" }` med `Open` eller `Resolved`. Säger hur incidenten går. `Resolved` sätter slutet till nu om den inte har ett, och tar bort meddelandet. `Open` tar bort slutet. 409 innan den publicerats. |
+| `POST /ops/incidents/{id}/dismiss` | Avfärdar ett utkast, till exempel ett falsklarm. Det sparas som avfärdat, så att samma uppehåll i prisflödet inte hittas igen medan det pågår. 204, 404 för en publicerad incident. |
 
 Varje beslut sparar vem i personalen som tog det, och vilka kontroller som var bockade.
 
@@ -143,6 +149,8 @@ Varje beslut sparar vem i personalen som tog det, och vilka kontroller som var b
 | `{firma} was not approved` | Firmans administratörer | Vi nekar, med meddelandet, och att handpenningen betalade granskningen. |
 | `{firma} is suspended` | Firmans administratörer | Vi stänger av firman, med orsaken. |
 | `{firma} is no longer suspended` | Firmans administratörer | Vi slår på firman igen. |
+| `The price feed has stopped` | Personalen | Plattformen hittar att inget pris kommit på en minut fast en marknad är öppen, med länken till utkastet (ADR 0053). |
+| `Incident: {rubrik}`, `Resolved incident: {rubrik}` | Firmans administratörer | Vi publicerar en incident som gäller firman, med texten och länken till incidenten i adminpanelen. |
 
 Ett mejl som inte går iväg loggas, och adminpanelen visar samma sak.
 

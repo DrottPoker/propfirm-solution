@@ -9,14 +9,14 @@ import type { OpsMe } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
 import { useOpsLogout, useOpsWaiting } from "@/lib/opsQueries";
 
-import { BuildingIcon, CloseIcon, ExternalIcon, LogoutIcon, MenuIcon, OverviewIcon, ReceiptIcon } from "./icons";
+import { BuildingIcon, CloseIcon, ExternalIcon, IncidentIcon, LogoutIcon, MenuIcon, OverviewIcon, ReceiptIcon } from "./icons";
 
 type NavLink = {
   href: string;
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
   matches: (path: string) => boolean;
-  badge?: "toReview" | "unpaid";
+  badge?: "toReview" | "unpaid" | "incidentDrafts";
 };
 
 const startsWith = (prefix: string) => (path: string) => path === prefix || path.startsWith(`${prefix}/`);
@@ -25,6 +25,7 @@ const links: NavLink[] = [
   { href: "/ops", label: "Overview", icon: OverviewIcon, matches: (path) => path === "/ops" },
   { href: "/ops/firms", label: "Firms", icon: BuildingIcon, matches: startsWith("/ops/firms"), badge: "toReview" },
   { href: "/ops/billing", label: "Billing", icon: ReceiptIcon, matches: startsWith("/ops/billing"), badge: "unpaid" },
+  { href: "/ops/incidents", label: "Incidents", icon: IncidentIcon, matches: startsWith("/ops/incidents"), badge: "incidentDrafts" },
 ];
 
 /**
@@ -98,8 +99,8 @@ function PlatformMark() {
 
 function Navigation({ path }: { path: string }) {
   const waiting = useOpsWaiting();
-  const badges = { toReview: waiting.data?.toReview ?? 0, unpaid: waiting.data?.unpaid ?? 0 };
-  const badgeText = { toReview: "waiting for review", unpaid: "not paid" };
+  const badges = { toReview: waiting.data?.toReview ?? 0, unpaid: waiting.data?.unpaid ?? 0, incidentDrafts: waiting.data?.incidentDrafts ?? 0 };
+  const badgeText = { toReview: "waiting for review", unpaid: "not paid", incidentDrafts: "drafts to publish or dismiss" };
 
   return (
     <nav aria-label="Staff" className="flex flex-col gap-0.5 text-sm">
@@ -116,7 +117,7 @@ function Navigation({ path }: { path: string }) {
             <link.icon className="size-4 shrink-0" />
             <span className="flex-1">{link.label}</span>
             {link.badge && badge > 0 && (
-              <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] font-medium text-foreground tabular-nums ${link.badge === "unpaid" ? "bg-loss/25" : "bg-accent/20"}`}>
+              <span className={`min-w-5 rounded-full px-1.5 text-center text-[11px] font-medium text-foreground tabular-nums ${link.badge === "toReview" ? "bg-accent/20" : link.badge === "unpaid" ? "bg-loss/25" : "bg-warning/25"}`}>
                 {badge}
                 <span className="sr-only"> {badgeText[link.badge]}</span>
               </span>

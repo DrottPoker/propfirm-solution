@@ -76,6 +76,7 @@ En handelsdag börjar vid midnatt svensk tid (`Europe/Stockholm`). Challengen ta
 OpeningAccount -> Active -> (fas klar) -> OpeningAccount -> Active -> ...
                                        -> AwaitingFunding -> (firman godkänner) -> OpeningAccount -> Active (funded)
 Active -> Failed      (ett golv bröts, tidsgränsen tog slut eller ingen ny position på för länge)
+Failed -> Active      (firman återställer fasen efter en incident, på samma konto)
 alla utom slut -> Cancelled  (firman avbröt, eller kontot stängdes av på handelsplattformen)
 ```
 
@@ -99,6 +100,7 @@ Pending eller Approved -> Rejected  (firman nekar, och väljer om vinsten är f�
 | `ResumeChallenge` | Tjänsten | Firmans månad är betald, så challengen fortsätter under handelsdagen. |
 | `ApproveFunding` | Firman | Tradern får ett funded-konto efter firmans kontroller, till exempel KYC och avtal. |
 | `CancelChallenge` | Firman | Challengen avbryts. |
+| `ReinstateStage` | Firman | Fasen som tog slut öppnas igen på samma konto med ett saldo, efter en incident (ADR 0053). `KeepTradingDays` säger om handelsdagarna som räknats behålls. |
 | `RequestPayout` | Tradern | Tradern begär en utbetalning. Tjänsten väljer utbetalningens id. |
 | `ApprovePayout`, `MarkPayoutPaid`, `RejectPayout` | Firman | Firman godkänner, markerar som betald med en egen referens, eller nekar med en orsak. Vid nej säger `ReturnProfit` om vinsten ska läggas tillbaka på kontot. |
 | `WithdrawalRejected` | Tjänsten | Handelsplattformen nekade uttaget för en utbetalning. Tjänsten rapporterar det, eftersom den ser varje nej, även de som aldrig når handelsmotorn. |
@@ -121,6 +123,8 @@ Pending eller Approved -> Rejected  (firman nekar, och väljer om vinsten är f�
 | `ChallengeFailed` | Ett golv bröts: daglig förlust, total förlust eller ett annat golv. Blir webhooken `account.breached`. |
 | `ChallengeExpired` | Challengen tog slut på tid när en handelsdag började: fasens tidsgräns (`TimeLimit`) eller dagarna utan en ny position (`Inactivity`). Blir webhooken `account.expired`. |
 | `ChallengeCancelled` | Challengen avbröts. |
+| `StageReinstated` | Firman återställde fasen med saldot, med om handelsdagarna behölls och hur många dagar den hade varit slut. Blir webhooken `account.reinstated`. |
+| `ReopenAccountRequested` | Öppna kontot igen på handelsplattformen med saldot. Följs av golven för fasen. |
 | `ChallengePaused`, `ChallengeResumed` | Challengen pausades, eller fortsätter med sina tidsgränser flyttade så många dagar som den var pausad. Blir webhooks `account.paused` och `account.resumed`. |
 | `SuspendAccountRequested`, `ResumeAccountRequested` | Stoppa nya positioner på kontot, eller tillåt dem igen. Tradern kan alltid stänga sina positioner. |
 | `PayoutRequested` | Tradern har begärt en utbetalning. Innehåller vinsten, vinstandelen och traderns belopp. |
@@ -137,6 +141,7 @@ Pending eller Approved -> Rejected  (firman nekar, och väljer om vinsten är f�
 - **Fasen är klar** när saldot når vinstmålet, inga positioner är öppna och fasen har minst det antal handelsdagar som krävs. Kontot stängs, och nästa fas får ett nytt konto. Efter sista fasen väntar challengen på firman.
 - **Brott:** handelsplattformen har redan stängt allt och stängt av kontot. Challengen blir underkänd med nivån och equity från bevisen.
 - **Ett konto som öppnas efter att challengen tagit slut** stängs direkt.
+- **Återställning** (ADR 0053): bara en underkänd challenge med ett konto för fasen och ett saldo över noll kan återställas, annars ignoreras indatan. Challengen blir aktiv igen på samma fas och samma konto, med saldot. Handelsdagarna och dagarnas resultat behålls eller börjar om. Tidsgränserna flyttas fram lika många dagar som challengen var slut, räknat från handelsdagen den tog slut, som efter en paus. Golvet för total förlust och det dagliga golvet sätts igen, eftersom handelsplattformen tog bort dem när kontot öppnades igen. Propfirm-tjänsten låter bara en firma återställa en fas som ett golv brutet under en incident avslutade.
 - **Inaktivitet:** varje ny position, och starten av en fas, ger challengen `InactivityDays` dagar efter den dagen till nästa position. När dagen efter dem börjar tar challengen slut, och kontot stängs. Att hålla en position öppen räknas inte som aktivitet. Med 30 dagar och en position den 1 november är 1 december den sista dagen att öppna nästa, och challengen tar slut när 2 december börjar.
 - **Tidsgräns:** en fas med `MaxDays` tar slut när dagen `MaxDays` dagar efter dagen den började har passerat, om den inte är klar. En fas som börjar den 5 oktober med 10 dagar ska vara klar den 15 oktober och tar slut när 16 oktober börjar. Tidsgränsen kontrolleras före inaktiviteten när båda tar slut samma dag.
 - **Dagar som tjänsten missar,** till exempel när den har stått still, räknas ändå: kontrollen gäller dagen som börjar, hur många dagar som än gått. Tjänsten startar en sådan dag först när handelsplattformens händelser från före den är hanterade, så att en affär i sista stund räknas.

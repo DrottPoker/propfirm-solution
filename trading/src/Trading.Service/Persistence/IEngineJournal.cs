@@ -42,6 +42,32 @@ public interface IEngineJournal
 
     /// <summary>The feed of the last recorded price, or null when there is none or its feed is unknown.</summary>
     Task<string?> GetLastQuoteFeedAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The position's events and those of the order it came from, oldest first, each with the input it came from
+    /// (ADR 0053). Empty for an unknown position.
+    /// </summary>
+    Task<IReadOnlyList<RecordedEvent>> ReadPositionEventsAsync(string accountId, string positionId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The symbol's last recorded price at or before the time and, when given, not after the input. Null when there
+    /// is none.
+    /// </summary>
+    Task<RecordedQuote?> FindQuoteAsync(string symbol, DateTimeOffset atOrBefore, long? notAfterInput, CancellationToken cancellationToken);
+
+    /// <summary>The symbols' recorded prices from the first time to the last, both included, in order.</summary>
+    IAsyncEnumerable<RecordedQuote> ReadQuotesBetweenAsync(IReadOnlyCollection<string> symbols, DateTimeOffset first, DateTimeOffset last, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Events of accounts in the groups that happened after the time, with a sequence number after the given one,
+    /// oldest first, at most the limit. Read again from the last sequence number for the next page.
+    /// </summary>
+    Task<IReadOnlyList<RecordedEvent>> ReadGroupEventsSinceAsync(
+        IReadOnlyCollection<string> groupIds,
+        DateTimeOffset after,
+        long afterSequence,
+        int limit,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>An input with its gapless sequence number.</summary>
@@ -58,7 +84,17 @@ public sealed record JournaledInput(long Sequence, EngineInput Input)
 public sealed record JournalSnapshot(long InputSequence, long EventSequence, string ConfigurationFingerprint, EngineState State);
 
 /// <summary>An event with the trading group of its account, or null when it has none.</summary>
-public sealed record JournaledEvent(EventEnvelope Envelope, string? GroupId);
+public sealed record JournaledEvent(EventEnvelope Envelope, string? GroupId)
+{
+    /// <summary>The input that caused the event. Null only in tests that store events on their own.</summary>
+    public long? InputSequence { get; init; }
+}
+
+/// <summary>A stored event with the input it came from, or null for events stored before that was kept.</summary>
+public sealed record RecordedEvent(EventEnvelope Envelope, long? InputSequence);
+
+/// <summary>A recorded raw price with its input sequence number and its feed, or null when the feed is unknown.</summary>
+public sealed record RecordedQuote(long Sequence, Quote Quote, string? Feed);
 
 public sealed record JournalBatch(IReadOnlyList<JournaledInput> Inputs, IReadOnlyList<JournaledEvent> Events, JournalSnapshot? Snapshot)
 {

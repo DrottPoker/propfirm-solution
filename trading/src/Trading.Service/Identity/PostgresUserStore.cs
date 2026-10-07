@@ -162,6 +162,34 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
         return await command.ExecuteScalarAsync(cancellationToken) is string json ? JsonSerializer.Deserialize<AccountRules>(json, RulesJson) : null;
     }
 
+    public async Task SetTenantNoticeAsync(string tenantId, TerminalNotice? notice, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = notice is null
+            ? dataSource.CreateCommand("delete from tenant_notices where tenant_id = $1")
+            : dataSource.CreateCommand(
+                """
+                insert into tenant_notices (tenant_id, notice, updated_at) values ($1, $2, $3)
+                on conflict (tenant_id) do update set notice = excluded.notice, updated_at = excluded.updated_at
+                """);
+        command.Parameters.AddWithValue(tenantId);
+        if (notice is not null)
+        {
+            command.Parameters.Add(new NpgsqlParameter { Value = JsonSerializer.Serialize(notice, RulesJson), NpgsqlDbType = NpgsqlDbType.Jsonb });
+            command.Parameters.AddWithValue(notice.UpdatedAt);
+        }
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<TerminalNotice?> TenantNoticeOfAsync(string tenantId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("select notice::text from tenant_notices where tenant_id = $1");
+        command.Parameters.AddWithValue(tenantId);
+        return await command.ExecuteScalarAsync(cancellationToken) is string json ? JsonSerializer.Deserialize<TerminalNotice>(json, RulesJson) : null;
+    }
+
     public async Task<IReadOnlyDictionary<string, string>> SettingsOfAsync(Guid userId, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

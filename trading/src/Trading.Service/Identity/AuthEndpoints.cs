@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 
+using Trading.Engine;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Identity;
@@ -35,6 +36,7 @@ internal static class AuthEndpoints
         TenantCatalog tenants,
         IUserStore users,
         IPasswordHasher<User> hasher,
+        EngineConfiguration configuration,
         CancellationToken cancellationToken)
     {
         await tenants.Ready.WaitAsync(cancellationToken);
@@ -47,7 +49,7 @@ internal static class AuthEndpoints
         }
 
         await SignInAsync(context, user);
-        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
+        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, configuration, cancellationToken));
     }
 
     /// <summary>Logs in with a one-time link from the firm's portal, created through the admin API.</summary>
@@ -58,6 +60,7 @@ internal static class AuthEndpoints
         IUserStore users,
         ILoginLinkStore links,
         TimeProvider time,
+        EngineConfiguration configuration,
         CancellationToken cancellationToken)
     {
         await tenants.Ready.WaitAsync(cancellationToken);
@@ -72,7 +75,7 @@ internal static class AuthEndpoints
         }
 
         await SignInAsync(context, user);
-        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken));
+        return TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, configuration, cancellationToken));
     }
 
     private static Task SignInAsync(HttpContext context, User user)
@@ -99,13 +102,14 @@ internal static class AuthEndpoints
         ClaimsPrincipal principal,
         TenantCatalog tenants,
         IUserStore users,
+        EngineConfiguration configuration,
         CancellationToken cancellationToken)
     {
         await tenants.Ready.WaitAsync(cancellationToken);
         return CurrentUser.IdOf(principal) is { } userId
             && await users.FindByIdAsync(userId, cancellationToken) is { } user
             && tenants.ById(user.TenantId) is { } tenant
-                ? TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, cancellationToken))
+                ? TypedResults.Ok(await ToMeResponseAsync(user, tenant, users, configuration, cancellationToken))
                 : TypedResults.Unauthorized();
     }
 
@@ -127,13 +131,14 @@ internal static class AuthEndpoints
         return tenants.ById(id) is { } tenant ? TypedResults.Ok(ToServerInfo(tenant)) : TypedResults.NotFound();
     }
 
-    private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, CancellationToken cancellationToken) =>
+    private static async Task<MeResponse> ToMeResponseAsync(User user, Tenant tenant, IUserStore users, EngineConfiguration configuration, CancellationToken cancellationToken) =>
         new(
             user.Id,
             user.Email,
             ToServerInfo(tenant),
             await users.AccountsOfAsync(user.Id, cancellationToken),
-            await users.AccountDetailsOfAsync(user.Id, cancellationToken));
+            await users.AccountDetailsOfAsync(user.Id, cancellationToken),
+            configuration.MaxQuoteAge.TotalSeconds);
 
     private static ServerInfo ToServerInfo(Tenant tenant) => new(tenant.Id, tenant.Name, tenant.LoginUrl, tenant.LogoUrl);
 }
@@ -153,9 +158,16 @@ public sealed record ServerInfo(string Id, string Name, Uri? LoginUrl, Uri? Logo
 
 /// <summary>
 /// The logged in trader, their firm's server and the accounts they own, with what the firm says about each in
-/// <paramref name="AccountDetails"/>, in the same order.
+/// <paramref name="AccountDetails"/>, in the same order. Orders, closes and stop changes are refused while the latest
+/// price is older than <paramref name="MaxPriceAgeSeconds"/>.
 /// </summary>
-public sealed record MeResponse(Guid UserId, string Email, ServerInfo Server, IReadOnlyList<string> Accounts, IReadOnlyList<AccountDetails> AccountDetails);
+public sealed record MeResponse(
+    Guid UserId,
+    string Email,
+    ServerInfo Server,
+    IReadOnlyList<string> Accounts,
+    IReadOnlyList<AccountDetails> AccountDetails,
+    double MaxPriceAgeSeconds);
 
 internal static class CurrentUser
 {
@@ -164,4 +176,6 @@ internal static class CurrentUser
 
     public static Guid? IdOf(ClaimsPrincipal principal) =>
         Guid.TryParse(principal.FindFirstValue(UserIdClaim), out var userId) ? userId : null;
+
+    public static string? TenantIdOf(ClaimsPrincipal principal) => principal.FindFirstValue(TenantIdClaim);
 }

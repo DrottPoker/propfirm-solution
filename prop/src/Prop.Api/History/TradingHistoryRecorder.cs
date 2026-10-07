@@ -146,6 +146,18 @@ internal sealed partial class TradingHistoryRecorder(
             case TradingBalanceAdjusted adjusted:
                 await BalanceChangedAsync(connection, account, sequence, time, BalanceChangeKind.Adjusted, adjusted.Amount, adjusted.BalanceAfter, cancellationToken);
                 break;
+            case TradingAccountReopened reopened:
+                // The change is from the balance the account ended with.
+                await ExecuteAsync(
+                    connection,
+                    """
+                    insert into trading_balance_changes (account_id, sequence, time, kind, change, balance_after)
+                    values ($1, $2, $3, $4, $5 - coalesce((select balance_after from trading_balance_changes where account_id = $1 and sequence < $2 order by sequence desc limit 1), 0), $5)
+                    on conflict (account_id, sequence) do nothing
+                    """,
+                    [account, sequence, time, BalanceChangeKind.Reopened.ToString(), reopened.Balance],
+                    cancellationToken);
+                break;
             case TradingFloorSet floorSet:
                 await ExecuteAsync(
                     connection,

@@ -14,6 +14,8 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 - `TradingEngine.GetAccount(id)` returnerar kontot värderat till senaste priser. För varje golv anges `Headroom`, alltså equity minus golvets nivå.
 - `TradingEngine.GetPrices(groupId)` returnerar senaste priser efter gruppens påslag, och `GetLatestQuotes()` de senaste råa priserna.
 - `TradingEngine.GetGroupId(accountId)` returnerar kontots grupp utan att värdera kontot.
+- `TradingEngine.GetAccounts(groupIds)` returnerar alla konton i grupperna, värderade till senaste priser och ordnade efter id, till exempel för att se vad en incident gjorde med en firmas konton (ADR 0053).
+- `Revaluation` värderar positioner på nytt pris för pris, med samma kod som motorn: `Update(quote)` för varje rått pris och `Equity(balance, positions, currency)` för equity med de priserna, eller null när ett pris eller en växelkurs saknas. Rapporten om ett regelbrott ritar equity med den (ADR 0053).
 - `TradingEngine.GetGroup(groupId)` returnerar gruppens villkor, med symbolerna i bokstavsordning.
 - `TradingEngine.GetPointValue(accountId, symbol)` returnerar vad en punkt på en lot är värd i kontots valuta: kontraktsstorlek gånger punkt gånger växelkursen från symbolens kursvaluta, samma kurs som vinsten räknas med. Värdet avrundas inte. Null om kontot inte finns, gruppen inte handlar symbolen eller växelkursen saknas.
 - `TradingEngine.ExportState()` och `TradingEngine.FromState(configuration, state)` exporterar och återställer hela tillståndet. En återställd motor ger exakt samma händelser som originalet för samma indata.
@@ -39,6 +41,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `CloseAccount` | Stänger alla positioner, tar bort alla ordrar och stänger av kontot. |
 | `SuspendAccount` | Pausar kontot: tar bort väntande ordrar och tar inte emot nya. Öppna positioner ligger kvar. |
 | `ResumeAccount` | Låter ett pausat konto handla igen. |
+| `ReopenAccount` | Öppnar ett avstängt konto igen med ett nytt saldo, utan positioner, ordrar eller golv (ADR 0053). |
 | `AdjustBalance` | Sätter in ett positivt belopp eller tar ut ett negativt, med ett id för operationen och ett valfritt minsta saldo. |
 
 ### Händelser
@@ -60,6 +63,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `StopOutTriggered` | Marginalnivån föll under gränsen för stop out. |
 | `AccountDisabled` | Kontot stängdes av efter brott mot golvet eller på begäran. |
 | `AccountSuspended`, `AccountResumed` | Kontot pausades efter att dess väntande ordrar togs bort, eller får handla igen. |
+| `AccountReopened` | Ett avstängt konto öppnades igen med saldot. Följs av `EquityFloorRemoved` för varje golv det hade. |
 | `BalanceAdjusted` | Pengar sattes in eller togs ut. Innehåller operationens id, beloppet och saldot efteråt. |
 | `InputRejected` | Indata avvisades. Innehåller indatan och orsaken. |
 
@@ -152,11 +156,17 @@ Belopp i kontovalutan avrundas till valutans decimaler med `MidpointRounding.Awa
 
 ### Pausade konton
 
-- Ett konto är `Active`, `Suspended` eller `Disabled`. Ett pausat konto kan bli aktivt igen, men ett avstängt är stängt för gott.
+- Ett konto är `Active`, `Suspended` eller `Disabled`. Ett pausat konto kan bli aktivt igen. Ett avstängt konto öppnas bara igen med `ReopenAccount`, när en firma återställer ett steg som en incident avslutade (se nedan).
 - Ett pausat konto tar inte emot nya ordrar. `PlaceOrder` avvisas med `AccountSuspended`. Väntande ordrar tas bort när kontot pausas, eftersom de annars skulle öppna positioner.
 - Ägaren kan stänga positioner, ta bort ordrar och ändra stop loss och take profit. Golv, stop loss, take profit och stop out gäller som vanligt, och kontot kan stängas och få insättningar och uttag.
 - Att pausa ett pausat konto avvisas med `AccountSuspended`, och att återuppta ett aktivt med `AccountNotSuspended`. Ett avstängt konto avvisas med `AccountDisabled`.
 - Propfirm-plattformen pausar en firmas konton medan firmans månad är obetald (se [ADR 0020](../adr/0020-forbetalda-platser-for-aktiva-challenges.md)).
+
+### Öppna ett avstängt konto igen
+
+- `ReopenAccount` gör ett avstängt konto aktivt igen med saldot i indatan och tar bort golven det hade, eftersom de hörde till steget som avslutades. Den som öppnar kontot sätter nya golv efteråt. Kontot har inga positioner eller ordrar, eftersom de stängdes eller togs bort när det stängdes av.
+- Saldot ska vara över noll och avrundat till kontovalutans decimaler, annars `InvalidAmount`. Ett konto som inte är avstängt avvisas med `AccountNotDisabled`, och ett okänt med `UnknownAccount`.
+- Propfirm-plattformen använder det när en firma återställer ett steg som ett brutet golv avslutade under en incident, på samma konto så att historiken hänger ihop (se [ADR 0053](../adr/0053-detaljer-rapporter-och-incidenter.md)).
 
 ### Provision
 

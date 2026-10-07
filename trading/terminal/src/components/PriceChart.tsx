@@ -27,7 +27,7 @@ import { rejectionText } from "@/lib/events";
 import { formatChartTick, formatMinute, formatPrice, formatSignedPercent, formatSignedPrice, timeZoneName, type ChartTick } from "@/lib/format";
 import { spreadPoints } from "@/lib/instruments";
 import { useOrderDraft, type GhostLine } from "@/lib/orderDraft";
-import { isClosed } from "@/lib/marketHours";
+import { isClosed, useNow } from "@/lib/marketHours";
 import { fetchOlderCandles, useCandles, useDaySummary, useMarket, useModifyStops, usePointValue } from "@/lib/queries";
 import type { DrawingTool } from "@/lib/drawings";
 import { useSettings } from "@/lib/settings";
@@ -41,6 +41,7 @@ import { CollapseIcon, ExpandIcon, HorizontalLineIcon, IndicatorsIcon, Rectangle
 import { IndicatorMenu } from "./IndicatorMenu";
 import { IndicatorSeries } from "./IndicatorSeries";
 import { KeepInView } from "./KeepInView";
+import { OldPriceTag, useOldPrice } from "./PriceAlerts";
 import { PriceMenu, type MenuPlacement, type StopLineRef } from "./PriceMenu";
 import { grabDistance, StopHandles, usePositionLines } from "./positionLines";
 import { SymbolIcon } from "./SymbolIcon";
@@ -553,6 +554,7 @@ function QuoteHeader({ accountId, instrument }: { accountId: string; instrument:
   const price = useTradingStore((s) => s.prices[symbol]);
   const day = dayFigures(useDaySummary(accountId, symbol).data, price?.bid);
   const market = useMarket(accountId, symbol);
+  const oldFor = useOldPrice(accountId, symbol, useNow(5_000));
   const changeColor = day.change === null ? "text-muted" : day.change >= 0 ? "text-profit" : "text-loss";
 
   return (
@@ -561,6 +563,7 @@ function QuoteHeader({ accountId, instrument }: { accountId: string; instrument:
         <SymbolIcon base={instrument.baseCurrency} quote={instrument.quoteCurrency} />
         <span className="text-base font-semibold">{symbol}</span>
         {market && isClosed(market) && <ClosedTag market={market} />}
+        {oldFor !== null && <OldPriceTag ageMs={oldFor} />}
       </span>
       <span className="flex shrink-0 items-baseline gap-2 whitespace-nowrap">
         <span className="font-mono text-xl font-semibold tabular-nums">{formatPrice(price?.bid, digits)}</span>

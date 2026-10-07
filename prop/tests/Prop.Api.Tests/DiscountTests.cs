@@ -99,7 +99,7 @@ public sealed class DiscountTests(PostgresFixture postgres) : IClassFixture<Post
         using var trader = await factory.LogInAsTraderAsync(id);
         using var stranger = factory.CreatePortalClient();
 
-        // The breach closes the position at the next price, which is lower, and charges the commission for closing it.
+        // The breach closes the position at the price that broke the limit, and charges the commission for closing it.
         factory.Trading.OpenPosition(Phase1, commission: 3.5m);
         factory.Trading.ClosePosition(Phase1, -5_140m, closePrice: 1.0486m, commission: 3.5m, reason: "EquityFloor");
         factory.Trading.Breach(Phase1, "daily", 94_900m);

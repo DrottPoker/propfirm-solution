@@ -63,7 +63,7 @@ describe("endedText", () => {
 
   it("says which limit broke, when and at what equity", () => {
     expect(endedText([breach, { kind: "AccountDisabled", accountId: "demo", reason: "EquityFloor", timestamp }], "Europe/Stockholm")).toBe(
-      "The daily loss limit was broken at 17:38:12 Stockholm time: equity 9,482.50 fell below 9,500.00. Every position was closed at the next price.",
+      "The daily loss limit was broken at 17:38:12 Stockholm time: equity 9,482.50 fell below 9,500.00. Every position was closed at those prices.",
     );
   });
 

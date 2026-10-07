@@ -92,6 +92,12 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
     }
 
+    public async Task ReopenAccountAsync(FirmTrading firm, string accountId, decimal balance, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Post, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/reopen", new { balance }, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
     public async Task WithdrawAsync(FirmTrading firm, string accountId, string operationId, decimal amount, decimal minBalance, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(
@@ -164,6 +170,56 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                     f.GetProperty("level").GetDecimal(),
                     f.GetProperty("headroom").GetDecimal())),
             ]);
+    }
+
+    public async Task<TradeReceipt?> GetReceiptAsync(FirmTrading firm, string accountId, string positionId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm,
+            HttpMethod.Get,
+            $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/positions/{Uri.EscapeDataString(positionId)}/receipt",
+            null,
+            cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        await EnsureSuccessAsync(response, cancellationToken);
+        return TradingReportJson.Read<TradeReceipt>(await ReadJsonAsync(response, cancellationToken));
+    }
+
+    public async Task<BreachReport?> GetBreachReportAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/breach-report", null, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        await EnsureSuccessAsync(response, cancellationToken);
+        return TradingReportJson.ReadBreachReport(await ReadJsonAsync(response, cancellationToken));
+    }
+
+    public async Task<TradingImpact> GetImpactAsync(FirmTrading firm, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var query = $"{Admin}impact?from={Uri.EscapeDataString(from.ToString("O", CultureInfo.InvariantCulture))}&to={Uri.EscapeDataString(to.ToString("O", CultureInfo.InvariantCulture))}";
+        using var response = await SendAsync(firm, HttpMethod.Get, query, null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return TradingReportJson.Read<TradingImpact>(await ReadJsonAsync(response, cancellationToken));
+    }
+
+    public async Task SetNoticeAsync(FirmTrading firm, TradingNotice? notice, CancellationToken cancellationToken)
+    {
+        using var response = notice is null
+            ? await SendAsync(firm, HttpMethod.Delete, $"{Admin}notice", null, cancellationToken)
+            : await SendAsync(
+                firm,
+                HttpMethod.Put,
+                $"{Admin}notice",
+                new { title = notice.Title, text = notice.Text, level = notice.Warning ? "Warning" : "Info", url = notice.Url },
+                cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
     }
 
     public async Task<TradingEventPage> ReadEventsAsync(FirmTrading firm, long after, int limit, int waitSeconds, CancellationToken cancellationToken)
@@ -296,6 +352,7 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                 e.GetProperty("level").GetDecimal(),
                 e.GetProperty("equity").GetDecimal()),
             "AccountDisabled" => new TradingAccountDisabled(sequence, time, accountId, raw),
+            "AccountReopened" => new TradingAccountReopened(sequence, time, accountId, raw, e.GetProperty("balance").GetDecimal()),
             "BalanceAdjusted" => new TradingBalanceAdjusted(
                 sequence,
                 time,

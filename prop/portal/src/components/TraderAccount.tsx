@@ -240,6 +240,11 @@ function WhatHappened({ details }: { details: AccountDetails }) {
           ))}
         </ol>
       )}
+      {story.length > 0 && (
+        <Link href={`/accounts/${details.account.id}/breach-report`} className={`${secondaryButtonClass} self-start text-sm`}>
+          See the breach report, price by price
+        </Link>
+      )}
       {retry && (
         <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
           <Link href={retry.href} className={buttonClass}>

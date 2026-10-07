@@ -39,6 +39,9 @@ internal static class NotificationKinds
     /// <summary>To the trader: the challenge ended, by a broken loss limit, a time limit or inactivity.</summary>
     public const string TraderEnded = "traderEnded";
 
+    /// <summary>To the trader: the firm reinstated the ended stage, for example after an outage (ADR 0053).</summary>
+    public const string TraderReinstated = "traderReinstated";
+
     /// <summary>To the trader: a payout was approved, paid or rejected.</summary>
     public const string TraderPayouts = "traderPayouts";
 
@@ -56,8 +59,8 @@ internal static class NotificationKinds
 
     public static readonly IReadOnlyList<string> All =
     [
-        FirmSale, FirmFundingAwaited, FirmPayoutRequested, FirmSupport, TraderStagePassed, TraderPassed, TraderFunded, TraderEnded, TraderPayouts, TraderInactivity,
-        TraderSupportAnswers, TraderIdentity,
+        FirmSale, FirmFundingAwaited, FirmPayoutRequested, FirmSupport, TraderStagePassed, TraderPassed, TraderFunded, TraderEnded, TraderReinstated, TraderPayouts,
+        TraderInactivity, TraderSupportAnswers, TraderIdentity,
     ];
 
     /// <summary>Whether the firm sends the kind. Kinds the firm never set are on.</summary>
@@ -99,6 +102,9 @@ internal sealed partial class Notifications(IOptions<PlatformOptions> platform)
                 break;
             case ChallengeExpired expired:
                 await ToTraderAsync(connection, firm, account, NotificationKinds.TraderEnded, ExpiredEmail(firm, account, expired, accountUrl), now, cancellationToken);
+                break;
+            case StageReinstated reinstated:
+                await ToTraderAsync(connection, firm, account, NotificationKinds.TraderReinstated, ReinstatedEmail(firm, account, reinstated, accountUrl), now, cancellationToken);
                 break;
             case PayoutWithdrawn withdrawn:
                 var requester = await TraderOfAsync(connection, firm, account.Email, cancellationToken);
@@ -289,6 +295,19 @@ internal sealed partial class Notifications(IOptions<PlatformOptions> platform)
             account,
             $"Your {account.Definition.Name} has ended",
             $"Your {account.Definition.Name} (account #{account.Number}) ended on {Day(DateOnly.FromDateTime(failed.Time.UtcDateTime))}: equity {Money(failed.Equity, currency)} fell below {limit} at {Money(failed.Level, currency)}, so the open trades were closed. See what happened, and start a new challenge, in the portal:",
+            accountUrl);
+    }
+
+    private static EmailMessage ReinstatedEmail(Firm firm, NotifiedAccount account, StageReinstated reinstated, Uri accountUrl)
+    {
+        var definition = account.Definition;
+        var stage = definition.Stage(reinstated.Stage).Name;
+        var days = reinstated.TradingDaysKept ? " The trading days you had still count." : " The trading days count from the start again.";
+        return ToTrader(
+            firm,
+            account,
+            $"Your {definition.Name} is open again",
+            $"{firm.Name} has reinstated {stage} of your {definition.Name} (account #{account.Number}), on the same trading account with {Money(reinstated.Balance, definition.Currency)}.{days} Open the terminal from your account in the portal:",
             accountUrl);
     }
 

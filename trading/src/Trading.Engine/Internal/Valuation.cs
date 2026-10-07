@@ -26,11 +26,15 @@ internal sealed class Valuation(PriceBook prices, IReadOnlyDictionary<string, in
     public decimal Profit(PositionState position, decimal closePrice, string currency) => Profit(position, closePrice, currency, position.Volume);
 
     /// <summary>The profit of <paramref name="volume"/> of the position, for a partial close.</summary>
-    public decimal Profit(PositionState position, decimal closePrice, string currency, decimal volume)
+    public decimal Profit(PositionState position, decimal closePrice, string currency, decimal volume) =>
+        Profit(position.Instrument, position.Side, position.OpenPrice, closePrice, volume, currency);
+
+    /// <summary>The profit of a position with these figures, closed at <paramref name="closePrice"/>.</summary>
+    public decimal Profit(Instrument instrument, Side side, decimal openPrice, decimal closePrice, decimal volume, string currency)
     {
-        var difference = position.Side == Side.Buy ? closePrice - position.OpenPrice : position.OpenPrice - closePrice;
-        var inQuoteCurrency = difference * volume * position.Instrument.ContractSize;
-        return Round(inQuoteCurrency * Rate(position.Instrument.QuoteCurrency, currency), currency);
+        var difference = side == Side.Buy ? closePrice - openPrice : openPrice - closePrice;
+        var inQuoteCurrency = difference * volume * instrument.ContractSize;
+        return Round(inQuoteCurrency * Rate(instrument.QuoteCurrency, currency), currency);
     }
 
     /// <summary>

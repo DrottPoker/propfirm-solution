@@ -20,6 +20,9 @@ public interface ITradingClient
 
     /// <summary>The account's rules, when the firm's system tells new ones (ADR 0052).</summary>
     Task Rules(AccountRules rules);
+
+    /// <summary>The firm's notice for its terminals, on subscribing and when it changes, or null for none (ADR 0053).</summary>
+    Task Notice(TerminalNotice? notice);
 }
 
 /// <summary>Realtime connection for the trading terminal. Commands go through the REST API.</summary>
@@ -39,10 +42,17 @@ internal sealed class TradingHub(EngineHost engine, IUserStore users, Subscripti
 
         await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Account(accountId), cancellationToken);
         await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Prices(snapshot.GroupId), cancellationToken);
+        var tenantId = CurrentUser.TenantIdOf(Context.User);
+        if (tenantId is not null)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, RealtimeGroups.Tenant(tenantId), cancellationToken);
+        }
+
         subscriptions.Add(Context.ConnectionId, accountId, snapshot.GroupId);
 
         await Clients.Caller.Account(snapshot);
         await Clients.Caller.Prices(await engine.QueryAsync(e => e.GetPrices(snapshot.GroupId) ?? [], cancellationToken));
+        await Clients.Caller.Notice(tenantId is null ? null : await users.TenantNoticeOfAsync(tenantId, cancellationToken));
     }
 
     public override Task OnDisconnectedAsync(Exception? exception)
@@ -57,4 +67,7 @@ internal static class RealtimeGroups
     public static string Account(string accountId) => $"account:{accountId}";
 
     public static string Prices(string groupId) => $"prices:{groupId}";
+
+    /// <summary>Every terminal of the firm's traders.</summary>
+    public static string Tenant(string tenantId) => $"tenant:{tenantId}";
 }

@@ -9,6 +9,7 @@ using Prop.Api.Billing;
 using Prop.Api.Challenges;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Incidents;
 using Prop.Api.Portal;
 using Prop.Api.Review;
 using Prop.Rules;
@@ -47,6 +48,7 @@ internal static class OpsEndpoints
         var staff = ops.MapGroup("").RequireAuthorization(StaffAuth.Policy);
         staff.MapGet("/me", (ClaimsPrincipal principal) => TypedResults.Ok(new OpsMeResponse(PortalAuth.UserIdOf(principal), StaffAuth.EmailOf(principal))));
         staff.MapOpsPanel();
+        staff.MapOpsIncidents();
         staff.MapGet("/firms/{firmId}", GetFirmAsync);
         staff.MapPut("/firms/{firmId}/checks/{item}", SetCheckAsync);
         staff.MapGet("/firms/{firmId}/documents/{documentId:guid}", GetDocumentAsync);

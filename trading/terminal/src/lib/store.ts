@@ -15,6 +15,11 @@ interface TradingState {
   account: AccountSnapshot | null;
   prices: Record<string, SymbolPrice>;
   moves: Record<string, PriceMove>;
+  /**
+   * When the terminal last got a new price for each symbol, by its own clock, so a computer whose clock is wrong does
+   * not make prices look old (ADR 0053).
+   */
+  receivedAt: Record<string, number>;
   /** Oldest first, unique by sequence number. */
   events: EventEnvelope[];
   setConnection: (connection: ConnectionState) => void;
@@ -30,12 +35,17 @@ export const useTradingStore = create<TradingState>()((set) => ({
   account: null,
   prices: {},
   moves: {},
+  receivedAt: {},
   events: [],
   setConnection: (connection) => set({ connection }),
   setAccount: (account) => set({ account }),
-  applyPrices: (prices) => set((state) => applyPrices(state, prices)),
+  applyPrices: (prices) =>
+    set((state) => {
+      const now = Date.now();
+      return { ...applyPrices(state, prices), receivedAt: { ...state.receivedAt, ...Object.fromEntries(prices.map((p) => [p.symbol, now])) } };
+    }),
   addEvents: (events) => set((state) => ({ events: mergeEvents(state.events, events) })),
-  reset: () => set({ connection: "connecting", account: null, prices: {}, moves: {}, events: [] }),
+  reset: () => set({ connection: "connecting", account: null, prices: {}, moves: {}, receivedAt: {}, events: [] }),
 }));
 
 /** Stores the latest prices and remembers which way each bid moved. */

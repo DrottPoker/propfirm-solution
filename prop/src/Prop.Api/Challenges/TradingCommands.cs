@@ -27,6 +27,12 @@ internal sealed record SuspendTradingAccount(string AccountId) : TradingCommand;
 
 internal sealed record ResumeTradingAccount(string AccountId) : TradingCommand;
 
+/// <summary>Opens the disabled account again with the balance, when the firm reinstates its stage (ADR 0053).</summary>
+internal sealed record ReopenTradingAccount(string AccountId, decimal Balance) : TradingCommand;
+
+/// <summary>Shows the notice at the top of the firm's terminals, or removes it with null. A command for the firm, not an account (ADR 0053).</summary>
+internal sealed record SetTradingNotice(TradingNotice? Notice) : TradingCommand;
+
 /// <summary>
 /// Withdraws <paramref name="Amount"/> (a positive number) once, keeping at least <paramref name="MinBalance"/>.
 /// A refusal fails the payout <paramref name="OperationId"/>.

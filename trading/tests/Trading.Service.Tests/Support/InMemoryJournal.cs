@@ -19,7 +19,7 @@ internal sealed class InMemoryJournal : IEngineJournal
 
     private readonly Lock _lock = new();
     private readonly List<(long Sequence, string Json, string? Feed)> _inputs = [];
-    private readonly List<(long Sequence, string? AccountId, string? GroupId, string Json)> _events = [];
+    private readonly List<(long Sequence, string? AccountId, string? GroupId, string Json, long? InputSequence)> _events = [];
     private readonly List<(JournalSnapshot Snapshot, string StateJson)> _snapshots = [];
     private int _appends;
 
@@ -123,7 +123,7 @@ internal sealed class InMemoryJournal : IEngineJournal
             }
 
             _inputs.AddRange(batch.Inputs.Select(i => (i.Sequence, JsonSerializer.Serialize(i.Input, Json), i.Feed)));
-            _events.AddRange(batch.Events.Select(e => (e.Envelope.Sequence, EventLog.AccountIdOf(e.Envelope.Event), e.GroupId, JsonSerializer.Serialize(e.Envelope.Event, Json))));
+            _events.AddRange(batch.Events.Select(e => (e.Envelope.Sequence, EventLog.AccountIdOf(e.Envelope.Event), e.GroupId, JsonSerializer.Serialize(e.Envelope.Event, Json), e.InputSequence)));
             if (batch.Snapshot is { } snapshot)
             {
                 _snapshots.RemoveAll(s => s.Snapshot.InputSequence == snapshot.InputSequence);
@@ -203,6 +203,87 @@ internal sealed class InMemoryJournal : IEngineJournal
             return Task.FromResult(last.Json is null ? null : last.Feed);
         }
     }
+
+    public Task<IReadOnlyList<RecordedEvent>> ReadPositionEventsAsync(string accountId, string positionId, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IReadOnlyList<RecordedEvent> events = _events
+                .Where(e => e.AccountId == accountId)
+                .Select(Recorded)
+                .Where(e => PositionIdOf(e.Envelope.Event) == positionId)
+                .ToList();
+            return Task.FromResult(events);
+        }
+    }
+
+    public Task<RecordedQuote?> FindQuoteAsync(string symbol, DateTimeOffset atOrBefore, long? notAfterInput, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var quote = Quotes()
+                .Where(q => q.Quote.Symbol == symbol && q.Quote.Timestamp <= atOrBefore && (notAfterInput is null || q.Sequence <= notAfterInput))
+                .LastOrDefault();
+            return Task.FromResult(quote);
+        }
+    }
+
+    public async IAsyncEnumerable<RecordedQuote> ReadQuotesBetweenAsync(
+        IReadOnlyCollection<string> symbols,
+        DateTimeOffset first,
+        DateTimeOffset last,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        List<RecordedQuote> quotes;
+        lock (_lock)
+        {
+            quotes = Quotes().Where(q => symbols.Contains(q.Quote.Symbol) && q.Quote.Timestamp >= first && q.Quote.Timestamp <= last).ToList();
+        }
+
+        foreach (var quote in quotes)
+        {
+            await Task.Yield();
+            yield return quote;
+        }
+    }
+
+    public Task<IReadOnlyList<RecordedEvent>> ReadGroupEventsSinceAsync(
+        IReadOnlyCollection<string> groupIds,
+        DateTimeOffset after,
+        long afterSequence,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IReadOnlyList<RecordedEvent> events = _events
+                .Where(e => e.GroupId is { } groupId && groupIds.Contains(groupId) && e.Sequence > afterSequence)
+                .Select(Recorded)
+                .Where(e => e.Envelope.Event.Timestamp > after)
+                .Take(limit)
+                .ToList();
+            return Task.FromResult(events);
+        }
+    }
+
+    private static RecordedEvent Recorded((long Sequence, string? AccountId, string? GroupId, string Json, long? InputSequence) e) =>
+        new(new EventEnvelope(e.Sequence, JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!), e.InputSequence);
+
+    // As the index in Postgres finds them: by position id, or by order id for the order it came from.
+    private static string? PositionIdOf(EngineEvent engineEvent)
+    {
+        var json = JsonSerializer.SerializeToElement(engineEvent, Json);
+        return json.TryGetProperty("positionId", out var position) ? position.GetString()
+            : json.TryGetProperty("orderId", out var order) ? order.GetString()
+            : null;
+    }
+
+    // Caller holds the lock.
+    private IEnumerable<RecordedQuote> Quotes() =>
+        _inputs
+            .Select(i => (i.Sequence, Input: JsonSerializer.Deserialize<EngineInput>(i.Json, Json)!, i.Feed))
+            .Where(i => i.Input is Quote)
+            .Select(i => new RecordedQuote(i.Sequence, (Quote)i.Input, i.Feed));
 
     /// <summary>A copy of what is stored right now, as a crashed service would leave it.</summary>
     public InMemoryJournal Clone()

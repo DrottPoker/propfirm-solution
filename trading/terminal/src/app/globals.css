@@ -81,3 +81,44 @@ body::before {
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
+
+/*
+ * Printing a trade's details or a breach report prints only its panel, in black on white, so it can be saved as a PDF
+ * (ADR 0053).
+ */
+@media print {
+  body {
+    background: #fff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print],
+  [data-print] * {
+    visibility: visible;
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-color: #ccc !important;
+  }
+
+  [data-print] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    border: 0;
+  }
+
+  [data-print] * {
+    overflow: visible !important;
+  }
+
+  [data-print] svg polyline,
+  [data-print] svg line {
+    stroke: #000;
+  }
+}

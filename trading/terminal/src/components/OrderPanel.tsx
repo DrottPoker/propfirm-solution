@@ -11,7 +11,8 @@ import { closingSoon, isClosed, opensText, sessionLines, useNow } from "@/lib/ma
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
 import { estimatedMargin, nearestLimit, pipValue, riskText, shareOfRoom, shareRisk, stopLossRisk } from "@/lib/orderSummary";
-import { useMarket, usePlaceOrder, usePointValue } from "@/lib/queries";
+import { ageText, priceAgeMs, priceTooOld } from "@/lib/priceAge";
+import { useMarket, useMarketHours, useMe, usePlaceOrder, usePointValue } from "@/lib/queries";
 import { loadSizing, riskAmount, saveSizing, sizeForRisk, stepRisk, type RiskSize, type RiskUnit, type Sizing } from "@/lib/riskSize";
 import { estimatedProfit, resolveStops, stepAmount, type ResolvedStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
@@ -76,6 +77,13 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const closed = isClosed(market);
   const timeZone = useTimeZone();
   const closing = closingSoon(market, useNow(15_000), timeZone);
+  // Orders are refused while the latest price is older than the service allows, so they are not offered (ADR 0053).
+  const maxPriceAgeMs = (useMe().data?.maxPriceAgeSeconds ?? 5) * 1000;
+  const receivedAt = useTradingStore((s) => s.receivedAt);
+  const markets = useMarketHours(accountId).data;
+  const now = useNow(1_000);
+  const tooOld = now !== null && priceTooOld(instrument.symbol, receivedAt, markets, maxPriceAgeMs, now.getTime());
+  const priceAge = now === null ? null : priceAgeMs(instrument.symbol, receivedAt, now.getTime());
 
   const digits = instrument.digits;
   const riskMode = sizing.mode === "risk";
@@ -269,7 +277,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
     [instrument.symbol, instrument.digits],
   );
 
-  const disabled = !canTrade || !quote || closed || placeOrder.isPending;
+  const disabled = !canTrade || !quote || closed || tooOld || placeOrder.isPending;
   // A pending order's margin is counted at its price, a market order's at the middle of bid and ask.
   const marginPrice = orderPrice ?? (quote ? (quote.bid + quote.ask) / 2 : undefined);
 
@@ -390,6 +398,11 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         {!ended && closed && market && (
           <p role="note" className="rounded-md bg-raised px-3 py-2 text-xs text-muted">
             The {instrument.symbol} market is closed. {opensText(market, timeZone, timeZoneName(timeZone))}.
+          </p>
+        )}
+        {!ended && !closed && tooOld && priceAge !== null && (
+          <p role="note" className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+            No new {instrument.symbol} price for {ageText(priceAge)}. Orders are refused until one comes, so nothing is filled at an old price.
           </p>
         )}
         {!ended && closing && (

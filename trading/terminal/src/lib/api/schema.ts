@@ -443,6 +443,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{accountId}/notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NoticeResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{accountId}/positions/{positionId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    positionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradeReceipt"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{accountId}/breach-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BreachReport"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/accounts/{accountId}/prices": {
         parameters: {
             query?: never;
@@ -1298,6 +1424,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReopenAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/accounts/{accountId}/balance-operations": {
         parameters: {
             query?: never;
@@ -1416,6 +1583,175 @@ export interface paths {
         };
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/accounts/{accountId}/positions/{positionId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    positionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradeReceipt"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/accounts/{accountId}/breach-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BreachReport"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    from: string;
+                    to: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IncidentImpact"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/v1/notice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TerminalNoticeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TerminalNotice"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1746,6 +2082,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/partner/v1/price-feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PriceFeedStatus"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1776,6 +2147,34 @@ export interface components {
             profitTarget: null | number;
             timeZone: null | string;
             detailsUrl: null | string;
+        };
+        /**
+         * @description An account with positions open when the period began, with commands refused during it for lack of a fresh price, or
+         *     with a loss limit broken during it or in the half hour after. EquityAtStart is the equity when
+         *     the period began at the prices of that moment, or null when a price was missing. Status,
+         *     Balance and Equity are as the account is now.
+         */
+        AccountImpact: {
+            accountId: string;
+            currency: string;
+            /** Format: int32 */
+            openPositions: number;
+            /** Format: double */
+            balanceAtStart: number;
+            /** Format: double */
+            equityAtStart: null | number;
+            /** Format: int32 */
+            ordersRefused: number;
+            /** Format: int32 */
+            closesRefused: number;
+            /** Format: int32 */
+            changesRefused: number;
+            breach: null | components["schemas"]["ImpactBreach"];
+            status: components["schemas"]["AccountStatus"];
+            /** Format: double */
+            balance: number;
+            /** Format: double */
+            equity: number;
         };
         /**
          * @description The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each
@@ -1857,6 +2256,50 @@ export interface components {
             /** Format: double */
             minBalance?: null | number;
         };
+        /**
+         * @description A price the account saw when the limit was broken, received at ReceivedAt, with the feed's raw
+         *     price and the markup between them, or null when they cannot be found.
+         */
+        BreachPrice: {
+            symbol: string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+            /** Format: date-time */
+            receivedAt: string;
+            feed: null | components["schemas"]["FeedPrice"];
+            /** Format: int32 */
+            bidMarkupPoints: null | number;
+            /** Format: int32 */
+            askMarkupPoints: null | number;
+        };
+        /**
+         * @description Why a loss limit was broken (ADR 0053): the limit, the equity and the open positions at that moment, the prices
+         *     that broke it with the feed's prices behind them, equity price by price before it, the periods without prices and
+         *     the account's events, ending with the closes and the end of trading. Balance is the balance
+         *     before the closes and BalanceAfter after them.
+         */
+        BreachReport: {
+            accountId: string;
+            currency: string;
+            /** Format: date-time */
+            at: string;
+            floorId: string;
+            /** Format: double */
+            level: number;
+            /** Format: double */
+            equity: number;
+            /** Format: double */
+            balance: number;
+            /** Format: double */
+            balanceAfter: number;
+            prices: components["schemas"]["BreachPrice"][];
+            positions: components["schemas"]["PositionSnapshot"][];
+            equityCurve: components["schemas"]["EquityPoint"][];
+            gaps: components["schemas"]["PriceGap"][];
+            events: components["schemas"]["EventEnvelope"][];
+        };
         /** @enum {unknown} */
         CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed" | "AccountSuspended";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
@@ -1932,7 +2375,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderModified"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventPositionPartiallyClosed"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountReopened"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderModified"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventPositionPartiallyClosed"] | components["schemas"]["EngineEventStopOutTriggered"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -1949,6 +2392,16 @@ export interface components {
             kind?: "AccountDisabled";
             accountId: string;
             reason: components["schemas"]["DisableReason"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description A disabled account is open again with the balance, without floors (ADR 0053). */
+        EngineEventAccountReopened: {
+            /** @enum {string} */
+            kind?: "AccountReopened";
+            accountId: string;
+            /** Format: double */
+            balance: number;
             /** Format: date-time */
             timestamp: string;
         };
@@ -2204,7 +2657,7 @@ export interface components {
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputCloseAllPositions"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyOrder"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputCloseAllPositions"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyOrder"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputReopenAccount"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -2378,6 +2831,20 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /**
+         * @description Opens a disabled account again with Balance, for example when an outage broke a loss limit and the
+         *     firm reinstates the trader (ADR 0053). Its floors are removed, so the firm sets them again. Its positions and orders
+         *     were closed when it was disabled.
+         */
+        EngineInputReopenAccount: {
+            /** @enum {string} */
+            kind?: "ReopenAccount";
+            accountId: string;
+            /** Format: double */
+            balance: number;
+            /** Format: date-time */
+            timestamp: string;
+        };
         /** @description Lets a suspended account trade again. */
         EngineInputResumeAccount: {
             /** @enum {string} */
@@ -2440,11 +2907,30 @@ export interface components {
             /** Format: double */
             lockLevel?: null | number;
         };
+        /** @description The account's equity at a price. */
+        EquityPoint: {
+            /** Format: date-time */
+            time: string;
+            /** Format: double */
+            equity: number;
+        };
         /** @description An engine event with a sequence number that orders all events in the service. */
         EventEnvelope: {
             /** Format: int64 */
             sequence: number;
             event: components["schemas"]["EngineEvent"];
+        };
+        /** @description A raw price from the feed as the journal recorded it, with its entry in the journal. */
+        FeedPrice: {
+            /** Format: int64 */
+            inputSequence: number;
+            feed: null | string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+            /** Format: date-time */
+            receivedAt: string;
         };
         /** @description The firm's events in order. Ask again with `after` set to Cursor for the next ones. */
         FirmEventsResponse: {
@@ -2490,6 +2976,24 @@ export interface components {
             spreadMarkupPoints: number;
             /** Format: double */
             commissionPerLotPerSide: number;
+        };
+        /** @description A loss limit broken during the period or soon after. */
+        ImpactBreach: {
+            /** Format: date-time */
+            at: string;
+            floorId: string;
+            /** Format: double */
+            level: number;
+            /** Format: double */
+            equity: number;
+        };
+        /** @description What happened to a firm's accounts in a period, such as an outage of the price feed (ADR 0053). */
+        IncidentImpact: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            accounts: components["schemas"]["AccountImpact"][];
         };
         /**
          * @description What kind of market an instrument is. The terminal lists instruments by it.
@@ -2558,7 +3062,8 @@ export interface components {
         };
         /**
          * @description The logged in trader, their firm's server and the accounts they own, with what the firm says about each in
-         *     AccountDetails, in the same order.
+         *     AccountDetails, in the same order. Orders, closes and stop changes are refused while the latest
+         *     price is older than MaxPriceAgeSeconds.
          */
         MeResponse: {
             /** Format: uuid */
@@ -2567,6 +3072,8 @@ export interface components {
             server: components["schemas"]["ServerInfo"];
             accounts: string[];
             accountDetails: components["schemas"]["AccountDetails"][];
+            /** Format: double */
+            maxPriceAgeSeconds: number;
         };
         /** @description A pending order's new price and stops. */
         ModifyOrderRequest: {
@@ -2587,6 +3094,12 @@ export interface components {
             takeProfit: null | number;
             /** @default false */
             trailingStop: boolean;
+        };
+        /** @enum {unknown} */
+        NoticeLevel: "Info" | "Warning";
+        /** @description The firm's notice for its terminals, or null when there is none. */
+        NoticeResponse: {
+            notice: null | components["schemas"]["TerminalNotice"];
         };
         /** @description A pending order. TrailingDistance is set when the position it opens gets a trailing stop. */
         OrderSnapshot: {
@@ -2683,8 +3196,79 @@ export interface components {
             /** Format: double */
             trailingDistance: null | number;
         };
+        /** @description How the platform's price feed is doing (ADR 0053): when the last price came for each symbol, and whether its market is open. */
+        PriceFeedStatus: {
+            feed: string;
+            /** Format: date-time */
+            now: string;
+            /** Format: date-time */
+            lastPriceAt: null | string;
+            symbols: components["schemas"]["SymbolFeedStatus"][];
+        };
+        /** @description A period of at least a minute in which no price came for the symbols the account traded. */
+        PriceGap: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+        };
+        /** @description A raw price from the feed at a moment. */
+        PricePoint: {
+            /** Format: date-time */
+            time: string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+        };
+        /**
+         * @description A part closed or the close: its fill, its profit before commission, why it closed and, for a stop loss or take
+         *     profit, the level it was set at when known.
+         */
+        ReceiptClose: {
+            fill: components["schemas"]["ReceiptFill"];
+            /** Format: double */
+            profit: number;
+            reason: components["schemas"]["CloseReason"];
+            /** Format: double */
+            level: null | number;
+        };
+        /**
+         * @description One fill: the opening, a part closed or the close. Price is the price the account got, and
+         *     Feed the raw price the engine had from the feed at that moment, with
+         *     MarkupPoints between them on the filled side: the ask for a buy's opening and a sell's close, the
+         *     bid otherwise. Both are null when the price cannot be found. Prices are the feed's prices a minute
+         *     before and after.
+         */
+        ReceiptFill: {
+            /** Format: date-time */
+            at: string;
+            /** Format: double */
+            volume: number;
+            /** Format: double */
+            price: number;
+            /** Format: double */
+            commission: number;
+            feed: null | components["schemas"]["FeedPrice"];
+            /** Format: int32 */
+            markupPoints: null | number;
+            prices: components["schemas"]["PricePoint"][];
+        };
+        /** @description The limit or stop order a position came from, as it was placed. */
+        ReceiptOrder: {
+            /** Format: date-time */
+            placedAt: string;
+            type: components["schemas"]["OrderType"];
+            /** Format: double */
+            price: number;
+        };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "MarketClosed" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "NoStopLoss" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "AccountNotDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "MarketClosed" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "NoStopLoss" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        /** @description The balance a disabled account opens again with (ADR 0053). */
+        ReopenAccountRequest: {
+            /** Format: double */
+            balance: number;
+        };
         /**
          * @description A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's
          *     traders log in there, for example on the firm's portal, which opens the terminal with a one-time link.
@@ -2743,6 +3327,12 @@ export interface components {
              */
             askMarkupPoints?: number;
         };
+        SymbolFeedStatus: {
+            symbol: string;
+            /** Format: date-time */
+            lastPriceAt: null | string;
+            marketOpen: boolean;
+        };
         /** @description Price after the group's spread markup, with the time the raw price arrived. */
         SymbolPrice: {
             symbol: string;
@@ -2773,8 +3363,54 @@ export interface components {
             /** Format: uri */
             logoUrl?: null | string;
         };
+        /**
+         * @description What the firm's terminals show at the top, for example that the price feed has stopped and what the firm does about
+         *     it (ADR 0053). Url is where the trader reads more, such as the firm's status page.
+         */
+        TerminalNotice: {
+            title: string;
+            text: string;
+            level: components["schemas"]["NoticeLevel"];
+            /** Format: uri */
+            url: null | string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /**
+         * @description A notice for the firm's terminals (ADR 0053): a short title, the text, how serious it is and where the trader
+         *     reads more, such as the firm's status page.
+         */
+        TerminalNoticeRequest: {
+            title: null | string;
+            text: null | string;
+            level?: components["schemas"]["NoticeLevel"];
+            url?: null | string;
+        };
         /** @enum {unknown} */
         Timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1";
+        /**
+         * @description What a trade was and the prices behind it (ADR 0053): the limit or stop order it came from, its opening and each
+         *     close. Profit is the closes' profit before commission so far, and Result the
+         *     profit after all commission once the position is closed. Amounts are in Currency.
+         */
+        TradeReceipt: {
+            accountId: string;
+            positionId: string;
+            symbol: string;
+            side: components["schemas"]["Side"];
+            /** Format: int32 */
+            digits: number;
+            currency: string;
+            order: null | components["schemas"]["ReceiptOrder"];
+            opened: components["schemas"]["ReceiptFill"];
+            closes: components["schemas"]["ReceiptClose"][];
+            /** Format: double */
+            commission: number;
+            /** Format: double */
+            profit: null | number;
+            /** Format: double */
+            result: null | number;
+        };
         /** @description Trading conditions shared by a group of accounts, set by the firm. */
         TradingGroup: {
             id: string;

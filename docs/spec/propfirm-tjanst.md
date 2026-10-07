@@ -40,7 +40,7 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `TradingHistoryRecorder` | Läser firmans händelseström med en egen läsposition och sparar positioner, saldoändringar och golvens nivåer för kontona tjänsten har öppnat (ADR 0022). Varje händelse sparas en gång per löpnummer, så historiken byggs om genom att läsa strömmen igen. |
 | `TradingHistoryQueries`, `AccountPerformance` | Läser historiken och fasernas start och resultat, och räknar resultatet i dag, statistiken och resultatet per dag med decimaltal. |
 | `AdminPanelEndpoints`, `AdminFigures` | Adminpanelens egna vyer (ADR 0023): översikten med konton per grupp, utbetalningar, försäljning, andelen som klarar, veckor och händelser, sökningen bland kontona, kontots trader med firmans kontroller, mejlet till tradern och förhandsvisningen av det, utbetalningskön med om tradern är kontrollerad och varje challenges siffror. Siffrorna räknas med SQL när de läses. |
-| `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, med positionerna ett brott stängde och saldot efteråt, och för en underkänd challenge ett nytt försök med firmans bästa kod för nya försök. Och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil. |
+| `AccountDetailsBuilder`, `HistoryActions` | Kontona som portalen visar dem, för ett konto eller alla en traders på en gång med en fråga per sorts data, med positionerna ett brott stängde och saldot efteråt, och för en underkänd challenge ett nytt försök med firmans bästa kod för nya försök. Och kontots historik per fas: grafens data, affärerna sida för sida och som CSV-fil, detaljerna för en affär och rapporten om ett brutet golv från handelsplattformen (ADR 0053). |
 | `TradingCommandWorker` | Kör kommandona mot handelsplattformen i ordning per firma och försöker igen vid avbrott. En firmas kommandon väntar tills den har en server. Ett nekat uttag rapporteras till regelmotorn i samma transaktion, så att utbetalningen blir `Failed`. |
 | `TradingDayScheduler`, `TradingStreamProgress` | Startar handelsdagen för varje öppet konto när dagen börjar, och kommer ikapp efter en omstart. En dag som avslutar en challenge på tid väntar tills firmans händelseström är läst förbi dagens början. |
 | `WebhookWorker`, `WebhookOutbox` | Webhooks till firman köas i samma transaktion som ändringen bakom dem, och skickas signerade tills de tas emot. De skickas bara till publika adresser på internet, genom `PublicAddresses`, utan att följa omdirigeringar (ADR 0044). |
@@ -62,6 +62,7 @@ Tjänsten driver firmornas challenges. Den har firmans API och portalens API, k�
 | `StaffUsers`, `StaffAuth`, `StaffSeeder`, `OpsHost` | Vår personal, dess session på vår adminvys adress och att vår adminvy bara finns där. |
 | `OpsEndpoints`, `OpsFirms`, `StaffNotifier` | Vår adminvys API, firman som personalen ser den och mejlet till personalen när en ansökan kommer. |
 | `OpsPanelEndpoints`, `OpsFigures` | Vår adminvy över alla firmor (ADR 0024): översikten med det som väntar på oss, firmorna med sökning och grupper, och vad firmorna betalar. Siffrorna räknas med SQL när de läses. |
+| `IncidentService`, `IncidentStore`, `IncidentEndpoints`, `PriceFeedWatcher` | Incidenter (ADR 0053): vakten som frågar handelsplattformen hur prisflödet mår och gör ett utkast när priserna har stannat, vår personals utkast, publicering och uppdateringar, firmans meddelande i terminalerna, adminpanelens incidenter med kontona som nåddes och firmans beslut att återställa eller kreditera, och firmans statussida. |
 
 ## Flöde
 
@@ -90,6 +91,7 @@ varje beslut ovan -> notiserna köas i samma transaktion -> mejl till tradern el
 | `PositionPartiallyClosed` | `AccountUpdated` med saldot efter. Positionen räknas som öppen tills den sista delen stängs (ADR 0051). |
 | `EquityFloorBreached` | `FloorBreached`. Hela händelsen sparas som bevis i steget. |
 | `AccountDisabled` | `AccountDisabled`. |
+| `AccountReopened` | Kontot är inte längre avstängt, med saldot och utan öppna positioner. Regelmotorn har redan återställt steget när kommandot köades (ADR 0053). |
 | `EquityFloorSet` | Bara golvets nivå, för visning. |
 | `BalanceAdjusted` | `BalanceAdjusted` med operationens id, beloppet och saldot efteråt. Hela händelsen sparas i steget. |
 
@@ -106,6 +108,7 @@ Händelser om konton som tjänsten inte har öppnat åt firman, och andra hände
 | `PositionClosed` | Positionens stängningspris, tid, vinst före provision, provision och orsak, och saldoändringen `Closed` med vinsten efter provision. Stängningen har positionens egna fält, så positionen blir hel även om öppningen aldrig lästes. Volymen den stängde sparas för sig. |
 | `PositionPartiallyClosed` | En rad i `trading_partial_closes` med delens volym, pris, vinst och provision, och saldoändringen `Closed` med delens vinst efter provision. Den stängda affären räknar in delarna: volymen, vinsten och provisionen läggs till, och stängningspriset är deras genomsnitt viktat med volymen (ADR 0051). |
 | `BalanceAdjusted` | Saldoändringen `Adjusted`, till exempel en utbetalnings uttag. Den räknas inte som resultat. |
+| `AccountReopened` | Saldoändringen `Reopened` med skillnaden mot saldot innan, när firman återställt steget efter en incident (ADR 0053). |
 | `EquityFloorSet` | Golvets nivå och när den sattes, till exempel det dagliga golvet vid varje handelsdag. |
 
 När regelmotorn startar eller klarar en fas sparas tiden, saldot och handelsdagarna på fasens rad i `trading_accounts`, och beslutet som avslutade challengen (brott, tiden slut eller annullering) på kontot. Det sker i samma transaktion som steget. Konton som fanns innan fick samma uppgifter från sina steg när databasen uppdaterades.
@@ -149,7 +152,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `trading_history_cursors` | Hur långt handelshistoriken har läst varje firmas händelseström. |
 | `trading_positions`, `trading_balance_changes`, `trading_floor_levels` | Handelshistoriken för kontona tjänsten har öppnat: positioner från öppning till stängning, med volymen den sista stängningen stängde (`close_volume`), varje saldoändring med saldot efter, och golvens nivåer över tid. |
 | `trading_partial_closes` | Delar av positioner som stängts före resten, en rad per händelse (ADR 0051). En stängd affär räknar in sina delar. |
-| `trading_commands` | Kommandon till handelsplattformen, i ordning per firma. |
+| `trading_commands` | Kommandon till handelsplattformen, i ordning per firma. Ett kommando för hela firman, som meddelandet i terminalerna, har inget konto (ADR 0053). |
 | `webhook_deliveries` | Webhooks till firman, med försök och svar. |
 | `payouts` | Utbetalningar med status, vinst, vinstandel, belopp, tider, orsak, firmans referens, om vinsten lades tillbaka vid ett nej och traderns utbetalningsmetod när den begärdes, krypterad. Regelmotorns steg är revisionsloggen, tabellen är för att hitta utbetalningar. |
 | `trader_checks` | Firmans bockade kontroller av en trader, `identity` och `address`, med när och av vilken administratör. |
@@ -161,6 +164,7 @@ En handelsdag börjar vid challengens klockslag i dess tidszon och har namn efte
 | `firm_reviews`, `firm_documents`, `firm_events`, `firm_review_checks`, `staff_users` | Vår granskning av firmorna, deras dokument, allt som hänt i granskningen och med avstängningen, våra bockade kontroller och vår personal. Se [specen för granskning och avstängning](granskning.md). |
 | `firm_identity_settings`, `identity_sessions`, `trader_identity` | Hur firman kontrollerar sina traders, varje kontroll hos Didit eller testkontrollen och varje traders resultat. Se [specen för ID-kontroll](id-kontroll.md). |
 | `support_tickets`, `support_ticket_counters`, `support_messages`, `support_attachments` | Supportärenden mellan traders och firman, nästa ärendenummer per firma, meddelandena och filerna, krypterade. Se [specen för supportärenden](support.md). |
+| `incidents`, `incident_updates`, `incident_firm_notes`, `incident_decisions` | Incidenterna med slag, rubrik, text till traders och firmor, anteckning för vår personal, början och slut, status (`Draft`, `Open` eller `Resolved`), när de publicerades, firmorna de gäller eller alla, om plattformen hittade dem och när ett utkast avfärdades. Det vi sa under tiden, firmornas egna ord till sina traders och varje beslut att återställa eller kreditera ett konto, med belopp, skäl, vem och när. Besluten läggs bara till (ADR 0053). |
 | `challenge_prices` | Vad challengerna kostar i portalen och om de säljs där. |
 | `discount_codes` | Firmans rabattkoder: procent eller belopp i en valuta, vilka challenges, högst hur många gånger, sista dag, om koden är för nya försök och om den är på. |
 | `orders`, `order_events`, `order_counters` | Köp i portalen med status, pris, leverantör, betalning, kontot de startade, om ordern gjordes i sandlådan och rabattkoden med priset före den, allt som hänt varje order och nästa ordernummer per firma. Firmans val av leverantör, krypterade Stripe-nycklar, betalsida och villkor ligger i `firms`. Se [specen för köp i portalen](kop.md). |
@@ -209,6 +213,7 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `account.cancelled` | Kontot avbröts. |
 | `account.expired` | Challengen tog slut på tid: `data.reason` är `TimeLimit` eller `Inactivity`, och `data.day` handelsdagen då den tog slut. |
 | `account.paused`, `account.resumed` | Challengen pausades eftersom firmans månad är obetald, eller fortsätter. `data.daysPaused` är dagarna som tidsgränserna flyttades. |
+| `account.reinstated` | Firman återställde fasen efter en incident (ADR 0053): `data.balance` är saldot den fortsätter med, `data.tradingDaysKept` om handelsdagarna behölls och `data.daysEnded` hur många dagar den var slut. |
 | `payout.requested` | Tradern har begärt en utbetalning och vinsten är uttagen från kontot. Firman ska godkänna. |
 | `payout.approved` | Firman godkände utbetalningen. |
 | `payout.paid` | Firman markerade utbetalningen som betald. |
@@ -235,6 +240,7 @@ Tjänsten publicerar OpenAPI på `/openapi/v1.json`. Dokumentet skrivs till `pro
 | `Platform:OpsUrl`, `Billing:ReviewDeposit`, `Staff` | Vår granskning och vår adminvy. Se [specen för granskning och avstängning](granskning.md). |
 | `Identity`, `Billing:IdentityChecks` | ID-kontrollen genom Didit och vad den kostar firman. Se [specen för ID-kontroll](id-kontroll.md). |
 | `Domains` | Firmornas egna domäner: `CnameTarget`, värdnamnet de pekar på, tomt för att stänga av egna domäner, `CheckInterval`, hur ofta väntande domäner slås upp (standard 5 minuter), och `DnsOverHttpsUrl`, resolvern med JSON-API (standard Cloudflare). Se ADR 0039. |
+| `Incidents` | Vakten över prisflödet (ADR 0053): `PriceGap`, hur länge inget pris får komma fast en marknad är öppen innan flödet räknas som stannat (standard 1 minut, minst 10 sekunder), och `CheckEvery`, hur ofta handelsplattformen frågas (standard 15 sekunder, kortare än `PriceGap`). |
 | `Login` | Regler för lösenord och inloggning: `MinimumPasswordLength` (standard 10), `AttemptsPerMinute` per IP-adress (standard 10, 0 för ingen gräns) och `SessionLifetime`, hur länge en oanvänd session gäller (standard 12 timmar). I utveckling är reglerna avstängda och sessionen gäller i 30 dagar. |
 
 I utveckling registrerar sig firmor på http://app.localhost:3002/signup utan bekräftelse av e-postadressen, får sin portal på till exempel http://acme.localhost:3002, skickar sin ansökan med testbetalning och går live på http://acme.localhost:3002/admin/go-live, och godkänns av `ops@test.com` med lösenordet `ops` på vår adminvy http://ops.localhost:3002. Fakturorna har säljaren från `Billing:Seller` i `appsettings.Development.json`. Mejl hamnar i Mailpit på http://localhost:8025. Firman `demo-firm` har nyckeln `dev-prop-key` och ingen gräns för platser. Den använder servern `demo-firm` på handelsplattformen med nyckeln `dev-admin-key`, har challengerna `two-step-100k` och `quick-test-100k`, som säljs för 499 och 9 USD med testbetalningar på http://localhost:3002/buy, portalen på http://localhost:3002, administratören `admin@test.com` med lösenordet `admin` och traderna `anna@test.com` med `anna` och `test@test.com` med `test`. Allt detta gäller bara lokal utveckling.

@@ -127,7 +127,7 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
 
         Assert.Equal((HttpStatusCode.UnprocessableEntity, HttpStatusCode.OK), (unknown.StatusCode, saved.StatusCode));
         Assert.Equal((false, true), (settings.GetProperty("traderStagePassed").GetBoolean(), settings.GetProperty("traderEnded").GetBoolean()));
-        Assert.Equal(12, settings.EnumerateObject().Count());
+        Assert.Equal(13, settings.EnumerateObject().Count());
         Assert.Equal(0L, await factory.ScalarAsync("select count(*) from email_outbox where kind = 'traderStagePassed'"));
     }
 

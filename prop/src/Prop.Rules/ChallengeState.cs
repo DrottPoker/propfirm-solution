@@ -32,7 +32,8 @@ public sealed record AccountFigures(decimal Balance, int OpenPositions);
 /// is: the deadlines then move on by the days it was paused.
 /// </para>
 /// <paramref name="DayProfits"/> are what the closed positions made on each trading day of the stage, since the last
-/// payout on the funded stage, for the consistency rule.
+/// payout on the funded stage, for the consistency rule. <paramref name="EndedOn"/> is the trading day a failed challenge
+/// failed on, from which a reinstated stage's deadlines move on (ADR 0053).
 /// </summary>
 public sealed record ChallengeState(
     string ChallengeId,
@@ -48,7 +49,8 @@ public sealed record ChallengeState(
     DateOnly? StageDeadline = null,
     DateOnly? InactivityDeadline = null,
     DateOnly? PausedOn = null,
-    ImmutableSortedDictionary<DateOnly, decimal>? DayProfits = null)
+    ImmutableSortedDictionary<DateOnly, decimal>? DayProfits = null,
+    DateOnly? EndedOn = null)
 {
     /// <summary>The best trading day's profit, 0 when no day made one.</summary>
     public decimal BestDayProfit => DayProfits is { Count: > 0 } days ? Math.Max(0m, days.Values.Max()) : 0m;

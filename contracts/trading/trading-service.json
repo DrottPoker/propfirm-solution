@@ -319,6 +319,107 @@
         }
       }
     },
+    "/api/accounts/{accountId}/notice": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NoticeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/positions/{positionId}/receipt": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeReceipt"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/breach-report": {
+      "get": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreachReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
     "/api/accounts/{accountId}/prices": {
       "get": {
         "tags": [
@@ -1178,6 +1279,45 @@
         }
       }
     },
+    "/api/admin/v1/accounts/{accountId}/reopen": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReopenAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/v1/accounts/{accountId}/balance-operations": {
       "post": {
         "tags": [
@@ -1291,6 +1431,150 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts/{accountId}/positions/{positionId}/receipt": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts/{accountId}/breach-report": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreachReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/impact": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentImpact"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/notice": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminalNoticeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalNotice"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -1578,6 +1862,25 @@
           }
         }
       }
+    },
+    "/api/partner/v1/price-feed": {
+      "get": {
+        "tags": [
+          "Partner"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceFeedStatus"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1660,6 +1963,80 @@
           }
         },
         "description": "What the terminal shows about an account: Label names it for the trader, ProfitTarget\nis the balance that passes it, TimeZone its trading day's (IANA) and DetailsUrl where\nthe trader sees more about it. Empty for none."
+      },
+      "AccountImpact": {
+        "required": [
+          "accountId",
+          "currency",
+          "openPositions",
+          "balanceAtStart",
+          "equityAtStart",
+          "ordersRefused",
+          "closesRefused",
+          "changesRefused",
+          "breach",
+          "status",
+          "balance",
+          "equity"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "balanceAtStart": {
+            "type": "number",
+            "format": "double"
+          },
+          "equityAtStart": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ordersRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closesRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "changesRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "breach": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ImpactBreach"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An account with positions open when the period began, with commands refused during it for lack of a fresh price, or\nwith a loss limit broken during it or in the half hour after. EquityAtStart is the equity when\nthe period began at the prices of that moment, or null when a price was missing. Status,\nBalance and Equity are as the account is now."
       },
       "AccountRules": {
         "required": [
@@ -1890,6 +2267,140 @@
           }
         },
         "description": "Deposits a positive Amount or withdraws a negative one. The caller chooses\nOperationId, unique per account, so a retry is answered 409 instead of being applied\ntwice. A withdrawal must leave at least MinBalance."
+      },
+      "BreachPrice": {
+        "required": [
+          "symbol",
+          "bid",
+          "ask",
+          "receivedAt",
+          "feed",
+          "bidMarkupPoints",
+          "askMarkupPoints"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "feed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeedPrice"
+              }
+            ]
+          },
+          "bidMarkupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "askMarkupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "A price the account saw when the limit was broken, received at ReceivedAt, with the feed's raw\nprice and the markup between them, or null when they cannot be found."
+      },
+      "BreachReport": {
+        "required": [
+          "accountId",
+          "currency",
+          "at",
+          "floorId",
+          "level",
+          "equity",
+          "balance",
+          "balanceAfter",
+          "prices",
+          "positions",
+          "equityCurve",
+          "gaps",
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreachPrice"
+            }
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PositionSnapshot"
+            }
+          },
+          "equityCurve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquityPoint"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceGap"
+            }
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventEnvelope"
+            }
+          }
+        },
+        "description": "Why a loss limit was broken (ADR 0053): the limit, the equity and the open positions at that moment, the prices\nthat broke it with the feed's prices behind them, equity price by price before it, the periods without prices and\nthe account's events, ending with the closes and the end of trading. Balance is the balance\nbefore the closes and BalanceAfter after them."
       },
       "CancelReason": {
         "enum": [
@@ -2154,6 +2665,9 @@
             "$ref": "#/components/schemas/EngineEventAccountDisabled"
           },
           {
+            "$ref": "#/components/schemas/EngineEventAccountReopened"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventAccountResumed"
           },
           {
@@ -2211,6 +2725,7 @@
           "mapping": {
             "AccountCreated": "#/components/schemas/EngineEventAccountCreated",
             "AccountDisabled": "#/components/schemas/EngineEventAccountDisabled",
+            "AccountReopened": "#/components/schemas/EngineEventAccountReopened",
             "AccountResumed": "#/components/schemas/EngineEventAccountResumed",
             "AccountSuspended": "#/components/schemas/EngineEventAccountSuspended",
             "BalanceAdjusted": "#/components/schemas/EngineEventBalanceAdjusted",
@@ -2289,6 +2804,33 @@
             "format": "date-time"
           }
         }
+      },
+      "EngineEventAccountReopened": {
+        "required": [
+          "accountId",
+          "balance",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "AccountReopened"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A disabled account is open again with the balance, without floors (ADR 0053)."
       },
       "EngineEventAccountResumed": {
         "required": [
@@ -3056,6 +3598,9 @@
             "$ref": "#/components/schemas/EngineInputRemoveEquityFloor"
           },
           {
+            "$ref": "#/components/schemas/EngineInputReopenAccount"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputResumeAccount"
           },
           {
@@ -3082,6 +3627,7 @@
             "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
             "Quote": "#/components/schemas/EngineInputQuote",
             "RemoveEquityFloor": "#/components/schemas/EngineInputRemoveEquityFloor",
+            "ReopenAccount": "#/components/schemas/EngineInputReopenAccount",
             "ResumeAccount": "#/components/schemas/EngineInputResumeAccount",
             "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor",
             "SuspendAccount": "#/components/schemas/EngineInputSuspendAccount"
@@ -3537,6 +4083,33 @@
           }
         }
       },
+      "EngineInputReopenAccount": {
+        "required": [
+          "accountId",
+          "balance",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "ReopenAccount"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Opens a disabled account again with Balance, for example when an outage broke a loss limit and the\nfirm reinstates the trader (ADR 0053). Its floors are removed, so the firm sets them again. Its positions and orders\nwere closed when it was disabled."
+      },
       "EngineInputResumeAccount": {
         "required": [
           "accountId",
@@ -3702,6 +4275,24 @@
         },
         "description": "A floor that trails the highest observed equity by Distance and stops rising at LockLevel."
       },
+      "EquityPoint": {
+        "required": [
+          "time",
+          "equity"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "The account's equity at a price."
+      },
       "EventEnvelope": {
         "required": [
           "sequence",
@@ -3718,6 +4309,41 @@
           }
         },
         "description": "An engine event with a sequence number that orders all events in the service."
+      },
+      "FeedPrice": {
+        "required": [
+          "inputSequence",
+          "feed",
+          "bid",
+          "ask",
+          "receivedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "inputSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feed": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A raw price from the feed as the journal recorded it, with its entry in the journal."
       },
       "FirmEventsResponse": {
         "required": [
@@ -3838,6 +4464,58 @@
           }
         },
         "description": "A symbol a group trades. Margin is the position's value divided by Leverage. SpreadMarkupPoints\nare added to the price feed's spread, and CommissionPerLotPerSide is charged in the account currency both on open\nand on close."
+      },
+      "ImpactBreach": {
+        "required": [
+          "at",
+          "floorId",
+          "level",
+          "equity"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A loss limit broken during the period or soon after."
+      },
+      "IncidentImpact": {
+        "required": [
+          "from",
+          "to",
+          "accounts"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountImpact"
+            }
+          }
+        },
+        "description": "What happened to a firm's accounts in a period, such as an outage of the price feed (ADR 0053)."
       },
       "InstrumentCategory": {
         "enum": [
@@ -4036,7 +4714,8 @@
           "email",
           "server",
           "accounts",
-          "accountDetails"
+          "accountDetails",
+          "maxPriceAgeSeconds"
         ],
         "type": "object",
         "properties": {
@@ -4061,9 +4740,13 @@
             "items": {
               "$ref": "#/components/schemas/AccountDetails"
             }
+          },
+          "maxPriceAgeSeconds": {
+            "type": "number",
+            "format": "double"
           }
         },
-        "description": "The logged in trader, their firm's server and the accounts they own, with what the firm says about each in\nAccountDetails, in the same order."
+        "description": "The logged in trader, their firm's server and the accounts they own, with what the firm says about each in\nAccountDetails, in the same order. Orders, closes and stop changes are refused while the latest\nprice is older than MaxPriceAgeSeconds."
       },
       "ModifyOrderRequest": {
         "required": [
@@ -4125,6 +4808,31 @@
           }
         },
         "description": "A position's stops. With TrailingStop the stop loss follows the price at the distance it is set at."
+      },
+      "NoticeLevel": {
+        "enum": [
+          "Info",
+          "Warning"
+        ]
+      },
+      "NoticeResponse": {
+        "required": [
+          "notice"
+        ],
+        "type": "object",
+        "properties": {
+          "notice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalNotice"
+              }
+            ]
+          }
+        },
+        "description": "The firm's notice for its terminals, or null when there is none."
       },
       "OrderSnapshot": {
         "required": [
@@ -4394,6 +5102,184 @@
         },
         "description": "An open position. CurrentPrice is the price it would close at now. TrailingDistance is set when the stop loss trails\nthe price at that distance."
       },
+      "PriceFeedStatus": {
+        "required": [
+          "feed",
+          "now",
+          "lastPriceAt",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "feed": {
+            "type": "string"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolFeedStatus"
+            }
+          }
+        },
+        "description": "How the platform's price feed is doing (ADR 0053): when the last price came for each symbol, and whether its market is open."
+      },
+      "PriceGap": {
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A period of at least a minute in which no price came for the symbols the account traded."
+      },
+      "PricePoint": {
+        "required": [
+          "time",
+          "bid",
+          "ask"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A raw price from the feed at a moment."
+      },
+      "ReceiptClose": {
+        "required": [
+          "fill",
+          "profit",
+          "reason",
+          "level"
+        ],
+        "type": "object",
+        "properties": {
+          "fill": {
+            "$ref": "#/components/schemas/ReceiptFill"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/CloseReason"
+          },
+          "level": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "A part closed or the close: its fill, its profit before commission, why it closed and, for a stop loss or take\nprofit, the level it was set at when known."
+      },
+      "ReceiptFill": {
+        "required": [
+          "at",
+          "volume",
+          "price",
+          "commission",
+          "feed",
+          "markupPoints",
+          "prices"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "feed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeedPrice"
+              }
+            ]
+          },
+          "markupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            }
+          }
+        },
+        "description": "One fill: the opening, a part closed or the close. Price is the price the account got, and\nFeed the raw price the engine had from the feed at that moment, with\nMarkupPoints between them on the filled side: the ask for a buy's opening and a sell's close, the\nbid otherwise. Both are null when the price cannot be found. Prices are the feed's prices a minute\nbefore and after."
+      },
+      "ReceiptOrder": {
+        "required": [
+          "placedAt",
+          "type",
+          "price"
+        ],
+        "type": "object",
+        "properties": {
+          "placedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "The limit or stop order a position came from, as it was placed."
+      },
       "RejectReason": {
         "enum": [
           "OutOfOrder",
@@ -4410,6 +5296,7 @@
           "AccountDisabled",
           "AccountSuspended",
           "AccountNotSuspended",
+          "AccountNotDisabled",
           "SymbolNotTradable",
           "InvalidOrder",
           "InvalidVolume",
@@ -4428,6 +5315,19 @@
           "UnknownFloor",
           "InsufficientFunds"
         ]
+      },
+      "ReopenAccountRequest": {
+        "required": [
+          "balance"
+        ],
+        "type": "object",
+        "properties": {
+          "balance": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "The balance a disabled account opens again with (ADR 0053)."
       },
       "ServerInfo": {
         "required": [
@@ -4558,6 +5458,29 @@
         },
         "description": "Conditions for one symbol within a group."
       },
+      "SymbolFeedStatus": {
+        "required": [
+          "symbol",
+          "lastPriceAt",
+          "marketOpen"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "marketOpen": {
+            "type": "boolean"
+          }
+        }
+      },
       "SymbolPrice": {
         "required": [
           "symbol",
@@ -4643,6 +5566,70 @@
         },
         "description": "A firm. Only Listed servers are on the list traders choose from. LoginUrl is\nwhere the terminal sends the firm's traders to log in, or null when they log in with a password.\nLogoUrl is the firm's logo, which the terminal shows with its name."
       },
+      "TerminalNotice": {
+        "required": [
+          "title",
+          "text",
+          "level",
+          "url",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/NoticeLevel"
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "What the firm's terminals show at the top, for example that the price feed has stopped and what the firm does about\nit (ADR 0053). Url is where the trader reads more, such as the firm's status page."
+      },
+      "TerminalNoticeRequest": {
+        "required": [
+          "title",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "level": {
+            "$ref": "#/components/schemas/NoticeLevel"
+          },
+          "url": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A notice for the firm's terminals (ADR 0053): a short title, the text, how serious it is and where the trader\nreads more, such as the firm's status page."
+      },
       "Timeframe": {
         "enum": [
           "M1",
@@ -4653,6 +5640,82 @@
           "H4",
           "D1"
         ]
+      },
+      "TradeReceipt": {
+        "required": [
+          "accountId",
+          "positionId",
+          "symbol",
+          "side",
+          "digits",
+          "currency",
+          "order",
+          "opened",
+          "closes",
+          "commission",
+          "profit",
+          "result"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "order": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReceiptOrder"
+              }
+            ]
+          },
+          "opened": {
+            "$ref": "#/components/schemas/ReceiptFill"
+          },
+          "closes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptClose"
+            }
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "result": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "What a trade was and the prices behind it (ADR 0053): the limit or stop order it came from, its opening and each\nclose. Profit is the closes' profit before commission so far, and Result the\nprofit after all commission once the position is closed. Amounts are in Currency."
       },
       "TradingGroup": {
         "required": [

@@ -13,6 +13,7 @@ import { playFillSound, playWarningSound, unlockSound } from "@/lib/sound";
 import { useTradingStore, type ConnectionState } from "@/lib/store";
 
 import { ArrowLeftIcon, BellIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SoundIcon } from "./icons";
+import { useFeedStopped } from "./PriceAlerts";
 import { RulesMenu } from "./RulesMenu";
 import { useDismiss } from "./useDismiss";
 
@@ -25,6 +26,8 @@ const connectionStyles: Record<ConnectionState, { label: string; className: stri
   disconnected: { label: "Offline", className: "border-loss/30 bg-loss/10 text-loss", dot: "" },
 };
 
+const pausedStyle = { label: "Prices paused", className: "border-warning/30 bg-warning/10 text-warning", dot: "" };
+
 const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text-warning", danger: "text-loss" };
 
 /**
@@ -34,18 +37,23 @@ const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text
  * own under the firm, scrolled sideways.
  */
 export function AccountBar({
+  accountId,
   accounts,
   details,
   email,
   server,
 }: {
+  accountId: string;
   accounts: string[];
   details: AccountDetails[];
   email: string;
   server: ServerInfo;
 }) {
   const account = useTradingStore((s) => s.account);
-  const connection = connectionStyles[useTradingStore((s) => s.connection)];
+  // Connected without prices for a minute: the price feed has stopped, which the connection itself cannot show.
+  const paused = useFeedStopped(accountId) !== null;
+  const state = useTradingStore((s) => s.connection);
+  const connection = paused ? pausedStyle : connectionStyles[state];
   const router = useRouter();
   const current = details.find((d) => d.accountId === account?.accountId);
   const back = backLink(current, server);

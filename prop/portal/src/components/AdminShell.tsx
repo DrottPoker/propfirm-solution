@@ -10,7 +10,7 @@ import { useBranding } from "@/app/providers";
 import { dailyPlaces, isSettingsPath, isUnder, liveOrBilling, settingsPlaces } from "@/lib/adminNav";
 import type { FirmStatus, Me } from "@/lib/api/types";
 import { initials } from "@/lib/dashboard";
-import { useFirmSupportSummary, useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
+import { useFirmIncidents, useFirmSupportSummary, useLogout, usePayoutSummary, useWaitingAccounts } from "@/lib/queries";
 
 import { BillingNotice } from "./BillingNotice";
 import { CommandPalette } from "./CommandPalette";
@@ -22,6 +22,7 @@ import {
   CommandIcon,
   ExternalIcon,
   FlagIcon,
+  IncidentIcon,
   LogoutIcon,
   MenuIcon,
   OverviewIcon,
@@ -39,7 +40,7 @@ type NavLink = {
   label: string;
   icon: (props: { className?: string }) => React.ReactNode;
   matches: (path: string) => boolean;
-  badge?: "accounts" | "payouts" | "support";
+  badge?: "accounts" | "payouts" | "support" | "incidents";
 };
 
 const placeIcons: Record<string, NavLink["icon"]> = {
@@ -47,6 +48,7 @@ const placeIcons: Record<string, NavLink["icon"]> = {
   "/admin/accounts": AccountsIcon,
   "/admin/payouts": PayoutIcon,
   "/admin/support": SupportIcon,
+  "/admin/incidents": IncidentIcon,
   "/admin/orders": BagIcon,
   "/admin/challenges": FlagIcon,
   "/admin/discounts": TagIcon,
@@ -54,7 +56,7 @@ const placeIcons: Record<string, NavLink["icon"]> = {
   "/admin/go-live": RocketIcon,
 };
 
-const badges: Record<string, NavLink["badge"]> = { "/admin/accounts": "accounts", "/admin/payouts": "payouts", "/admin/support": "support" };
+const badges: Record<string, NavLink["badge"]> = { "/admin/accounts": "accounts", "/admin/payouts": "payouts", "/admin/support": "support", "/admin/incidents": "incidents" };
 
 /**
  * The daily work first, then the firm's settings together under one link, and Go live until the firm is live, Plan and
@@ -107,14 +109,14 @@ export function AdminShell({ me, children }: { me: Me; children: React.ReactNode
 
   return (
     <div className="flex flex-1 flex-col md:flex-row">
-      <aside aria-label="Admin menu" className="hidden w-60 shrink-0 flex-col gap-5 border-r border-border bg-panel px-3 py-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
+      <aside aria-label="Admin menu" className="hidden w-60 shrink-0 flex-col gap-5 border-r border-border bg-panel px-3 py-4 md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto print:!hidden">
         <FirmMark />
         <SearchButton onOpen={() => setSearching(true)} />
         <Navigation path={path} />
         <Footer me={me} />
       </aside>
 
-      <div className="border-b border-border bg-panel md:hidden">
+      <div className="border-b border-border bg-panel md:hidden print:hidden">
         <div className="flex items-center gap-3 px-4 py-2.5">
           <FirmMark />
           <button
@@ -191,7 +193,13 @@ function Navigation({ path }: { path: string }) {
   const payouts = usePayoutSummary();
   const waiting = useWaitingAccounts(3);
   const support = useFirmSupportSummary();
-  const counts = { payouts: payouts.data?.toApprove.count ?? 0, accounts: waiting.data?.counts.awaitingFunding ?? 0, support: support.data?.open ?? 0 };
+  const incidents = useFirmIncidents();
+  const counts = {
+    payouts: payouts.data?.toApprove.count ?? 0,
+    accounts: waiting.data?.counts.awaitingFunding ?? 0,
+    support: support.data?.open ?? 0,
+    incidents: incidents.data?.open ?? 0,
+  };
   const links = navigation(status);
 
   return (

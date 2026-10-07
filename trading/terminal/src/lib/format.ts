@@ -116,6 +116,13 @@ export function formatDayTime(value: string | Date, timeZone: string): string {
   return `${day.weekday} ${day.day} ${day.month} ${p.hour}:${p.minute}`;
 }
 
+/** A day and time to the millisecond in the time zone, for example Tue 6 Oct 14:02:11.284, as in a trade's details. */
+export function formatMoment(value: string | Date, timeZone: string): string {
+  const day = formatDayTime(value, timeZone).replace(/ \d\d:\d\d$/, "");
+  const milliseconds = String(new Date(value).getUTCMilliseconds()).padStart(3, "0");
+  return `${day} ${formatTime(value, timeZone)}.${milliseconds}`;
+}
+
 /** The time zone's name for the trader: "Stockholm time" for Europe/Stockholm, "UTC" for UTC. */
 export function timeZoneName(timeZone: string): string {
   if (timeZone === "UTC" || timeZone === "Etc/UTC") {

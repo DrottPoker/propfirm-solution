@@ -66,6 +66,13 @@ internal sealed class TradingPartnerClient(IHttpClientFactory httpClients, IOpti
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task<PriceFeedStatus> GetPriceFeedAsync(CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Get, $"{Partner}price-feed", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return TradingReportJson.Read<PriceFeedStatus>(await ReadJsonAsync(response, cancellationToken));
+    }
+
     private static PartnerTenant ToTenant(JsonElement tenant, string? adminApiKey) =>
         new(
             tenant.GetProperty("id").GetString()!,

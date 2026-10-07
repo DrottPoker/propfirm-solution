@@ -9,6 +9,7 @@ export const dailyPlaces: AdminPlace[] = [
   { href: "/admin/accounts", label: "Accounts", description: "Every challenge account, by group.", keywords: ["traders", "challenges"] },
   { href: "/admin/payouts", label: "Payouts", description: "Payouts to approve and to pay.", keywords: ["withdrawals"] },
   { href: "/admin/support", label: "Support", description: "Tickets from your traders.", keywords: ["tickets", "help"] },
+  { href: "/admin/incidents", label: "Incidents", description: "Outages of the trading platform, and what you did about them.", keywords: ["outage", "status", "reinstate"] },
   { href: "/admin/orders", label: "Orders", description: "Challenges bought in your portal.", keywords: ["sales", "purchases"] },
   { href: "/admin/challenges", label: "Challenges", description: "What your firm sells, its rules and prices.", keywords: ["rules", "prices"] },
   { href: "/admin/discounts", label: "Discount codes", description: "Codes buyers type in your shop.", keywords: ["coupons", "promo"] },

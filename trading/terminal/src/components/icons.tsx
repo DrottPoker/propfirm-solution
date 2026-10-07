@@ -7,6 +7,8 @@ import {
   ArrowsDownUpIcon,
   BellRingingIcon,
   CaretDownIcon,
+  ClockCountdownIcon,
+  CopyIcon as PhCopyIcon,
   ChartBarIcon,
   ChartLineUpIcon,
   CheckCircleIcon,
@@ -22,6 +24,8 @@ import {
   MinusIcon as PhMinusIcon,
   MoonIcon,
   PlusIcon as PhPlusIcon,
+  PrinterIcon as PhPrinterIcon,
+  ShieldCheckIcon,
   RectangleIcon as PhRectangleIcon,
   SignOutIcon,
   SpeakerHighIcon,
@@ -66,6 +70,10 @@ export const ErrorIcon = icon(WarningCircleIcon, "duotone");
 export const WarningIcon = icon(PhWarningIcon, "duotone");
 export const RulesIcon = icon(ListChecksIcon, "duotone");
 export const BellIcon = icon(BellRingingIcon, "duotone");
+export const OldPriceIcon = icon(ClockCountdownIcon, "bold", "size-3.5");
+export const PrintIcon = icon(PhPrinterIcon, "duotone");
+export const CopyIcon = icon(PhCopyIcon, "duotone");
+export const ProofIcon = icon(ShieldCheckIcon, "duotone");
 export const ClosedIcon = icon(StackMinusIcon, "duotone");
 export const MarketClosedIcon = icon(MoonIcon, "duotone", "size-3.5");
 export const CloseIcon = icon(XIcon, "bold");

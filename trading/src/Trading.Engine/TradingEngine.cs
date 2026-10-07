@@ -78,6 +78,7 @@ public sealed partial class TradingEngine
             CloseAccount command => ApplyCloseAccount(command, events),
             SuspendAccount command => ApplySuspendAccount(command, events),
             ResumeAccount command => ApplyResumeAccount(command, events),
+            ReopenAccount command => ApplyReopenAccount(command, events),
             AdjustBalance command => ApplyAdjustBalance(command, events),
             _ => throw new ArgumentException($"Unknown input type {input.GetType().Name}.", nameof(input)),
         };
@@ -95,6 +96,17 @@ public sealed partial class TradingEngine
     {
         ArgumentNullException.ThrowIfNull(accountId);
         return _accountsById.TryGetValue(accountId, out var account) ? Snapshot(account) : null;
+    }
+
+    /// <summary>Every account in the groups valued at the latest prices, ordered by id, for example a firm's accounts.</summary>
+    public IReadOnlyList<AccountSnapshot> GetAccounts(IReadOnlyCollection<string> groupIds)
+    {
+        ArgumentNullException.ThrowIfNull(groupIds);
+        return _accountsById.Values
+            .Where(a => groupIds.Contains(a.Group.Id))
+            .OrderBy(a => a.Id, StringComparer.Ordinal)
+            .Select(Snapshot)
+            .ToList();
     }
 
     /// <summary>The account's trading group, or null if the account does not exist. Cheap, unlike <see cref="GetAccount"/>.</summary>

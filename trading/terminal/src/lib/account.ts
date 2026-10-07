@@ -86,7 +86,7 @@ export function endedText(events: readonly EngineEvent[], timeZone: string): str
   }
 
   if (breach) {
-    return `The ${floorLabel(breach.floorId).toLowerCase()} was broken at ${formatTime(breach.timestamp, timeZone)} ${timeZoneName(timeZone)}: equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)}. Every position was closed at the next price.`;
+    return `The ${floorLabel(breach.floorId).toLowerCase()} was broken at ${formatTime(breach.timestamp, timeZone)} ${timeZoneName(timeZone)}: equity ${formatMoney(breach.equity)} fell below ${formatMoney(breach.level)}. Every position was closed at those prices.`;
   }
 
   return "A loss limit was broken, so every position was closed.";

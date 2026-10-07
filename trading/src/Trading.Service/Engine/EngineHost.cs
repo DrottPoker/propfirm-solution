@@ -324,7 +324,7 @@ internal sealed partial class EngineHost : BackgroundService
 
             // The group never changes, so it is taken once, here, where the engine is at hand.
             var groupId = EventLog.AccountIdOf(engineEvent) is { } accountId ? _engine.GetGroupId(accountId) : null;
-            _pending.Events.Add(new JournaledEvent(envelope, groupId));
+            _pending.Events.Add(new JournaledEvent(envelope, groupId) { InputSequence = _inputSequence });
             if (engineEvent is InputRejected { Input: Quote quote } rejected)
             {
                 LogQuoteRejected(_logger, quote.Symbol, quote.Bid, quote.Ask, rejected.Reason);

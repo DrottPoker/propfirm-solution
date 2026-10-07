@@ -587,3 +587,64 @@ test("the trader's choices follow them to another device", async ({ page, reques
   await expect(device.getByRole("switch", { name: "Sound on warnings" })).toHaveAttribute("aria-checked", "false");
   await other.close();
 });
+
+test("a trade's details show the feed's price behind each fill", async ({ page, request }) => {
+  const trader = await createTrader(request, "details");
+  await logIn(page, trader.email);
+  const buy = page.getByRole("button", { name: /^buy/i });
+  await expect(buy).toBeEnabled();
+  await buy.click();
+  await expect(page.getByText(boughtNote)).toBeVisible();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.getByText(/^Buy 1\.00 EURUSD closed at \d\.\d{5}$/)).toBeVisible();
+
+  await page.getByRole("tab", { name: "History" }).click();
+  await page.getByRole("button", { name: "Details" }).click();
+  const details = page.getByRole("dialog", { name: "Trade details: Buy 1.00 EURUSD" });
+  await expect(details.getByRole("region", { name: "Opened" })).toContainText("Price from the feed");
+  // The standard group raises EURUSD's ask by a point and lowers its bid by one.
+  await expect(details.getByRole("region", { name: "Opened" })).toContainText("The firm's markup: 1 point on the ask.");
+  await expect(details.getByRole("region", { name: "Closed" })).toContainText("The firm's markup: 1 point on the bid.");
+  await expect(details).toContainText(/Result after commission\s*-?[\d,]+\.\d{2} USD/);
+  await expect(details).toContainText(/journal, entries [\d,]+ and [\d,]+/);
+
+  await page.keyboard.press("Escape");
+  await expect(details).toBeHidden();
+});
+
+test("a broken loss limit has a report with the prices that broke it", async ({ page, request }) => {
+  const trader = await createTrader(request, "breach");
+  await logIn(page, trader.email);
+  const buy = page.getByRole("button", { name: /^buy/i });
+  await expect(buy).toBeEnabled();
+  await buy.click();
+  await expect(page.getByText(boughtNote)).toBeVisible();
+
+  await setFloor(request, trader.accountId, "max-loss", 100_001);
+  await page.getByRole("button", { name: "See the breach report" }).click();
+  const report = page.getByRole("dialog", { name: "Breach report: The max loss limit was broken" });
+  await expect(report).toContainText("Equity, price by price");
+  await expect(report.getByRole("region", { name: "The prices that broke it" })).toContainText(/EURUSD\s*\d\.\d{5} \/ \d\.\d{5}\s*2 pts/);
+  await expect(report.getByRole("region", { name: "Open positions at that moment" })).toContainText(/Buy 1\.00 EURUSD/);
+  await expect(report.getByRole("region", { name: "Step by step" })).toContainText("Max loss limit broken: equity");
+  await expect(report.getByRole("region", { name: "Step by step" })).toContainText("Trading ended: a loss limit was broken");
+});
+
+test("the firm's notice shows at the top of its traders' terminals", async ({ page, request }) => {
+  const trader = await createTrader(request, "notice");
+  await logIn(page, trader.email);
+  await expect(page.getByRole("button", { name: /^buy/i })).toBeEnabled();
+
+  const set = await request.put(`${serviceUrl}/api/admin/v1/notice`, {
+    headers: adminHeaders,
+    data: { title: "Price feed outage", text: "No prices since 15:12. We reinstate accounts that broke a limit because of it.", level: "Warning", url: "http://localhost:3002/status" },
+  });
+  expect(set.ok()).toBeTruthy();
+  const notice = page.getByRole("alert").filter({ hasText: "Price feed outage" });
+  await expect(notice).toContainText("We reinstate accounts that broke a limit because of it.");
+  await expect(notice.getByRole("link", { name: "Read more" })).toHaveAttribute("href", "http://localhost:3002/status");
+
+  const removed = await request.delete(`${serviceUrl}/api/admin/v1/notice`, { headers: adminHeaders });
+  expect(removed.ok()).toBeTruthy();
+  await expect(notice).toBeHidden();
+});

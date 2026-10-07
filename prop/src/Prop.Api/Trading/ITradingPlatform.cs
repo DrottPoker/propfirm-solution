@@ -33,6 +33,12 @@ internal interface ITradingPlatform
     /// </summary>
     Task SuspendAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Opens a disabled account again with the balance and without floors, when the firm reinstates a stage (ADR 0053).
+    /// Done if the account is already open, so a retry is safe.
+    /// </summary>
+    Task ReopenAccountAsync(FirmTrading firm, string accountId, decimal balance, CancellationToken cancellationToken);
+
     /// <summary>Lets the trader open positions again. Done if the account is not suspended or is disabled.</summary>
     Task ResumeAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
 
@@ -47,6 +53,18 @@ internal interface ITradingPlatform
 
     /// <summary>The account valued at the latest prices, as the trader sees it. Null if the firm has no such account.</summary>
     Task<TradingAccountSnapshot?> GetAccountAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
+
+    /// <summary>The receipt for a position of the account (ADR 0053). Null if the firm has no such account or position.</summary>
+    Task<TradeReceipt?> GetReceiptAsync(FirmTrading firm, string accountId, string positionId, CancellationToken cancellationToken);
+
+    /// <summary>Why the account's loss limit was broken (ADR 0053). Null if the firm has no such account, or none was broken.</summary>
+    Task<BreachReport?> GetBreachReportAsync(FirmTrading firm, string accountId, CancellationToken cancellationToken);
+
+    /// <summary>What a period of at most a day, beginning in the last 30 days, did to the firm's accounts (ADR 0053).</summary>
+    Task<TradingImpact> GetImpactAsync(FirmTrading firm, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+
+    /// <summary>Shows the notice at the top of the firm's terminals, or removes it with null (ADR 0053).</summary>
+    Task SetNoticeAsync(FirmTrading firm, TradingNotice? notice, CancellationToken cancellationToken);
 
     /// <summary>The firm's events after the cursor, oldest first, waiting up to <paramref name="waitSeconds"/> for new ones.</summary>
     Task<TradingEventPage> ReadEventsAsync(FirmTrading firm, long after, int limit, int waitSeconds, CancellationToken cancellationToken);
@@ -153,6 +171,10 @@ internal sealed record TradingFloorBreached(long Sequence, DateTimeOffset Time, 
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
 internal sealed record TradingAccountDisabled(long Sequence, DateTimeOffset Time, string AccountId, string Raw)
+    : TradingEvent(Sequence, Time, AccountId, Raw);
+
+/// <summary>A disabled account was opened again with the balance, when the firm reinstated its stage (ADR 0053).</summary>
+internal sealed record TradingAccountReopened(long Sequence, DateTimeOffset Time, string AccountId, string Raw, decimal Balance)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
 /// <summary>A deposit (positive amount) or withdrawal (negative amount), for example a payout's.</summary>

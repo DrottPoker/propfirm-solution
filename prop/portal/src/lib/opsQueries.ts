@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, resultOf } from "./api/client";
-import type { OpsFirm, OpsFirmGroup } from "./api/types";
+import { api, ensureOk, resultOf } from "./api/client";
+import type { IncidentRequest, IncidentStatus, OpsFirm, OpsFirmGroup } from "./api/types";
 import { fieldErrorOf, LoginFailedError } from "./queries";
 
 // Our own admin view, where our staff see what waits for them, review firms and follow what they pay (ADRs 0021 and
@@ -143,5 +143,62 @@ export function useOpsAction(firmId: string) {
         [["ops-firms"], ["ops-overview"], ["ops-waiting"], ["ops-billing"]].map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       );
     },
+  });
+}
+
+/** Our incidents of the last 90 days and those that go on, with the price feed now and the firms an outage would reach (ADR 0053). */
+export function useOpsIncidents() {
+  return useQuery({
+    queryKey: ["ops-incidents"],
+    queryFn: async () => resultOf(await api.GET("/api/portal/ops/incidents"), "the incidents"),
+    refetchInterval: 15_000,
+  });
+}
+
+function refreshIncidents(queryClient: ReturnType<typeof useQueryClient>) {
+  return Promise.all([queryClient.invalidateQueries({ queryKey: ["ops-incidents"] }), queryClient.invalidateQueries({ queryKey: ["ops-waiting"] })]);
+}
+
+/** Writes a new draft, or changes an incident. The answer is the incident as it is afterwards. */
+export function useSaveIncident(incidentId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: IncidentRequest) => {
+      const result =
+        incidentId === null
+          ? await api.POST("/api/portal/ops/incidents", { body })
+          : await api.PUT("/api/portal/ops/incidents/{incidentId}", { params: { path: { incidentId } }, body });
+      return resultOf(result, "the incident");
+    },
+    onSuccess: () => refreshIncidents(queryClient),
+  });
+}
+
+/** Shows the incident to the firms it concerns, in their terminals and on their status pages, and emails their administrators. */
+export function usePublishIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (incidentId: string) =>
+      resultOf(await api.POST("/api/portal/ops/incidents/{incidentId}/publish", { params: { path: { incidentId } } }), "the incident"),
+    onSuccess: () => refreshIncidents(queryClient),
+  });
+}
+
+/** Says how the incident goes on. Resolved ends it. */
+export function usePostIncidentUpdate(incidentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: { status: IncidentStatus; text: string }) =>
+      resultOf(await api.POST("/api/portal/ops/incidents/{incidentId}/updates", { params: { path: { incidentId } }, body }), "the update"),
+    onSuccess: () => refreshIncidents(queryClient),
+  });
+}
+
+/** Hides a draft, such as a false alarm. */
+export function useDismissIncident(incidentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => ensureOk(await api.POST("/api/portal/ops/incidents/{incidentId}/dismiss", { params: { path: { incidentId } } }), "the dismissal"),
+    onSuccess: () => refreshIncidents(queryClient),
   });
 }

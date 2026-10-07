@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.History;
+using Prop.Api.Trading;
 using Prop.Rules;
 
 namespace Prop.Api.Api;
@@ -159,7 +160,81 @@ internal static class HistoryActions
         return started.Count > 0 ? new ChosenStage(started[^1].Stage, started[^1]) : new ChosenStage(view.Account.State.Stage, null);
     }
 
+    /// <summary>The receipt of one of the account's positions, on any of its stages (ADR 0053).</summary>
+    public static async Task<Results<Ok<TradeReceipt>, ProblemHttpResult>> ReceiptAsync(
+        Firm firm,
+        Guid accountId,
+        Guid? traderId,
+        string positionId,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken)
+    {
+        if (await AccountActions.FindAsync(firm, accountId, traderId, queries, cancellationToken) is null)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        if (firm.Trading is not { } firmTrading || await history.TradingAccountOfPositionAsync(accountId, positionId, cancellationToken) is not { } tradingAccountId)
+        {
+            return NoSuchPosition();
+        }
+
+        try
+        {
+            return await trading.GetReceiptAsync(firmTrading, tradingAccountId, positionId, cancellationToken) is { } receipt ? TypedResults.Ok(receipt) : NoSuchPosition();
+        }
+        catch (TradingPlatformUnavailableException)
+        {
+            return PlatformUnavailable();
+        }
+    }
+
+    /// <summary>Why a loss limit was broken on the stage, by default the latest that has started (ADR 0053).</summary>
+    public static async Task<Results<Ok<BreachReport>, ProblemHttpResult>> BreachReportAsync(
+        Firm firm,
+        Guid accountId,
+        Guid? traderId,
+        int? stage,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken)
+    {
+        if (await AccountActions.FindAsync(firm, accountId, traderId, queries, cancellationToken) is not { } view)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        if (await StageAsync(view, stage, history, cancellationToken) is not { } chosen)
+        {
+            return NoSuchStage();
+        }
+
+        if (chosen.Record is not { } record || firm.Trading is not { } firmTrading)
+        {
+            return NoBreach();
+        }
+
+        try
+        {
+            return await trading.GetBreachReportAsync(firmTrading, record.TradingAccountId, cancellationToken) is { } report ? TypedResults.Ok(report) : NoBreach();
+        }
+        catch (TradingPlatformUnavailableException)
+        {
+            return PlatformUnavailable();
+        }
+    }
+
     private static ProblemHttpResult NoSuchStage() => AccountActions.Problem(StatusCodes.Status404NotFound, "The account has not started that stage.");
+
+    private static ProblemHttpResult NoSuchPosition() => AccountActions.Problem(StatusCodes.Status404NotFound, "The account has no such position.");
+
+    private static ProblemHttpResult NoBreach() => AccountActions.Problem(StatusCodes.Status404NotFound, "No loss limit was broken on that stage.");
+
+    private static ProblemHttpResult PlatformUnavailable() =>
+        AccountActions.Problem(StatusCodes.Status503ServiceUnavailable, "The trading platform cannot be reached. Try again shortly.");
 
     private static string Number(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 

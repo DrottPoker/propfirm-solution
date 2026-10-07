@@ -99,6 +99,18 @@ public sealed class SandboxOptions
     public int IdleDays { get; init; } = 60;
 }
 
+/// <summary>How the platform watches its price feed for outages (ADR 0053).</summary>
+public sealed class IncidentOptions
+{
+    public const string SectionName = "Incidents";
+
+    /// <summary>Without a price this long while a market is open, the price feed counts as stopped.</summary>
+    public TimeSpan PriceGap { get; init; } = TimeSpan.FromMinutes(1);
+
+    /// <summary>How often the price feed is asked.</summary>
+    public TimeSpan CheckEvery { get; init; } = TimeSpan.FromSeconds(15);
+}
+
 /// <summary>How challenges are bought in the firms' portals (ADR 0019).</summary>
 public sealed class PaymentsOptions
 {

@@ -154,6 +154,46 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         Assert.Equal([2L], events.Select(e => e.Sequence));
     }
 
+    // The price behind a fill is the last one before the order's input, also when a later one has the same time (ADR 0053).
+    [Fact]
+    public async Task PositionEventsAndPricesAreFoundByInputAndTime()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var journal = await CreateJournalAsync();
+        var engine = new TradingEngine(HostHarness.Configuration);
+        var inputs = new EngineInput[]
+        {
+            new CreateAccount(T, "A1", "standard", 100_000.00m),
+            new Quote(T, "EURUSD", 1.08010m, 1.08020m),
+            new PlaceOrder(T.AddSeconds(1), "A1", "O1", "EURUSD", Side.Buy, OrderType.Market, 1.00m, null, null, null),
+            new Quote(T.AddSeconds(1), "EURUSD", 1.09000m, 1.09010m),
+            new Quote(T.AddSeconds(2), "GBPUSD", 1.25000m, 1.25010m),
+        };
+        var events = new List<JournaledEvent>();
+        for (var i = 0; i < inputs.Length; i++)
+        {
+            // Only an account's events have its group, like in the service.
+            events.AddRange(engine.Apply(inputs[i]).Select(e => new JournaledEvent(new EventEnvelope(events.Count + 1, e), EventLog.AccountIdOf(e) is null ? null : "standard") { InputSequence = i + 1 }));
+        }
+
+        await journal.Value.AppendAsync(
+            new JournalBatch([.. inputs.Select((input, i) => new JournaledInput(i + 1, input) { Feed = input is Quote ? "Tiingo" : null })], events, null),
+            cancellationToken);
+
+        var position = await journal.Value.ReadPositionEventsAsync("A1", "O1", cancellationToken);
+        var behind = await journal.Value.FindQuoteAsync("EURUSD", T.AddSeconds(1), position[0].InputSequence, cancellationToken);
+        var latest = await journal.Value.FindQuoteAsync("EURUSD", T.AddSeconds(1), null, cancellationToken);
+        var between = await ToListAsync(journal.Value.ReadQuotesBetweenAsync(["EURUSD"], T, T.AddSeconds(5), cancellationToken));
+        var since = await journal.Value.ReadGroupEventsSinceAsync(["standard"], T, 0, 10, cancellationToken);
+
+        Assert.Equal(["PositionOpened"], position.Select(e => e.Envelope.Event.GetType().Name));
+        Assert.Equal(3L, position[0].InputSequence);
+        Assert.Equal((2L, 1.08020m, "Tiingo"), (behind!.Sequence, behind.Quote.Ask, behind.Feed));
+        Assert.Equal(4L, latest!.Sequence);
+        Assert.Equal([2L, 4L], between.Select(q => q.Sequence));
+        Assert.Equal(["PositionOpened"], since.Select(e => e.Envelope.Event.GetType().Name));
+    }
+
     [Fact]
     public async Task OnlyTheLatestSnapshotsAreKept()
     {

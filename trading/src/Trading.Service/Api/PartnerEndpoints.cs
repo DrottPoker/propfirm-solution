@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 
 using Trading.Engine;
 using Trading.Service.Engine;
+using Trading.Service.Feeds;
+using Trading.Service.Reports;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Api;
@@ -21,7 +23,28 @@ internal static class PartnerEndpoints
         partner.MapGet("/tenants/{id}", GetTenantAsync);
         partner.MapPatch("/tenants/{id}", UpdateTenantAsync);
         partner.MapPost("/tenants/{id}/admin-key", ReplaceAdminKeyAsync);
+        partner.MapGet("/price-feed", GetPriceFeedAsync);
         return app;
+    }
+
+    /// <summary>
+    /// How the platform's price feed is doing (ADR 0053): when the last price came, for every symbol, and whether its
+    /// market is open, so a partner can tell an outage from a closed market.
+    /// </summary>
+    private static async Task<Ok<PriceFeedStatus>> GetPriceFeedAsync(
+        EngineHost engine,
+        EngineConfiguration configuration,
+        IPriceFeed feed,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var latest = (await engine.QueryAsync(e => e.GetLatestQuotes(), cancellationToken)).ToDictionary(q => q.Symbol, q => q.Timestamp, StringComparer.Ordinal);
+        var symbols = configuration.Instruments
+            .OrderBy(i => i.Symbol, StringComparer.Ordinal)
+            .Select(i => new SymbolFeedStatus(i.Symbol, latest.TryGetValue(i.Symbol, out var at) ? at : null, i.TradingHours?.IsOpen(now) ?? true))
+            .ToList();
+        return TypedResults.Ok(new PriceFeedStatus(feed.Name, now, latest.Count == 0 ? null : latest.Values.Max(), symbols));
     }
 
     /// <summary>Whether a firm can be created with the server name now.</summary>

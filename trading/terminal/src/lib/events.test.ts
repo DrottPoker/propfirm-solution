@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineEvent } from "./api/types";
-import { describeEvent, isWarning, netResult, positionCommission, rejectionText } from "./events";
+import { describeEvent, isWarning, netResult, positionCommission, rejectionReason, rejectionText } from "./events";
 
 const digitsOf = (symbol: string) => (symbol === "XAUUSD" ? 2 : 5);
 const timestamp = "2026-10-05T08:00:00+00:00";
@@ -65,6 +65,17 @@ describe("describeEvent", () => {
     expect(isWarning(suspended)).toBe(true);
     expect(describeEvent(resumed, digitsOf)).toBe("Trading resumed");
     expect(isWarning(resumed)).toBe(false);
+  });
+
+  it("says when the firm reopens an account whose phase it reinstated", () => {
+    const reopened: EngineEvent = { kind: "AccountReopened", accountId: "demo", balance: 100_000, timestamp };
+
+    expect(describeEvent(reopened, digitsOf)).toBe("Trading reopened by the firm with a balance of 100,000.00");
+    expect(isWarning(reopened)).toBe(false);
+  });
+
+  it("explains a refusal of an account that has not ended", () => {
+    expect(rejectionReason("AccountNotDisabled")).toBe("trading on the account has not ended");
   });
 
   it("names the rejected input and the reason", () => {

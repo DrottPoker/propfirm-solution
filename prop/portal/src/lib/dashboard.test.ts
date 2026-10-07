@@ -197,12 +197,12 @@ describe("objectivesOf", () => {
     });
 
     expect(breachClosesText(failed)).toBe(
-      "Then every open position was closed at the next price (EURUSD at 1.07512), and 3.50 in commission was charged for closing it, so the balance ended at 96,901.50.",
+      "Then every open position was closed at those prices (EURUSD at 1.07512), and 3.50 in commission was charged for closing it, so the balance ended at 96,901.50.",
     );
     expect(breachClosesText(testDetails())).toBeNull();
     expect(breachStory(failed)).toEqual([
       { when: "6 Oct 2026, 11:30", text: "Equity fell to 96,950.00, below the daily loss limit at 97,000.00." },
-      { when: "Right after", text: "Every open position was closed at the next price: EURUSD at 1.07512. Closing it cost 3.50 in commission." },
+      { when: "Right after", text: "Every open position was closed at the prices that broke it: EURUSD at 1.07512. Closing it cost 3.50 in commission." },
       { when: "Then", text: "The challenge ended with a balance of 96,901.50." },
     ]);
     expect(breachStory(testDetails())).toEqual([]);

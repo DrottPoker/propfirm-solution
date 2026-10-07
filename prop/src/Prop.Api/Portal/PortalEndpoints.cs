@@ -16,6 +16,7 @@ using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Identity;
+using Prop.Api.Incidents;
 using Prop.Api.Payments;
 using Prop.Api.Review;
 using Prop.Api.Support;
@@ -52,6 +53,7 @@ internal static class PortalEndpoints
         portal.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)(context => LogoutAsync(context, PortalRoles.Trader)));
         portal.MapGet("/me", MeAsync).RequireAuthorization(PortalAuth.TraderPolicy);
         portal.MapShop();
+        portal.MapStatusPage();
 
         var trader = portal.MapGroup("/accounts").RequireAuthorization(PortalAuth.TraderPolicy);
         trader.MapGet("", ListMyAccountsAsync);
@@ -59,6 +61,8 @@ internal static class PortalEndpoints
         trader.MapGet("/{accountId:guid}/performance", GetMyPerformanceAsync);
         trader.MapGet("/{accountId:guid}/trades", ListMyTradesAsync);
         trader.MapGet("/{accountId:guid}/trades.csv", DownloadMyTradesAsync);
+        trader.MapGet("/{accountId:guid}/trades/{positionId}/receipt", GetMyReceiptAsync);
+        trader.MapGet("/{accountId:guid}/breach-report", GetMyBreachReportAsync);
         trader.MapPost("/{accountId:guid}/terminal-link", CreateTerminalLinkAsync);
         trader.MapPost("/{accountId:guid}/payouts", RequestPayoutAsync);
         portal.MapGet("/payouts", ListMyPayoutsAsync).RequireAuthorization(PortalAuth.TraderPolicy);
@@ -97,6 +101,7 @@ internal static class PortalEndpoints
         admin.MapAdminVerification();
         admin.MapAdminSupport();
         admin.MapAdminIdentity();
+        admin.MapAdminIncidents();
         return app;
     }
 
@@ -358,6 +363,30 @@ internal static class PortalEndpoints
         CancellationToken cancellationToken,
         int? stage = null) =>
         HistoryActions.TradesCsvAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), stage, queries, history, cancellationToken);
+
+    /// <summary>What one of the trader's trades was, with the prices behind it (ADR 0053).</summary>
+    private static Task<Results<Ok<TradeReceipt>, ProblemHttpResult>> GetMyReceiptAsync(
+        Guid accountId,
+        string positionId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken) =>
+        HistoryActions.ReceiptAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), positionId, queries, history, trading, cancellationToken);
+
+    /// <summary>Why a loss limit was broken on the trader's stage, by default the latest that has started (ADR 0053).</summary>
+    private static Task<Results<Ok<BreachReport>, ProblemHttpResult>> GetMyBreachReportAsync(
+        Guid accountId,
+        ClaimsPrincipal principal,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        CancellationToken cancellationToken,
+        int? stage = null) =>
+        HistoryActions.BreachReportAsync(PortalFirmFilter.FirmOf(context), accountId, PortalAuth.UserIdOf(principal), stage, queries, history, trading, cancellationToken);
 
     private static Task<Ok<TraderPayoutsResponse>> ListMyPayoutsAsync(
         ClaimsPrincipal principal,

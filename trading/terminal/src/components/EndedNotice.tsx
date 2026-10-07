@@ -2,14 +2,20 @@
 
 import { backLink, endedText } from "@/lib/account";
 import type { AccountDetails, ServerInfo } from "@/lib/api/types";
+import { useSheet } from "@/lib/sheet";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
-/** Says plainly that trading on the account has ended and why, with the way to the account at the firm. */
+/**
+ * Says plainly that trading on the account has ended and why, with the breach report when a loss limit was broken and
+ * the way to the account at the firm.
+ */
 export function EndedNotice({ details, server }: { details: AccountDetails | undefined; server: ServerInfo }) {
   const disabled = useTradingStore((s) => s.account?.status === "Disabled");
   const events = useTradingStore((s) => s.events);
   const timeZone = useTimeZone();
+  const openSheet = useSheet((s) => s.open);
+  const broken = events.some((e) => e.event.kind === "EquityFloorBreached");
 
   if (!disabled) {
     return null;
@@ -22,14 +28,25 @@ export function EndedNotice({ details, server }: { details: AccountDetails | und
         <p className="font-semibold text-loss">Trading on this account has ended</p>
         <p>{endedText(events.map((e) => e.event), timeZone)}</p>
       </div>
-      {link && (
-        <a
-          href={link}
-          className="ml-auto shrink-0 rounded-lg border border-border bg-panel px-3 py-1.5 font-medium transition duration-150 hover:border-muted hover:bg-raised active:translate-y-px"
-        >
-          See the account at {server.name}
-        </a>
-      )}
+      <span className="ml-auto flex shrink-0 flex-wrap gap-2">
+        {broken && (
+          <button
+            type="button"
+            onClick={() => openSheet({ kind: "breach" })}
+            className="rounded-lg border border-loss/40 bg-panel px-3 py-1.5 font-medium transition duration-150 hover:border-loss hover:bg-raised active:translate-y-px"
+          >
+            See the breach report
+          </button>
+        )}
+        {link && (
+          <a
+            href={link}
+            className="rounded-lg border border-border bg-panel px-3 py-1.5 font-medium transition duration-150 hover:border-muted hover:bg-raised active:translate-y-px"
+          >
+            See the account at {server.name}
+          </a>
+        )}
+      </span>
     </div>
   );
 }

@@ -74,6 +74,7 @@ internal sealed partial class Notifications
             NotificationKinds.TraderPassed => ForTrader(PassedEmail(firm, passed, AccountUrl(firm, passed))),
             NotificationKinds.TraderFunded => ForTrader(FundedEmail(firm, account, accountUrl)),
             NotificationKinds.TraderEnded => ForTrader(FailedEmail(firm, account, FailureSample(account, now), accountUrl)),
+            NotificationKinds.TraderReinstated => ForTrader(ReinstatedEmail(firm, account, new StageReinstated(now, 0, "sample-1001-1", account.Definition.InitialBalance - 1_787.50m, true, 1), accountUrl)),
             NotificationKinds.TraderPayouts => ForTrader(PayoutApprovedEmail(firm, account, PayoutSample(account, now), accountUrl)),
             NotificationKinds.TraderInactivity => ForTrader(InactivityReminderEmail(firm, account, DateOnly.FromDateTime(now.UtcDateTime).AddDays(InactivityReminderDays))),
             NotificationKinds.TraderSupportAnswers => ForTrader(SupportToTraderEmail(firm, TicketSample(firm, account, now), SampleAnswer, 0, opened: false, closed: false)),

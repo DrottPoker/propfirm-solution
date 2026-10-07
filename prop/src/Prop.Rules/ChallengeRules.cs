@@ -41,6 +41,7 @@ public static class ChallengeRules
         ResumeChallenge resume => OnResume(state, resume),
         ApproveFunding approve => OnApproveFunding(state, approve),
         CancelChallenge cancel => OnCancel(state, cancel),
+        ReinstateStage reinstate => OnReinstate(state, reinstate),
         RequestPayout request => OnRequestPayout(state, request),
         ApprovePayout approve => OnApprovePayout(state, approve),
         MarkPayoutPaid paid => OnMarkPayoutPaid(state, paid),
@@ -184,7 +185,7 @@ public static class ChallengeRules
         {
             var accountId = next.AccountId!;
             return new ChallengeStep(
-                next with { Status = ChallengeStatus.Failed },
+                next with { Status = ChallengeStatus.Failed, EndedOn = input.Day },
                 [new ChallengeExpired(input.Time, next.Stage, accountId, reason, input.Day), new CloseAccountRequested(input.Time, accountId)]);
         }
 
@@ -229,6 +230,42 @@ public static class ChallengeRules
         }
 
         return new ChallengeStep(resumed, outputs);
+    }
+
+    // The stage goes on where it ended, on the same trading account, which the platform opens again. Its deadlines move on
+    // by the days it was ended, so the trader loses no time, and its floors are set again from the new balance.
+    private static ChallengeStep OnReinstate(ChallengeState state, ReinstateStage input)
+    {
+        if (state is not { Status: ChallengeStatus.Failed, AccountId: { } accountId })
+        {
+            return Ignored(state, input, "Only a failed stage can be reinstated.");
+        }
+
+        if (input.Balance <= 0m)
+        {
+            return Ignored(state, input, "The balance must be above zero.");
+        }
+
+        var days = state.EndedOn is { } endedOn ? Math.Max(0, input.Day.DayNumber - endedOn.DayNumber) : 0;
+        var reinstated = state with
+        {
+            Status = ChallengeStatus.Active,
+            CurrentDay = state.CurrentDay is { } current && current > input.Day ? current : input.Day,
+            Account = new AccountFigures(input.Balance, 0),
+            TradingDays = input.KeepTradingDays ? state.TradingDays : ImmutableSortedSet<DateOnly>.Empty,
+            DayProfits = input.KeepTradingDays ? state.DayProfits : null,
+            StageDeadline = state.StageDeadline?.AddDays(days),
+            InactivityDeadline = state.InactivityDeadline?.AddDays(days),
+            EndedOn = null,
+        };
+        return new ChallengeStep(
+            reinstated,
+            [
+                new StageReinstated(input.Time, state.Stage, accountId, input.Balance, input.KeepTradingDays, days),
+                new ReopenAccountRequested(input.Time, accountId, input.Balance),
+                new FloorRequested(input.Time, accountId, FloorIds.MaxLoss, MaxLossFloor(reinstated)),
+                DailyFloor(reinstated, input.Time),
+            ]);
     }
 
     private static ChallengeStep OnApproveFunding(ChallengeState state, ApproveFunding input)
@@ -403,7 +440,7 @@ public static class ChallengeRules
 
         // The trading platform has already closed the positions and disabled the account.
         return new ChallengeStep(
-            state with { Status = ChallengeStatus.Failed, PausedOn = null },
+            state with { Status = ChallengeStatus.Failed, PausedOn = null, EndedOn = state.CurrentDay },
             [new ChallengeFailed(input.Time, state.Stage, input.AccountId, reason, input.FloorId, input.Level, input.Equity)]);
     }
 

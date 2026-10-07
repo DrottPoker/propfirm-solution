@@ -20,6 +20,9 @@ internal interface ITradingPartner
 
     /// <summary>Lists the server for traders or takes it off the list, and sets where its traders log in.</summary>
     Task SetListingAsync(string server, bool listed, Uri loginUrl, Uri? logoUrl, CancellationToken cancellationToken);
+
+    /// <summary>When the platform's last price came, per symbol, and whether each market is open (ADR 0053).</summary>
+    Task<PriceFeedStatus> GetPriceFeedAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>A firm's server and its groups. The admin API key is only known when the server was just created.</summary>

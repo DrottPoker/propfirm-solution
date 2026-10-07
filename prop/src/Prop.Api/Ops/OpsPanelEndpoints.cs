@@ -5,6 +5,7 @@ using Prop.Api.Api;
 using Prop.Api.Billing;
 using Prop.Api.Configuration;
 using Prop.Api.Firms;
+using Prop.Api.Incidents;
 using Prop.Api.Portal;
 using Prop.Api.Review;
 
@@ -86,13 +87,13 @@ internal static class OpsPanelEndpoints
             [.. activity.Select(OpsActivityResponse.From)]));
     }
 
-    /// <summary>How many applications wait for us, and how many charges were declined, for the menu.</summary>
-    private static async Task<Ok<OpsWaitingResponse>> GetWaitingAsync(OpsFigures figures, BillingStore store, CancellationToken cancellationToken)
+    /// <summary>How many applications wait for us, how many charges were declined and how many incident drafts wait, for the menu.</summary>
+    private static async Task<Ok<OpsWaitingResponse>> GetWaitingAsync(OpsFigures figures, BillingStore store, IncidentService incidents, CancellationToken cancellationToken)
     {
         var toReview = await figures.ToReviewAsync(cancellationToken);
         await using var connection = await store.OpenAsync(cancellationToken);
         var declined = await BillingStore.DeclinedChargesAsync(connection, cancellationToken);
-        return TypedResults.Ok(new OpsWaitingResponse(toReview.Count, declined.Count));
+        return TypedResults.Ok(new OpsWaitingResponse(toReview.Count, declined.Count, await incidents.DraftsAsync(cancellationToken)));
     }
 
     /// <summary>
@@ -311,8 +312,8 @@ public sealed record OpsFirmListItemResponse(
 /// <summary>The firms the search finds, the counts in every group, and the currency firms pay us in.</summary>
 public sealed record OpsFirmsResponse(IReadOnlyList<OpsFirmListItemResponse> Firms, OpsFirmCountsResponse Counts, string Currency);
 
-/// <summary>How many applications wait for us, and how many charges were declined and are not paid.</summary>
-public sealed record OpsWaitingResponse(int ToReview, int Unpaid);
+/// <summary>How many applications wait for us, how many charges were declined and are not paid, and how many incident drafts wait.</summary>
+public sealed record OpsWaitingResponse(int ToReview, int Unpaid, int IncidentDrafts);
 
 /// <summary>A firm and since when something has waited: its application, or its trading server.</summary>
 public sealed record OpsWaitingFirmResponse(string Id, string Name, DateTimeOffset Since)

@@ -20,7 +20,10 @@ public enum AccountStatus
     /// <summary>No new positions or orders. Open positions can still be closed, and stops and floors still hold.</summary>
     Suspended,
 
-    /// <summary>Closed for good: nothing can be done on the account.</summary>
+    /// <summary>
+    /// Closed: nothing can be done on the account, until the firm's system reopens it, for example after an outage broke a
+    /// loss limit (ADR 0053).
+    /// </summary>
     Disabled,
 }
 
@@ -76,6 +79,9 @@ public enum RejectReason
 
     /// <summary>The account is not suspended, so there is nothing to resume.</summary>
     AccountNotSuspended,
+
+    /// <summary>The account is not disabled, so there is nothing to reopen.</summary>
+    AccountNotDisabled,
     SymbolNotTradable,
     InvalidOrder,
     InvalidVolume,

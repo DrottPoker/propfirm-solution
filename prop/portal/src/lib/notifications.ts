@@ -30,6 +30,12 @@ export const notificationKinds: NotificationKind[] = [
   { kind: "traderPassed", audience: "trader", label: "Challenge passed", description: "Every phase is passed, and you review the funded account." },
   { kind: "traderFunded", audience: "trader", label: "Funded account ready", description: "The funded account is open." },
   { kind: "traderEnded", audience: "trader", label: "Challenge ended", description: "A loss limit was broken, or time ran out." },
+  {
+    kind: "traderReinstated",
+    audience: "trader",
+    label: "Phase reinstated",
+    description: "You reinstated a phase that ended, for example after an outage, and the account is open again.",
+  },
   { kind: "traderPayouts", audience: "trader", label: "Payout updates", description: "A payout was approved, paid or rejected." },
   {
     kind: "traderInactivity",

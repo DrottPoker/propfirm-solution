@@ -60,6 +60,7 @@ const rejections: Record<RejectReason, string> = {
   AccountDisabled: "trading on the account has ended",
   AccountSuspended: "trading is paused on the account",
   AccountNotSuspended: "trading is not paused",
+  AccountNotDisabled: "trading on the account has not ended",
   SymbolNotTradable: "the symbol cannot be traded on this account",
   InvalidOrder: "the order is not valid",
   InvalidVolume: "the volume is not allowed for the symbol",
@@ -134,6 +135,8 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
       return "Trading paused: no new orders until it is resumed";
     case "AccountResumed":
       return "Trading resumed";
+    case "AccountReopened":
+      return `Trading reopened by the firm with a balance of ${formatMoney(event.balance)}`;
     case "BalanceAdjusted":
       return `${balanceOperationName(event.amount)} of ${formatMoney(Math.abs(event.amount))}, balance ${formatMoney(event.balanceAfter)}`;
     case "InputRejected":

@@ -28,6 +28,13 @@ public sealed record ApproveFunding(DateTimeOffset Time) : ChallengeInput(Time);
 /// <summary>The firm ends the challenge.</summary>
 public sealed record CancelChallenge(DateTimeOffset Time, string Reason) : ChallengeInput(Time);
 
+/// <summary>
+/// The firm opens the failed stage again on its trading account during trading day <paramref name="Day"/>, with
+/// <paramref name="Balance"/>, for example after an outage broke a loss limit (ADR 0053). With
+/// <paramref name="KeepTradingDays"/> the trading days counted so far still count.
+/// </summary>
+public sealed record ReinstateStage(DateTimeOffset Time, DateOnly Day, decimal Balance, bool KeepTradingDays) : ChallengeInput(Time);
+
 /// <summary>The funded trader asks for a payout of the profit. The service chooses the payout's id.</summary>
 public sealed record RequestPayout(DateTimeOffset Time, string PayoutId) : ChallengeInput(Time);
 

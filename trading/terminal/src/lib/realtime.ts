@@ -2,11 +2,11 @@ import { HubConnectionBuilder, type IRetryPolicy, LogLevel } from "@microsoft/si
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import type { AccountRules, AccountSnapshot, EventEnvelope, SymbolPrice } from "./api/types";
+import type { AccountRules, AccountSnapshot, EventEnvelope, SymbolPrice, TerminalNotice } from "./api/types";
 import { tradingApiUrl } from "./config";
 import { createEventSync, type EventLoad } from "./eventSync";
 import { newEvents } from "./notices";
-import { fetchEvents, reloadCandles, reloadMarketHours, rulesKey } from "./queries";
+import { fetchEvents, noticeKey, reloadCandles, reloadMarketHours, rulesKey } from "./queries";
 import { maxEvents, useTradingStore } from "./store";
 
 const retryDelayMs = 2_000;
@@ -57,6 +57,10 @@ export function useTradingConnection(accountId: string): void {
     // A handler that returns a value would answer the service, which expects no answer.
     connection.on("Rules", (rules: AccountRules) => {
       queryClient.setQueryData(rulesKey(accountId), rules);
+    });
+    // Also on subscribing, so a notice set while the connection was lost is shown.
+    connection.on("Notice", (notice: TerminalNotice | null) => {
+      queryClient.setQueryData(noticeKey(accountId), notice);
     });
     // Pushed events are new, unlike the ones loaded at the start or after a reconnect, so the trader is told of them.
     connection.on("Events", (events: EventEnvelope[]) => {

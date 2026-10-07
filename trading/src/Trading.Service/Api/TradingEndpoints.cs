@@ -1,3 +1,5 @@
+using System.Security.Claims;
+
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -9,6 +11,7 @@ using Trading.Service.Configuration;
 using Trading.Service.Engine;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
+using Trading.Service.Reports;
 
 namespace Trading.Service.Api;
 
@@ -31,6 +34,9 @@ internal static class TradingEndpoints
         account.MapGet("/instruments/{symbol}/point-value", GetPointValueAsync);
         account.MapGet("/market-hours", GetMarketHoursAsync);
         account.MapGet("/rules", GetRulesAsync);
+        account.MapGet("/notice", GetNoticeAsync);
+        account.MapGet("/positions/{positionId}/receipt", GetReceiptAsync);
+        account.MapGet("/breach-report", GetBreachReportAsync);
         account.MapGet("/prices", GetPricesAsync);
         account.MapGet("/candles/{symbol}", GetCandlesAsync);
         account.MapGet("/events", GetEventsAsync);
@@ -74,6 +80,32 @@ internal static class TradingEndpoints
     /// </summary>
     private static async Task<Ok<AccountRules>> GetRulesAsync(string accountId, IUserStore users, CancellationToken cancellationToken) =>
         TypedResults.Ok(await users.AccountRulesOfAsync(accountId, cancellationToken) ?? AccountRules.None);
+
+    /// <summary>
+    /// The notice of the firm the account belongs to, for its terminals, such as an outage of the price feed, or null
+    /// for none (ADR 0053). The trader belongs to the same firm as their accounts.
+    /// </summary>
+    private static async Task<Ok<NoticeResponse>> GetNoticeAsync(
+        [FromRoute(Name = "accountId")] string _,
+        ClaimsPrincipal principal,
+        IUserStore users,
+        CancellationToken cancellationToken) =>
+        TypedResults.Ok(new NoticeResponse(CurrentUser.TenantIdOf(principal) is { } tenantId ? await users.TenantNoticeOfAsync(tenantId, cancellationToken) : null));
+
+    /// <summary>
+    /// The receipt for one of the account's positions, open or closed (ADR 0053): its fills with the feed's prices
+    /// behind them and the markup, and the prices around each fill.
+    /// </summary>
+    private static async Task<Results<Ok<TradeReceipt>, NotFound>> GetReceiptAsync(
+        string accountId,
+        string positionId,
+        TradeReceipts receipts,
+        CancellationToken cancellationToken) =>
+        await receipts.BuildAsync(accountId, positionId, cancellationToken) is { } receipt ? TypedResults.Ok(receipt) : TypedResults.NotFound();
+
+    /// <summary>Why the account's loss limit was broken (ADR 0053). Not found when no limit was broken.</summary>
+    private static async Task<Results<Ok<BreachReport>, NotFound>> GetBreachReportAsync(string accountId, BreachReports reports, CancellationToken cancellationToken) =>
+        await reports.BuildAsync(accountId, cancellationToken) is { } report ? TypedResults.Ok(report) : TypedResults.NotFound();
 
     // Not found also when the symbol has no conversion rate yet, which a price soon brings.
     private static async Task<Results<Ok<PointValue>, NotFound>> GetPointValueAsync(

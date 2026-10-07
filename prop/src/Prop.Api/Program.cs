@@ -20,6 +20,7 @@ using Prop.Api.Email;
 using Prop.Api.Firms;
 using Prop.Api.History;
 using Prop.Api.Identity;
+using Prop.Api.Incidents;
 using Prop.Api.Json;
 using Prop.Api.Net;
 using Prop.Api.Ops;
@@ -83,6 +84,12 @@ builder.Services.AddOptions<SandboxOptions>()
     .Validate(o => o.MaxOpenAccounts >= 1, "Sandbox:MaxOpenAccounts must be at least 1.")
     .Validate(o => o.MaxAdminInvites >= 1, "Sandbox:MaxAdminInvites must be at least 1.")
     .Validate(o => o.IdleDays >= 14, "Sandbox:IdleDays must be at least 14, since firms are warned a week before.")
+    .ValidateOnStart();
+builder.Services.AddOptions<IncidentOptions>()
+    .Bind(builder.Configuration.GetSection(IncidentOptions.SectionName))
+    .Validate(
+        o => o.PriceGap >= TimeSpan.FromSeconds(10) && o.CheckEvery >= TimeSpan.FromSeconds(1) && o.CheckEvery < o.PriceGap,
+        "Incidents:PriceGap must be at least 10 seconds, and Incidents:CheckEvery at least 1 second and shorter than the gap.")
     .ValidateOnStart();
 builder.Services.AddOptions<SecretsOptions>().Bind(builder.Configuration.GetSection(SecretsOptions.SectionName));
 builder.Services.AddOptions<DomainOptions>()
@@ -199,6 +206,8 @@ builder.Services.AddSingleton<IdentityStore>();
 builder.Services.AddSingleton<IdentityService>();
 builder.Services.AddSingleton<DiditChecker>();
 builder.Services.AddSingleton<TestChecker>();
+builder.Services.AddSingleton<IncidentStore>();
+builder.Services.AddSingleton<IncidentService>();
 
 // Portal sessions survive restarts and work across instances, since the keys that protect them are in the database.
 builder.Services.AddSingleton<IXmlRepository, PostgresXmlRepository>();
@@ -295,6 +304,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<DomainVerificationWorker>();
     builder.Services.AddHostedService<TradingAccountDescriber>();
     builder.Services.AddHostedService<IdleSandboxWorker>();
+    builder.Services.AddHostedService<PriceFeedWatcher>();
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => PropJson.Configure(o.SerializerOptions));

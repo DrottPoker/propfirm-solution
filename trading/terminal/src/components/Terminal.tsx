@@ -10,6 +10,7 @@ import { digitsLookup, initialInstrument } from "@/lib/instruments";
 import { useInstruments, useMe } from "@/lib/queries";
 import { useTradingConnection } from "@/lib/realtime";
 import { rememberAccount, rememberServer } from "@/lib/servers";
+import { useSheet } from "@/lib/sheet";
 import { useLoadedSettings } from "@/lib/syncedSettings";
 import { TimeZoneContext } from "@/lib/timeZone";
 
@@ -19,8 +20,10 @@ import { EndedNotice } from "./EndedNotice";
 import { CandlesIcon, LayersIcon, ListIcon, TradeIcon } from "./icons";
 import { KronantMark } from "./KronantMark";
 import { OrderPanel } from "./OrderPanel";
+import { PriceAlerts } from "./PriceAlerts";
 import { PriceChart } from "./PriceChart";
 import { useRuleWarnings } from "./RuleWarnings";
+import { Sheets } from "./Sheets";
 import { StatusBar } from "./StatusBar";
 import { useTradeNotices } from "./TradeNotices";
 import { Watchlist } from "./Watchlist";
@@ -92,6 +95,8 @@ function TradingTerminal({
   const timeZone = usableTimeZone(current?.timeZone);
 
   useEffect(() => rememberAccount(accountId), [accountId]);
+  // A trade's details or a report belong to the account they were opened on.
+  useEffect(() => () => useSheet.getState().close(), []);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [view, setView] = useState<PhoneView>("chart");
 
@@ -108,8 +113,9 @@ function TradingTerminal({
   return (
     <TimeZoneContext value={timeZone}>
       <div className="flex h-full flex-col">
-        <AccountBar accounts={accounts} details={details} email={email} server={server} />
+        <AccountBar accountId={accountId} accounts={accounts} details={details} email={email} server={server} />
         <EndedNotice details={current} server={server} />
+        <PriceAlerts accountId={accountId} />
         <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 lg:grid lg:grid-rows-[minmax(0,1fr)_13rem]">
           <div className={`${view === "positions" ? "hidden" : "flex"} min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[19rem_minmax(0,1fr)_18rem] lg:gap-2`}>
             <div className={pane("watchlist", view)}>
@@ -138,6 +144,7 @@ function TradingTerminal({
         <div className="hidden lg:contents">
           <StatusBar serverName={server.name} />
         </div>
+        <Sheets accountId={accountId} digitsOf={digitsOf} />
       </div>
     </TimeZoneContext>
   );

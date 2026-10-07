@@ -30,6 +30,7 @@ import {
   usePointValue,
 } from "@/lib/queries";
 import { estimatedProfit, resolveStops, type StopKind, type StopUnit } from "@/lib/stops";
+import { useSheet } from "@/lib/sheet";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
@@ -579,6 +580,14 @@ function EditOrder({
 // the result is after it, as in the firm's portal.
 function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: DigitsOf }) {
   const timeZone = useTimeZone();
+  const openSheet = useSheet((s) => s.open);
+  const details = (positionId: string) => (
+    <td className="px-3 py-1 text-right">
+      <ActionButton onClick={() => openSheet({ kind: "details", positionId })} title="The prices behind this trade">
+        Details
+      </ActionButton>
+    </td>
+  );
   const rows = events
     .filter((e): e is HistoryRow => e.kind === "PositionClosed" || e.kind === "PositionPartiallyClosed" || e.kind === "BalanceAdjusted")
     .reverse();
@@ -588,7 +597,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
   }
 
   return (
-    <Table headers={["Closed", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Result"]}>
+    <Table headers={["Closed", "Symbol", "Side", "Volume", "Open price", "Close price", "Reason", "Commission", "Result", ""]}>
       {rows.map((c) => {
         if (isBalanceOperation(c)) {
           return (
@@ -600,6 +609,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
               <Cell number className={c.amount >= 0 ? "text-profit" : "text-loss"}>
                 {formatSignedMoney(c.amount)}
               </Cell>
+              <td />
             </tr>
           );
         }
@@ -626,6 +636,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
                   {formatSignedMoney(partOutcome)}
                 </span>
               </Cell>
+              {details(c.positionId)}
             </tr>
           );
         }
@@ -647,6 +658,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
             <Cell number className={result >= 0 ? "text-profit" : "text-loss"}>
               <span title={`${formatSignedMoney(c.profit)} before ${formatMoney(commission)} commission`}>{formatSignedMoney(result)}</span>
             </Cell>
+            {details(c.positionId)}
           </tr>
         );
       })}

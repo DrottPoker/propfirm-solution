@@ -1900,6 +1900,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["StatusPageResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/payouts": {
         parameters: {
             query?: never;
@@ -2321,6 +2356,83 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/accounts/{accountId}/trades/{positionId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    positionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradeReceipt"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/accounts/{accountId}/breach-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BreachReport"];
+                    };
                 };
             };
         };
@@ -3577,6 +3689,83 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/trades/{positionId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                    positionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TradeReceipt"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/accounts/{accountId}/breach-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    stage?: number;
+                };
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BreachReport"];
+                    };
                 };
             };
         };
@@ -5997,6 +6186,195 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmIncidentsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/incidents/{incidentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FirmIncidentResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/incidents/{incidentId}/note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IncidentNoteRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/incidents/{incidentId}/reinstate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ReinstateRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/admin/incidents/{incidentId}/credit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreditRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/platform": {
         parameters: {
             query?: never;
@@ -6594,6 +6972,218 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/ops/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsIncidentsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IncidentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsIncidentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/incidents/{incidentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IncidentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsIncidentResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/incidents/{incidentId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsIncidentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/incidents/{incidentId}/updates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["IncidentUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OpsIncidentResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/portal/ops/incidents/{incidentId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    incidentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/ops/firms/{firmId}": {
         parameters: {
             query?: never;
@@ -7133,7 +7723,7 @@ export interface components {
          * @description What changed a trading account's balance.
          * @enum {unknown}
          */
-        BalanceChangeKind: "Created" | "Opened" | "Closed" | "Adjusted";
+        BalanceChangeKind: "Created" | "Opened" | "Closed" | "Adjusted" | "Reopened";
         /** @description The balance after a change, and what changed it by how much. */
         BalancePoint: {
             /** Format: date-time */
@@ -7217,7 +7807,7 @@ export interface components {
         };
         /**
          * @description What the trading platform recorded when a floor was breached. Closes are the positions the breach
-         *     closed, at the next price and with the commission for closing them, and BalanceAfter the balance
+         *     closed, at the prices that broke it and with the commission for closing them, and BalanceAfter the balance
          *     they left, which is why it can end below the floor.
          */
         BreachEvidence: {
@@ -7232,6 +7822,85 @@ export interface components {
             closes?: null | components["schemas"]["BreachClose"][];
             /** Format: double */
             balanceAfter?: null | number;
+        };
+        BreachPosition: {
+            positionId: string;
+            symbol: string;
+            side: string;
+            /** Format: double */
+            volume: number;
+            /** Format: double */
+            openPrice: number;
+            /** Format: date-time */
+            openTime: string;
+            /** Format: double */
+            currentPrice: number;
+            /** Format: double */
+            profit: number;
+        };
+        BreachPrice: {
+            symbol: string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+            /** Format: date-time */
+            receivedAt: string;
+            feed: null | components["schemas"]["FeedPrice"];
+            /** Format: int32 */
+            bidMarkupPoints: null | number;
+            /** Format: int32 */
+            askMarkupPoints: null | number;
+        };
+        /**
+         * @description Why a loss limit was broken: the limit, the equity and the open positions at that moment, the prices that broke it with
+         *     the feed's prices behind them, equity price by price before it, the periods without prices, and what happened step by
+         *     step. Balance is the balance before the positions closed and BalanceAfter after.
+         */
+        BreachReport: {
+            accountId: string;
+            currency: string;
+            /** Format: date-time */
+            at: string;
+            floorId: string;
+            /** Format: double */
+            level: number;
+            /** Format: double */
+            equity: number;
+            /** Format: double */
+            balance: number;
+            /** Format: double */
+            balanceAfter: number;
+            prices: components["schemas"]["BreachPrice"][];
+            positions: components["schemas"]["BreachPosition"][];
+            equityCurve: components["schemas"]["EquityPoint"][];
+            gaps: components["schemas"]["PriceGap"][];
+            steps: components["schemas"]["BreachStep"][];
+        };
+        /**
+         * @description Something that happened on the account before and at the breach: a position opened, closed or partly closed, an order
+         *     placed, a request refused, a loss limit set or broken, money moved, or trading ended. Amount is the
+         *     profit of a close, the equity at a breach or the amount moved; Reason why a position closed, a
+         *     request was refused or trading ended, or the type of an order. Request is what a refused request
+         *     was, such as "PlaceOrder" or "ClosePosition".
+         */
+        BreachStep: {
+            /** Format: date-time */
+            at: string;
+            kind: string;
+            symbol: null | string;
+            side: null | string;
+            /** Format: double */
+            volume: null | number;
+            /** Format: double */
+            price: null | number;
+            /** Format: double */
+            amount: null | number;
+            reason: null | string;
+            floorId: null | string;
+            /** Format: double */
+            level: null | number;
+            request?: null | string;
         };
         /**
          * @description The order as its buyer sees it, with the price before its DiscountCode as ListAmount.
@@ -7417,6 +8086,14 @@ export interface components {
             country?: null | string;
             discountCode?: null | string;
         };
+        /** @description Puts an amount on the account, for example for a close the outage refused. */
+        CreditRequest: {
+            /** Format: uuid */
+            accountId: string;
+            /** Format: double */
+            amount: number;
+            reason: null | string;
+        };
         /**
          * @description Where the daily loss limit starts from when a trading day starts.
          * @enum {unknown}
@@ -7571,6 +8248,12 @@ export interface components {
                 [key: string]: boolean;
             };
         };
+        EquityPoint: {
+            /** Format: date-time */
+            time: string;
+            /** Format: double */
+            equity: number;
+        };
         /**
          * @description One round of automatic expansion from the slots in the quote: Slots more, for
          *     MonthlyPrice more a month, and RestOfMonth for the rest of
@@ -7610,6 +8293,18 @@ export interface components {
         };
         /** @enum {unknown} */
         FailureReason: "DailyLoss" | "MaxLoss" | "OtherFloor";
+        /** @description A raw price from the feed, with its entry in the platform's journal. */
+        FeedPrice: {
+            /** Format: int64 */
+            inputSequence: number;
+            feed: null | string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+            /** Format: date-time */
+            receivedAt: string;
+        };
         /** @description What is wrong with a field of the application. */
         FieldProblem: {
             field: string;
@@ -7634,6 +8329,55 @@ export interface components {
             termsUrl: null | string;
             links: null | string[];
             description: null | string;
+        };
+        /** @description A firm and how many of its accounts have open positions. */
+        FirmExposure: {
+            firmId: string;
+            name: string;
+            /** Format: int32 */
+            accountsWithPositions: number;
+        };
+        /**
+         * @description An incident as a firm sees it: what we said, the firm's own note, its accounts that the incident reached and what the
+         *     firm did for them. ImpactKnown is false when the trading platform could not tell, or the incident is
+         *     too old or too long to look back on.
+         */
+        FirmIncidentResponse: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["IncidentKind"];
+            title: string;
+            publicText: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: null | string;
+            status: components["schemas"]["IncidentStatus"];
+            updates: components["schemas"]["IncidentUpdateResponse"][];
+            note: null | string;
+            impactKnown: boolean;
+            accounts: components["schemas"]["IncidentAccountResponse"][];
+            decisions: components["schemas"]["IncidentDecisionResponse"][];
+        };
+        /** @description The published incidents of the last 90 days that concern the firm, newest first, and how many still go on. */
+        FirmIncidentsResponse: {
+            incidents: components["schemas"]["FirmIncidentSummary"][];
+            /** Format: int32 */
+            open: number;
+        };
+        /** @description A published incident in a firm's list, with how many accounts the firm has decided on. */
+        FirmIncidentSummary: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["IncidentKind"];
+            title: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: null | string;
+            status: components["schemas"]["IncidentStatus"];
+            /** Format: int32 */
+            decisions: number;
         };
         /** @description One of the firm's owners, with the share of the company in percent. */
         FirmOwner: {
@@ -7785,6 +8529,119 @@ export interface components {
         /** Format: binary */
         IFormFile: string;
         IFormFileCollection: components["schemas"]["IFormFile"][];
+        /**
+         * @description One of the firm's accounts that the incident reached: open positions when it began, requests refused during it for lack
+         *     of a fresh price, or a loss limit broken during it or in the half hour after. EquityAtStart is the
+         *     equity when it began, when known. TradingAccountId is the stage's account on the trading platform,
+         *     so an account that passed a stage during the incident shows once for each. CanReinstate when a
+         *     broken limit ended the stage, and CanCredit when the account still trades on it.
+         */
+        IncidentAccountResponse: {
+            /** Format: uuid */
+            accountId: string;
+            /** Format: int64 */
+            number: number;
+            tradingAccountId: string;
+            challengeName: string;
+            stageName: string;
+            traderEmail: string;
+            currency: string;
+            status: string;
+            /** Format: int32 */
+            openPositions: number;
+            /** Format: double */
+            balanceAtStart: number;
+            /** Format: double */
+            equityAtStart: null | number;
+            /** Format: int32 */
+            ordersRefused: number;
+            /** Format: int32 */
+            closesRefused: number;
+            /** Format: int32 */
+            changesRefused: number;
+            breach: null | components["schemas"]["IncidentBreachResponse"];
+            /** Format: double */
+            balance: number;
+            /** Format: double */
+            equity: number;
+            /** Format: int32 */
+            tradingDays: number;
+            canReinstate: boolean;
+            canCredit: boolean;
+        };
+        /** @description A loss limit broken during the incident or soon after it. */
+        IncidentBreachResponse: {
+            /** Format: date-time */
+            at: string;
+            floorId: string;
+            /** Format: double */
+            level: number;
+            /** Format: double */
+            equity: number;
+        };
+        /**
+         * @description What a firm did for an account after an incident.
+         * @enum {unknown}
+         */
+        IncidentDecisionKind: "Reinstated" | "Credited";
+        /** @description What the firm did for an account, by whom and why. */
+        IncidentDecisionResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            accountId: string;
+            /** Format: int64 */
+            number: number;
+            kind: components["schemas"]["IncidentDecisionKind"];
+            /** Format: double */
+            amount: number;
+            reason: string;
+            decidedBy: string;
+            /** Format: date-time */
+            decidedAt: string;
+        };
+        /**
+         * @description What went wrong (ADR 0053).
+         * @enum {unknown}
+         */
+        IncidentKind: "PriceFeedOutage" | "PlatformDown" | "SlowPrices" | "Other";
+        /** @description The firm's own words to its traders about an incident. Empty removes them. */
+        IncidentNoteRequest: {
+            text: null | string;
+        };
+        /**
+         * @description An incident as our staff write it. Firms are the firms it concerns, or null for every firm.
+         *     EndedAt is empty while it goes on.
+         */
+        IncidentRequest: {
+            kind: components["schemas"]["IncidentKind"];
+            title: null | string;
+            publicText: null | string;
+            internalNote: null | string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: null | string;
+            firms: null | string[];
+        };
+        /**
+         * @description Where an incident is: written but not shown yet, shown and going on, or over.
+         * @enum {unknown}
+         */
+        IncidentStatus: "Draft" | "Open" | "Resolved";
+        /** @description What our staff say as an incident goes on. Resolved ends it. */
+        IncidentUpdateRequest: {
+            status: components["schemas"]["IncidentStatus"];
+            text: null | string;
+        };
+        /** @description Something said about an incident as it went on. By is the staff member, shown in our admin view only. */
+        IncidentUpdateResponse: {
+            /** Format: date-time */
+            at: string;
+            status: components["schemas"]["IncidentStatus"];
+            text: string;
+            by: null | string;
+        };
         /** @description Open Url once before ExpiresAt to choose a password for the portal. */
         InviteResponse: {
             /** Format: uri */
@@ -8126,6 +8983,35 @@ export interface components {
             externalTestedAt: null | string;
             readiness: components["schemas"]["IdentityReadiness"];
         };
+        /** @description An incident as our staff see it, with the note only they read. */
+        OpsIncidentResponse: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["IncidentKind"];
+            title: string;
+            publicText: string;
+            internalNote: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: null | string;
+            status: components["schemas"]["IncidentStatus"];
+            /** Format: date-time */
+            publishedAt: null | string;
+            firms: null | string[];
+            detected: boolean;
+            createdBy: null | string;
+            updates: components["schemas"]["IncidentUpdateResponse"][];
+        };
+        /**
+         * @description Our incidents, and how the platform is doing now: the price feed, and the firms with traders in open positions,
+         *     which an outage would reach.
+         */
+        OpsIncidentsResponse: {
+            incidents: components["schemas"]["OpsIncidentResponse"][];
+            feed: null | components["schemas"]["PriceFeedNow"];
+            firms: components["schemas"]["FirmExposure"][];
+        };
         /**
          * @description A firm's payouts that traders asked for more than the late age ago and are neither paid nor rejected: how many, how
          *     many of them the firm approved, how much per currency, and when the oldest was asked for.
@@ -8277,12 +9163,14 @@ export interface components {
             amount: number;
             currency: string;
         };
-        /** @description How many applications wait for us, and how many charges were declined and are not paid. */
+        /** @description How many applications wait for us, how many charges were declined and are not paid, and how many incident drafts wait. */
         OpsWaitingResponse: {
             /** Format: int32 */
             toReview: number;
             /** Format: int32 */
             unpaid: number;
+            /** Format: int32 */
+            incidentDrafts: number;
         };
         /** @description The week from Monday Start in UTC: what firms paid for months and slots, and for going live and deposits. */
         OpsWeekResponse: {
@@ -8605,6 +9493,33 @@ export interface components {
             name: null | string;
             country: null | string;
         };
+        /**
+         * @description The price feed now: when the last price came, how many symbols have an open market and how many of them got no price
+         *     for a minute. Null in the response when the trading platform could not be asked.
+         */
+        PriceFeedNow: {
+            feed: string;
+            /** Format: date-time */
+            lastPriceAt: null | string;
+            /** Format: int32 */
+            openMarkets: number;
+            /** Format: int32 */
+            withoutPrices: number;
+        };
+        PriceGap: {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+        };
+        PricePoint: {
+            /** Format: date-time */
+            time: string;
+            /** Format: double */
+            bid: number;
+            /** Format: double */
+            ask: number;
+        };
         /** @description The price of a challenge in the portal, and whether it is sold there. */
         PriceRequest: {
             /** Format: double */
@@ -8661,6 +9576,49 @@ export interface components {
             currency: string;
             problem: null | string;
             expansion: null | components["schemas"]["ExpansionResponse"];
+        };
+        /** @description A part closed or the close, why, and the stop loss or take profit level it closed at when known. */
+        ReceiptClose: {
+            fill: components["schemas"]["ReceiptFill"];
+            /** Format: double */
+            profit: number;
+            reason: string;
+            /** Format: double */
+            level: null | number;
+        };
+        /**
+         * @description One fill, with the raw price the platform had from the feed and the markup between them on the filled side, or null
+         *     when it is not known, and the feed's prices a minute before and after.
+         */
+        ReceiptFill: {
+            /** Format: date-time */
+            at: string;
+            /** Format: double */
+            volume: number;
+            /** Format: double */
+            price: number;
+            /** Format: double */
+            commission: number;
+            feed: null | components["schemas"]["FeedPrice"];
+            /** Format: int32 */
+            markupPoints: null | number;
+            prices: components["schemas"]["PricePoint"][];
+        };
+        ReceiptOrder: {
+            /** Format: date-time */
+            placedAt: string;
+            type: string;
+            /** Format: double */
+            price: number;
+        };
+        /** @description Reinstates the account's ended stage with the balance, keeping the trading days counted so far or not. The reason is kept with the decision. */
+        ReinstateRequest: {
+            /** Format: uuid */
+            accountId: string;
+            /** Format: double */
+            balance: number;
+            keepTradingDays: boolean;
+            reason: null | string;
         };
         /**
          * @description Why the payout is rejected, which the trader sees. With ReturnProfit, the withdrawn profit goes back on
@@ -8759,6 +9717,11 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        /**
+         * @description The parts of the service a status page shows.
+         * @enum {unknown}
+         */
+        ServicePart: "Trading" | "Prices" | "Terminal" | "Portal";
         ShopItemResponse: {
             challenge: components["schemas"]["ChallengeDefinition"];
             /** Format: double */
@@ -8916,6 +9879,34 @@ export interface components {
             email: null | string;
             challengeId: null | string;
             reference?: null | string;
+        };
+        /** @description An incident on the status page, with what we said and the firm's own note. */
+        StatusIncidentResponse: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            /** Format: date-time */
+            startedAt: string;
+            /** Format: date-time */
+            endedAt: null | string;
+            status: components["schemas"]["IncidentStatus"];
+            parts: components["schemas"]["ServicePart"][];
+            updates: components["schemas"]["IncidentUpdateResponse"][];
+            firmNote: null | string;
+        };
+        /** @description A firm's status page: whether everything runs now, each part of the service, and the incidents of the last 90 days. */
+        StatusPageResponse: {
+            firmName: string;
+            /** Format: date-time */
+            now: string;
+            allRunning: boolean;
+            parts: components["schemas"]["StatusPartResponse"][];
+            incidents: components["schemas"]["StatusIncidentResponse"][];
+        };
+        /** @description A part of the service and whether it runs now. */
+        StatusPartResponse: {
+            part: components["schemas"]["ServicePart"];
+            running: boolean;
         };
         /** @description One input to the account and what the rule engine decided, with the trading platform's event behind it. */
         StepResponse: {
@@ -9104,6 +10095,29 @@ export interface components {
             /** Format: date-time */
             checkedAt: null | string;
             checkedBy: null | string;
+        };
+        /**
+         * @description What a trade was and the prices behind it: the limit or stop order it came from, its opening and each close.
+         *     Profit is the closes' profit before commission, and Result the profit after all
+         *     commission once the position is closed. Amounts are in Currency.
+         */
+        TradeReceipt: {
+            accountId: string;
+            positionId: string;
+            symbol: string;
+            side: string;
+            /** Format: int32 */
+            digits: number;
+            currency: string;
+            order: null | components["schemas"]["ReceiptOrder"];
+            opened: components["schemas"]["ReceiptFill"];
+            closes: components["schemas"]["ReceiptClose"][];
+            /** Format: double */
+            commission: number;
+            /** Format: double */
+            profit: null | number;
+            /** Format: double */
+            result: null | number;
         };
         /**
          * @description What the trader was emailed: an invitation to choose a password, or that the challenge has started.

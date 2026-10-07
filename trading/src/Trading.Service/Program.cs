@@ -22,6 +22,7 @@ using Trading.Service.Identity;
 using Trading.Service.Json;
 using Trading.Service.Persistence;
 using Trading.Service.Realtime;
+using Trading.Service.Reports;
 using Trading.Service.Tenancy;
 
 // The build-time OpenAPI generator loads the app only to read its endpoints.
@@ -80,6 +81,10 @@ builder.Services.AddSingleton(sp =>
     return sp.GetRequiredService<IOptions<TradingOptions>>().Value.ToEngineConfiguration(feed.FollowsTradingHours ? feed.Name : null);
 });
 builder.Services.AddSingleton<MarketCatalog>();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<TradeReceipts>();
+builder.Services.AddSingleton<BreachReports>();
+builder.Services.AddSingleton<IncidentImpacts>();
 builder.Services.AddSingleton<EventLog>();
 
 // Resolved lazily, so tools that only load the app (like the OpenAPI generator) need no database.

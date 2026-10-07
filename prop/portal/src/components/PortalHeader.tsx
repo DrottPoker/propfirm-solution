@@ -11,7 +11,7 @@ import { useRequestPasswordReset } from "@/lib/passwordQueries";
 import { useLogout, useMySupportSummary, useShop } from "@/lib/queries";
 
 import { FirmName } from "./FirmName";
-import { CloseIcon, LockIcon, LogoutIcon, MenuIcon } from "./icons";
+import { CloseIcon, LockIcon, LogoutIcon, MenuIcon, StatusIcon } from "./icons";
 import { buttonClass } from "./ui";
 
 const traderLinks = [
@@ -47,7 +47,7 @@ export function PortalHeader({ me }: { me: Me }) {
   const unread = support.data?.unread ?? 0;
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-panel/85 text-sm backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-border bg-panel/85 text-sm backdrop-blur-md print:hidden">
       <div className="mx-auto flex w-full max-w-6xl items-center gap-6 px-4 py-2.5 sm:px-6">
         <Link href="/" className="shrink-0">
           <FirmName />
@@ -166,6 +166,10 @@ function TraderMenu({ me, path, canBuy, unread }: { me: Me; path: string; canBuy
             )}
           </nav>
           <div className="flex flex-col border-t border-border pt-1">
+            <Link href="/status" className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-raised">
+              <StatusIcon className="size-4 text-muted" />
+              Status of trading
+            </Link>
             <button
               type="button"
               disabled={reset.isPending}

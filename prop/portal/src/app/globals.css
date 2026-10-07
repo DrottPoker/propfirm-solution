@@ -59,6 +59,56 @@ body::before {
   opacity: 0.035;
 }
 
+/* Printed or saved as a PDF, such as a breach report or a trade's details: dark text on white whatever the firm's colors, without
+   the grain. The menus around the page hide themselves. */
+@media print {
+  :root {
+    color-scheme: light !important;
+    --background: #ffffff !important;
+    --panel: #ffffff !important;
+    --border: #d4d4d8 !important;
+    --foreground: #111114 !important;
+    --muted: #55585f !important;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  body::before {
+    display: none;
+  }
+
+  /* A dialog marked for printing, such as a trade's details, prints alone and in full. */
+  body:has(dialog[data-print][open]) * {
+    visibility: hidden;
+  }
+
+  body:has(dialog[data-print][open]) dialog[data-print][open],
+  body:has(dialog[data-print][open]) dialog[data-print][open] * {
+    visibility: visible;
+  }
+
+  dialog[data-print][open] {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  dialog[data-print][open] * {
+    overflow: visible !important;
+  }
+
+  dialog[data-print]::backdrop {
+    display: none;
+  }
+}
+
 ::selection {
   background: color-mix(in oklab, var(--accent) 35%, transparent);
 }

@@ -1532,6 +1532,25 @@
         }
       }
     },
+    "/api/portal/status": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusPageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/payouts": {
       "get": {
         "tags": [
@@ -1868,6 +1887,82 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/accounts/{accountId}/trades/{positionId}/receipt": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/accounts/{accountId}/breach-report": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreachReport"
+                }
+              }
+            }
           }
         }
       }
@@ -3007,6 +3102,82 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/trades/{positionId}/receipt": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "positionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TradeReceipt"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/accounts/{accountId}/breach-report": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreachReport"
+                }
+              }
+            }
           }
         }
       }
@@ -4939,6 +5110,154 @@
         }
       }
     },
+    "/api/portal/admin/incidents": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmIncidentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/incidents/{incidentId}": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmIncidentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/admin/incidents/{incidentId}/note": {
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentNoteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/incidents/{incidentId}/reinstate": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/portal/admin/incidents/{incidentId}/credit": {
+      "post": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreditRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/portal/platform": {
       "get": {
         "tags": [
@@ -5333,6 +5652,185 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/incidents": {
+      "get": {
+        "tags": [
+          "Ops"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsIncidentsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsIncidentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/incidents/{incidentId}": {
+      "put": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsIncidentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/incidents/{incidentId}/publish": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsIncidentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/incidents/{incidentId}/updates": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsIncidentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/portal/ops/incidents/{incidentId}/dismiss": {
+      "post": {
+        "tags": [
+          "Ops"
+        ],
+        "parameters": [
+          {
+            "name": "incidentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -6337,7 +6835,8 @@
           "Created",
           "Opened",
           "Closed",
-          "Adjusted"
+          "Adjusted",
+          "Reopened"
         ],
         "description": "What changed a trading account's balance."
       },
@@ -6649,7 +7148,267 @@
             "format": "double"
           }
         },
-        "description": "What the trading platform recorded when a floor was breached. Closes are the positions the breach\nclosed, at the next price and with the commission for closing them, and BalanceAfter the balance\nthey left, which is why it can end below the floor."
+        "description": "What the trading platform recorded when a floor was breached. Closes are the positions the breach\nclosed, at the prices that broke it and with the commission for closing them, and BalanceAfter the balance\nthey left, which is why it can end below the floor."
+      },
+      "BreachPosition": {
+        "required": [
+          "positionId",
+          "symbol",
+          "side",
+          "volume",
+          "openPrice",
+          "openTime",
+          "currentPrice",
+          "profit"
+        ],
+        "type": "object",
+        "properties": {
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "openTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currentPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "BreachPrice": {
+        "required": [
+          "symbol",
+          "bid",
+          "ask",
+          "receivedAt",
+          "feed",
+          "bidMarkupPoints",
+          "askMarkupPoints"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "feed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeedPrice"
+              }
+            ]
+          },
+          "bidMarkupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "askMarkupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "BreachReport": {
+        "required": [
+          "accountId",
+          "currency",
+          "at",
+          "floorId",
+          "level",
+          "equity",
+          "balance",
+          "balanceAfter",
+          "prices",
+          "positions",
+          "equityCurve",
+          "gaps",
+          "steps"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "double"
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreachPrice"
+            }
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreachPosition"
+            }
+          },
+          "equityCurve": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EquityPoint"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PriceGap"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BreachStep"
+            }
+          }
+        },
+        "description": "Why a loss limit was broken: the limit, the equity and the open positions at that moment, the prices that broke it with\nthe feed's prices behind them, equity price by price before it, the periods without prices, and what happened step by\nstep. Balance is the balance before the positions closed and BalanceAfter after."
+      },
+      "BreachStep": {
+        "required": [
+          "at",
+          "kind",
+          "symbol",
+          "side",
+          "volume",
+          "price",
+          "amount",
+          "reason",
+          "floorId",
+          "level"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "side": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "volume": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "price": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "floorId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "level": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "request": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Something that happened on the account before and at the breach: a position opened, closed or partly closed, an order\nplaced, a request refused, a loss limit set or broken, money moved, or trading ended. Amount is the\nprofit of a close, the equity at a breach or the amount moved; Reason why a position closed, a\nrequest was refused or trading ended, or the type of an order. Request is what a refused request\nwas, such as \"PlaceOrder\" or \"ClosePosition\"."
       },
       "BuyerOrderResponse": {
         "required": [
@@ -7174,6 +7933,31 @@
         },
         "description": "Buys the challenge. A logged-in trader buys with their own email, and Email is then not\nused. Name and Country, a two-letter code, are the buyer's; a logged-in trader\nwho gave them before need not again. AcceptTerms is needed when the firm has terms.\nDiscountCode is one of the firm's codes, or empty for none."
       },
+      "CreditRequest": {
+        "required": [
+          "accountId",
+          "amount",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Puts an amount on the account, for example for a close the outage refused."
+      },
       "DailyLossReference": {
         "enum": [
           "Balance",
@@ -7650,6 +8434,23 @@
         },
         "description": "Notification emails to turn on (true) or off (false), by kind. Kinds that are left out keep their setting."
       },
+      "EquityPoint": {
+        "required": [
+          "time",
+          "equity"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "ExpansionResponse": {
         "required": [
           "slots",
@@ -7772,6 +8573,41 @@
           "OtherFloor"
         ]
       },
+      "FeedPrice": {
+        "required": [
+          "inputSequence",
+          "feed",
+          "bid",
+          "ask",
+          "receivedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "inputSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "feed": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A raw price from the feed, with its entry in the platform's journal."
+      },
       "FieldProblem": {
         "required": [
           "field",
@@ -7892,6 +8728,164 @@
           }
         },
         "description": "The firm's application for our review (ADR 0021): its company, owners and links we can check. Any field may be\nempty in a draft. What is required is checked when the application is sent. A company in the EU gives its\nVatNumber, or says with NoVatNumber that it has none."
+      },
+      "FirmExposure": {
+        "required": [
+          "firmId",
+          "name",
+          "accountsWithPositions"
+        ],
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "accountsWithPositions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A firm and how many of its accounts have open positions."
+      },
+      "FirmIncidentResponse": {
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "publicText",
+          "startedAt",
+          "endedAt",
+          "status",
+          "updates",
+          "note",
+          "impactKnown",
+          "accounts",
+          "decisions"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IncidentKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publicText": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentUpdateResponse"
+            }
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "impactKnown": {
+            "type": "boolean"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentAccountResponse"
+            }
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentDecisionResponse"
+            }
+          }
+        },
+        "description": "An incident as a firm sees it: what we said, the firm's own note, its accounts that the incident reached and what the\nfirm did for them. ImpactKnown is false when the trading platform could not tell, or the incident is\ntoo old or too long to look back on."
+      },
+      "FirmIncidentsResponse": {
+        "required": [
+          "incidents",
+          "open"
+        ],
+        "type": "object",
+        "properties": {
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FirmIncidentSummary"
+            }
+          },
+          "open": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The published incidents of the last 90 days that concern the firm, newest first, and how many still go on."
+      },
+      "FirmIncidentSummary": {
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "startedAt",
+          "endedAt",
+          "status",
+          "decisions"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IncidentKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "decisions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A published incident in a firm's list, with how many accounts the firm has decided on."
       },
       "FirmOwner": {
         "required": [
@@ -8304,6 +9298,329 @@
         "items": {
           "$ref": "#/components/schemas/IFormFile"
         }
+      },
+      "IncidentAccountResponse": {
+        "required": [
+          "accountId",
+          "number",
+          "tradingAccountId",
+          "challengeName",
+          "stageName",
+          "traderEmail",
+          "currency",
+          "status",
+          "openPositions",
+          "balanceAtStart",
+          "equityAtStart",
+          "ordersRefused",
+          "closesRefused",
+          "changesRefused",
+          "breach",
+          "balance",
+          "equity",
+          "tradingDays",
+          "canReinstate",
+          "canCredit"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tradingAccountId": {
+            "type": "string"
+          },
+          "challengeName": {
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "traderEmail": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "balanceAtStart": {
+            "type": "number",
+            "format": "double"
+          },
+          "equityAtStart": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ordersRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closesRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "changesRefused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "breach": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IncidentBreachResponse"
+              }
+            ]
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "tradingDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "canReinstate": {
+            "type": "boolean"
+          },
+          "canCredit": {
+            "type": "boolean"
+          }
+        },
+        "description": "One of the firm's accounts that the incident reached: open positions when it began, requests refused during it for lack\nof a fresh price, or a loss limit broken during it or in the half hour after. EquityAtStart is the\nequity when it began, when known. TradingAccountId is the stage's account on the trading platform,\nso an account that passed a stage during the incident shows once for each. CanReinstate when a\nbroken limit ended the stage, and CanCredit when the account still trades on it."
+      },
+      "IncidentBreachResponse": {
+        "required": [
+          "at",
+          "floorId",
+          "level",
+          "equity"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "floorId": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "A loss limit broken during the incident or soon after it."
+      },
+      "IncidentDecisionKind": {
+        "enum": [
+          "Reinstated",
+          "Credited"
+        ],
+        "description": "What a firm did for an account after an incident."
+      },
+      "IncidentDecisionResponse": {
+        "required": [
+          "id",
+          "accountId",
+          "number",
+          "kind",
+          "amount",
+          "reason",
+          "decidedBy",
+          "decidedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IncidentDecisionKind"
+          },
+          "amount": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "decidedBy": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "What the firm did for an account, by whom and why."
+      },
+      "IncidentKind": {
+        "enum": [
+          "PriceFeedOutage",
+          "PlatformDown",
+          "SlowPrices",
+          "Other"
+        ],
+        "description": "What went wrong (ADR 0053)."
+      },
+      "IncidentNoteRequest": {
+        "required": [
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The firm's own words to its traders about an incident. Empty removes them."
+      },
+      "IncidentRequest": {
+        "required": [
+          "kind",
+          "title",
+          "publicText",
+          "internalNote",
+          "startedAt",
+          "endedAt",
+          "firms"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/IncidentKind"
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "internalNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "firms": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "An incident as our staff write it. Firms are the firms it concerns, or null for every firm.\nEndedAt is empty while it goes on."
+      },
+      "IncidentStatus": {
+        "enum": [
+          "Draft",
+          "Open",
+          "Resolved"
+        ],
+        "description": "Where an incident is: written but not shown yet, shown and going on, or over."
+      },
+      "IncidentUpdateRequest": {
+        "required": [
+          "status",
+          "text"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "text": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "What our staff say as an incident goes on. Resolved ends it."
+      },
+      "IncidentUpdateResponse": {
+        "required": [
+          "at",
+          "status",
+          "text",
+          "by"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "text": {
+            "type": "string"
+          },
+          "by": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Something said about an incident as it went on. By is the staff member, shown in our admin view only."
       },
       "InviteResponse": {
         "required": [
@@ -9365,6 +10682,121 @@
         },
         "description": "How the firm checks its traders' IDs, its KYC: not chosen, our built-in checks, or its own service at the address and\nwhen that first worked through the whole flow. The firm goes live only once it is ready; our approval does not wait."
       },
+      "OpsIncidentResponse": {
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "publicText",
+          "internalNote",
+          "startedAt",
+          "endedAt",
+          "status",
+          "publishedAt",
+          "firms",
+          "detected",
+          "createdBy",
+          "updates"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/IncidentKind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "publicText": {
+            "type": "string"
+          },
+          "internalNote": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "publishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "firms": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "detected": {
+            "type": "boolean"
+          },
+          "createdBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentUpdateResponse"
+            }
+          }
+        },
+        "description": "An incident as our staff see it, with the note only they read."
+      },
+      "OpsIncidentsResponse": {
+        "required": [
+          "incidents",
+          "feed",
+          "firms"
+        ],
+        "type": "object",
+        "properties": {
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpsIncidentResponse"
+            }
+          },
+          "feed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PriceFeedNow"
+              }
+            ]
+          },
+          "firms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FirmExposure"
+            }
+          }
+        },
+        "description": "Our incidents, and how the platform is doing now: the price feed, and the firms with traders in open positions,\nwhich an outage would reach."
+      },
       "OpsLatePayoutsResponse": {
         "required": [
           "firmId",
@@ -9807,7 +11239,8 @@
       "OpsWaitingResponse": {
         "required": [
           "toReview",
-          "unpaid"
+          "unpaid",
+          "incidentDrafts"
         ],
         "type": "object",
         "properties": {
@@ -9818,9 +11251,13 @@
           "unpaid": {
             "type": "integer",
             "format": "int32"
+          },
+          "incidentDrafts": {
+            "type": "integer",
+            "format": "int32"
           }
         },
-        "description": "How many applications wait for us, and how many charges were declined and are not paid."
+        "description": "How many applications wait for us, how many charges were declined and are not paid, and how many incident drafts wait."
       },
       "OpsWeekResponse": {
         "required": [
@@ -10831,6 +12268,75 @@
         },
         "description": "Who is logged in to the portal. Role is trader or admin. EmailConfirmed is false\nfor a trader who chose a password on an order's page and has not opened the link from the email since.\nName and Country are a trader's from buying, so the shop need not ask again."
       },
+      "PriceFeedNow": {
+        "required": [
+          "feed",
+          "lastPriceAt",
+          "openMarkets",
+          "withoutPrices"
+        ],
+        "type": "object",
+        "properties": {
+          "feed": {
+            "type": "string"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "openMarkets": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "withoutPrices": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "The price feed now: when the last price came, how many symbols have an open market and how many of them got no price\nfor a minute. Null in the response when the trading platform could not be asked."
+      },
+      "PriceGap": {
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PricePoint": {
+        "required": [
+          "time",
+          "bid",
+          "ask"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "bid": {
+            "type": "number",
+            "format": "double"
+          },
+          "ask": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "PriceRequest": {
         "required": [
           "amount",
@@ -10994,6 +12500,139 @@
           }
         },
         "description": "What choosing a number of slots would cost: Lines paid now, which add up to\nNetAmount without VAT, and Amount with it, and MonthlyPrice\nwithout VAT for each month from From. Expansion is what one round of automatic\nexpansion would add, when asked for. Problem says why it cannot be chosen."
+      },
+      "ReceiptClose": {
+        "required": [
+          "fill",
+          "profit",
+          "reason",
+          "level"
+        ],
+        "type": "object",
+        "properties": {
+          "fill": {
+            "$ref": "#/components/schemas/ReceiptFill"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "level": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "A part closed or the close, why, and the stop loss or take profit level it closed at when known."
+      },
+      "ReceiptFill": {
+        "required": [
+          "at",
+          "volume",
+          "price",
+          "commission",
+          "feed",
+          "markupPoints",
+          "prices"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "feed": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/FeedPrice"
+              }
+            ]
+          },
+          "markupPoints": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "prices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            }
+          }
+        },
+        "description": "One fill, with the raw price the platform had from the feed and the markup between them on the filled side, or null\nwhen it is not known, and the feed's prices a minute before and after."
+      },
+      "ReceiptOrder": {
+        "required": [
+          "placedAt",
+          "type",
+          "price"
+        ],
+        "type": "object",
+        "properties": {
+          "placedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "type": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "ReinstateRequest": {
+        "required": [
+          "accountId",
+          "balance",
+          "keepTradingDays",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "keepTradingDays": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Reinstates the account's ended stage with the balance, keeping the trading days counted so far or not. The reason is kept with the decision."
       },
       "RejectPayoutRequest": {
         "required": [
@@ -11279,6 +12918,15 @@
           }
         },
         "description": "One of the firm's saved replies, as its administrators wrote it, with the placeholders not filled in."
+      },
+      "ServicePart": {
+        "enum": [
+          "Trading",
+          "Prices",
+          "Terminal",
+          "Portal"
+        ],
+        "description": "The parts of the service a status page shows."
       },
       "ShopItemResponse": {
         "required": [
@@ -11721,6 +13369,112 @@
           }
         },
         "description": "Starts a challenge for the trader with the email. Reference is the firm's own id, for\nexample its order number: repeating it returns the account already started instead of a second one."
+      },
+      "StatusIncidentResponse": {
+        "required": [
+          "id",
+          "title",
+          "startedAt",
+          "endedAt",
+          "status",
+          "parts",
+          "updates",
+          "firmNote"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServicePart"
+            }
+          },
+          "updates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentUpdateResponse"
+            }
+          },
+          "firmNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "An incident on the status page, with what we said and the firm's own note."
+      },
+      "StatusPageResponse": {
+        "required": [
+          "firmName",
+          "now",
+          "allRunning",
+          "parts",
+          "incidents"
+        ],
+        "type": "object",
+        "properties": {
+          "firmName": {
+            "type": "string"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allRunning": {
+            "type": "boolean"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusPartResponse"
+            }
+          },
+          "incidents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StatusIncidentResponse"
+            }
+          }
+        },
+        "description": "A firm's status page: whether everything runs now, each part of the service, and the incidents of the last 90 days."
+      },
+      "StatusPartResponse": {
+        "required": [
+          "part",
+          "running"
+        ],
+        "type": "object",
+        "properties": {
+          "part": {
+            "$ref": "#/components/schemas/ServicePart"
+          },
+          "running": {
+            "type": "boolean"
+          }
+        },
+        "description": "A part of the service and whether it runs now."
       },
       "StepResponse": {
         "required": [
@@ -12298,6 +14052,82 @@
           }
         },
         "description": "One of the firm's checks of a trader, such as \"ID checked\", and when and by whom it was ticked. Not ticked when CheckedAt is null."
+      },
+      "TradeReceipt": {
+        "required": [
+          "accountId",
+          "positionId",
+          "symbol",
+          "side",
+          "digits",
+          "currency",
+          "order",
+          "opened",
+          "closes",
+          "commission",
+          "profit",
+          "result"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "order": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReceiptOrder"
+              }
+            ]
+          },
+          "opened": {
+            "$ref": "#/components/schemas/ReceiptFill"
+          },
+          "closes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReceiptClose"
+            }
+          },
+          "commission": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "result": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "What a trade was and the prices behind it: the limit or stop order it came from, its opening and each close.\nProfit is the closes' profit before commission, and Result the profit after all\ncommission once the position is closed. Amounts are in Currency."
       },
       "TraderEmailKind": {
         "enum": [

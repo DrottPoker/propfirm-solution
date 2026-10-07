@@ -115,6 +115,12 @@ internal sealed partial class TradingCommandWorker(
             case ResumeTradingAccount resume:
                 await trading.ResumeAccountAsync(firm.Trading!, resume.AccountId, cancellationToken);
                 break;
+            case ReopenTradingAccount reopen:
+                await trading.ReopenAccountAsync(firm.Trading!, reopen.AccountId, reopen.Balance, cancellationToken);
+                break;
+            case SetTradingNotice notice:
+                await trading.SetNoticeAsync(firm.Trading!, notice.Notice, cancellationToken);
+                break;
             case WithdrawFromTradingAccount withdraw:
                 await trading.WithdrawAsync(firm.Trading!, withdraw.AccountId, withdraw.OperationId, withdraw.Amount, withdraw.MinBalance, cancellationToken);
                 break;
@@ -161,7 +167,7 @@ internal sealed partial class TradingCommandWorker(
         command.Parameters.AddWithValue(firm.Id);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken)
-            ? new QueuedCommand(reader.GetInt64(0), reader.GetGuid(1), JsonSerializer.Deserialize<TradingCommand>(reader.GetString(2), PropJson.Options)!)
+            ? new QueuedCommand(reader.GetInt64(0), reader.IsDBNull(1) ? null : reader.GetGuid(1), JsonSerializer.Deserialize<TradingCommand>(reader.GetString(2), PropJson.Options)!)
             : null;
     }
 
@@ -183,11 +189,11 @@ internal sealed partial class TradingCommandWorker(
                 await command.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            if (rejected.Command is WithdrawFromTradingAccount withdraw)
+            if (rejected is { Command: WithdrawFromTradingAccount withdraw, ChallengeAccountId: { } challengeAccountId })
             {
                 var reason = refusal.Reason ?? "The trading platform refused the withdrawal.";
                 await challenges.ApplyAsync(
-                    connection, firm, rejected.ChallengeAccountId, _ => new WithdrawalRejected(time.GetUtcNow(), withdraw.OperationId, reason), null, cancellationToken);
+                    connection, firm, challengeAccountId, _ => new WithdrawalRejected(time.GetUtcNow(), withdraw.OperationId, reason), null, cancellationToken);
             }
 
             await transaction.CommitAsync(cancellationToken);
@@ -227,7 +233,8 @@ internal sealed partial class TradingCommandWorker(
         }
     }
 
-    private sealed record QueuedCommand(long Id, Guid ChallengeAccountId, TradingCommand Command);
+    // A command for the firm as a whole, such as its terminals' notice, has no challenge account.
+    private sealed record QueuedCommand(long Id, Guid? ChallengeAccountId, TradingCommand Command);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The trading platform refused a command for firm {FirmId}; it is set aside")]
     private static partial void LogRejected(ILogger logger, string firmId, Exception exception);

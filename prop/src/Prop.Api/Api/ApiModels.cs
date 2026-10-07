@@ -278,7 +278,7 @@ public sealed record ResultsResponse(
 
 /// <summary>
 /// What the trading platform recorded when a floor was breached. <paramref name="Closes"/> are the positions the breach
-/// closed, at the next price and with the commission for closing them, and <paramref name="BalanceAfter"/> the balance
+/// closed, at the prices that broke it and with the commission for closing them, and <paramref name="BalanceAfter"/> the balance
 /// they left, which is why it can end below the floor.
 /// </summary>
 public sealed record BreachEvidence(

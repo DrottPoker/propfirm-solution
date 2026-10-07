@@ -35,6 +35,8 @@ import {
   PencilSimpleIcon,
   PlayIcon as PhPlayIcon,
   PlusIcon as PhPlusIcon,
+  PrinterIcon,
+  PulseIcon,
   ReceiptIcon as PhReceiptIcon,
   RocketLaunchIcon,
   SealCheckIcon,
@@ -51,6 +53,7 @@ import {
   UsersFourIcon,
   UsersThreeIcon,
   WarningIcon,
+  WarningOctagonIcon,
   XCircleIcon,
   XIcon,
 } from "@phosphor-icons/react/ssr";
@@ -116,3 +119,6 @@ export const ChartIcon = icon(ChartLineUpIcon);
 export const TerminalIcon = icon(MonitorPlayIcon);
 export const EyeIcon = icon(PhEyeIcon, "bold");
 export const EyeSlashIcon = icon(PhEyeSlashIcon, "bold");
+export const IncidentIcon = icon(WarningOctagonIcon);
+export const StatusIcon = icon(PulseIcon);
+export const PrintIcon = icon(PrinterIcon);

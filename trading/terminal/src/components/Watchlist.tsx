@@ -7,12 +7,13 @@ import { dayFigures } from "@/lib/daySummary";
 import { loadFavorites, saveFavorites, toggleFavorite } from "@/lib/favorites";
 import { formatPrice, formatSignedPercent } from "@/lib/format";
 import { categoriesOf, categoryOf, type Category } from "@/lib/instruments";
-import { isClosed } from "@/lib/marketHours";
+import { isClosed, useNow } from "@/lib/marketHours";
 import { useDaySummary, useMarket } from "@/lib/queries";
 import { useTradingStore, type PriceMove } from "@/lib/store";
 
 import { ClosedTag } from "./ClosedTag";
 import { SearchIcon, StarIcon } from "./icons";
+import { OldPriceTag, useOldPrice } from "./PriceAlerts";
 import { Sparkline } from "./Sparkline";
 
 type Filter = "All" | Category | "Favorites";
@@ -31,6 +32,8 @@ export function Watchlist({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
   const [favorites, setFavorites] = useState(loadFavorites);
+  // One clock for every row, for the age of prices that stopped coming.
+  const now = useNow(5_000);
 
   const filters: Filter[] = ["All", ...categoriesOf(instruments), "Favorites"];
   const query = search.trim().toUpperCase();
@@ -102,6 +105,7 @@ export function Watchlist({
                   instrument={instrument}
                   isSelected={instrument.symbol === selected}
                   isFavorite={favorites.includes(instrument.symbol)}
+                  now={now}
                   onSelect={onSelect}
                   onToggleFavorite={onToggleFavorite}
                 />
@@ -119,6 +123,7 @@ function Row({
   instrument,
   isSelected,
   isFavorite,
+  now,
   onSelect,
   onToggleFavorite,
 }: {
@@ -126,6 +131,7 @@ function Row({
   instrument: InstrumentInfo;
   isSelected: boolean;
   isFavorite: boolean;
+  now: Date | null;
   onSelect: (symbol: string) => void;
   onToggleFavorite: (symbol: string) => void;
 }) {
@@ -134,8 +140,10 @@ function Row({
   const move = useTradingStore((s) => s.moves[symbol]);
   const day = dayFigures(useDaySummary(accountId, symbol).data, price?.bid);
   const market = useMarket(accountId, symbol);
-  // The prices of a closed market are its last ones, so they are dimmed.
+  // The prices of a closed market are its last ones, so they are dimmed, as are prices that stopped coming (ADR 0053).
   const closed = isClosed(market);
+  const oldFor = useOldPrice(accountId, symbol, now);
+  const dimmed = closed || oldFor !== null;
 
   return (
     <tr
@@ -160,14 +168,15 @@ function Row({
             {symbol}
           </button>
           {market && closed && <ClosedTag market={market} compact />}
+          {oldFor !== null && <OldPriceTag ageMs={oldFor} compact />}
         </span>
       </td>
-      <td className={`px-1 py-2 text-right font-mono tabular-nums ${closed ? "opacity-60" : ""} ${move === "up" ? "text-profit" : move === "down" ? "text-loss" : ""}`}>
+      <td className={`px-1 py-2 text-right font-mono tabular-nums ${dimmed ? "opacity-60" : ""} ${move === "up" ? "text-profit" : move === "down" ? "text-loss" : ""}`}>
         <Flash bid={price?.bid} move={move}>
           {formatPrice(price?.bid, digits)}
         </Flash>
       </td>
-      <td className={`px-1 py-2 text-right font-mono tabular-nums ${closed ? "opacity-60" : ""}`}>
+      <td className={`px-1 py-2 text-right font-mono tabular-nums ${dimmed ? "opacity-60" : ""}`}>
         <Flash bid={price?.bid} move={move}>
           {formatPrice(price?.ask, digits)}
         </Flash>

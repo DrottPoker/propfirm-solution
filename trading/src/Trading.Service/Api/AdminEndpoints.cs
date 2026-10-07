@@ -13,6 +13,7 @@ using Trading.Service.Engine;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
 using Trading.Service.Realtime;
+using Trading.Service.Reports;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Api;
@@ -42,9 +43,15 @@ internal static class AdminEndpoints
         admin.MapPost("/accounts/{accountId}/close", CloseAccountAsync);
         admin.MapPost("/accounts/{accountId}/suspend", SuspendAccountAsync);
         admin.MapPost("/accounts/{accountId}/resume", ResumeAccountAsync);
+        admin.MapPost("/accounts/{accountId}/reopen", ReopenAccountAsync);
         admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
         admin.MapPut("/accounts/{accountId}/details", SetAccountDetailsAsync);
         admin.MapPut("/accounts/{accountId}/rules", SetAccountRulesAsync);
+        admin.MapGet("/accounts/{accountId}/positions/{positionId}/receipt", GetReceiptAsync);
+        admin.MapGet("/accounts/{accountId}/breach-report", GetBreachReportAsync);
+        admin.MapGet("/impact", GetImpactAsync);
+        admin.MapPut("/notice", SetNoticeAsync);
+        admin.MapDelete("/notice", RemoveNoticeAsync);
         admin.MapGet("/events", GetEventsAsync);
         admin.MapGet("/instruments", GetInstruments);
         admin.MapGet("/groups", ListGroupsAsync);
@@ -273,6 +280,88 @@ internal static class AdminEndpoints
         return TypedResults.Ok(rules);
     }
 
+    /// <summary>The receipt for one of the account's positions, as the trader sees it (ADR 0053).</summary>
+    private static async Task<Results<Ok<TradeReceipt>, ProblemHttpResult>> GetReceiptAsync(
+        string accountId,
+        string positionId,
+        HttpContext context,
+        EngineHost engine,
+        TradeReceipts receipts,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken) && await receipts.BuildAsync(accountId, positionId, cancellationToken) is { } receipt
+            ? TypedResults.Ok(receipt)
+            : Problem(StatusCodes.Status404NotFound, "The firm has no such account or position.");
+
+    /// <summary>Why the account's loss limit was broken, as the trader sees it (ADR 0053). Not found when none was broken.</summary>
+    private static async Task<Results<Ok<BreachReport>, ProblemHttpResult>> GetBreachReportAsync(
+        string accountId,
+        HttpContext context,
+        EngineHost engine,
+        BreachReports reports,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken) && await reports.BuildAsync(accountId, cancellationToken) is { } report
+            ? TypedResults.Ok(report)
+            : Problem(StatusCodes.Status404NotFound, "The firm has no such account, or none of its loss limits was broken.");
+
+    /// <summary>
+    /// What a period, such as an outage of the price feed, did to the firm's accounts (ADR 0053): the accounts with
+    /// positions open when it began, with commands refused for lack of a fresh price during it, or with a loss limit
+    /// broken during it or in the half hour after, with their equity when it began. At most a day long, beginning in
+    /// the last 30 days.
+    /// </summary>
+    private static async Task<Results<Ok<IncidentImpact>, ProblemHttpResult>> GetImpactAsync(
+        [FromQuery] DateTimeOffset from,
+        [FromQuery] DateTimeOffset to,
+        HttpContext context,
+        IncidentImpacts impacts,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        if (to <= from || to - from > IncidentImpacts.MaxLength || from < now - IncidentImpacts.MaxAge || from > now)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The period must begin in the last 30 days and last at most a day.");
+        }
+
+        return TypedResults.Ok(await impacts.BuildAsync([.. AdminApiKeyFilter.TenantOf(context).Groups], from, to, cancellationToken));
+    }
+
+    /// <summary>
+    /// Shows a notice at the top of the firm's terminals, for example that the price feed has stopped and what the firm
+    /// does about it (ADR 0053). Replaces the one before. Traders with the terminal open see it at once.
+    /// </summary>
+    private static async Task<Results<Ok<TerminalNotice>, ProblemHttpResult>> SetNoticeAsync(
+        TerminalNoticeRequest request,
+        HttpContext context,
+        IUserStore users,
+        IHubContext<TradingHub, ITradingClient> hub,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (request.Problem() is { } problem)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, problem);
+        }
+
+        var tenant = AdminApiKeyFilter.TenantOf(context);
+        var notice = request.ToNotice(time.GetUtcNow());
+        await users.SetTenantNoticeAsync(tenant.Id, notice, cancellationToken);
+        await hub.Clients.Group(RealtimeGroups.Tenant(tenant.Id)).Notice(notice);
+        return TypedResults.Ok(notice);
+    }
+
+    private static async Task<NoContent> RemoveNoticeAsync(
+        HttpContext context,
+        IUserStore users,
+        IHubContext<TradingHub, ITradingClient> hub,
+        CancellationToken cancellationToken)
+    {
+        var tenant = AdminApiKeyFilter.TenantOf(context);
+        await users.SetTenantNoticeAsync(tenant.Id, null, cancellationToken);
+        await hub.Clients.Group(RealtimeGroups.Tenant(tenant.Id)).Notice(null);
+        return TypedResults.NoContent();
+    }
+
     private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SetFloorAsync(
         string accountId,
         string floorId,
@@ -324,6 +413,21 @@ internal static class AdminEndpoints
         CancellationToken cancellationToken) =>
         await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
             ? CommandResults.From(await engine.SendAsync(t => new ResumeAccount(t, accountId), cancellationToken), alreadyDone: RejectReason.AccountNotSuspended)
+            : UnknownAccount();
+
+    /// <summary>
+    /// Opens a disabled account again with the balance, for example when an outage broke a loss limit and the firm
+    /// reinstates the trader (ADR 0053). Its floors are removed, so the firm sets them again. An account that is not
+    /// disabled answers 200 without events, so a retry is safe.
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> ReopenAccountAsync(
+        string accountId,
+        ReopenAccountRequest request,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
+            ? CommandResults.From(await engine.SendAsync(t => new ReopenAccount(t, accountId, request.Balance), cancellationToken), alreadyDone: RejectReason.AccountNotDisabled)
             : UnknownAccount();
 
     /// <summary>A deposit or withdrawal, for example a trader's payout. Floors measured from the account move with the balance.</summary>

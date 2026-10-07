@@ -296,6 +296,14 @@ internal sealed class ChallengeService(
                 case ResumeAccountRequested resume:
                     await QueueCommandAsync(connection, firm, account, new ResumeTradingAccount(resume.AccountId), now, cancellationToken);
                     break;
+                case ReopenAccountRequested reopen:
+                    await QueueCommandAsync(connection, firm, account, new ReopenTradingAccount(reopen.AccountId, reopen.Balance), now, cancellationToken);
+                    break;
+                case StageReinstated:
+                    // The stage goes on, so nothing ended it any more.
+                    await ExecuteAsync(connection, "update challenge_accounts set ending = null where id = $1", [account.Id], cancellationToken);
+                    await QueueWebhookAsync(connection, firm, account, "account.reinstated", output, now, cancellationToken);
+                    break;
                 case StageStarted started:
                     await ExecuteAsync(connection, "update trading_accounts set started_at = $2 where account_id = $1", [started.AccountId, started.Time], cancellationToken);
                     await QueueWebhookAsync(connection, firm, account, "account.stage_started", output, now, cancellationToken);
@@ -518,10 +526,22 @@ internal sealed class ChallengeService(
         TradingCommand command,
         DateTimeOffset now,
         CancellationToken cancellationToken) =>
+        QueueAccountCommandAsync(connection, firm, account.Id, command, now, cancellationToken);
+
+    /// <summary>Queues a command for the account, such as a deposit the firm decided on, after the firm's earlier commands.</summary>
+    public static Task QueueAccountCommandAsync(NpgsqlConnection connection, Firm firm, Guid accountId, TradingCommand command, DateTimeOffset now, CancellationToken cancellationToken) =>
         ExecuteAsync(
             connection,
             "insert into trading_commands (firm_id, challenge_account_id, command, created_at) values ($1, $2, $3, $4)",
-            [firm.Id, account.Id, Jsonb(JsonSerializer.Serialize(command, PropJson.Options)), now],
+            [firm.Id, accountId, Jsonb(JsonSerializer.Serialize(command, PropJson.Options)), now],
+            cancellationToken);
+
+    /// <summary>Queues a command for the firm as a whole, such as its terminals' notice, after the firm's earlier commands.</summary>
+    public static Task QueueFirmCommandAsync(NpgsqlConnection connection, Firm firm, TradingCommand command, DateTimeOffset now, CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            connection,
+            "insert into trading_commands (firm_id, command, created_at) values ($1, $2, $3)",
+            [firm.Id, Jsonb(JsonSerializer.Serialize(command, PropJson.Options)), now],
             cancellationToken);
 
     private static Task QueueWebhookAsync(

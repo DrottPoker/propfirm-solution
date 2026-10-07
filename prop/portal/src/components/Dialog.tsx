@@ -13,6 +13,8 @@ type DialogProps = {
   children: React.ReactNode;
   /** The buttons at the bottom, for example Cancel and the action. */
   footer?: React.ReactNode;
+  /** Printing shows only the dialog, for example a trade's details to save as a PDF. */
+  print?: boolean;
 };
 
 /**
@@ -46,7 +48,7 @@ function Header({ titleId, title, description, onClose }: { titleId: string; tit
         </h2>
         {description && <div className="text-sm text-muted">{description}</div>}
       </div>
-      <button type="button" aria-label="Close" onClick={onClose} className="-mr-2 grid size-9 shrink-0 place-items-center rounded-md text-muted hover:bg-background hover:text-foreground">
+      <button type="button" aria-label="Close" onClick={onClose} className="-mr-2 grid size-9 shrink-0 place-items-center rounded-md text-muted hover:bg-background hover:text-foreground print:hidden">
         <CloseIcon />
       </button>
     </div>
@@ -77,13 +79,14 @@ export function Modal({ open, onClose, title, description, children, footer }: D
 }
 
 /** A panel from the right side of the screen, for a task with a form such as starting a challenge. Full width on a phone. */
-export function Sheet({ open, onClose, title, description, children, footer }: DialogProps) {
+export function Sheet({ open, onClose, title, description, children, footer, print = false }: DialogProps) {
   const ref = useModal(open);
   const titleId = useId();
   return (
     <dialog
       ref={ref}
       aria-labelledby={titleId}
+      data-print={print || undefined}
       onClose={onClose}
       onClick={(event) => event.target === ref.current && onClose()}
       className="m-0 ml-auto h-dvh max-h-dvh w-full max-w-md border-l border-border bg-panel p-0 text-foreground shadow-float backdrop:bg-black/60 backdrop:backdrop-blur-sm open:animate-slide-in"
@@ -94,7 +97,7 @@ export function Sheet({ open, onClose, title, description, children, footer }: D
             <Header titleId={titleId} title={title} description={description} onClose={onClose} />
           </div>
           <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">{children}</div>
-          {footer && <div className="flex flex-wrap justify-end gap-2.5 border-t border-border px-6 py-4">{footer}</div>}
+          {footer && <div className="flex flex-wrap justify-end gap-2.5 border-t border-border px-6 py-4 print:hidden">{footer}</div>}
         </div>
       )}
     </dialog>

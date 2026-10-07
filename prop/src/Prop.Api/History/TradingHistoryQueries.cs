@@ -23,6 +23,9 @@ public enum BalanceChangeKind
 
     /// <summary>Money was deposited or withdrawn, for example a payout's profit. Not a trading result.</summary>
     Adjusted,
+
+    /// <summary>The ended account was opened again with a new balance, when the firm reinstated its stage (ADR 0053). Not a trading result.</summary>
+    Reopened,
 }
 
 internal sealed record BalanceChange(long Sequence, DateTimeOffset Time, BalanceChangeKind Kind, decimal Change, decimal BalanceAfter);
@@ -226,6 +229,21 @@ internal sealed class TradingHistoryQueries(NpgsqlDataSource dataSource, Databas
         }
 
         return result;
+    }
+
+    /// <summary>The trading account of the challenge account's stages that had the position, or null.</summary>
+    public async Task<string?> TradingAccountOfPositionAsync(Guid challengeAccountId, string positionId, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            select p.account_id from trading_positions p join trading_accounts t on t.account_id = p.account_id
+            where t.challenge_account_id = $1 and p.position_id = $2
+            limit 1
+            """);
+        command.Parameters.AddWithValue(challengeAccountId);
+        command.Parameters.AddWithValue(positionId);
+        return await command.ExecuteScalarAsync(cancellationToken) as string;
     }
 
     /// <summary>The account's closed positions, newest first: all of them, or a page of those closed before a sequence number.</summary>

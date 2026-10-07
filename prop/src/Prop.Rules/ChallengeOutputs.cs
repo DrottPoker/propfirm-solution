@@ -14,6 +14,15 @@ public sealed record CloseAccountRequested(DateTimeOffset Time, string AccountId
 
 public sealed record StageStarted(DateTimeOffset Time, int Stage, string AccountId) : ChallengeOutput(Time);
 
+/// <summary>Open the disabled account again with the balance, without floors, before they are set again (ADR 0053).</summary>
+public sealed record ReopenAccountRequested(DateTimeOffset Time, string AccountId, decimal Balance) : ChallengeOutput(Time);
+
+/// <summary>
+/// The failed stage goes on, on its trading account with <paramref name="Balance"/> (ADR 0053). Its deadlines moved on by
+/// <paramref name="DaysEnded"/>, the days it was ended.
+/// </summary>
+public sealed record StageReinstated(DateTimeOffset Time, int Stage, string AccountId, decimal Balance, bool TradingDaysKept, int DaysEnded) : ChallengeOutput(Time);
+
 /// <summary>Another day with at least one opened position.</summary>
 public sealed record TradingDayCounted(DateTimeOffset Time, int Stage, DateOnly Day, int TradingDays) : ChallengeOutput(Time);
 

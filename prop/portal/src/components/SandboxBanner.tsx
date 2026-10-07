@@ -31,7 +31,7 @@ export function SandboxBanner() {
   }
 
   return (
-    <div role="status" className="flex items-center justify-center gap-2.5 border-b border-accent/20 bg-accent/[0.07] px-6 py-1.5 text-center text-[13px] text-foreground/80">
+    <div role="status" className="flex items-center justify-center gap-2.5 border-b border-accent/20 bg-accent/[0.07] px-6 py-1.5 text-center text-[13px] text-foreground/80 print:hidden">
       <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse-dot rounded-full bg-accent text-accent/40" />
       {status === "Provisioning" ? (
         "Test environment. The firm's trading server is being set up."

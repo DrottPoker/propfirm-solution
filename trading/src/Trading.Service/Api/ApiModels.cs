@@ -50,6 +50,9 @@ public sealed record BalanceOperationRequest(string? OperationId, decimal Amount
 
 public sealed record SetPasswordRequest(string? Password);
 
+/// <summary>The balance a disabled account opens again with (ADR 0053).</summary>
+public sealed record ReopenAccountRequest(decimal Balance);
+
 /// <summary>
 /// The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every
 /// field is replaced, and one left out is cleared. See <see cref="AccountRules"/>.
@@ -84,6 +87,28 @@ public sealed record AccountDetailsRequest(string? Label, decimal? ProfitTarget,
 {
     public const int MaxLabelLength = 100;
 }
+
+/// <summary>
+/// A notice for the firm's terminals (ADR 0053): a short title, the text, how serious it is and where the trader
+/// reads more, such as the firm's status page.
+/// </summary>
+public sealed record TerminalNoticeRequest(string? Title, string? Text, NoticeLevel Level = NoticeLevel.Info, string? Url = null)
+{
+    public const int MaxTitleLength = 120;
+    public const int MaxTextLength = 1_000;
+
+    /// <summary>What is wrong with the notice, or null.</summary>
+    public string? Problem() =>
+        string.IsNullOrWhiteSpace(Title) || Title.Length > MaxTitleLength ? $"The title must have 1 to {MaxTitleLength} characters."
+        : string.IsNullOrWhiteSpace(Text) || Text.Length > MaxTextLength ? $"The text must have 1 to {MaxTextLength} characters."
+        : Url is not null && !(Uri.TryCreate(Url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp)) ? "The address must be an absolute http or https address."
+        : null;
+
+    public TerminalNotice ToNotice(DateTimeOffset now) => new(Title!.Trim(), Text!.Trim(), Level, Url is null ? null : new Uri(Url), now);
+}
+
+/// <summary>The firm's notice for its terminals, or null when there is none.</summary>
+public sealed record NoticeResponse(TerminalNotice? Notice);
 
 /// <summary>A login link for the user. With an account id, the terminal opens that account.</summary>
 public sealed record CreateLoginLinkRequest(string? AccountId);
