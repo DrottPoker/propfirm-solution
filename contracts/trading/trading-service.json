@@ -847,6 +847,84 @@
         }
       }
     },
+    "/api/accounts/{accountId}/limits": {
+      "put": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnLimitsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{accountId}/lock": {
+      "post": {
+        "tags": [
+          "Trading"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LockTradingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/me/settings": {
       "get": {
         "tags": [
@@ -1428,6 +1506,45 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountRules"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/v1/accounts/{accountId}/trading-day": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradingDayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResponse"
                 }
               }
             }
@@ -2163,7 +2280,8 @@
           "marginLevelPercent",
           "positions",
           "orders",
-          "floors"
+          "floors",
+          "ownLimits"
         ],
         "type": "object",
         "properties": {
@@ -2219,9 +2337,12 @@
             "items": {
               "$ref": "#/components/schemas/FloorSnapshot"
             }
+          },
+          "ownLimits": {
+            "$ref": "#/components/schemas/OwnLimitsSnapshot"
           }
         },
-        "description": "Account state valued at the latest prices. Amounts are in account currency."
+        "description": "Account state valued at the latest prices, with the trader's own limits. Amounts are in account currency."
       },
       "AccountStatus": {
         "enum": [
@@ -2408,7 +2529,9 @@
           "InsufficientMargin",
           "EquityFloor",
           "AccountClosed",
-          "AccountSuspended"
+          "AccountSuspended",
+          "TradingLocked",
+          "TradeLimit"
         ]
       },
       "Candle": {
@@ -2499,7 +2622,8 @@
           "TakeProfit",
           "StopOut",
           "EquityFloor",
-          "AccountClosed"
+          "AccountClosed",
+          "OwnLimit"
         ]
       },
       "CommandResponse": {
@@ -2704,6 +2828,12 @@
             "$ref": "#/components/schemas/EngineEventOrderPlaced"
           },
           {
+            "$ref": "#/components/schemas/EngineEventOwnLimitReached"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventOwnLimitsSet"
+          },
+          {
             "$ref": "#/components/schemas/EngineEventPositionClosed"
           },
           {
@@ -2717,6 +2847,18 @@
           },
           {
             "$ref": "#/components/schemas/EngineEventStopOutTriggered"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventTradingDaySet"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventTradingDayStarted"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventTradingLocked"
+          },
+          {
+            "$ref": "#/components/schemas/EngineEventTradingUnlocked"
           }
         ],
         "description": "Output from the engine. The timestamp is the timestamp of the input that caused it.",
@@ -2738,11 +2880,17 @@
             "OrderCancelled": "#/components/schemas/EngineEventOrderCancelled",
             "OrderModified": "#/components/schemas/EngineEventOrderModified",
             "OrderPlaced": "#/components/schemas/EngineEventOrderPlaced",
+            "OwnLimitReached": "#/components/schemas/EngineEventOwnLimitReached",
+            "OwnLimitsSet": "#/components/schemas/EngineEventOwnLimitsSet",
             "PositionClosed": "#/components/schemas/EngineEventPositionClosed",
             "PositionModified": "#/components/schemas/EngineEventPositionModified",
             "PositionOpened": "#/components/schemas/EngineEventPositionOpened",
             "PositionPartiallyClosed": "#/components/schemas/EngineEventPositionPartiallyClosed",
-            "StopOutTriggered": "#/components/schemas/EngineEventStopOutTriggered"
+            "StopOutTriggered": "#/components/schemas/EngineEventStopOutTriggered",
+            "TradingDaySet": "#/components/schemas/EngineEventTradingDaySet",
+            "TradingDayStarted": "#/components/schemas/EngineEventTradingDayStarted",
+            "TradingLocked": "#/components/schemas/EngineEventTradingLocked",
+            "TradingUnlocked": "#/components/schemas/EngineEventTradingUnlocked"
           }
         }
       },
@@ -3248,6 +3396,79 @@
         },
         "description": "A limit or stop order was accepted and waits for its price. TrailingDistance is set for a trailing stop."
       },
+      "EngineEventOwnLimitReached": {
+        "required": [
+          "accountId",
+          "limit",
+          "level",
+          "equity",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "OwnLimitReached"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "limit": {
+            "$ref": "#/components/schemas/LockReason"
+          },
+          "level": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Equity reached the trader's own daily loss limit or profit target. Positions close and new orders lock right after."
+      },
+      "EngineEventOwnLimitsSet": {
+        "required": [
+          "accountId",
+          "limits",
+          "pending",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "OwnLimitsSet"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/OwnLimits"
+          },
+          "pending": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnLimits"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The trader's own limits now, and Pending from the next trading day when they loosened one (ADR 0054)."
+      },
       "EngineEventPositionClosed": {
         "required": [
           "accountId",
@@ -3552,6 +3773,144 @@
         },
         "description": "The margin level fell below the stop out level. Positions are closed, largest loss first."
       },
+      "EngineEventTradingDaySet": {
+        "required": [
+          "accountId",
+          "day",
+          "nextDayStart",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "TradingDaySet"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "day": {
+            "$ref": "#/components/schemas/TradingDay"
+          },
+          "nextDayStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The account's trading day now starts as told, the next time at NextDayStart (ADR 0054)."
+      },
+      "EngineEventTradingDayStarted": {
+        "required": [
+          "accountId",
+          "dayStartBalance",
+          "limits",
+          "nextDayStart",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "TradingDayStarted"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "dayStartBalance": {
+            "type": "number",
+            "format": "double"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/OwnLimits"
+          },
+          "nextDayStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A trading day started on an account with own limits or a lock: the limits counted from DayStartBalance,\nLimits are those for the day, and the day ends at NextDayStart."
+      },
+      "EngineEventTradingLocked": {
+        "required": [
+          "accountId",
+          "reason",
+          "until",
+          "limit",
+          "dayResult",
+          "positionsClosed",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "TradingLocked"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/LockReason"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "limit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "dayResult": {
+            "type": "number",
+            "format": "double"
+          },
+          "positionsClosed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "New orders are locked until Until, the start of the next trading day (ADR 0054). Limit\nis the own limit that was reached, null when the trader locked the day. DayResult is equity at the\nlock less the balance the day started with, and PositionsClosed how many positions the lock closed."
+      },
+      "EngineEventTradingUnlocked": {
+        "required": [
+          "accountId",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "TradingUnlocked"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "A new trading day started, or the firm reopened the account, so new orders are taken again."
+      },
       "EngineInput": {
         "required": [
           "kind"
@@ -3583,6 +3942,9 @@
             "$ref": "#/components/schemas/EngineInputCreateGroup"
           },
           {
+            "$ref": "#/components/schemas/EngineInputLockTrading"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputModifyOrder"
           },
           {
@@ -3607,6 +3969,12 @@
             "$ref": "#/components/schemas/EngineInputSetEquityFloor"
           },
           {
+            "$ref": "#/components/schemas/EngineInputSetOwnLimits"
+          },
+          {
+            "$ref": "#/components/schemas/EngineInputSetTradingDay"
+          },
+          {
             "$ref": "#/components/schemas/EngineInputSuspendAccount"
           }
         ],
@@ -3622,6 +3990,7 @@
             "ClosePosition": "#/components/schemas/EngineInputClosePosition",
             "CreateAccount": "#/components/schemas/EngineInputCreateAccount",
             "CreateGroup": "#/components/schemas/EngineInputCreateGroup",
+            "LockTrading": "#/components/schemas/EngineInputLockTrading",
             "ModifyOrder": "#/components/schemas/EngineInputModifyOrder",
             "ModifyPosition": "#/components/schemas/EngineInputModifyPosition",
             "PlaceOrder": "#/components/schemas/EngineInputPlaceOrder",
@@ -3630,6 +3999,8 @@
             "ReopenAccount": "#/components/schemas/EngineInputReopenAccount",
             "ResumeAccount": "#/components/schemas/EngineInputResumeAccount",
             "SetEquityFloor": "#/components/schemas/EngineInputSetEquityFloor",
+            "SetOwnLimits": "#/components/schemas/EngineInputSetOwnLimits",
+            "SetTradingDay": "#/components/schemas/EngineInputSetTradingDay",
             "SuspendAccount": "#/components/schemas/EngineInputSuspendAccount"
           }
         }
@@ -3860,6 +4231,32 @@
           }
         },
         "description": "Creates a trading group, for example for a firm that signed up. Its currency and stop out level never change\nafterwards, but its symbols can (see ChangeGroupSymbols)."
+      },
+      "EngineInputLockTrading": {
+        "required": [
+          "accountId",
+          "closePositions",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "LockTrading"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "closePositions": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The trader locks new orders until the next trading day, which nobody can undo (ADR 0054). Pending orders are cancelled.\nWith ClosePositions every position closes too, except one whose market has no fresh price now."
       },
       "EngineInputModifyOrder": {
         "required": [
@@ -4161,6 +4558,58 @@
           }
         },
         "description": "Adds or replaces a named equity floor on the account."
+      },
+      "EngineInputSetOwnLimits": {
+        "required": [
+          "accountId",
+          "limits",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "SetOwnLimits"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/OwnLimits"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "The trader's own limits (ADR 0054). Each limit that is stricter than now applies at once; each that is looser, or\nturned off, applies from the next trading day."
+      },
+      "EngineInputSetTradingDay": {
+        "required": [
+          "accountId",
+          "day",
+          "timestamp"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "SetTradingDay"
+            ],
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "day": {
+            "$ref": "#/components/schemas/TradingDay"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Sets when the account's trading day starts, as the firm's system counts it (ADR 0054). Until it is set, the day starts\nat midnight UTC. The day going on keeps running until the next start of the new day."
       },
       "EngineInputSuspendAccount": {
         "required": [
@@ -4607,6 +5056,26 @@
         },
         "description": "The token from a login link."
       },
+      "LockReason": {
+        "enum": [
+          "Trader",
+          "DailyLoss",
+          "DailyTarget"
+        ],
+        "description": "Why new orders are locked until the next trading day."
+      },
+      "LockTradingRequest": {
+        "required": [
+          "closePositions"
+        ],
+        "type": "object",
+        "properties": {
+          "closePositions": {
+            "type": "boolean"
+          }
+        },
+        "description": "Locks new orders until the next trading day (ADR 0054). With ClosePositions every position closes too."
+      },
       "LoginLinkResponse": {
         "required": [
           "url",
@@ -4903,6 +5372,156 @@
           "Limit",
           "Stop"
         ]
+      },
+      "OwnLimits": {
+        "required": [
+          "dailyLoss",
+          "dailyTarget",
+          "maxTrades"
+        ],
+        "type": "object",
+        "properties": {
+          "dailyLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "dailyTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTrades": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "Limits the trader sets for themselves, stricter than the firm's (ADR 0054). DailyLoss and\nDailyTarget are amounts below and above the balance the trading day started with: reaching either\ncloses every position and locks new orders until the next trading day. MaxTrades is how many\npositions may open in a trading day. An empty limit is off."
+      },
+      "OwnLimitsRequest": {
+        "required": [
+          "dailyLoss",
+          "dailyTarget",
+          "maxTrades"
+        ],
+        "type": "object",
+        "properties": {
+          "dailyLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "dailyTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTrades": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "The trader's own limits (ADR 0054): a daily loss limit and a daily profit target in the account currency, counted\nfrom the balance the trading day started with, and the most positions to open in a day. An empty limit is off. A\nstricter limit applies at once and a looser one from the next trading day."
+      },
+      "OwnLimitsSnapshot": {
+        "required": [
+          "limits",
+          "pending",
+          "tradingDay",
+          "dayStartBalance",
+          "lossLevel",
+          "targetLevel",
+          "tradesToday",
+          "nextDayStart",
+          "lock"
+        ],
+        "type": "object",
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/OwnLimits"
+          },
+          "pending": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnLimits"
+              }
+            ]
+          },
+          "tradingDay": {
+            "$ref": "#/components/schemas/TradingDay"
+          },
+          "dayStartBalance": {
+            "type": "number",
+            "format": "double"
+          },
+          "lossLevel": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "targetLevel": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "tradesToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextDayStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lock": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnLock"
+              }
+            ]
+          }
+        },
+        "description": "The trader's own limits on an account now. Pending are the limits from the next trading day, when\nthe trader loosened one. LossLevel and TargetLevel are the equity at which the\ndaily loss limit and profit target are reached today. Lock is set while new orders are locked."
+      },
+      "OwnLock": {
+        "required": [
+          "until",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/LockReason"
+          }
+        },
+        "description": "New orders are locked until Until, the start of the next trading day, for the reason."
       },
       "PlaceOrderRequest": {
         "required": [
@@ -5297,6 +5916,10 @@
           "AccountSuspended",
           "AccountNotSuspended",
           "AccountNotDisabled",
+          "AccountLocked",
+          "TradeLimitReached",
+          "InvalidLimits",
+          "InvalidTradingDay",
           "SymbolNotTradable",
           "InvalidOrder",
           "InvalidVolume",
@@ -5716,6 +6339,43 @@
           }
         },
         "description": "What a trade was and the prices behind it (ADR 0053): the limit or stop order it came from, its opening and each\nclose. Profit is the closes' profit before commission so far, and Result the\nprofit after all commission once the position is closed. Amounts are in Currency."
+      },
+      "TradingDay": {
+        "required": [
+          "timeZone",
+          "start"
+        ],
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "format": "time"
+          }
+        },
+        "description": "When an account's trading day starts: at Start on the clock of TimeZone, an IANA\nid such as Europe/Stockholm. The firm's day, which its daily loss limit follows too, and which the trader's own\nlimits count from (ADR 0054). A day is named by the local date it starts on, as in the firm's system."
+      },
+      "TradingDayRequest": {
+        "required": [
+          "timeZone",
+          "startsAt"
+        ],
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "time"
+          }
+        },
+        "description": "When the account's trading day starts, as the firm counts it (ADR 0054): an IANA time zone and the local time."
       },
       "TradingGroup": {
         "required": [

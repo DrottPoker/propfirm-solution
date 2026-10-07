@@ -61,6 +61,12 @@ public sealed partial class TradingEngine
 
         _clock = input.Timestamp;
 
+        // A command on an account comes after its new trading day has started, if one has.
+        if (input is IAccountCommand { AccountId: { } accountId } && _accountsById.TryGetValue(accountId, out var target))
+        {
+            StartTradingDayIfDue(target, input.Timestamp, events);
+        }
+
         var rejection = input switch
         {
             Quote quote => ApplyQuote(quote, events),
@@ -80,6 +86,9 @@ public sealed partial class TradingEngine
             ResumeAccount command => ApplyResumeAccount(command, events),
             ReopenAccount command => ApplyReopenAccount(command, events),
             AdjustBalance command => ApplyAdjustBalance(command, events),
+            SetTradingDay command => ApplySetTradingDay(command, events),
+            SetOwnLimits command => ApplySetOwnLimits(command, events),
+            LockTrading command => ApplyLockTrading(command, events),
             _ => throw new ArgumentException($"Unknown input type {input.GetType().Name}.", nameof(input)),
         };
 
@@ -190,7 +199,17 @@ public sealed partial class TradingEngine
                 .ToList(),
             account.Floors.Values
                 .Select(f => new FloorSnapshot(f.Id, f.Rule, f.Level, f.HighWaterMark, figures.Equity - f.Level))
-                .ToList());
+                .ToList(),
+            new OwnLimitsSnapshot(
+                account.OwnLimits,
+                account.PendingOwnLimits,
+                account.TradingDay,
+                account.DayStartBalance,
+                account.LossLevel,
+                account.TargetLevel,
+                account.TradesToday,
+                account.NextDayStart,
+                account.Lock));
     }
 
     private List<PositionSnapshot> PositionsOf(AccountState account)

@@ -11,9 +11,11 @@ internal sealed record OpenTradingAccount(string AccountId, decimal InitialBalan
 
 /// <summary>
 /// What the terminal shows about the account: its name for the trader, the balance that passes it, the time zone of its
-/// trading day and its page in the firm's portal.
+/// trading day and its page in the firm's portal. The trading day, which starts at <paramref name="TradingDayStart"/> in
+/// the time zone, is also where the trader's own limits count from (ADR 0054).
 /// </summary>
-internal sealed record DescribeTradingAccount(string AccountId, string Label, decimal? ProfitTarget, string TimeZone, Uri DetailsUrl) : TradingCommand;
+internal sealed record DescribeTradingAccount(string AccountId, string Label, decimal? ProfitTarget, string TimeZone, Uri DetailsUrl, TimeOnly TradingDayStart)
+    : TradingCommand;
 
 /// <summary>What the terminal shows about the account's rules as they stand now (ADR 0052).</summary>
 internal sealed record DescribeTradingRules(string AccountId, TradingAccountRules Rules) : TradingCommand;

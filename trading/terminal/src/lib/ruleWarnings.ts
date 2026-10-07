@@ -1,10 +1,12 @@
 import { floorLabel } from "./account";
 import type { FloorSnapshot } from "./api/types";
 import { formatMoney } from "./format";
+import { clockText, lockDescription, lockTitle, tradesUsed } from "./ownLimits";
 import { deadlineText, deadlineWarning, percentText, timeLeftText, type RulebookInput } from "./rules";
 
 // Warnings about the account's rules while the terminal is open (ADR 0052): a loss limit coming close or broken,
 // the profit target reached, a deadline coming close and a best day above the consistency rule. Each is told once.
+// So are the trader's own limits (ADR 0054): their daily loss limit coming close, a locked day and the day's trades used.
 
 export type WarningLevel = "warning" | "danger" | "success";
 
@@ -32,16 +34,20 @@ const broken = 3;
 
 /** How close equity is to the floor: 0 not close, 1 close, 2 very close, 3 broken. Floors at a fixed level are never close. */
 export function floorStage(floor: FloorSnapshot, previous: number): number {
-  if (floor.headroom <= 0) {
+  return closenessStage(floor.headroom, "distance" in floor.rule ? floor.rule.distance : null, previous);
+}
+
+/** How close a limit with the room left of the whole distance is, as for a floor. Without a distance it is never close. */
+export function closenessStage(headroom: number, distance: number | null, previous: number): number {
+  if (headroom <= 0) {
     return broken;
   }
 
-  const distance = "distance" in floor.rule ? floor.rule.distance : null;
   if (!distance || distance <= 0) {
     return 0;
   }
 
-  const left = floor.headroom / distance;
+  const left = headroom / distance;
   let stage = Math.min(previous, 2);
   while (stage < 2 && left < enterBelow[stage + 1]) {
     stage++;
@@ -68,6 +74,17 @@ export function nextWarnings(memory: WarningMemory | null, input: RulebookInput)
     floors[floor.floorId] = stage;
     if (memory && stage > before) {
       warnings.push(floorWarning(floor, stage, account.currency));
+    }
+  }
+
+  // The trader's own daily loss limit, until it locks the day, which is told on its own.
+  const own = account.ownLimits;
+  if (own.lossLevel !== null && own.lock === null && account.status !== "Disabled") {
+    const before = memory?.floors[ownLoss] ?? 0;
+    const stage = Math.min(2, closenessStage(account.equity - own.lossLevel, own.limits.dailyLoss, before));
+    floors[ownLoss] = stage;
+    if (memory && stage > before) {
+      warnings.push(ownLossWarning(account.equity - own.lossLevel, own.lossLevel, stage, account.currency));
     }
   }
 
@@ -103,8 +120,40 @@ function floorWarning(floor: FloorSnapshot, stage: number, currency: string): Ru
   };
 }
 
+const ownLoss = "own-loss";
+
+function ownLossWarning(left: number, level: number, stage: number, currency: string): RuleWarning {
+  return {
+    id: ownLoss,
+    key: `${ownLoss}-${stage}`,
+    level: stage === 2 ? "danger" : "warning",
+    title: `${stage === 2 ? "Very close" : "Close"} to your own daily loss limit`,
+    description: `${formatMoney(left)} ${currency} left before equity reaches ${formatMoney(level)}, and your positions close.`,
+  };
+}
+
 function conditionsOf({ account, profitTarget, rules, now, timeZone }: RulebookInput): RuleWarning[] {
   const conditions: RuleWarning[] = [];
+  // A lock the trader chose needs no warning: the note under the account bar says it.
+  const own = account.ownLimits;
+  if (own.lock && own.lock.reason !== "Trader") {
+    conditions.push({
+      id: "own-lock",
+      key: `own-lock-${own.lock.until}`,
+      level: own.lock.reason === "DailyTarget" ? "success" : "warning",
+      title: lockTitle(own.lock, null, own.tradingDay.timeZone),
+      description: lockDescription(own.lock, null, own.tradingDay.timeZone),
+    });
+  } else if (!own.lock && tradesUsed(own)) {
+    conditions.push({
+      id: "own-trades",
+      key: `own-trades-${own.nextDayStart}`,
+      level: "warning",
+      title: "You have used your trades for today",
+      description: `New orders are taken again from ${clockText(own.nextDayStart, own.tradingDay.timeZone)}.`,
+    });
+  }
+
   if (profitTarget !== null && account.balance >= profitTarget) {
     conditions.push({
       id: "target",

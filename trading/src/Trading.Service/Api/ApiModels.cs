@@ -54,6 +54,19 @@ public sealed record SetPasswordRequest(string? Password);
 public sealed record ReopenAccountRequest(decimal Balance);
 
 /// <summary>
+/// The trader's own limits (ADR 0054): a daily loss limit and a daily profit target in the account currency, counted
+/// from the balance the trading day started with, and the most positions to open in a day. An empty limit is off. A
+/// stricter limit applies at once and a looser one from the next trading day.
+/// </summary>
+public sealed record OwnLimitsRequest(decimal? DailyLoss, decimal? DailyTarget, int? MaxTrades);
+
+/// <summary>Locks new orders until the next trading day (ADR 0054). With <paramref name="ClosePositions"/> every position closes too.</summary>
+public sealed record LockTradingRequest(bool ClosePositions);
+
+/// <summary>When the account's trading day starts, as the firm counts it (ADR 0054): an IANA time zone and the local time.</summary>
+public sealed record TradingDayRequest(string? TimeZone, TimeOnly StartsAt);
+
+/// <summary>
 /// The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every
 /// field is replaced, and one left out is cleared. See <see cref="AccountRules"/>.
 /// </summary>

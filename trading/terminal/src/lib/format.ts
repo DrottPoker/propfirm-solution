@@ -68,6 +68,12 @@ export function formatTime(value: string | Date, timeZone: string): string {
   return `${p.hour}:${p.minute}:${p.second}`;
 }
 
+/** A time of day to the minute in the time zone, for example 00:00. */
+export function formatClock(value: string | Date, timeZone: string): string {
+  const p = partsIn(value, timeZone);
+  return `${p.hour}:${p.minute}`;
+}
+
 /** Date and time in the time zone, for example 2026-10-05 17:38:05. */
 export function formatDateTime(value: string | Date, timeZone: string): string {
   const p = partsIn(value, timeZone);

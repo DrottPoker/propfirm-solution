@@ -47,6 +47,7 @@ internal static class AdminEndpoints
         admin.MapPost("/accounts/{accountId}/balance-operations", AdjustBalanceAsync);
         admin.MapPut("/accounts/{accountId}/details", SetAccountDetailsAsync);
         admin.MapPut("/accounts/{accountId}/rules", SetAccountRulesAsync);
+        admin.MapPut("/accounts/{accountId}/trading-day", SetTradingDayAsync);
         admin.MapGet("/accounts/{accountId}/positions/{positionId}/receipt", GetReceiptAsync);
         admin.MapGet("/accounts/{accountId}/breach-report", GetBreachReportAsync);
         admin.MapGet("/impact", GetImpactAsync);
@@ -428,6 +429,20 @@ internal static class AdminEndpoints
         CancellationToken cancellationToken) =>
         await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
             ? CommandResults.From(await engine.SendAsync(t => new ReopenAccount(t, accountId, request.Balance), cancellationToken), alreadyDone: RejectReason.AccountNotDisabled)
+            : UnknownAccount();
+
+    /// <summary>
+    /// When the account's trading day starts, as the firm counts it (ADR 0054). The trader's own limits count in it, and
+    /// their lock lasts until it starts again. Until it is set, the day starts at midnight UTC.
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SetTradingDayAsync(
+        string accountId,
+        TradingDayRequest request,
+        HttpContext context,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        await IsFirmAccountAsync(context, engine, accountId, cancellationToken)
+            ? CommandResults.From(await engine.SendAsync(t => new SetTradingDay(t, accountId, new TradingDay(request.TimeZone ?? "", request.StartsAt)), cancellationToken))
             : UnknownAccount();
 
     /// <summary>A deposit or withdrawal, for example a trader's payout. Floors measured from the account move with the balance.</summary>

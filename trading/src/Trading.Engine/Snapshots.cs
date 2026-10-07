@@ -1,6 +1,6 @@
 namespace Trading.Engine;
 
-/// <summary>Account state valued at the latest prices. Amounts are in account currency.</summary>
+/// <summary>Account state valued at the latest prices, with the trader's own limits. Amounts are in account currency.</summary>
 public sealed record AccountSnapshot(
     string AccountId,
     string GroupId,
@@ -13,7 +13,8 @@ public sealed record AccountSnapshot(
     decimal? MarginLevelPercent,
     IReadOnlyList<PositionSnapshot> Positions,
     IReadOnlyList<OrderSnapshot> Orders,
-    IReadOnlyList<FloorSnapshot> Floors);
+    IReadOnlyList<FloorSnapshot> Floors,
+    OwnLimitsSnapshot OwnLimits);
 
 /// <summary>
 /// An open position. CurrentPrice is the price it would close at now. TrailingDistance is set when the stop loss trails

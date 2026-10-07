@@ -4,6 +4,7 @@ import {
   dayBefore,
   daysBetween,
   formatAxisMoney,
+  formatClock,
   formatDate,
   formatDateTime,
   formatDay,
@@ -39,6 +40,7 @@ describe("formatting", () => {
     const time = "2026-10-05T22:38:00Z";
     expect(formatDateTime(time, "Europe/Stockholm")).toBe("6 Oct 2026, 00:38");
     expect(formatShortDateTime(time, "UTC")).toBe("5 Oct, 22:38");
+    expect(formatClock(time, "Europe/Stockholm")).toBe("00:38");
     expect(formatDate(time, "Europe/Stockholm")).toBe("6 Oct 2026");
     expect([timeZoneName("Europe/Stockholm"), timeZoneName("America/New_York"), timeZoneName("UTC")]).toEqual(["Stockholm time", "New York time", "UTC"]);
   });

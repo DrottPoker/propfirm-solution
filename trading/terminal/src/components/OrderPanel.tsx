@@ -9,6 +9,7 @@ import { rejectionText } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatUnits, formatVolume, timeZoneName } from "@/lib/format";
 import { closingSoon, isClosed, opensText, sessionLines, useNow } from "@/lib/marketHours";
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
+import { orderLockText, tradesUsed, tradesUsedText } from "@/lib/ownLimits";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
 import { estimatedMargin, nearestLimit, pipValue, riskText, shareOfRoom, shareRisk, stopLossRisk } from "@/lib/orderSummary";
 import { ageText, priceAgeMs, priceTooOld } from "@/lib/priceAge";
@@ -68,6 +69,10 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const canTrade = useTradingStore((s) => s.connection === "connected" && s.account?.status === "Active");
   const suspended = useTradingStore((s) => s.account?.status === "Suspended");
   const ended = useTradingStore((s) => s.account?.status === "Disabled");
+  // The trader's own lock or trades a day (ADR 0054), which take no new orders until the next trading day.
+  const own = useTradingStore((s) => (s.account?.status === "Active" ? s.account.ownLimits : null));
+  const ownLock = own?.lock ?? null;
+  const ownTradesUsed = own !== null && tradesUsed(own);
   const accountCurrency = useTradingStore((s) => s.account?.currency);
   const balance = useTradingStore((s) => s.account?.balance);
   const room = useTradingStore((s) => (s.account ? nearestLimit(s.account.floors)?.headroom : undefined));
@@ -277,7 +282,7 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
     [instrument.symbol, instrument.digits],
   );
 
-  const disabled = !canTrade || !quote || closed || tooOld || placeOrder.isPending;
+  const disabled = !canTrade || !quote || closed || tooOld || ownLock !== null || ownTradesUsed || placeOrder.isPending;
   // A pending order's margin is counted at its price, a market order's at the middle of bid and ask.
   const marginPrice = orderPrice ?? (quote ? (quote.bid + quote.ask) / 2 : undefined);
 
@@ -393,6 +398,16 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
         {ended && (
           <p role="note" className="rounded-md bg-loss/10 px-3 py-2 text-xs text-loss">
             Trading on this account has ended, so no new orders are taken.
+          </p>
+        )}
+        {own && ownLock && (
+          <p role="note" className="rounded-md bg-accent/10 px-3 py-2 text-xs text-accent">
+            {orderLockText(ownLock, own.tradingDay.timeZone)}
+          </p>
+        )}
+        {!ownLock && ownTradesUsed && own && (
+          <p role="note" className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
+            {tradesUsedText(own, own.tradingDay.timeZone)}
           </p>
         )}
         {!ended && closed && market && (

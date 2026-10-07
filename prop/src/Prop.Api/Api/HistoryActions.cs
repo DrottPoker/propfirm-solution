@@ -227,6 +227,48 @@ internal static class HistoryActions
         }
     }
 
+    /// <summary>
+    /// The trader's own limits on the account now, and when they or the trader locked new orders in the last 30 days
+    /// (ADR 0054). Only for the firm: the trader sees and sets them in the terminal.
+    /// </summary>
+    public static async Task<Results<Ok<OwnLimitsResponse>, ProblemHttpResult>> OwnLimitsAsync(
+        Firm firm,
+        Guid accountId,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        if (await AccountActions.FindAsync(firm, accountId, null, queries, cancellationToken) is not { } view)
+        {
+            return AccountActions.UnknownAccount();
+        }
+
+        var locks = await history.LocksAsync(accountId, time.GetUtcNow() - LockWindow, cancellationToken);
+        return TypedResults.Ok(new OwnLimitsResponse(await OwnLimitsNowAsync(firm, view, trading, cancellationToken), locks));
+    }
+
+    /// <summary>How far back the locked days go.</summary>
+    public static readonly TimeSpan LockWindow = TimeSpan.FromDays(30);
+
+    private static async Task<TradingOwnLimits?> OwnLimitsNowAsync(Firm firm, AccountView view, ITradingPlatform trading, CancellationToken cancellationToken)
+    {
+        if (view.Account.State is not { Status: ChallengeStatus.Active, AccountId: { } tradingAccountId } || firm.Trading is not { } firmTrading)
+        {
+            return null;
+        }
+
+        try
+        {
+            return (await trading.GetAccountAsync(firmTrading, tradingAccountId, cancellationToken))?.OwnLimits;
+        }
+        catch (TradingPlatformUnavailableException)
+        {
+            return null;
+        }
+    }
+
     private static ProblemHttpResult NoSuchStage() => AccountActions.Problem(StatusCodes.Status404NotFound, "The account has not started that stage.");
 
     private static ProblemHttpResult NoSuchPosition() => AccountActions.Problem(StatusCodes.Status404NotFound, "The account has no such position.");

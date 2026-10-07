@@ -161,3 +161,41 @@ public sealed record AccountReopened(DateTimeOffset Timestamp, string AccountId,
 /// <summary>Money was deposited (positive amount) or withdrawn (negative amount). Not a trading result.</summary>
 public sealed record BalanceAdjusted(DateTimeOffset Timestamp, string AccountId, string OperationId, decimal Amount, decimal BalanceAfter)
     : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>The account's trading day now starts as told, the next time at <paramref name="NextDayStart"/> (ADR 0054).</summary>
+public sealed record TradingDaySet(DateTimeOffset Timestamp, string AccountId, TradingDay Day, DateTimeOffset NextDayStart)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>
+/// A trading day started on an account with own limits or a lock: the limits counted from <paramref name="DayStartBalance"/>,
+/// <paramref name="Limits"/> are those for the day, and the day ends at <paramref name="NextDayStart"/>.
+/// </summary>
+public sealed record TradingDayStarted(DateTimeOffset Timestamp, string AccountId, decimal DayStartBalance, OwnLimits Limits, DateTimeOffset NextDayStart)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>The trader's own limits now, and <paramref name="Pending"/> from the next trading day when they loosened one (ADR 0054).</summary>
+public sealed record OwnLimitsSet(DateTimeOffset Timestamp, string AccountId, OwnLimits Limits, OwnLimits? Pending)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>Equity reached the trader's own daily loss limit or profit target. Positions close and new orders lock right after.</summary>
+public sealed record OwnLimitReached(DateTimeOffset Timestamp, string AccountId, LockReason Limit, decimal Level, decimal Equity)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>
+/// New orders are locked until <paramref name="Until"/>, the start of the next trading day (ADR 0054). <paramref name="Limit"/>
+/// is the own limit that was reached, null when the trader locked the day. <paramref name="DayResult"/> is equity at the
+/// lock less the balance the day started with, and <paramref name="PositionsClosed"/> how many positions the lock closed.
+/// </summary>
+public sealed record TradingLocked(
+    DateTimeOffset Timestamp,
+    string AccountId,
+    LockReason Reason,
+    DateTimeOffset Until,
+    decimal? Limit,
+    decimal DayResult,
+    int PositionsClosed)
+    : EngineEvent(Timestamp), IAccountEvent;
+
+/// <summary>A new trading day started, or the firm reopened the account, so new orders are taken again.</summary>
+public sealed record TradingUnlocked(DateTimeOffset Timestamp, string AccountId)
+    : EngineEvent(Timestamp), IAccountEvent;

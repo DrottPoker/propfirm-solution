@@ -16,6 +16,7 @@ import { teamOnlyText } from "./BeforeApproval";
 import { ChallengeRules } from "./ChallengeRules";
 import { Modal } from "./Dialog";
 import { ActionsMenu } from "./Menu";
+import { OwnLimitsPanel } from "./OwnLimits";
 import { ShieldCheckIcon } from "./icons";
 import { PayoutTable } from "./Payouts";
 import { StageTiles } from "./StageSteps";
@@ -85,7 +86,12 @@ export function AdminAccount({ accountId, emailed }: { accountId: string; emaile
             </div>
           </div>
         )}
-        {tab === "trading" && <AccountHistory details={data} now={details.dataUpdatedAt} role="admin" />}
+        {tab === "trading" && (
+          <>
+            <OwnLimitsPanel details={data} />
+            <AccountHistory details={data} now={details.dataUpdatedAt} role="admin" />
+          </>
+        )}
         {tab === "payouts" &&
           (data.payouts.length === 0 ? (
             <p className="text-sm text-muted">{data.account.funded ? "The trader has not asked for a payout yet." : "Payouts come once the account is funded."}</p>

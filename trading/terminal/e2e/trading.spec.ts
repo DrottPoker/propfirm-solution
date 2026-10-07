@@ -544,6 +544,52 @@ test("the rulebook shows the firm's rules and warns as a deadline comes close", 
   await expect(page.getByTestId("rules-attention")).toBeVisible();
 });
 
+test("the trader sets limits of their own, and locking the rest of the day takes no new orders", async ({ page, request }) => {
+  const trader = await createTrader(request, "limits");
+  const day = await request.put(`${serviceUrl}/api/admin/v1/accounts/${trader.accountId}/trading-day`, {
+    headers: adminHeaders,
+    data: { timeZone: "Europe/Stockholm", startsAt: "00:00:00" },
+  });
+  expect(day.ok()).toBeTruthy();
+  await logIn(page, trader.email);
+  const buy = page.getByRole("button", { name: /^buy/i });
+  await expect(buy).toBeEnabled();
+
+  await page.getByRole("button", { name: "Rules" }).click();
+  await page.getByRole("dialog", { name: "Rules" }).getByRole("button", { name: "Set your limits" }).click();
+  const sheet = page.getByRole("dialog", { name: /^Your limits/ });
+  await sheet.getByLabel("Daily loss limit in USD").fill("1500");
+  await sheet.getByLabel("Most trades a day").fill("6");
+  await sheet.getByRole("button", { name: "Save limits" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Your limits are saved" })).toContainText("They apply now.");
+  await expect(page.getByRole("banner")).toContainText("Your daily limit98,500.00");
+
+  // A looser limit waits for the next trading day.
+  await page.getByRole("button", { name: "Rules" }).click();
+  const rulebook = page.getByRole("dialog", { name: "Rules" });
+  await expect(rulebook.locator("[data-own-limit='loss']")).toContainText("Daily loss limit, 1,500.00");
+  await expect(rulebook.locator("[data-own-limit='trades']")).toContainText("0 of 6");
+  await rulebook.getByRole("button", { name: "Change your limits" }).click();
+  await sheet.getByLabel("Daily loss limit in USD").fill("2000");
+  await expect(sheet.getByTestId("limits-later")).toHaveText("From 00:00: daily loss limit 2,000.00");
+  await sheet.getByRole("button", { name: "Save limits" }).click();
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Your limits are saved" })).toContainText("The looser ones apply from 00:00.");
+  await expect(page.getByRole("banner")).toContainText("Your daily limit98,500.00");
+
+  // Locking the rest of the day closes the open position, and new orders are not taken.
+  await buy.click();
+  await expect(page.getByText(boughtNote)).toBeVisible();
+  await page.getByRole("button", { name: "Rules" }).click();
+  await page.getByRole("dialog", { name: "Rules" }).getByRole("button", { name: "Lock the rest of the day" }).click();
+  const lock = page.getByRole("dialog", { name: "Lock trading until 00:00?" });
+  await expect(lock).toContainText("Your open position");
+  await lock.getByRole("button", { name: "Close and lock until 00:00" }).click();
+  await expect(page.getByTestId("own-lock")).toContainText(/^You locked the rest of the day at \d\d:\d\d:\d\d/);
+  await expect(page.getByRole("tab", { name: "Positions", exact: true })).toBeVisible();
+  await expect(page.getByRole("note").filter({ hasText: "You locked the rest of the day, until 00:00 Stockholm time." })).toBeVisible();
+  await expect(buy).toBeDisabled();
+});
+
 test("an order is sized from what it risks at its stop loss", async ({ page, request }) => {
   const trader = await createTrader(request, "risk");
   await logIn(page, trader.email);

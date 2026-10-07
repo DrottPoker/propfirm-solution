@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 
 using Prop.Api.Tests.Support;
+using Prop.Api.Trading;
 
 using static Prop.Api.Tests.Support.TestAccounts;
 
@@ -269,6 +270,45 @@ public sealed class AdminPanelTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.Equal(("Phase 1", 1), (performance.GetProperty("stageName").GetString(), performance.GetProperty("statistics").GetProperty("trades").GetInt32()));
         Assert.Equal("text/csv", csv.Content.Headers.ContentType?.MediaType);
         Assert.Equal(HttpStatusCode.NotFound, otherFirm.StatusCode);
+    }
+
+    // The firm sees the limits the trader set for themselves and when they locked, for 30 days, but cannot change them (ADR 0054).
+    [Fact]
+    public async Task TheAdminSeesTheTradersOwnLimitsAndTheDaysTheyLocked()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync(), PropFactory.WithOtherFirm());
+        var id = (await factory.StartActiveAccountAsync("anna@test.example", TwoStep)).GetProperty("id").GetGuid();
+        var midnight = new DateTimeOffset(2026, 10, 5, 22, 0, 0, TimeSpan.Zero);
+        factory.Trading.SetOwnLimits(
+            "demo-firm-1001-1",
+            new TradingOwnLimits(new OwnLimitAmounts(1_500m, null, 6), new OwnLimitAmounts(2_000m, null, 6), 2, midnight, new OwnLock(midnight, OwnLockReason.DailyLoss)));
+        factory.Trading.LockDay("demo-firm-1001-1", OwnLockReason.DailyLoss, midnight, 1_500m, -1_531.6m, 2);
+        using var admin = await factory.LogInAsAdminAsync();
+        using var otherAdmin = factory.CreatePortalClient(PropFactory.OtherFirmHost);
+        (await otherAdmin.PostAsJsonAsync(Url("admin/login"), new { email = PropFactory.AdminEmail, password = "other-admin-password" }, TestContext.Current.CancellationToken)).Dispose();
+
+        JsonElement limits = default;
+        await Eventually.ThatAsync(
+            async () =>
+            {
+                limits = await admin.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/own-limits"));
+                return limits.GetProperty("locks").GetArrayLength() == 1;
+            },
+            "the locked day in the history");
+        using var otherFirm = await otherAdmin.GetAsync(Url($"admin/accounts/{id}/own-limits"), TestContext.Current.CancellationToken);
+
+        var now = limits.GetProperty("now");
+        Assert.Equal((1_500m, 2_000m, 2), (now.GetProperty("limits").GetProperty("dailyLoss").GetDecimal(), now.GetProperty("pending").GetProperty("dailyLoss").GetDecimal(), now.GetProperty("tradesToday").GetInt32()));
+        Assert.Equal(("DailyLoss", midnight), (now.GetProperty("lock").GetProperty("reason").GetString(), now.GetProperty("lock").GetProperty("until").GetDateTimeOffset()));
+        var locked = limits.GetProperty("locks")[0];
+        Assert.Equal(("DailyLoss", 1_500m, -1_531.6m, 2), (locked.GetProperty("reason").GetString(), locked.GetProperty("limit").GetDecimal(), locked.GetProperty("dayResult").GetDecimal(), locked.GetProperty("positionsClosed").GetInt32()));
+        Assert.Equal(HttpStatusCode.NotFound, otherFirm.StatusCode);
+
+        // The session has ended by then, so the admin logs in again.
+        await factory.AdvanceAsync(TimeSpan.FromDays(31));
+        using var adminLater = await factory.LogInAsAdminAsync();
+        var later = await adminLater.GetFromJsonAsync<JsonElement>(Url($"admin/accounts/{id}/own-limits"), TestContext.Current.CancellationToken);
+        Assert.Equal(0, later.GetProperty("locks").GetArrayLength());
     }
 
     [Fact]

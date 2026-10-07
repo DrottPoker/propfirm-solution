@@ -9,9 +9,21 @@ import { useDismiss } from "./useDismiss";
 
 /**
  * A panel along the right side of the terminal, over everything else, or the whole screen on a phone. Closes on Esc, a
- * press outside it or its cross. Printing shows only the panel, so it can be saved as a PDF.
+ * press outside it or its cross. Printing a printable one shows only the panel, so it can be saved as a PDF.
  */
-export function Sheet({ label, title, subtitle, children }: { label: string; title: string; subtitle: string; children: React.ReactNode }) {
+export function Sheet({
+  label,
+  title,
+  subtitle,
+  printable = true,
+  children,
+}: {
+  label: string;
+  title: string;
+  subtitle: string;
+  printable?: boolean;
+  children: React.ReactNode;
+}) {
   const ref = useRef<HTMLElement>(null);
   const close = useSheet((s) => s.close);
   useDismiss(true, ref, close);
@@ -21,7 +33,7 @@ export function Sheet({ label, title, subtitle, children }: { label: string; tit
       ref={ref}
       role="dialog"
       aria-label={`${label}: ${title}`}
-      data-print
+      data-print={printable || undefined}
       className="fixed inset-x-2 top-16 bottom-2 z-30 flex animate-slide-in flex-col overflow-hidden rounded-2xl border border-border bg-panel shadow-float sm:left-auto sm:w-[30rem] max-sm:inset-0 max-sm:rounded-none"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-5 pt-4 pb-3">
@@ -31,15 +43,17 @@ export function Sheet({ label, title, subtitle, children }: { label: string; tit
           <span className="truncate text-xs text-muted">{subtitle}</span>
         </div>
         <span className="flex shrink-0 items-center gap-1 print:hidden">
-          <button
-            type="button"
-            aria-label="Print or save as PDF"
-            title="Print or save as PDF"
-            onClick={() => window.print()}
-            className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
-          >
-            <PrintIcon />
-          </button>
+          {printable && (
+            <button
+              type="button"
+              aria-label="Print or save as PDF"
+              title="Print or save as PDF"
+              onClick={() => window.print()}
+              className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+            >
+              <PrintIcon />
+            </button>
+          )}
           <button
             type="button"
             aria-label="Close"

@@ -105,7 +105,7 @@ public sealed partial class TradingEngine
             return RejectReason.InvalidAmount;
         }
 
-        var account = new AccountState(command.AccountId, group, command.InitialBalance);
+        var account = new AccountState(command.AccountId, group, command.InitialBalance, TradingDay.Utc.NextStart(command.Timestamp));
         _accountsById.Add(account.Id, account);
         _accounts.Add(account);
         events.Add(new AccountCreated(command.Timestamp, account.Id, group.Id, group.Currency, account.Balance));
@@ -122,6 +122,16 @@ public sealed partial class TradingEngine
         if (account.Status == AccountStatus.Suspended)
         {
             return RejectReason.AccountSuspended;
+        }
+
+        if (account.Lock is not null)
+        {
+            return RejectReason.AccountLocked;
+        }
+
+        if (account.OwnLimits.MaxTrades is { } maxTrades && account.TradesToday >= maxTrades)
+        {
+            return RejectReason.TradeLimitReached;
         }
 
         if (string.IsNullOrEmpty(command.OrderId))
@@ -551,6 +561,11 @@ public sealed partial class TradingEngine
         account.Status = AccountStatus.Active;
         events.Add(new AccountReopened(command.Timestamp, account.Id, command.Balance));
 
+        // The day counts from the new balance, and the trader's own lock no longer holds.
+        account.DayStartBalance = command.Balance;
+        account.NextDayStart = account.TradingDay.NextStart(command.Timestamp);
+        Unlock(account, command.Timestamp, events);
+
         // The limits that ended the account would end it again, so the firm sets new ones.
         foreach (var floorId in account.Floors.Keys.ToList())
         {
@@ -597,6 +612,7 @@ public sealed partial class TradingEngine
         }
 
         account.Balance = balanceAfter;
+        account.DayStartBalance += command.Amount;
         account.UsedOperationIds.Add(command.OperationId);
         foreach (var floor in account.Floors.Values)
         {

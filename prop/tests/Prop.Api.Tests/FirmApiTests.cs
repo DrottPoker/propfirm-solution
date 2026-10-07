@@ -110,7 +110,10 @@ public sealed class FirmApiTests(PostgresFixture postgres) : IClassFixture<Postg
 
         // The account is opened before its floors are set.
         Assert.Equal(
-            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily", "rules demo-firm-1001-1"],
+            [
+                "user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "trading day demo-firm-1001-1", "floor demo-firm-1001-1 max-loss",
+                "floor demo-firm-1001-1 daily", "rules demo-firm-1001-1",
+            ],
             factory.Trading.Commands);
     }
 

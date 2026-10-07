@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useId, useRef, useState } from "react";
 
 import { accountName, backLink, floorLabel, floorLeftText, floorRisk, initials, suspendedHelp, targetText, type FloorRisk } from "@/lib/account";
-import type { AccountDetails, AccountStatus, FloorSnapshot, ServerInfo } from "@/lib/api/types";
-import { formatMoney, formatPercent } from "@/lib/format";
+import type { AccountDetails, AccountStatus, FloorSnapshot, OwnLimitsSnapshot, ServerInfo } from "@/lib/api/types";
+import { formatClock, formatMoney, formatPercent } from "@/lib/format";
+import { closeness } from "@/lib/ownLimits";
 import { useLogout } from "@/lib/queries";
 import { useSettings, type Setting } from "@/lib/settings";
 import { playFillSound, playWarningSound, unlockSound } from "@/lib/sound";
@@ -86,6 +87,7 @@ export function AccountBar({
               details={details}
               accountId={account.accountId}
               status={account.status}
+              own={account.ownLimits}
               onChange={(id) => router.push(`/?account=${encodeURIComponent(id)}`)}
             />
             <Figure label="Balance" value={formatMoney(account.balance)} unit={account.currency} />
@@ -100,6 +102,7 @@ export function AccountBar({
                 help="Reach this balance, with every position closed, to pass the stage."
               />
             )}
+            {account.status !== "Disabled" && <OwnLossFigure own={account.ownLimits} equity={account.equity} />}
             {account.floors.map((floor) => (
               <FloorFigure key={floor.floorId} floor={floor} ended={account.status === "Disabled"} />
             ))}
@@ -136,12 +139,14 @@ function AccountPicker({
   details,
   accountId,
   status,
+  own,
   onChange,
 }: {
   accounts: string[];
   details: AccountDetails[];
   accountId: string;
   status: AccountStatus;
+  own: OwnLimitsSnapshot;
   onChange: (accountId: string) => void;
 }) {
   const id = useId();
@@ -182,6 +187,38 @@ function AccountPicker({
           Paused
         </span>
       )}
+      {status !== "Disabled" && own.lock && (
+        <span
+          className="mt-0.5 w-fit rounded bg-accent/15 px-1.5 text-[11px] font-medium whitespace-nowrap text-accent"
+          title="New orders are locked until the next trading day. You can still close positions and change their stops."
+        >
+          Locked until {formatClock(own.lock.until, own.tradingDay.timeZone)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// The trader's own daily loss limit (ADR 0054), beside the firm's: where equity locks the day, and the room left.
+function OwnLossFigure({ own, equity }: { own: OwnLimitsSnapshot; equity: number }) {
+  if (own.limits.dailyLoss === null || own.lossLevel === null) {
+    return null;
+  }
+
+  const left = Math.max(0, equity - own.lossLevel);
+  return (
+    <div
+      className="flex shrink-0 flex-col justify-center border-l border-border px-3 lg:px-4"
+      title="Your own daily loss limit. If equity reaches it, every position closes and new orders lock until the next trading day. The challenge goes on."
+    >
+      <span className="flex items-center gap-1 text-[11px] text-muted">
+        Your daily limit
+        <InfoIcon className="size-3" />
+      </span>
+      <span className="font-mono text-[13px] whitespace-nowrap tabular-nums">{formatMoney(own.lossLevel)}</span>
+      <span className={`font-mono text-[11px] whitespace-nowrap tabular-nums ${riskColors[closeness(left, own.limits.dailyLoss)]}`}>
+        {left > 0 ? `${formatMoney(left)} left` : "Reached"}
+      </span>
     </div>
   );
 }

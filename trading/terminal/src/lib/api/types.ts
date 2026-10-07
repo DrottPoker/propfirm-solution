@@ -34,3 +34,7 @@ export type EquityPoint = Schemas["EquityPoint"];
 export type PriceGap = Schemas["PriceGap"];
 export type TerminalNotice = Schemas["TerminalNotice"];
 export type CloseReason = Schemas["CloseReason"];
+export type OwnLimits = Schemas["OwnLimits"];
+export type OwnLimitsSnapshot = Schemas["OwnLimitsSnapshot"];
+export type OwnLock = Schemas["OwnLock"];
+export type LockReason = Schemas["LockReason"];

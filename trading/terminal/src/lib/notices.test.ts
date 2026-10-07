@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineEvent, EventEnvelope } from "./api/types";
-import { createNewEvents, tradeNotice } from "./notices";
+import { createNewEvents, noticeLine, tradeNotice } from "./notices";
 
 const digitsOf = (symbol: string) => (symbol === "XAUUSD" ? 2 : 5);
 const timestamp = "2026-10-06T08:00:00+00:00";
@@ -141,5 +141,14 @@ describe("createNewEvents", () => {
     events.announce([envelope(1)]);
 
     expect(received).toEqual([]);
+  });
+});
+
+describe("noticeLine", () => {
+  it("puts the firm's notice on one line, with its paragraphs joined by dots", () => {
+    expect(noticeLine("We are working on it.\n\nDemo Firm: Accounts that broke a limit are reinstated.\n")).toBe(
+      "We are working on it. · Demo Firm: Accounts that broke a limit are reinstated.",
+    );
+    expect(noticeLine("One line")).toBe("One line");
   });
 });

@@ -1,6 +1,6 @@
 namespace Trading.Engine.Internal;
 
-internal sealed class AccountState(string id, GroupState group, decimal balance)
+internal sealed class AccountState(string id, GroupState group, decimal balance, DateTimeOffset nextDayStart)
 {
     public string Id { get; } = id;
 
@@ -24,6 +24,27 @@ internal sealed class AccountState(string id, GroupState group, decimal balance)
     public HashSet<string> UsedOperationIds { get; } = new(StringComparer.Ordinal);
 
     public bool HasExposure => Positions.Count > 0 || Orders.Count > 0;
+
+    // The trader's own limits and the trading day they count in (ADR 0054).
+    public TradingDay TradingDay { get; set; } = TradingDay.Utc;
+
+    public DateTimeOffset NextDayStart { get; set; } = nextDayStart;
+
+    // Moves with deposits and withdrawals, which are not trading results.
+    public decimal DayStartBalance { get; set; } = balance;
+
+    public int TradesToday { get; set; }
+
+    public OwnLimits OwnLimits { get; set; } = OwnLimits.None;
+
+    // The limits from the next trading day, when the trader loosened one.
+    public OwnLimits? PendingOwnLimits { get; set; }
+
+    public OwnLock? Lock { get; set; }
+
+    public decimal? LossLevel => OwnLimits.DailyLoss is { } loss ? DayStartBalance - loss : null;
+
+    public decimal? TargetLevel => OwnLimits.DailyTarget is { } target ? DayStartBalance + target : null;
 }
 
 internal sealed class PositionState(

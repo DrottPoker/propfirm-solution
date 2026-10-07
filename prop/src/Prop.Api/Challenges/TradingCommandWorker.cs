@@ -99,6 +99,7 @@ internal sealed partial class TradingCommandWorker(
             case DescribeTradingAccount describe:
                 await trading.DescribeAccountAsync(
                     firm.Trading!, describe.AccountId, new TradingAccountDetails(describe.Label, describe.ProfitTarget, describe.TimeZone, describe.DetailsUrl), cancellationToken);
+                await trading.SetTradingDayAsync(firm.Trading!, describe.AccountId, new TradingDayDefinition(describe.TimeZone, describe.TradingDayStart), cancellationToken);
                 break;
             case DescribeTradingRules rules:
                 await trading.DescribeRulesAsync(firm.Trading!, rules.AccountId, rules.Rules, cancellationToken);

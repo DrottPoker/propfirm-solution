@@ -43,6 +43,9 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `ResumeAccount` | Låter ett pausat konto handla igen. |
 | `ReopenAccount` | Öppnar ett avstängt konto igen med ett nytt saldo, utan positioner, ordrar eller golv (ADR 0053). |
 | `AdjustBalance` | Sätter in ett positivt belopp eller tar ut ett negativt, med ett id för operationen och ett valfritt minsta saldo. |
+| `SetTradingDay` | Sätter när kontots handelsdag börjar: en tidszon och en lokal tid (ADR 0054). |
+| `SetOwnLimits` | Traderns egna gränser: daglig förlust, dagsmål och antal affärer per dag (ADR 0054). |
+| `LockTrading` | Låser nya ordrar till nästa handelsdag, och stänger positionerna eller låter dem ligga (ADR 0054). |
 
 ### Händelser
 
@@ -53,7 +56,7 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `AccountCreated` | Kontot skapades. |
 | `OrderPlaced` | En limit- eller stoporder väntar på sitt pris. |
 | `OrderModified` | En väntande order fick nytt pris, stop loss, take profit eller trailing stop. |
-| `OrderCancelled` | En order togs bort: manuellt, saknad marginal vid utlösning, brott mot golvet, stängt konto eller pausat konto. |
+| `OrderCancelled` | En order togs bort: manuellt, saknad marginal vid utlösning, brott mot golvet, stängt konto, pausat konto, låst dag eller nått tak för affärer. |
 | `PositionOpened` | En position öppnades. Innehåller pris, provision och saldo efteråt. |
 | `PositionModified` | Stop loss eller take profit ändrades. |
 | `PositionClosed` | En position stängdes. Innehåller pris, vinst, provision, orsak och saldo efteråt. |
@@ -65,6 +68,12 @@ Kärnan simulerar orderutförande mot riktiga priser. Ingenting skickas ut på m
 | `AccountSuspended`, `AccountResumed` | Kontot pausades efter att dess väntande ordrar togs bort, eller får handla igen. |
 | `AccountReopened` | Ett avstängt konto öppnades igen med saldot. Följs av `EquityFloorRemoved` för varje golv det hade. |
 | `BalanceAdjusted` | Pengar sattes in eller togs ut. Innehåller operationens id, beloppet och saldot efteråt. |
+| `TradingDaySet` | Kontots handelsdag sattes. Innehåller dagen och när nästa dag börjar. |
+| `TradingDayStarted` | En ny handelsdag började på ett konto med egna gränser eller lås. Innehåller startsaldot, gränserna för dagen och när nästa dag börjar. |
+| `OwnLimitsSet` | Traderns egna gränser ändrades. Innehåller gränserna som gäller nu och de som väntar till nästa dag. |
+| `OwnLimitReached` | Equity nådde den egna förlustgränsen eller det egna dagsmålet. Innehåller vilken, nivån och equity. |
+| `TradingLocked` | Nya ordrar låstes till nästa handelsdag. Innehåller orsaken, när låset hävs, gränsens belopp, dagens resultat och hur många positioner låset stängde. |
+| `TradingUnlocked` | Låset hävdes, när en ny dag började eller kontot öppnades igen. |
 | `InputRejected` | Indata avvisades. Innehåller indatan och orsaken. |
 
 ## Beslut
@@ -168,6 +177,19 @@ Belopp i kontovalutan avrundas till valutans decimaler med `MidpointRounding.Awa
 - Saldot ska vara över noll och avrundat till kontovalutans decimaler, annars `InvalidAmount`. Ett konto som inte är avstängt avvisas med `AccountNotDisabled`, och ett okänt med `UnknownAccount`.
 - Propfirm-plattformen använder det när en firma återställer ett steg som ett brutet golv avslutade under en incident, på samma konto så att historiken hänger ihop (se [ADR 0053](../adr/0053-detaljer-rapporter-och-incidenter.md)).
 
+### Egna spärrar
+
+Se [ADR 0054](../adr/0054-egna-sparrar-for-tradern.md).
+
+- **Handelsdagen:** varje konto har en handelsdag med en IANA-tidszon och en lokal starttid, från början midnatt UTC. `SetTradingDay` byter den, och en okänd tidszon avvisas med `InvalidTradingDay`. Dagen följer klockan också när den byter till eller från sommartid, som öppettiderna. Ett lås flyttas till den nya dagens start.
+- **Ny dag:** den första indatan för kontot, eller det första priset, på eller efter nästa dags start börjar dagen. Startsaldot blir saldot då, antalet affärer nollställs, väntande lösare gränser börjar gälla och låset hävs. `TradingDayStarted` kommer bara för konton med gränser eller lås. Ett avstängt konto börjar inga dagar.
+- **Gränserna:** `SetOwnLimits` tar en daglig förlustgräns och ett dagsmål i kontovalutan, över noll och avrundade till valutans decimaler, och ett tak för affärer från 1 till 1 000. En tom gräns är avstängd. Annat avvisas med `InvalidLimits`. Varje gräns som är strängare gäller direkt: ett lägre belopp eller tak, eller en gräns där ingen fanns. Varje gräns som är lösare eller stängs av väntar till nästa dag. Att be om gränserna som de är nu tar bort det som väntar.
+- **När en gräns nås:** equity på eller under startsaldot minus förlustgränsen, eller på eller över startsaldot plus dagsmålet, ger `OwnLimitReached`. Alla positioner stängs till senaste pris med orsaken `OwnLimit`, väntande ordrar tas bort med `TradingLocked` och kontot låses. En gräns som dagen redan har passerat nås direkt när den sätts. Gränserna kontrolleras efter golven och stop out, så ett pris som bryter ett golv stänger av kontot i stället.
+- **Taket för affärer:** varje öppnad position räknas. När taket är nått avvisas `PlaceOrder` med `TradeLimitReached`, och en väntande order som utlöses tas bort med `TradeLimit` i stället för att fyllas.
+- **Låset:** `LockTrading` låser kontot till nästa dags start, och stänger med valet varje position som har ett färskt pris, med orsaken `OwnLimit`. Ett låst konto avvisar `PlaceOrder` och ett nytt `LockTrading` med `AccountLocked`. Positioner kan stängas och få nya stoppar. Låset är skilt från kontots status, så ett konto kan vara pausat och låst samtidigt.
+- **Insättningar och uttag** flyttar startsaldot lika mycket, så de räknas inte som resultat.
+- `ReopenAccount` börjar en ny dag med det nya saldot och häver låset.
+
 ### Provision
 
 Provisionen anges per lot och sida i kontovalutan. Den dras från saldot både när positionen öppnas och när den stängs.
@@ -202,12 +224,13 @@ Marknadsordrar, väntande ordrar, stängningar och ändringar avvisas med `Stale
 
 ### Ordning inom en prisuppdatering
 
-Konton behandlas i den ordning de skapades. För varje konto med positioner eller ordrar:
+Konton behandlas i den ordning de skapades. Först börjar en ny handelsdag för varje konto vars dag har passerat. Sedan, för varje konto med positioner eller ordrar:
 
 1. Stop loss och take profit för positioner i symbolen, i den ordning positionerna öppnades.
 2. Väntande ordrar i symbolen, i den ordning de lades. En position som öppnas här kontrolleras först vid nästa pris.
 3. Golv för equity.
 4. Stop out. Om positioner stängdes kontrolleras golven igen, eftersom provisionen kan sänka equity.
+5. Traderns egna gränser, om kontot inte stängdes av.
 
 ## Utanför fas 1
 
@@ -229,6 +252,7 @@ Testerna ligger i `trading/tests/Trading.Engine.Tests`.
 - **Valutor (`ConversionTests`):** vinst och marginal i en annan valuta än kontots, ett konto i EUR som handlar guld genom USD, ett konto i USD som handlar ett index i EUR genom EUR, och ordrar utan kurs, också genom USD och EUR.
 - **Öppettider (`TradingHoursTests` och `MarketClosedTests`):** valutaveckan, CME:s dagliga paus, byte till vintertid i New York och Berlin vid olika datum, timmen som hoppas över och timmen som upprepas, helgdagar som kortar eller delar en period, perioder som möts, när marknaden nästa gång ändras, ogiltiga öppettider, och att stängda marknader avvisar ordrar, stängningar och stoppar med `MarketClosed` före `StalePrice` medan väntande ordrar kan tas bort, priser fortfarande utlöser stop loss, ett stängt konto stängs till senaste pris och instrument utan öppettider alltid är öppna.
 - **Orderverktyg (`OrderToolsTests`):** en del stängs och resten ligger kvar, hela volymen är en vanlig stängning, ogiltiga delar och en del som lämnar för lite, delarna summerar till hela positionen, alla positioner eller en symbols stängs på en gång, positioner i en stängd marknad ligger kvar, en ändrad order fylls till sitt nya pris och kontrolleras som en ny, trailing stop för köp och sälj som aldrig går bakåt, som kräver stop loss, som slås på och av, som följer en väntande order från dess pris, och att trailing stop och delar följer med en återställning.
+- **Egna spärrar (`OwnLimitsTests`):** den egna förlustgränsen stänger allt och låser till midnatt, nästa dag hävs låset och räknas från saldot den började med, dagsmålet låser medan tradern ligger på plus, firmans golv går före när ett pris bryter båda, en gräns som dagen redan passerat slår till direkt, en strängare gräns gäller direkt och en lösare nästa dag, ogiltiga gränser, taket för affärer som avvisar nya ordrar och tar bort en väntande order som skulle öppna en till, låset med och utan stängning, att ett lås inte stänger till gamla priser, handelsdagen i Stockholm och att en insättning flyttar dagens startsaldo, att ett återöppnat konto inte är låst, att konton utan gränser byter dag utan händelser, och att allt följer med en återställning.
 - **Grupper (`GroupTests`):** en skapad grupp handlar med sina egna villkor, id är unika, ogiltiga grupper avvisas, skapade grupper följer med en återställning, ögonblicksbilder från innan grupper kunde skapas går att läsa, en skapad grupp som blivit konfigurerad stoppar återställningen, och ändrade villkor: nya symboler och villkor som gäller öppna positioner direkt, högre hävstång som sänker marginalen, en symbol i bruk som inte kan tas bort, konfigurerade grupper som inte kan ändras, ogiltiga villkor och att ändringen följer med en återställning.
 - **Arkitektur:** `BannedSymbols.txt` stoppar klocka, slump och I/O vid bygget, och ett test kontrollerar att kärnan aldrig använder flyttal.
 

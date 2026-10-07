@@ -18,6 +18,12 @@ internal interface ITradingPlatform
     /// <summary>What the terminal shows about the account. Replaces what it showed before.</summary>
     Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// When the account's trading day starts, as the firm counts it, which the trader's own limits count in (ADR 0054).
+    /// Done if the account is already disabled.
+    /// </summary>
+    Task SetTradingDayAsync(FirmTrading firm, string accountId, TradingDayDefinition day, CancellationToken cancellationToken);
+
     /// <summary>Tells the terminal the account's rules as they stand now (ADR 0052).</summary>
     Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken);
 
@@ -96,7 +102,37 @@ internal sealed record TradingGroupConditions(string Id, string Currency, bool C
 
 internal sealed record TradingEventPage(IReadOnlyList<TradingEvent> Events, long Cursor);
 
-internal sealed record TradingAccountSnapshot(decimal Balance, decimal Equity, IReadOnlyList<TradingFloorSnapshot> Floors);
+/// <summary>The account valued at the latest prices. <paramref name="OwnLimits"/> are null from a platform without them.</summary>
+internal sealed record TradingAccountSnapshot(decimal Balance, decimal Equity, IReadOnlyList<TradingFloorSnapshot> Floors, TradingOwnLimits? OwnLimits = null);
+
+/// <summary>
+/// The limits the trader set for themselves on the account (ADR 0054), which only the trader can change: those that hold
+/// today, <paramref name="Pending"/> from the next trading day when the trader loosened one, the positions opened today,
+/// when the next trading day starts, and the lock on new orders until then, if any.
+/// </summary>
+public sealed record TradingOwnLimits(OwnLimitAmounts Limits, OwnLimitAmounts? Pending, int TradesToday, DateTimeOffset NextDayStart, OwnLock? Lock);
+
+/// <summary>
+/// A daily loss limit and a daily profit target, in the account currency from the balance the trading day started with,
+/// and the most positions to open in a day. Null is off.
+/// </summary>
+public sealed record OwnLimitAmounts(decimal? DailyLoss, decimal? DailyTarget, int? MaxTrades);
+
+/// <summary>New orders are locked until <paramref name="Until"/>, the start of the next trading day.</summary>
+public sealed record OwnLock(DateTimeOffset Until, OwnLockReason Reason);
+
+/// <summary>Why new orders are locked until the next trading day.</summary>
+public enum OwnLockReason
+{
+    /// <summary>The trader locked the rest of the day.</summary>
+    Trader,
+
+    /// <summary>The trader's own daily loss limit was reached.</summary>
+    DailyLoss,
+
+    /// <summary>The trader's own daily profit target was reached.</summary>
+    DailyTarget,
+}
 
 /// <summary>A floor and how far equity can fall before it is breached.</summary>
 internal sealed record TradingFloorSnapshot(string FloorId, decimal Level, decimal Headroom);
@@ -179,6 +215,23 @@ internal sealed record TradingAccountReopened(long Sequence, DateTimeOffset Time
 
 /// <summary>A deposit (positive amount) or withdrawal (negative amount), for example a payout's.</summary>
 internal sealed record TradingBalanceAdjusted(long Sequence, DateTimeOffset Time, string AccountId, string Raw, string OperationId, decimal Amount, decimal BalanceAfter)
+    : TradingEvent(Sequence, Time, AccountId, Raw);
+
+/// <summary>
+/// New orders were locked until the next trading day by the trader's own limit or by the trader (ADR 0054).
+/// <paramref name="Limit"/> is the amount of the limit reached, <paramref name="DayResult"/> equity at the lock less the
+/// balance the day started with, and <paramref name="PositionsClosed"/> how many positions the lock closed.
+/// </summary>
+internal sealed record TradingDayLocked(
+    long Sequence,
+    DateTimeOffset Time,
+    string AccountId,
+    string Raw,
+    OwnLockReason Reason,
+    DateTimeOffset Until,
+    decimal? Limit,
+    decimal DayResult,
+    int PositionsClosed)
     : TradingEvent(Sequence, Time, AccountId, Raw);
 
 /// <summary>An event the prop platform does not act on. It only moves the cursor.</summary>

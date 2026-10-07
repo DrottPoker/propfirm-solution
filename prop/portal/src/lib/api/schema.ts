@@ -3777,6 +3777,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/accounts/{accountId}/own-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["OwnLimitsResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/payouts": {
         parameters: {
             query?: never;
@@ -8676,6 +8713,25 @@ export interface components {
             equity: number;
             floors: components["schemas"]["FloorFigure"][];
         };
+        /**
+         * @description New orders were locked at Time until Until, the next trading day. Limit
+         *     is the amount of the trader's own limit that was reached, null when the trader locked the day. DayResult
+         *     is equity at the lock less the balance the day started with, and PositionsClosed how many positions
+         *     the lock closed.
+         */
+        LockedDayResponse: {
+            /** Format: date-time */
+            time: string;
+            reason: components["schemas"]["OwnLockReason"];
+            /** Format: date-time */
+            until: string;
+            /** Format: double */
+            limit: null | number;
+            /** Format: double */
+            dayResult: number;
+            /** Format: int32 */
+            positionsClosed: number;
+        };
         /** @description Open Url once before ExpiresAt to be logged in to the trading terminal. */
         LoginLinkResponse: {
             /** Format: uri */
@@ -9258,6 +9314,38 @@ export interface components {
         OrderTokenRequest: {
             token: null | string;
         };
+        /**
+         * @description A daily loss limit and a daily profit target, in the account currency from the balance the trading day started with,
+         *     and the most positions to open in a day. Null is off.
+         */
+        OwnLimitAmounts: {
+            /** Format: double */
+            dailyLoss: null | number;
+            /** Format: double */
+            dailyTarget: null | number;
+            /** Format: int32 */
+            maxTrades: null | number;
+        };
+        /**
+         * @description The limits the trader set for themselves on the account (ADR 0054), which the firm sees but cannot change.
+         *     Now is null while the stage is not traded or the trading platform cannot be reached.
+         *     Locks are the times new orders were locked in the last 30 days, newest first.
+         */
+        OwnLimitsResponse: {
+            now: null | components["schemas"]["TradingOwnLimits"];
+            locks: components["schemas"]["LockedDayResponse"][];
+        };
+        /** @description New orders are locked until Until, the start of the next trading day. */
+        OwnLock: {
+            /** Format: date-time */
+            until: string;
+            reason: components["schemas"]["OwnLockReason"];
+        };
+        /**
+         * @description Why new orders are locked until the next trading day.
+         * @enum {unknown}
+         */
+        OwnLockReason: "Trader" | "DailyLoss" | "DailyTarget";
         /** @description Of the evaluations that ended in the last 90 days, how many passed every evaluation stage. Cancelled ones are left out. */
         PassRateResponse: {
             /** Format: int32 */
@@ -10300,6 +10388,20 @@ export interface components {
             timeZone: string;
             /** Format: time */
             start: string;
+        };
+        /**
+         * @description The limits the trader set for themselves on the account (ADR 0054), which only the trader can change: those that hold
+         *     today, Pending from the next trading day when the trader loosened one, the positions opened today,
+         *     when the next trading day starts, and the lock on new orders until then, if any.
+         */
+        TradingOwnLimits: {
+            limits: components["schemas"]["OwnLimitAmounts"];
+            pending: null | components["schemas"]["OwnLimitAmounts"];
+            /** Format: int32 */
+            tradesToday: number;
+            /** Format: date-time */
+            nextDayStart: string;
+            lock: null | components["schemas"]["OwnLock"];
         };
         TradingSymbolRequest: {
             symbol: string;

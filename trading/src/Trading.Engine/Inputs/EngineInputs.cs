@@ -123,6 +123,27 @@ public sealed record ReopenAccount(DateTimeOffset Timestamp, string AccountId, d
     : EngineInput(Timestamp), IAccountCommand;
 
 /// <summary>
+/// Sets when the account's trading day starts, as the firm's system counts it (ADR 0054). Until it is set, the day starts
+/// at midnight UTC. The day going on keeps running until the next start of the new day.
+/// </summary>
+public sealed record SetTradingDay(DateTimeOffset Timestamp, string AccountId, TradingDay Day)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
+/// The trader's own limits (ADR 0054). Each limit that is stricter than now applies at once; each that is looser, or
+/// turned off, applies from the next trading day.
+/// </summary>
+public sealed record SetOwnLimits(DateTimeOffset Timestamp, string AccountId, OwnLimits Limits)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
+/// The trader locks new orders until the next trading day, which nobody can undo (ADR 0054). Pending orders are cancelled.
+/// With <paramref name="ClosePositions"/> every position closes too, except one whose market has no fresh price now.
+/// </summary>
+public sealed record LockTrading(DateTimeOffset Timestamp, string AccountId, bool ClosePositions)
+    : EngineInput(Timestamp), IAccountCommand;
+
+/// <summary>
 /// Deposits a positive <paramref name="Amount"/> or withdraws a negative one. The caller chooses
 /// <paramref name="OperationId"/>, which is never reused on the account, so a retry cannot apply it twice.
 /// A withdrawal must leave the balance at or above <paramref name="MinBalance"/>, fit in the free margin

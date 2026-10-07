@@ -25,7 +25,14 @@ public sealed partial class TradingEngine
                         .ToList(),
                     a.Floors.Values.Select(f => new FloorRecord(f.Id, f.Rule, f.HighWaterMark, f.Anchor)).ToList(),
                     a.UsedOrderIds.Order(StringComparer.Ordinal).ToList(),
-                    a.UsedOperationIds.Order(StringComparer.Ordinal).ToList()))
+                    a.UsedOperationIds.Order(StringComparer.Ordinal).ToList(),
+                    a.TradingDay,
+                    a.NextDayStart,
+                    a.DayStartBalance,
+                    a.TradesToday,
+                    a.OwnLimits,
+                    a.PendingOwnLimits,
+                    a.Lock))
                 .ToList(),
             _createdGroups.Select(g => g.ToDefinition()).ToList());
 
@@ -71,7 +78,18 @@ public sealed partial class TradingEngine
             Require(!_accountsById.ContainsKey(record.AccountId), $"Account {record.AccountId} appears twice.");
             Require(_groups.TryGetValue(record.GroupId, out var group), $"Account {record.AccountId} is in unknown group {record.GroupId}.");
 
-            var account = new AccountState(record.AccountId, group, record.Balance) { Status = record.Status };
+            var day = record.TradingDay ?? TradingDay.Utc;
+            Require(day.FindProblem() is null, $"Account {record.AccountId} has an unknown trading day time zone {day.TimeZone}.");
+            var account = new AccountState(record.AccountId, group, record.Balance, record.NextDayStart ?? day.NextStart(state.Clock))
+            {
+                Status = record.Status,
+                TradingDay = day,
+                DayStartBalance = record.DayStartBalance ?? record.Balance,
+                TradesToday = record.TradesToday,
+                OwnLimits = record.OwnLimits ?? OwnLimits.None,
+                PendingOwnLimits = record.PendingOwnLimits,
+                Lock = record.Lock,
+            };
             foreach (var p in record.Positions)
             {
                 var (instrument, conditions) = Tradable(account, p.Symbol);

@@ -506,7 +506,7 @@ internal sealed class ChallengeService(
 
     /// <summary>
     /// What the terminal shows about the stage's account: the challenge and stage as the portal names them, for example
-    /// "#1001 Two-step 100K · Phase 1", the balance that passes the stage, the trading day's time zone and the account's page.
+    /// "#1001 Two-step 100K · Phase 1", the balance that passes the stage, the trading day and the account's page.
     /// </summary>
     private static DescribeTradingAccount Describe(Firm firm, ChallengeAccount account, string tradingAccountId, int stage)
     {
@@ -514,7 +514,8 @@ internal sealed class ChallengeService(
         var rules = definition.Stage(stage);
         var label = FormattableString.Invariant($"#{account.Number} {definition.Name} \u00b7 {rules.Name}");
         var target = rules.ProfitTargetPercent is { } percent ? definition.InitialBalance + definition.PercentOfInitialBalance(percent) : (decimal?)null;
-        return new DescribeTradingAccount(tradingAccountId, label, target, definition.TradingDay.TimeZone, new Uri(firm.Portal.Url, $"accounts/{account.Id}"));
+        return new DescribeTradingAccount(
+            tradingAccountId, label, target, definition.TradingDay.TimeZone, new Uri(firm.Portal.Url, $"accounts/{account.Id}"), definition.TradingDay.Start);
     }
 
     private static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };

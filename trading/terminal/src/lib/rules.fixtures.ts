@@ -1,4 +1,4 @@
-import type { AccountRules, AccountSnapshot, FloorSnapshot } from "./api/types";
+import type { AccountRules, AccountSnapshot, FloorSnapshot, OwnLimitsSnapshot } from "./api/types";
 
 // An account, its daily loss limit and its rules, for the tests of the rulebook and its warnings.
 
@@ -23,6 +23,23 @@ export const accountWith = (changes: Partial<AccountSnapshot> = {}): AccountSnap
   positions: [],
   orders: [],
   floors: [daily(5_000)],
+  ownLimits: ownLimitsWith(),
+  ...changes,
+});
+
+// Midnight in Stockholm, when the next trading day starts.
+export const nextDayStart = "2026-10-05T22:00:00Z";
+
+export const ownLimitsWith = (changes: Partial<OwnLimitsSnapshot> = {}): OwnLimitsSnapshot => ({
+  limits: { dailyLoss: null, dailyTarget: null, maxTrades: null },
+  pending: null,
+  tradingDay: { timeZone: "Europe/Stockholm", start: "00:00:00" },
+  dayStartBalance: 100_000,
+  lossLevel: null,
+  targetLevel: null,
+  tradesToday: 0,
+  nextDayStart,
+  lock: null,
   ...changes,
 });
 

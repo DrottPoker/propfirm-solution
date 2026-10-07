@@ -20,6 +20,7 @@ import {
   LineSegmentIcon,
   ListBulletsIcon,
   ListChecksIcon,
+  LockSimpleIcon,
   MagnifyingGlassIcon,
   MinusIcon as PhMinusIcon,
   MoonIcon,
@@ -81,6 +82,7 @@ export const IndicatorsIcon = icon(ChartLineUpIcon, "duotone");
 export const TrendLineIcon = icon(LineSegmentIcon, "bold");
 export const RectangleIcon = icon(PhRectangleIcon, "duotone");
 export const TrashIcon = icon(PhTrashIcon, "duotone");
+export const LockIcon = icon(LockSimpleIcon, "duotone");
 
 /** A horizontal line across the chart with a level on it. Phosphor has none, so drawn here in its bold style. */
 export function HorizontalLineIcon({ className = "size-4" }: IconProps) {

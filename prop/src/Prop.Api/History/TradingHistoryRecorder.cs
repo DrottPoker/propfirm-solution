@@ -11,8 +11,8 @@ using Prop.Api.Trading;
 namespace Prop.Api.History;
 
 /// <summary>
-/// Keeps the trading history of the accounts the service opened: positions, balance changes and floor levels,
-/// for the trader's dashboard (ADR 0022). It reads each firm's event stream with a cursor of its own, apart from
+/// Keeps the trading history of the accounts the service opened: positions, balance changes, floor levels and the
+/// days the trader's own limits locked (ADR 0054), for the trader's dashboard (ADR 0022) and the admin panel. It reads each firm's event stream with a cursor of its own, apart from
 /// the rule engine's, so the history is filled in for accounts that traded before it existed, and reading the
 /// stream again from the start rebuilds it. A page of events and the new cursor are stored in one transaction,
 /// and every row is written once per event, so reading an event again changes nothing.
@@ -156,6 +156,20 @@ internal sealed partial class TradingHistoryRecorder(
                     on conflict (account_id, sequence) do nothing
                     """,
                     [account, sequence, time, BalanceChangeKind.Reopened.ToString(), reopened.Balance],
+                    cancellationToken);
+                break;
+            case TradingDayLocked locked:
+                await ExecuteAsync(
+                    connection,
+                    """
+                    insert into trading_locks (account_id, sequence, time, reason, until, limit_amount, day_result, positions_closed)
+                    values ($1, $2, $3, $4, $5, $6, $7, $8)
+                    on conflict (account_id, sequence) do nothing
+                    """,
+                    [
+                        account, sequence, time, locked.Reason.ToString(), locked.Until.ToUniversalTime(), (object?)locked.Limit ?? DBNull.Value, locked.DayResult,
+                        locked.PositionsClosed,
+                    ],
                     cancellationToken);
                 break;
             case TradingFloorSet floorSet:

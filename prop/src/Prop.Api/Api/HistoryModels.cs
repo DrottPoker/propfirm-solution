@@ -50,6 +50,21 @@ public sealed record TradeStatisticsResponse(
     decimal Result,
     decimal Commission);
 
+/// <summary>
+/// The limits the trader set for themselves on the account (ADR 0054), which the firm sees but cannot change.
+/// <paramref name="Now"/> is null while the stage is not traded or the trading platform cannot be reached.
+/// <paramref name="Locks"/> are the times new orders were locked in the last 30 days, newest first.
+/// </summary>
+public sealed record OwnLimitsResponse(TradingOwnLimits? Now, IReadOnlyList<LockedDayResponse> Locks);
+
+/// <summary>
+/// New orders were locked at <paramref name="Time"/> until <paramref name="Until"/>, the next trading day. <paramref name="Limit"/>
+/// is the amount of the trader's own limit that was reached, null when the trader locked the day. <paramref name="DayResult"/>
+/// is equity at the lock less the balance the day started with, and <paramref name="PositionsClosed"/> how many positions
+/// the lock closed.
+/// </summary>
+public sealed record LockedDayResponse(DateTimeOffset Time, OwnLockReason Reason, DateTimeOffset Until, decimal? Limit, decimal DayResult, int PositionsClosed);
+
 /// <summary>Closed positions, newest first. Ask with <paramref name="Next"/> as <c>before</c> for the ones before them.</summary>
 public sealed record TradesResponse(IReadOnlyList<TradeResponse> Trades, long? Next);
 

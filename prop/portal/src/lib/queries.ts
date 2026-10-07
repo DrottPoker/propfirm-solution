@@ -460,6 +460,15 @@ export function useFirmAccount(accountId: string) {
   });
 }
 
+/** The limits the account's trader set for themselves in the terminal, and the days they locked (ADR 0054). */
+export function useOwnLimits(accountId: string) {
+  return useQuery({
+    queryKey: ["own-limits", accountId],
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/accounts/{accountId}/own-limits", accountPath(accountId)), "the trader's own limits"),
+    refetchInterval: liveRefreshMs,
+  });
+}
+
 export function useHistory(accountId: string) {
   return useQuery({
     queryKey: ["history", accountId],

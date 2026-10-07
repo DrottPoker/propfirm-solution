@@ -59,6 +59,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0051](0051-orderverktyg-och-grafens-verktyg.md) | Orderverktyg i motorn, längre historik och egna verktyg i grafen | Beslutad |
 | [0052](0052-regelboken-varningar-och-storlek-fran-risk.md) | Regelboken i terminalen, varningar, storlek från risk och inställningar på kontot | Beslutad |
 | [0053](0053-detaljer-rapporter-och-incidenter.md) | Detaljer per affär, rapport per regelbrott och incidenter med statussida | Beslutad |
+| [0054](0054-egna-sparrar-for-tradern.md) | Egna spärrar för tradern | Beslutad |
 
 ## Så skriver du en ny ADR
 

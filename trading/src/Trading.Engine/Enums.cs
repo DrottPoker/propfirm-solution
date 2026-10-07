@@ -35,6 +35,9 @@ public enum CloseReason
     StopOut,
     EquityFloor,
     AccountClosed,
+
+    /// <summary>The trader's own daily loss limit or profit target was reached, or they locked the day and closed (ADR 0054).</summary>
+    OwnLimit,
 }
 
 public enum CancelReason
@@ -44,6 +47,12 @@ public enum CancelReason
     EquityFloor,
     AccountClosed,
     AccountSuspended,
+
+    /// <summary>New orders are locked until the next trading day (ADR 0054).</summary>
+    TradingLocked,
+
+    /// <summary>The order would open more positions today than the trader's own limit allows.</summary>
+    TradeLimit,
 }
 
 public enum DisableReason
@@ -82,6 +91,18 @@ public enum RejectReason
 
     /// <summary>The account is not disabled, so there is nothing to reopen.</summary>
     AccountNotDisabled,
+
+    /// <summary>The trader's own limit or lock stops new orders until the next trading day (ADR 0054).</summary>
+    AccountLocked,
+
+    /// <summary>The trader has opened as many positions today as their own limit allows.</summary>
+    TradeLimitReached,
+
+    /// <summary>The trader's own limits are not valid, for example a negative amount.</summary>
+    InvalidLimits,
+
+    /// <summary>The trading day's time zone is unknown.</summary>
+    InvalidTradingDay,
     SymbolNotTradable,
     InvalidOrder,
     InvalidVolume,

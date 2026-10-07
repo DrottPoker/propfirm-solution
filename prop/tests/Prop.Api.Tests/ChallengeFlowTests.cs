@@ -10,6 +10,7 @@ using Prop.Api.Challenges;
 using Prop.Api.Firms;
 using Prop.Api.Tests.Support;
 using Prop.Api.Trading;
+using Prop.Rules;
 
 namespace Prop.Api.Tests;
 
@@ -36,7 +37,7 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         Assert.Equal(90_000m, account.GetProperty("maxLossFloor").GetDecimal());
     }
 
-    // The terminal names the account as the portal does, with the stage's target, the trading day's time zone and the way back.
+    // The terminal names the account as the portal does, with the stage's target, the trading day and the way back.
     [Fact]
     public async Task TheTerminalShowsTheAccountAsThePortalNamesIt()
     {
@@ -48,6 +49,10 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
 
         Assert.Equal(("#1001 Two-step 100K · Phase 1", 110_000m, "Europe/Stockholm"), (details.Label, details.ProfitTarget, details.TimeZone));
         Assert.Equal(new Uri($"http://localhost:3002/accounts/{id}"), details.DetailsUrl);
+
+        // The trader's own limits count in the firm's trading day (ADR 0054).
+        await Eventually.ThatAsync(() => factory.Trading.TradingDayOf(Phase1) is not null, "the trading day to be told");
+        Assert.Equal(new TradingDayDefinition("Europe/Stockholm", TimeOnly.MinValue), factory.Trading.TradingDayOf(Phase1));
     }
 
     // The terminal shows the trading days and deadlines, and is told again only when they change (ADR 0052).
@@ -231,7 +236,10 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
             "the account to open after the outage");
 
         Assert.Equal(
-            ["user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "floor demo-firm-1001-1 max-loss", "floor demo-firm-1001-1 daily", "rules demo-firm-1001-1"],
+            [
+                "user anna@test.example", "open demo-firm-1001-1", "describe demo-firm-1001-1", "trading day demo-firm-1001-1", "floor demo-firm-1001-1 max-loss",
+                "floor demo-firm-1001-1 daily", "rules demo-firm-1001-1",
+            ],
             factory.Trading.Commands);
     }
 

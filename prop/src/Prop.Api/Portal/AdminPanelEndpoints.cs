@@ -47,6 +47,7 @@ internal static class AdminPanelEndpoints
         admin.MapGet("/accounts/{accountId:guid}/trades.csv", DownloadTradesAsync);
         admin.MapGet("/accounts/{accountId:guid}/trades/{positionId}/receipt", GetReceiptAsync);
         admin.MapGet("/accounts/{accountId:guid}/breach-report", GetBreachReportAsync);
+        admin.MapGet("/accounts/{accountId:guid}/own-limits", GetOwnLimitsAsync);
         admin.MapGet("/payouts", ListPayoutsAsync);
         admin.MapGet("/payouts/summary", GetPayoutSummaryAsync);
         admin.MapGet("/challenges/figures", ListChallengeFiguresAsync);
@@ -338,6 +339,17 @@ internal static class AdminPanelEndpoints
         CancellationToken cancellationToken,
         int? stage = null) =>
         HistoryActions.BreachReportAsync(PortalFirmFilter.FirmOf(context), accountId, null, stage, queries, history, trading, cancellationToken);
+
+    /// <summary>The trader's own limits on the account and when they locked lately (ADR 0054). The firm sees them but cannot change them.</summary>
+    private static Task<Results<Ok<OwnLimitsResponse>, ProblemHttpResult>> GetOwnLimitsAsync(
+        Guid accountId,
+        HttpContext context,
+        ChallengeQueries queries,
+        TradingHistoryQueries history,
+        ITradingPlatform trading,
+        TimeProvider time,
+        CancellationToken cancellationToken) =>
+        HistoryActions.OwnLimitsAsync(PortalFirmFilter.FirmOf(context), accountId, queries, history, trading, time, cancellationToken);
 
     /// <summary>
     /// The firm's payouts, optionally only those with the statuses: the newest first, or with <paramref name="oldestFirst"/>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { FloorSnapshot } from "./api/types";
-import { accountWith, daily, rulesWith } from "./rules.fixtures";
+import type { FloorSnapshot, OwnLimitsSnapshot } from "./api/types";
+import { accountWith, daily, nextDayStart, ownLimitsWith, rulesWith } from "./rules.fixtures";
 import { floorStage, nextWarnings, type WarningMemory } from "./ruleWarnings";
 
 const now = Date.parse("2026-10-07T10:00:00Z");
@@ -44,6 +44,32 @@ describe("nextWarnings", () => {
       return next.warnings.map((w) => [w.level, w.title]);
     });
   };
+
+  it("warns as the trader's own daily loss limit comes close, and once as it locks the day or the day's trades are used", () => {
+    const own = (equity: number, changes: Partial<OwnLimitsSnapshot> = {}) =>
+      accountWith({ equity, ownLimits: ownLimitsWith({ limits: { dailyLoss: 1_000, dailyTarget: null, maxTrades: 3 }, lossLevel: 99_000, ...changes }) });
+    const locked = { lock: { until: nextDayStart, reason: "DailyLoss" as const } };
+
+    const told = run([
+      input({ account: own(100_000) }),
+      input({ account: own(99_200) }),
+      input({ account: own(99_050) }),
+      input({ account: own(98_990, locked) }),
+      input({ account: own(98_990, locked) }),
+      input({ account: own(100_000, { tradesToday: 3 }) }),
+      input({ account: own(100_000, { lock: { until: nextDayStart, reason: "Trader" } }) }),
+    ]);
+
+    expect(told).toEqual([
+      [],
+      [["warning", "Close to your own daily loss limit"]],
+      [["danger", "Very close to your own daily loss limit"]],
+      [["warning", "Your own daily loss limit was reached"]],
+      [],
+      [["warning", "You have used your trades for today"]],
+      [],
+    ]);
+  });
 
   it("warns once as a loss limit comes closer, and again once it was further away", () => {
     const told = run([

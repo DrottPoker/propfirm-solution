@@ -3182,6 +3182,36 @@
         }
       }
     },
+    "/api/portal/admin/accounts/{accountId}/own-limits": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnLimitsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/payouts": {
       "get": {
         "tags": [
@@ -9709,6 +9739,46 @@
         },
         "description": "The trading account valued at the latest prices. Missing when the trading platform cannot be reached."
       },
+      "LockedDayResponse": {
+        "required": [
+          "time",
+          "reason",
+          "until",
+          "limit",
+          "dayResult",
+          "positionsClosed"
+        ],
+        "type": "object",
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/OwnLockReason"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "limit": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "dayResult": {
+            "type": "number",
+            "format": "double"
+          },
+          "positionsClosed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "New orders were locked at Time until Until, the next trading day. Limit\nis the amount of the trader's own limit that was reached, null when the trader locked the day. DayResult\nis equity at the lock less the balance the day started with, and PositionsClosed how many positions\nthe lock closed."
+      },
       "LoginLinkResponse": {
         "required": [
           "url",
@@ -11543,6 +11613,89 @@
           }
         },
         "description": "The token from the buyer's link to the order."
+      },
+      "OwnLimitAmounts": {
+        "required": [
+          "dailyLoss",
+          "dailyTarget",
+          "maxTrades"
+        ],
+        "type": "object",
+        "properties": {
+          "dailyLoss": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "dailyTarget": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTrades": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          }
+        },
+        "description": "A daily loss limit and a daily profit target, in the account currency from the balance the trading day started with,\nand the most positions to open in a day. Null is off."
+      },
+      "OwnLimitsResponse": {
+        "required": [
+          "now",
+          "locks"
+        ],
+        "type": "object",
+        "properties": {
+          "now": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TradingOwnLimits"
+              }
+            ]
+          },
+          "locks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LockedDayResponse"
+            }
+          }
+        },
+        "description": "The limits the trader set for themselves on the account (ADR 0054), which the firm sees but cannot change.\nNow is null while the stage is not traded or the trading platform cannot be reached.\nLocks are the times new orders were locked in the last 30 days, newest first."
+      },
+      "OwnLock": {
+        "required": [
+          "until",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/OwnLockReason"
+          }
+        },
+        "description": "New orders are locked until Until, the start of the next trading day."
+      },
+      "OwnLockReason": {
+        "enum": [
+          "Trader",
+          "DailyLoss",
+          "DailyTarget"
+        ],
+        "description": "Why new orders are locked until the next trading day."
       },
       "PassRateResponse": {
         "required": [
@@ -14680,6 +14833,50 @@
           }
         },
         "description": "When a trading day starts, as a time of day in an IANA time zone. The service turns it into trading days."
+      },
+      "TradingOwnLimits": {
+        "required": [
+          "limits",
+          "pending",
+          "tradesToday",
+          "nextDayStart",
+          "lock"
+        ],
+        "type": "object",
+        "properties": {
+          "limits": {
+            "$ref": "#/components/schemas/OwnLimitAmounts"
+          },
+          "pending": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnLimitAmounts"
+              }
+            ]
+          },
+          "tradesToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextDayStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lock": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OwnLock"
+              }
+            ]
+          }
+        },
+        "description": "The limits the trader set for themselves on the account (ADR 0054), which only the trader can change: those that hold\ntoday, Pending from the next trading day when the trader loosened one, the positions opened today,\nwhen the next trading day starts, and the lock on new orders until then, if any."
       },
       "TradingSymbolRequest": {
         "required": [

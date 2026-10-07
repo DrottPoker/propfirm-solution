@@ -132,8 +132,66 @@ public sealed class TradingPlatformClientTests
         Assert.Equal(100_000m, account.Balance);
         Assert.Equal(99_250.5m, account.Equity);
         Assert.Equal(new TradingFloorSnapshot("daily", 95_000m, 4_250.5m), Assert.Single(account.Floors));
+        Assert.Null(account.OwnLimits);
         Assert.Null(missing);
         Assert.Equal(["GET api/admin/v1/accounts/A1", "GET api/admin/v1/accounts/A2"], platform.Requests);
+    }
+
+    // The limits the trader set in the terminal, and the lock one of them set until the next trading day (ADR 0054).
+    [Fact]
+    public async Task AnAccountShowsTheTradersOwnLimits()
+    {
+        var platform = new StubPlatform((HttpStatusCode.OK, """
+            {"accountId":"A1","balance":98500,"equity":98500,"floors":[],"ownLimits":{
+              "limits":{"dailyLoss":1500,"dailyTarget":null,"maxTrades":6},
+              "pending":{"dailyLoss":2000,"dailyTarget":null,"maxTrades":null},
+              "tradingDay":{"timeZone":"Europe/Stockholm","start":"00:00:00"},
+              "dayStartBalance":100000,"lossLevel":98500,"targetLevel":null,"tradesToday":3,"nextDayStart":"2026-10-05T22:00:00+00:00",
+              "lock":{"until":"2026-10-05T22:00:00+00:00","reason":"DailyLoss"}}}
+            """));
+
+        var account = await Client(platform).GetAccountAsync(Firm, "A1", TestContext.Current.CancellationToken);
+
+        var midnight = new DateTimeOffset(2026, 10, 5, 22, 0, 0, TimeSpan.Zero);
+        Assert.Equal(
+            new TradingOwnLimits(new OwnLimitAmounts(1_500m, null, 6), new OwnLimitAmounts(2_000m, null, null), 3, midnight, new OwnLock(midnight, OwnLockReason.DailyLoss)),
+            account!.OwnLimits);
+    }
+
+    // An ended account has no trading days left, so telling it its trading day is done.
+    [Fact]
+    public async Task TheTradingDayIsToldAndAnEndedAccountNeedsNone()
+    {
+        var platform = new StubPlatform((HttpStatusCode.OK, "{}"), (HttpStatusCode.UnprocessableEntity, """{"status":422,"reason":"AccountDisabled"}"""));
+        var client = Client(platform);
+        var day = new TradingDayDefinition("Europe/Stockholm", new TimeOnly(22, 0));
+
+        await client.SetTradingDayAsync(Firm, "A1", day, TestContext.Current.CancellationToken);
+        await client.SetTradingDayAsync(Firm, "A2", day, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["PUT api/admin/v1/accounts/A1/trading-day", "PUT api/admin/v1/accounts/A2/trading-day"], platform.Requests);
+        Assert.Equal("""{"timeZone":"Europe/Stockholm","startsAt":"22:00:00"}""", platform.Bodies[0]);
+    }
+
+    [Fact]
+    public async Task ALockedDayIsReadWithItsLimitAndResult()
+    {
+        var page = """
+            {"events":[
+              {"sequence":8,"event":{"kind":"TradingLocked","accountId":"A1","reason":"DailyLoss","until":"2026-10-05T22:00:00+00:00","limit":1500,"dayResult":-1531.6,"positionsClosed":2,"timestamp":"2026-10-05T14:32:08+00:00"}},
+              {"sequence":9,"event":{"kind":"TradingLocked","accountId":"A1","reason":"Trader","until":"2026-10-06T22:00:00+00:00","limit":null,"dayResult":120,"positionsClosed":0,"timestamp":"2026-10-06T09:04:00+00:00"}}
+            ],"cursor":9}
+            """;
+
+        var read = await Client(new StubPlatform((HttpStatusCode.OK, page))).ReadEventsAsync(Firm, 7, 500, 30, TestContext.Current.CancellationToken);
+
+        Assert.Collection(
+            read.Events,
+            e => Assert.Equal(
+                new TradingDayLocked(
+                    8, new DateTimeOffset(2026, 10, 5, 14, 32, 8, TimeSpan.Zero), "A1", e.Raw, OwnLockReason.DailyLoss, new DateTimeOffset(2026, 10, 5, 22, 0, 0, TimeSpan.Zero), 1_500m, -1_531.6m, 2),
+                e),
+            e => Assert.Equal((OwnLockReason.Trader, null, 120m), (Assert.IsType<TradingDayLocked>(e).Reason, ((TradingDayLocked)e).Limit, ((TradingDayLocked)e).DayResult)));
     }
 
     [Fact]
@@ -254,6 +312,7 @@ public sealed class TradingContractTests
     [InlineData("/api/admin/v1/impact", "get")]
     [InlineData("/api/admin/v1/notice", "put")]
     [InlineData("/api/admin/v1/notice", "delete")]
+    [InlineData("/api/admin/v1/accounts/{accountId}/trading-day", "put")]
     [InlineData("/api/partner/v1/price-feed", "get")]
     public void EveryPathTheClientUsesIsInTheContract(string path, string method)
     {
@@ -362,6 +421,24 @@ public sealed class TradingContractTests
     [InlineData("PriceFeedStatus", "lastPriceAt")]
     [InlineData("PriceFeedStatus", "symbols")]
     [InlineData("SymbolFeedStatus", "marketOpen")]
+    [InlineData("TradingDayRequest", "timeZone")]
+    [InlineData("TradingDayRequest", "startsAt")]
+    [InlineData("AccountSnapshot", "ownLimits")]
+    [InlineData("OwnLimitsSnapshot", "limits")]
+    [InlineData("OwnLimitsSnapshot", "pending")]
+    [InlineData("OwnLimitsSnapshot", "tradesToday")]
+    [InlineData("OwnLimitsSnapshot", "nextDayStart")]
+    [InlineData("OwnLimitsSnapshot", "lock")]
+    [InlineData("OwnLimits", "dailyLoss")]
+    [InlineData("OwnLimits", "dailyTarget")]
+    [InlineData("OwnLimits", "maxTrades")]
+    [InlineData("OwnLock", "until")]
+    [InlineData("OwnLock", "reason")]
+    [InlineData("TradingLocked", "reason")]
+    [InlineData("TradingLocked", "until")]
+    [InlineData("TradingLocked", "limit")]
+    [InlineData("TradingLocked", "dayResult")]
+    [InlineData("TradingLocked", "positionsClosed")]
     public void EveryFieldTheClientUsesIsInTheContract(string schema, string property)
     {
         var schemas = Contract["components"]!["schemas"]!.AsObject();

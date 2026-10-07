@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
+
 import { formatTime, timeZoneName } from "@/lib/format";
 import { useNow } from "@/lib/marketHours";
 import { ageText, feedStoppedFor, priceAgeMs, priceIsOld } from "@/lib/priceAge";
+import { noticeLine } from "@/lib/notices";
 import { useMarketHours, useNotice } from "@/lib/queries";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
@@ -41,6 +44,7 @@ export function PriceAlerts({ accountId }: { accountId: string }) {
   const stopped = useFeedStopped(accountId);
   const notice = useNotice(accountId).data ?? null;
   const timeZone = useTimeZone();
+  const [expanded, setExpanded] = useState(false);
 
   if (stopped === null && !notice) {
     return null;
@@ -62,22 +66,30 @@ export function PriceAlerts({ accountId }: { accountId: string }) {
           </div>
         </div>
       )}
+      {/* One line, so it does not push the chart down. A press on the text shows all of it when it does not fit. */}
       {notice && (
         <div
           role={notice.level === "Warning" ? "alert" : "status"}
-          className={`flex animate-enter flex-wrap items-start gap-x-3 gap-y-2 rounded-xl border px-4 py-3 text-sm shadow-card ${notice.level === "Warning" ? "border-warning/40 bg-warning/10" : "border-border bg-panel"}`}
+          className={`flex animate-enter items-center gap-2.5 rounded-lg border px-3 py-1.5 text-sm ${notice.level === "Warning" ? "border-warning/40 bg-warning/10" : "border-border bg-panel"}`}
         >
-          <InfoIcon className={`mt-0.5 size-5 shrink-0 ${notice.level === "Warning" ? "text-warning" : "text-accent"}`} />
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <p className="font-semibold">{notice.title}</p>
-            <p className="whitespace-pre-line">{notice.text}</p>
-          </div>
+          <InfoIcon className={`size-4 shrink-0 ${notice.level === "Warning" ? "text-warning" : "text-accent"}`} />
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((e) => !e)}
+            title={expanded ? undefined : `${notice.title}: ${noticeLine(notice.text)}`}
+            className={`min-w-0 flex-1 text-left ${expanded ? "" : "truncate"}`}
+          >
+            <span className="font-semibold">{notice.title}</span>
+            <span className="text-muted"> · </span>
+            {noticeLine(notice.text)}
+          </button>
           {notice.url && (
             <a
               href={notice.url}
               target="_blank"
               rel="noreferrer"
-              className="shrink-0 self-center rounded-lg border border-border bg-panel px-3 py-1.5 font-medium transition duration-150 hover:border-muted hover:bg-raised active:translate-y-px"
+              className="shrink-0 text-xs font-medium text-accent transition-colors duration-150 hover:text-foreground hover:underline"
             >
               Read more
             </a>

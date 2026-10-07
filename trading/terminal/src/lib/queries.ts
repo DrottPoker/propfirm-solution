@@ -1,7 +1,7 @@
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./api/client";
-import type { Candle, CommandResponse, EventEnvelope, MarketHours, PlaceOrderRequest, Timeframe } from "./api/types";
+import type { Candle, CommandResponse, EventEnvelope, MarketHours, OwnLimits, PlaceOrderRequest, Timeframe } from "./api/types";
 import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
 import { marketRefreshDelay } from "./marketHours";
@@ -317,6 +317,23 @@ export function useCloseAllPositions(accountId: string) {
       commandResult(
         await api.POST("/api/accounts/{accountId}/positions/close-all", { ...accountPath(accountId), body: symbol === null ? undefined : { symbol } }),
       ),
+    onSuccess: addEvents,
+  });
+}
+
+/** Sets the trader's own limits (ADR 0054). Stricter ones apply at once, looser ones from the next trading day. */
+export function useSetOwnLimits(accountId: string) {
+  return useMutation({
+    mutationFn: async (limits: OwnLimits) => commandResult(await api.PUT("/api/accounts/{accountId}/limits", { ...accountPath(accountId), body: limits })),
+    onSuccess: addEvents,
+  });
+}
+
+/** Locks new orders until the next trading day, closing every position or keeping them (ADR 0054). Nobody can undo it. */
+export function useLockTrading(accountId: string) {
+  return useMutation({
+    mutationFn: async (closePositions: boolean) =>
+      commandResult(await api.POST("/api/accounts/{accountId}/lock", { ...accountPath(accountId), body: { closePositions } })),
     onSuccess: addEvents,
   });
 }

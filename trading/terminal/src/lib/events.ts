@@ -1,6 +1,6 @@
 import { floorLabel } from "./account";
 import type { EngineEvent } from "./api/types";
-import { formatMoney, formatPercent, formatPrice, formatVolume } from "./format";
+import { formatMoney, formatPercent, formatPrice, formatVolume, timeZoneName } from "./format";
 import { trailingPips } from "./orderTools";
 
 /** Price decimals for a symbol. Falls back to 5 for symbols the terminal does not know. */
@@ -19,6 +19,7 @@ export const closeReasons: Record<CloseReason, string> = {
   StopOut: "Stop out",
   EquityFloor: "Loss limit",
   AccountClosed: "Account closed",
+  OwnLimit: "Your own limit",
 };
 
 /** How a position closed, after "Closed Buy 1.00 EURUSD at 1.07500": nothing for a manual close. */
@@ -29,6 +30,7 @@ export const closedBecause: Record<CloseReason, string> = {
   StopOut: " by a stop out",
   EquityFloor: " by the loss limit",
   AccountClosed: " because the account closed",
+  OwnLimit: " by your own limit",
 };
 
 const cancelledBecause: Record<CancelReason, string> = {
@@ -37,6 +39,8 @@ const cancelledBecause: Record<CancelReason, string> = {
   EquityFloor: " by the loss limit",
   AccountClosed: " because the account closed",
   AccountSuspended: " because trading was paused",
+  TradingLocked: " because new orders are locked for the day",
+  TradeLimit: ": you have used your trades for the day",
 };
 
 const disabledBecause: Record<DisableReason, string> = {
@@ -78,6 +82,10 @@ const rejections: Record<RejectReason, string> = {
   InvalidFloor: "the loss limit is not valid",
   UnknownFloor: "the loss limit is unknown",
   InsufficientFunds: "the balance is too low",
+  AccountLocked: "new orders are locked until the next trading day",
+  TradeLimitReached: "you have used your trades for the day",
+  InvalidLimits: "the limits are not valid",
+  InvalidTradingDay: "the trading day is not valid",
 };
 
 /** Why the trading service refused something, for example "not enough free margin". */
@@ -97,7 +105,21 @@ const inputNames: Record<string, string> = {
   ClosePosition: "Closing the position",
   CloseAllPositions: "Closing all positions",
   ModifyPosition: "Changing the stops",
+  SetOwnLimits: "Changing your limits",
+  LockTrading: "Locking the day",
 };
+
+const lockedBy: Record<string, string> = { Trader: "by you", DailyLoss: "by your daily loss limit", DailyTarget: "by your daily profit target" };
+
+// An own limit in a few words, for example "daily loss 1,500.00" or "6 trades a day".
+function limitsText(limits: { dailyLoss: number | null; dailyTarget: number | null; maxTrades: number | null }): string {
+  const parts = [
+    limits.dailyLoss === null ? null : `daily loss ${formatMoney(limits.dailyLoss)}`,
+    limits.dailyTarget === null ? null : `daily profit target ${formatMoney(limits.dailyTarget)}`,
+    limits.maxTrades === null ? null : `${limits.maxTrades} trades a day`,
+  ].filter((p) => p !== null);
+  return parts.length === 0 ? "none" : parts.join(", ");
+}
 
 // ", trailing 10.0 pips" after the stops of a position or order with a trailing stop.
 const trailing = (distance: number | null | undefined, digits: number) => (distance == null ? "" : `, trailing ${trailingPips(distance, digits)} pips`);
@@ -139,6 +161,18 @@ export function describeEvent(event: EngineEvent, digitsOf: DigitsOf): string {
       return `Trading reopened by the firm with a balance of ${formatMoney(event.balance)}`;
     case "BalanceAdjusted":
       return `${balanceOperationName(event.amount)} of ${formatMoney(Math.abs(event.amount))}, balance ${formatMoney(event.balanceAfter)}`;
+    case "TradingDaySet":
+      return `Trading days start at ${event.day.start.slice(0, 5)} ${timeZoneName(event.day.timeZone)}`;
+    case "TradingDayStarted":
+      return `New trading day from a balance of ${formatMoney(event.dayStartBalance)}`;
+    case "OwnLimitsSet":
+      return `Your limits: ${limitsText(event.limits)}${event.pending ? `. From the next trading day: ${limitsText(event.pending)}` : ""}`;
+    case "OwnLimitReached":
+      return `Your own ${event.limit === "DailyLoss" ? "daily loss limit" : "daily profit target"} reached: equity ${formatMoney(event.equity)} at ${formatMoney(event.level)}`;
+    case "TradingLocked":
+      return `New orders locked ${lockedBy[event.reason]} until the next trading day`;
+    case "TradingUnlocked":
+      return "New orders taken again";
     case "InputRejected":
       return `${inputNames[event.input.kind ?? ""] ?? "Request"} refused: ${rejectionReason(event.reason)}`;
     default:
@@ -185,7 +219,9 @@ export function isWarning(event: EngineEvent): boolean {
     event.kind === "EquityFloorBreached" ||
     event.kind === "StopOutTriggered" ||
     event.kind === "AccountDisabled" ||
-    event.kind === "AccountSuspended"
+    event.kind === "AccountSuspended" ||
+    event.kind === "OwnLimitReached" ||
+    event.kind === "TradingLocked"
   );
 }
 

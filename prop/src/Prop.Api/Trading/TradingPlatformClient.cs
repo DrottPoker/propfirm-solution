@@ -131,6 +131,15 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task SetTradingDayAsync(FirmTrading firm, string accountId, TradingDayDefinition day, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(
+            firm, HttpMethod.Put, $"{Admin}accounts/{Uri.EscapeDataString(accountId)}/trading-day", new { timeZone = day.TimeZone, startsAt = day.Start }, cancellationToken);
+
+        // An ended account has no trading days left to count.
+        await EnsureSuccessAsync(response, cancellationToken, toleratedReason: "AccountDisabled");
+    }
+
     public async Task DescribeRulesAsync(FirmTrading firm, string accountId, TradingAccountRules rules, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(
@@ -169,8 +178,26 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                     f.GetProperty("floorId").GetString()!,
                     f.GetProperty("level").GetDecimal(),
                     f.GetProperty("headroom").GetDecimal())),
-            ]);
+            ],
+            account.TryGetProperty("ownLimits", out var own) ? OwnLimitsOf(own) : null);
     }
+
+    private static TradingOwnLimits OwnLimitsOf(JsonElement own) =>
+        new(
+            AmountsOf(own.GetProperty("limits")),
+            own.GetProperty("pending") is { ValueKind: JsonValueKind.Object } pending ? AmountsOf(pending) : null,
+            own.GetProperty("tradesToday").GetInt32(),
+            own.GetProperty("nextDayStart").GetDateTimeOffset(),
+            own.GetProperty("lock") is { ValueKind: JsonValueKind.Object } held
+                ? new OwnLock(held.GetProperty("until").GetDateTimeOffset(), Enum.Parse<OwnLockReason>(held.GetProperty("reason").GetString()!))
+                : null);
+
+    private static OwnLimitAmounts AmountsOf(JsonElement limits) =>
+        new(DecimalOrNull(limits.GetProperty("dailyLoss")), DecimalOrNull(limits.GetProperty("dailyTarget")), IntOrNull(limits.GetProperty("maxTrades")));
+
+    private static decimal? DecimalOrNull(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetDecimal();
+
+    private static int? IntOrNull(JsonElement value) => value.ValueKind == JsonValueKind.Null ? null : value.GetInt32();
 
     public async Task<TradeReceipt?> GetReceiptAsync(FirmTrading firm, string accountId, string positionId, CancellationToken cancellationToken)
     {
@@ -353,6 +380,16 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                 e.GetProperty("equity").GetDecimal()),
             "AccountDisabled" => new TradingAccountDisabled(sequence, time, accountId, raw),
             "AccountReopened" => new TradingAccountReopened(sequence, time, accountId, raw, e.GetProperty("balance").GetDecimal()),
+            "TradingLocked" => new TradingDayLocked(
+                sequence,
+                time,
+                accountId,
+                raw,
+                Enum.Parse<OwnLockReason>(e.GetProperty("reason").GetString()!),
+                e.GetProperty("until").GetDateTimeOffset(),
+                DecimalOrNull(e.GetProperty("limit")),
+                e.GetProperty("dayResult").GetDecimal(),
+                e.GetProperty("positionsClosed").GetInt32()),
             "BalanceAdjusted" => new TradingBalanceAdjusted(
                 sequence,
                 time,

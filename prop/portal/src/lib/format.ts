@@ -56,6 +56,11 @@ export function formatDateTime(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone });
 }
 
+/** A time of day, for example "00:00", in the time zone when given. */
+export function formatClock(iso: string, timeZone?: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone });
+}
+
 /** A time in a table of trades, for example "2 Oct 13:40", in the time zone when given. */
 export function formatShortDateTime(iso: string, timeZone?: string): string {
   return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone });

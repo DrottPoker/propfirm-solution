@@ -940,6 +940,88 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/accounts/{accountId}/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["OwnLimitsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/accounts/{accountId}/lock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LockTradingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me/settings": {
         parameters: {
             query?: never;
@@ -1588,6 +1670,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/v1/accounts/{accountId}/trading-day": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    accountId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TradingDayRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CommandResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/v1/accounts/{accountId}/positions/{positionId}/receipt": {
         parameters: {
             query?: never;
@@ -2219,7 +2342,7 @@ export interface components {
             /** Format: double */
             bestDayPercent?: null | number;
         };
-        /** @description Account state valued at the latest prices. Amounts are in account currency. */
+        /** @description Account state valued at the latest prices, with the trader's own limits. Amounts are in account currency. */
         AccountSnapshot: {
             accountId: string;
             groupId: string;
@@ -2238,6 +2361,7 @@ export interface components {
             positions: components["schemas"]["PositionSnapshot"][];
             orders: components["schemas"]["OrderSnapshot"][];
             floors: components["schemas"]["FloorSnapshot"][];
+            ownLimits: components["schemas"]["OwnLimitsSnapshot"];
         };
         /** @enum {unknown} */
         AccountStatus: "Active" | "Suspended" | "Disabled";
@@ -2301,7 +2425,7 @@ export interface components {
             events: components["schemas"]["EventEnvelope"][];
         };
         /** @enum {unknown} */
-        CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed" | "AccountSuspended";
+        CancelReason: "Manual" | "InsufficientMargin" | "EquityFloor" | "AccountClosed" | "AccountSuspended" | "TradingLocked" | "TradeLimit";
         /** @description Bar of bid prices. Time is the start of the bar in UTC. */
         Candle: {
             /** Format: date-time */
@@ -2331,7 +2455,7 @@ export interface components {
             volume?: null | number;
         };
         /** @enum {unknown} */
-        CloseReason: "Manual" | "StopLoss" | "TakeProfit" | "StopOut" | "EquityFloor" | "AccountClosed";
+        CloseReason: "Manual" | "StopLoss" | "TakeProfit" | "StopOut" | "EquityFloor" | "AccountClosed" | "OwnLimit";
         /** @description The events a command caused, in order. */
         CommandResponse: {
             events: components["schemas"]["EventEnvelope"][];
@@ -2375,7 +2499,7 @@ export interface components {
         /** @enum {unknown} */
         DisableReason: "EquityFloor" | "Closed";
         /** @description Output from the engine. The timestamp is the timestamp of the input that caused it. */
-        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountReopened"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderModified"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventPositionPartiallyClosed"] | components["schemas"]["EngineEventStopOutTriggered"];
+        EngineEvent: components["schemas"]["EngineEventAccountCreated"] | components["schemas"]["EngineEventAccountDisabled"] | components["schemas"]["EngineEventAccountReopened"] | components["schemas"]["EngineEventAccountResumed"] | components["schemas"]["EngineEventAccountSuspended"] | components["schemas"]["EngineEventBalanceAdjusted"] | components["schemas"]["EngineEventEquityFloorBreached"] | components["schemas"]["EngineEventEquityFloorRemoved"] | components["schemas"]["EngineEventEquityFloorSet"] | components["schemas"]["EngineEventGroupCreated"] | components["schemas"]["EngineEventGroupSymbolsChanged"] | components["schemas"]["EngineEventInputRejected"] | components["schemas"]["EngineEventOrderCancelled"] | components["schemas"]["EngineEventOrderModified"] | components["schemas"]["EngineEventOrderPlaced"] | components["schemas"]["EngineEventOwnLimitReached"] | components["schemas"]["EngineEventOwnLimitsSet"] | components["schemas"]["EngineEventPositionClosed"] | components["schemas"]["EngineEventPositionModified"] | components["schemas"]["EngineEventPositionOpened"] | components["schemas"]["EngineEventPositionPartiallyClosed"] | components["schemas"]["EngineEventStopOutTriggered"] | components["schemas"]["EngineEventTradingDaySet"] | components["schemas"]["EngineEventTradingDayStarted"] | components["schemas"]["EngineEventTradingLocked"] | components["schemas"]["EngineEventTradingUnlocked"];
         EngineEventAccountCreated: {
             /** @enum {string} */
             kind?: "AccountCreated";
@@ -2540,6 +2664,29 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /** @description Equity reached the trader's own daily loss limit or profit target. Positions close and new orders lock right after. */
+        EngineEventOwnLimitReached: {
+            /** @enum {string} */
+            kind?: "OwnLimitReached";
+            accountId: string;
+            limit: components["schemas"]["LockReason"];
+            /** Format: double */
+            level: number;
+            /** Format: double */
+            equity: number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description The trader's own limits now, and Pending from the next trading day when they loosened one (ADR 0054). */
+        EngineEventOwnLimitsSet: {
+            /** @enum {string} */
+            kind?: "OwnLimitsSet";
+            accountId: string;
+            limits: components["schemas"]["OwnLimits"];
+            pending: null | components["schemas"]["OwnLimits"];
+            /** Format: date-time */
+            timestamp: string;
+        };
         /** @description A position was closed. Profit and commission are in account currency. */
         EngineEventPositionClosed: {
             /** @enum {string} */
@@ -2653,11 +2800,67 @@ export interface components {
             /** Format: date-time */
             timestamp: string;
         };
+        /** @description The account's trading day now starts as told, the next time at NextDayStart (ADR 0054). */
+        EngineEventTradingDaySet: {
+            /** @enum {string} */
+            kind?: "TradingDaySet";
+            accountId: string;
+            day: components["schemas"]["TradingDay"];
+            /** Format: date-time */
+            nextDayStart: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description A trading day started on an account with own limits or a lock: the limits counted from DayStartBalance,
+         *     Limits are those for the day, and the day ends at NextDayStart.
+         */
+        EngineEventTradingDayStarted: {
+            /** @enum {string} */
+            kind?: "TradingDayStarted";
+            accountId: string;
+            /** Format: double */
+            dayStartBalance: number;
+            limits: components["schemas"]["OwnLimits"];
+            /** Format: date-time */
+            nextDayStart: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description New orders are locked until Until, the start of the next trading day (ADR 0054). Limit
+         *     is the own limit that was reached, null when the trader locked the day. DayResult is equity at the
+         *     lock less the balance the day started with, and PositionsClosed how many positions the lock closed.
+         */
+        EngineEventTradingLocked: {
+            /** @enum {string} */
+            kind?: "TradingLocked";
+            accountId: string;
+            reason: components["schemas"]["LockReason"];
+            /** Format: date-time */
+            until: string;
+            /** Format: double */
+            limit: null | number;
+            /** Format: double */
+            dayResult: number;
+            /** Format: int32 */
+            positionsClosed: number;
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /** @description A new trading day started, or the firm reopened the account, so new orders are taken again. */
+        EngineEventTradingUnlocked: {
+            /** @enum {string} */
+            kind?: "TradingUnlocked";
+            accountId: string;
+            /** Format: date-time */
+            timestamp: string;
+        };
         /**
          * @description Input to the engine. The timestamp is set by the service when the input arrives
          *     and must never be earlier than the previous input.
          */
-        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputCloseAllPositions"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputModifyOrder"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputReopenAccount"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSuspendAccount"];
+        EngineInput: components["schemas"]["EngineInputAdjustBalance"] | components["schemas"]["EngineInputCancelOrder"] | components["schemas"]["EngineInputChangeGroupSymbols"] | components["schemas"]["EngineInputCloseAccount"] | components["schemas"]["EngineInputCloseAllPositions"] | components["schemas"]["EngineInputClosePosition"] | components["schemas"]["EngineInputCreateAccount"] | components["schemas"]["EngineInputCreateGroup"] | components["schemas"]["EngineInputLockTrading"] | components["schemas"]["EngineInputModifyOrder"] | components["schemas"]["EngineInputModifyPosition"] | components["schemas"]["EngineInputPlaceOrder"] | components["schemas"]["EngineInputQuote"] | components["schemas"]["EngineInputRemoveEquityFloor"] | components["schemas"]["EngineInputReopenAccount"] | components["schemas"]["EngineInputResumeAccount"] | components["schemas"]["EngineInputSetEquityFloor"] | components["schemas"]["EngineInputSetOwnLimits"] | components["schemas"]["EngineInputSetTradingDay"] | components["schemas"]["EngineInputSuspendAccount"];
         /**
          * @description Deposits a positive Amount or withdraws a negative one. The caller chooses
          *     OperationId, which is never reused on the account, so a retry cannot apply it twice.
@@ -2747,6 +2950,18 @@ export interface components {
             /** @enum {string} */
             kind?: "CreateGroup";
             group: components["schemas"]["TradingGroup"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description The trader locks new orders until the next trading day, which nobody can undo (ADR 0054). Pending orders are cancelled.
+         *     With ClosePositions every position closes too, except one whose market has no fresh price now.
+         */
+        EngineInputLockTrading: {
+            /** @enum {string} */
+            kind?: "LockTrading";
+            accountId: string;
+            closePositions: boolean;
             /** Format: date-time */
             timestamp: string;
         };
@@ -2860,6 +3075,30 @@ export interface components {
             accountId: string;
             floorId: string;
             rule: components["schemas"]["EquityFloorRule"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description The trader's own limits (ADR 0054). Each limit that is stricter than now applies at once; each that is looser, or
+         *     turned off, applies from the next trading day.
+         */
+        EngineInputSetOwnLimits: {
+            /** @enum {string} */
+            kind?: "SetOwnLimits";
+            accountId: string;
+            limits: components["schemas"]["OwnLimits"];
+            /** Format: date-time */
+            timestamp: string;
+        };
+        /**
+         * @description Sets when the account's trading day starts, as the firm's system counts it (ADR 0054). Until it is set, the day starts
+         *     at midnight UTC. The day going on keeps running until the next start of the new day.
+         */
+        EngineInputSetTradingDay: {
+            /** @enum {string} */
+            kind?: "SetTradingDay";
+            accountId: string;
+            day: components["schemas"]["TradingDay"];
             /** Format: date-time */
             timestamp: string;
         };
@@ -3028,6 +3267,15 @@ export interface components {
         LinkLoginRequest: {
             token: null | string;
         };
+        /**
+         * @description Why new orders are locked until the next trading day.
+         * @enum {unknown}
+         */
+        LockReason: "Trader" | "DailyLoss" | "DailyTarget";
+        /** @description Locks new orders until the next trading day (ADR 0054). With ClosePositions every position closes too. */
+        LockTradingRequest: {
+            closePositions: boolean;
+        };
         /** @description Open Url once before ExpiresAt to be logged in to the terminal. */
         LoginLinkResponse: {
             /** Format: uri */
@@ -3122,6 +3370,60 @@ export interface components {
         };
         /** @enum {unknown} */
         OrderType: "Market" | "Limit" | "Stop";
+        /**
+         * @description Limits the trader sets for themselves, stricter than the firm's (ADR 0054). DailyLoss and
+         *     DailyTarget are amounts below and above the balance the trading day started with: reaching either
+         *     closes every position and locks new orders until the next trading day. MaxTrades is how many
+         *     positions may open in a trading day. An empty limit is off.
+         */
+        OwnLimits: {
+            /** Format: double */
+            dailyLoss: null | number;
+            /** Format: double */
+            dailyTarget: null | number;
+            /** Format: int32 */
+            maxTrades: null | number;
+        };
+        /**
+         * @description The trader's own limits (ADR 0054): a daily loss limit and a daily profit target in the account currency, counted
+         *     from the balance the trading day started with, and the most positions to open in a day. An empty limit is off. A
+         *     stricter limit applies at once and a looser one from the next trading day.
+         */
+        OwnLimitsRequest: {
+            /** Format: double */
+            dailyLoss: null | number;
+            /** Format: double */
+            dailyTarget: null | number;
+            /** Format: int32 */
+            maxTrades: null | number;
+        };
+        /**
+         * @description The trader's own limits on an account now. Pending are the limits from the next trading day, when
+         *     the trader loosened one. LossLevel and TargetLevel are the equity at which the
+         *     daily loss limit and profit target are reached today. Lock is set while new orders are locked.
+         */
+        OwnLimitsSnapshot: {
+            limits: components["schemas"]["OwnLimits"];
+            pending: null | components["schemas"]["OwnLimits"];
+            tradingDay: components["schemas"]["TradingDay"];
+            /** Format: double */
+            dayStartBalance: number;
+            /** Format: double */
+            lossLevel: null | number;
+            /** Format: double */
+            targetLevel: null | number;
+            /** Format: int32 */
+            tradesToday: number;
+            /** Format: date-time */
+            nextDayStart: string;
+            lock: null | components["schemas"]["OwnLock"];
+        };
+        /** @description New orders are locked until Until, the start of the next trading day, for the reason. */
+        OwnLock: {
+            /** Format: date-time */
+            until: string;
+            reason: components["schemas"]["LockReason"];
+        };
         /**
          * @description Places an order. The client creates the order id, so a retry can never place the order twice. With
          *     TrailingStop the stop loss follows the price at the distance it is set at.
@@ -3263,7 +3565,7 @@ export interface components {
             price: number;
         };
         /** @enum {unknown} */
-        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "AccountNotDisabled" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "MarketClosed" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "NoStopLoss" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
+        RejectReason: "OutOfOrder" | "InvalidId" | "DuplicateId" | "UnknownSymbol" | "InvalidQuote" | "UnknownGroup" | "InvalidGroup" | "GroupNotChangeable" | "SymbolInUse" | "InvalidAmount" | "UnknownAccount" | "AccountDisabled" | "AccountSuspended" | "AccountNotSuspended" | "AccountNotDisabled" | "AccountLocked" | "TradeLimitReached" | "InvalidLimits" | "InvalidTradingDay" | "SymbolNotTradable" | "InvalidOrder" | "InvalidVolume" | "InvalidPrice" | "InvalidStopLoss" | "InvalidTakeProfit" | "NoPrice" | "StalePrice" | "MarketClosed" | "NoConversionRate" | "InsufficientMargin" | "UnknownOrder" | "UnknownPosition" | "NoStopLoss" | "InvalidFloor" | "UnknownFloor" | "InsufficientFunds";
         /** @description The balance a disabled account opens again with (ADR 0053). */
         ReopenAccountRequest: {
             /** Format: double */
@@ -3410,6 +3712,22 @@ export interface components {
             profit: null | number;
             /** Format: double */
             result: null | number;
+        };
+        /**
+         * @description When an account's trading day starts: at Start on the clock of TimeZone, an IANA
+         *     id such as Europe/Stockholm. The firm's day, which its daily loss limit follows too, and which the trader's own
+         *     limits count from (ADR 0054). A day is named by the local date it starts on, as in the firm's system.
+         */
+        TradingDay: {
+            timeZone: string;
+            /** Format: time */
+            start: string;
+        };
+        /** @description When the account's trading day starts, as the firm counts it (ADR 0054): an IANA time zone and the local time. */
+        TradingDayRequest: {
+            timeZone: null | string;
+            /** Format: time */
+            startsAt: string;
         };
         /** @description Trading conditions shared by a group of accounts, set by the firm. */
         TradingGroup: {

@@ -55,6 +55,15 @@ export function tradeNotice(event: EngineEvent, digitsOf: DigitsOf, events: read
   }
 }
 
+/** The firm's notice text on one line, its paragraphs joined by dots, for the strip under the account bar. */
+export function noticeLine(text: string): string {
+  return text
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .join(" · ");
+}
+
 type Listener = (events: readonly EventEnvelope[]) => void;
 
 /** Passes on each new event once, however many ways it arrives. */

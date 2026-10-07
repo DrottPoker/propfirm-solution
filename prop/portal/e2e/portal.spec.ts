@@ -26,6 +26,39 @@ test("a trader from the development configuration logs in with its short passwor
   await expect(page.getByRole("heading", { name: "You have no active challenge" })).toBeVisible();
 });
 
+// The trader's own limits (ADR 0054): set and locked in the terminal, seen by the firm in the admin panel.
+test("the firm sees the limits the trader set in the terminal, and the day they locked", async ({ context, page, request }) => {
+  const email = `limits-${test.info().testId.slice(0, 8)}@e2e.example`;
+  await logIn(page, "/admin/login", admin.email, admin.password);
+  await startChallenge(page, email);
+  await expect(page.getByText(/Trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
+  const tradingAccountId = (await page.getByText(/Trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
+  await page.getByRole("button", { name: "Create invitation link" }).click();
+  const invitation = await page.getByLabel(/Invitation link/).inputValue();
+
+  // The trader logs in to the trading platform with the portal's link, and sets limits and locks the day through its API,
+  // as the terminal does.
+  const trader = await context.newPage();
+  await acceptInvitation(trader, invitation);
+  await trader.route(`${terminalUrl}/**`, (route) => route.fulfill({ contentType: "text/html", body: "<p>Terminal</p>" }));
+  await trader.getByRole("button", { name: "Open terminal" }).click();
+  await trader.waitForURL(`${terminalUrl}/login/link?token=*`);
+  const trading = `http://localhost:${tradingPort}/api`;
+  expect((await request.post(`${trading}/auth/link`, { data: { token: new URL(trader.url()).searchParams.get("token") } })).ok()).toBeTruthy();
+  const account = `${trading}/accounts/${tradingAccountId}`;
+  expect((await request.put(`${account}/limits`, { data: { dailyLoss: 1500, dailyTarget: null, maxTrades: 6 } })).ok()).toBeTruthy();
+  expect((await request.post(`${account}/lock`, { data: { closePositions: true } })).ok()).toBeTruthy();
+  await trader.close();
+
+  // The trading day is the challenge's, midnight in Stockholm, so the lock lasts until then.
+  await page.getByRole("tab", { name: "Trading" }).click();
+  const own = page.getByRole("region", { name: "The trader's own limits" });
+  await expect(own.getByText("Locked by the trader until 00:00")).toBeVisible({ timeout: 20_000 });
+  await expect(own).toContainText("Daily loss limit1,500.00 USD");
+  await expect(own).toContainText("Trades a day60 opened today");
+  await expect(own.getByRole("listitem")).toContainText("The trader locked the rest of the day.", { timeout: 20_000 });
+});
+
 test("the firm starts a challenge and invites the trader, who opens the terminal from the portal", async ({ context, page, request }) => {
   const email = `trader-${test.info().testId.slice(0, 8)}@e2e.example`;
 

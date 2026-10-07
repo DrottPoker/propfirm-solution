@@ -46,6 +46,8 @@ internal static class TradingEndpoints
         account.MapPost("/positions/close-all", CloseAllPositionsAsync);
         account.MapPost("/positions/{positionId}/close", ClosePositionAsync);
         account.MapPut("/positions/{positionId}/stops", ModifyStopsAsync);
+        account.MapPut("/limits", SetOwnLimitsAsync);
+        account.MapPost("/lock", LockTradingAsync);
         return app;
     }
 
@@ -246,6 +248,30 @@ internal static class TradingEndpoints
         CommandResults.From(await engine.SendAsync(
             t => new ModifyPosition(t, accountId, positionId, request.StopLoss, request.TakeProfit, request.TrailingStop),
             cancellationToken));
+
+    /// <summary>
+    /// The trader's own limits (ADR 0054). Each limit that is stricter applies at once, and each that is looser or turned
+    /// off from the next trading day. The account then shows both in <c>ownLimits</c>.
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> SetOwnLimitsAsync(
+        string accountId,
+        OwnLimitsRequest request,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        CommandResults.From(await engine.SendAsync(
+            t => new SetOwnLimits(t, accountId, new OwnLimits(request.DailyLoss, request.DailyTarget, request.MaxTrades)),
+            cancellationToken));
+
+    /// <summary>
+    /// Locks new orders until the next trading day, which nobody can undo (ADR 0054). An account that is already locked
+    /// answers 200 without events, so a retry is safe.
+    /// </summary>
+    private static async Task<Results<Ok<CommandResponse>, ProblemHttpResult>> LockTradingAsync(
+        string accountId,
+        LockTradingRequest request,
+        EngineHost engine,
+        CancellationToken cancellationToken) =>
+        CommandResults.From(await engine.SendAsync(t => new LockTrading(t, accountId, request.ClosePositions), cancellationToken), alreadyDone: RejectReason.AccountLocked);
 
     private static Task<string?> GroupOfAsync(EngineHost engine, string accountId, CancellationToken cancellationToken) =>
         engine.QueryAsync(e => e.GetGroupId(accountId), cancellationToken);

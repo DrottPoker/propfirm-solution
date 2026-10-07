@@ -20,6 +20,7 @@ import { EndedNotice } from "./EndedNotice";
 import { CandlesIcon, LayersIcon, ListIcon, TradeIcon } from "./icons";
 import { KronantMark } from "./KronantMark";
 import { OrderPanel } from "./OrderPanel";
+import { OwnLockNotice } from "./OwnLockNotice";
 import { PriceAlerts } from "./PriceAlerts";
 import { PriceChart } from "./PriceChart";
 import { useRuleWarnings } from "./RuleWarnings";
@@ -115,6 +116,7 @@ function TradingTerminal({
       <div className="flex h-full flex-col">
         <AccountBar accountId={accountId} accounts={accounts} details={details} email={email} server={server} />
         <EndedNotice details={current} server={server} />
+        <OwnLockNotice />
         <PriceAlerts accountId={accountId} />
         <main className="flex min-h-0 flex-1 flex-col gap-2 p-2 lg:grid lg:grid-rows-[minmax(0,1fr)_13rem]">
           <div className={`${view === "positions" ? "hidden" : "flex"} min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[19rem_minmax(0,1fr)_18rem] lg:gap-2`}>
@@ -144,7 +146,7 @@ function TradingTerminal({
         <div className="hidden lg:contents">
           <StatusBar serverName={server.name} />
         </div>
-        <Sheets accountId={accountId} digitsOf={digitsOf} />
+        <Sheets accountId={accountId} digitsOf={digitsOf} firmName={server.name} />
       </div>
     </TimeZoneContext>
   );

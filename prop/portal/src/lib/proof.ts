@@ -12,6 +12,7 @@ export const closeReasonLabels: Record<string, string> = {
   StopOut: "Stop out",
   EquityFloor: "Loss limit",
   AccountClosed: "Account closed",
+  OwnLimit: "Trader's own limit",
 };
 
 /** The loss limits by their id on the trading platform. */

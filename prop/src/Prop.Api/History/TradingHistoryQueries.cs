@@ -294,6 +294,25 @@ internal sealed class TradingHistoryQueries(NpgsqlDataSource dataSource, Databas
                 r.GetInt64(11)),
             cancellationToken);
 
+    /// <summary>When new orders were locked on the challenge's trading accounts since <paramref name="since"/>, newest first (ADR 0054).</summary>
+    public Task<List<LockedDayResponse>> LocksAsync(Guid challengeAccountId, DateTimeOffset since, CancellationToken cancellationToken) =>
+        ReadAsync(
+            """
+            select l.time, l.reason, l.until, l.limit_amount, l.day_result, l.positions_closed
+            from trading_locks l join trading_accounts ta on ta.account_id = l.account_id
+            where ta.challenge_account_id = $1 and l.time >= $2
+            order by l.time desc, l.sequence desc
+            """,
+            [challengeAccountId, since],
+            r => new LockedDayResponse(
+                r.GetFieldValue<DateTimeOffset>(0),
+                Enum.Parse<OwnLockReason>(r.GetString(1)),
+                r.GetFieldValue<DateTimeOffset>(2),
+                r.IsDBNull(3) ? null : r.GetDecimal(3),
+                r.GetDecimal(4),
+                r.GetInt32(5)),
+            cancellationToken);
+
     private async Task<List<T>> ReadAsync<T>(string sql, object[] parameters, Func<NpgsqlDataReader, T> read, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

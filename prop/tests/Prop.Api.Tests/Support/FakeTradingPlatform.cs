@@ -94,6 +94,7 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     /// <summary>What each server created through the partner API was last told: whether it is listed, and where its traders log in.</summary>
     private readonly Dictionary<string, (bool Listed, Uri LoginUrl, Uri? LogoUrl)> _listings = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TradingAccountDetails> _details = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, TradingDayDefinition> _tradingDays = new(StringComparer.Ordinal);
     private readonly Dictionary<string, TradingAccountRules> _rules = new(StringComparer.Ordinal);
 
     /// <summary>The symbols and conditions each group trades. Groups start with the standard four.</summary>
@@ -463,6 +464,42 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
     public Task DescribeAccountAsync(FirmTrading firm, string accountId, TradingAccountDetails details, CancellationToken cancellationToken) =>
         Call($"describe {accountId}", () => _details[accountId] = details);
 
+    public Task SetTradingDayAsync(FirmTrading firm, string accountId, TradingDayDefinition day, CancellationToken cancellationToken) =>
+        Call($"trading day {accountId}", () => _tradingDays[accountId] = day);
+
+    /// <summary>When the account's trading day starts, as last told. Null before that.</summary>
+    public TradingDayDefinition? TradingDayOf(string accountId)
+    {
+        lock (_lock)
+        {
+            return _tradingDays.GetValueOrDefault(accountId);
+        }
+    }
+
+    /// <summary>The trader set limits for themselves in the terminal, which the account now shows (ADR 0054).</summary>
+    public void SetOwnLimits(string accountId, TradingOwnLimits limits)
+    {
+        lock (_lock)
+        {
+            _accounts[accountId].OwnLimits = limits;
+        }
+    }
+
+    /// <summary>The trader's own limit, or the trader, locked new orders until the next trading day, as ours does.</summary>
+    public void LockDay(string accountId, OwnLockReason reason, DateTimeOffset until, decimal? limit, decimal dayResult, int positionsClosed) =>
+        Publish(
+            accountId,
+            "TradingLocked",
+            _ => new JsonObject
+            {
+                ["reason"] = reason.ToString(),
+                ["until"] = until.ToString("O", CultureInfo.InvariantCulture),
+                ["limit"] = limit,
+                ["dayResult"] = dayResult,
+                ["positionsClosed"] = positionsClosed,
+            },
+            (s, t, id, raw, _) => new TradingDayLocked(s, t, id, raw, reason, until, limit, dayResult, positionsClosed));
+
     /// <summary>What the terminal shows about the account, as last told. Null before that.</summary>
     public TradingAccountDetails? DetailsOf(string accountId)
     {
@@ -634,7 +671,8 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
             return (TradingAccountSnapshot?)new TradingAccountSnapshot(
                 account.Balance,
                 equity,
-                [.. account.Floors.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => new TradingFloorSnapshot(f.Key, f.Value, equity - f.Value))]);
+                [.. account.Floors.OrderBy(f => f.Key, StringComparer.Ordinal).Select(f => new TradingFloorSnapshot(f.Key, f.Value, equity - f.Value))],
+                account.OwnLimits);
         });
 
     public Task<TradingLoginLink> CreateLoginLinkAsync(FirmTrading firm, Guid userId, string? accountId, CancellationToken cancellationToken) =>
@@ -731,6 +769,8 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         public bool Suspended { get; set; }
 
         public Dictionary<string, decimal> Floors { get; } = new(StringComparer.Ordinal);
+
+        public TradingOwnLimits? OwnLimits { get; set; }
 
         public HashSet<string> Operations { get; } = new(StringComparer.Ordinal);
 

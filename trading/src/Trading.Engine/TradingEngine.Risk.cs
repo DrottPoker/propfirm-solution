@@ -21,10 +21,17 @@ public sealed partial class TradingEngine
 
         _prices.Update(quote);
 
-        // A price can change equity through conversion too, so every account with exposure is evaluated.
+        // A price can change equity through conversion too, so every account with exposure is evaluated. A new trading day
+        // starts on the first price after it began, also on an account without exposure, so its lock ends.
         foreach (var account in _accounts)
         {
-            if (account.Status == AccountStatus.Disabled || !account.HasExposure)
+            if (account.Status == AccountStatus.Disabled)
+            {
+                continue;
+            }
+
+            StartTradingDayIfDue(account, quote.Timestamp, events);
+            if (!account.HasExposure)
             {
                 continue;
             }
@@ -59,6 +66,12 @@ public sealed partial class TradingEngine
             }
 
             account.Orders.Remove(order);
+            if (account.OwnLimits.MaxTrades is { } maxTrades && account.TradesToday >= maxTrades)
+            {
+                events.Add(new OrderCancelled(now, account.Id, order.Id, CancelReason.TradeLimit));
+                continue;
+            }
+
             var request = new OpenRequest(order.Id, order.Instrument, order.Conditions, order.Side, order.Volume, order.StopLoss, order.TakeProfit, order.TrailingDistance);
             if (!TryOpenPosition(account, request, price.OpenPrice(order.Side), now, events))
             {
@@ -75,10 +88,13 @@ public sealed partial class TradingEngine
         }
 
         // Commission on stop out closes can push equity below a floor.
-        if (StopOutIfNeeded(account, now, events))
+        if (StopOutIfNeeded(account, now, events) && CheckFloors(account, now, events))
         {
-            CheckFloors(account, now, events);
+            return;
         }
+
+        // The firm's limits come first: a price that breaks both breaks the firm's.
+        CheckOwnLimits(account, now, events);
     }
 
     // Returns true if a floor was breached and the account was disabled.
@@ -168,6 +184,7 @@ public sealed partial class TradingEngine
         }
 
         account.Balance -= commission;
+        account.TradesToday++;
         account.Positions.Add(new PositionState(
             request.Id,
             request.Instrument,

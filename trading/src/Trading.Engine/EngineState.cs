@@ -21,6 +21,10 @@ public sealed record EngineState(
     IReadOnlyList<TradingGroup>? Groups = null);
 
 /// <param name="UsedOperationIds">Missing in snapshots taken before balance operations existed.</param>
+/// <param name="TradingDay">
+/// The trading day and the trader's own limits (ADR 0054) are missing in snapshots taken before them: the day is then
+/// midnight UTC, it started with the balance, and there are no limits.
+/// </param>
 public sealed record AccountRecord(
     string AccountId,
     string GroupId,
@@ -30,7 +34,14 @@ public sealed record AccountRecord(
     IReadOnlyList<OrderRecord> Orders,
     IReadOnlyList<FloorRecord> Floors,
     IReadOnlyList<string> UsedOrderIds,
-    IReadOnlyList<string>? UsedOperationIds = null);
+    IReadOnlyList<string>? UsedOperationIds = null,
+    TradingDay? TradingDay = null,
+    DateTimeOffset? NextDayStart = null,
+    decimal? DayStartBalance = null,
+    int TradesToday = 0,
+    OwnLimits? OwnLimits = null,
+    OwnLimits? PendingOwnLimits = null,
+    OwnLock? Lock = null);
 
 /// <param name="TrailingDistance">Missing in snapshots taken before trailing stops existed.</param>
 public sealed record PositionRecord(
