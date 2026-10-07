@@ -5,7 +5,7 @@ import { deadlineOf, floorState, isTrading, liveFloor, resultTone, statusText, t
 import { formatDate, formatMoney, formatSignedPercent } from "@/lib/format";
 
 import { TrophyIcon } from "./icons";
-import { AnimatedMoney, LiveDot, RoomMeter } from "./Live";
+import { AnimatedMoney, RoomMeter } from "./Live";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { StageStepper } from "./StageSteps";
 import { Badge, buttonClass, ProgressBar, secondaryButtonClass, type BadgeTone } from "./ui";
@@ -37,7 +37,7 @@ export function AccountCard({ details, featured = false }: { details: AccountDet
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className={featured ? "truncate font-serif text-3xl leading-tight" : "truncate font-semibold"}>{details.challenge.name}</h3>
           <span className="text-sm text-muted">
-            #{account.number} · {formatMoney(account.initialBalance)} {account.currency}
+            #{account.number}, {formatMoney(account.initialBalance)} {account.currency}
           </span>
         </div>
         <Badge tone={badgeTone(details)}>
@@ -51,10 +51,7 @@ export function AccountCard({ details, featured = false }: { details: AccountDet
       <div className={featured ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] lg:items-center" : "flex flex-col gap-5"}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-col gap-1">
-            <span className="flex items-center gap-2.5 text-xs text-muted">
-              {results.equity != null ? "Equity" : "Balance"}
-              {trading && details.live && <LiveDot />}
-            </span>
+            <span className="text-xs text-muted">{results.equity == null ? "Balance" : trading && details.live ? "Live equity" : "Equity"}</span>
             <span className={`font-medium tracking-tight ${featured ? "text-4xl sm:text-5xl" : "text-3xl"}`}>
               <AnimatedMoney value={results.equity ?? results.balance} />
             </span>
@@ -77,7 +74,11 @@ export function AccountCard({ details, featured = false }: { details: AccountDet
       </div>
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-        <span className="text-xs text-muted">{footnote(details)}</span>
+        <span className="flex flex-col gap-0.5 text-xs text-muted">
+          {footnotes(details).map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </span>
         <div className="flex flex-wrap items-start gap-2">
           <Link href={`/accounts/${account.id}`} className={secondaryButtonClass} aria-label={`Details of account #${account.number}`}>
             Details
@@ -109,7 +110,7 @@ function Result({ details }: { details: AccountDetails }) {
   if (account.funded && account.nextPayout && isTrading(details)) {
     return (
       <div className="flex flex-col items-end gap-1">
-        <span className="text-xs text-muted">Your share now · {account.nextPayout.profitSplitPercent}%</span>
+        <span className="text-xs text-muted">Your {account.nextPayout.profitSplitPercent}% share now</span>
         <span className={`text-lg font-medium ${account.nextPayout.amount > 0 ? "text-profit" : "text-muted"}`}>
           <AnimatedMoney value={account.nextPayout.amount} />
         </span>
@@ -186,8 +187,8 @@ function Progress({ details }: { details: AccountDetails }) {
   return null;
 }
 
-/** The trading days and the deadline that comes first, for example "2 of 4 trading days · Open a trade by 2 Nov 2026". */
-function footnote(details: AccountDetails): string {
+/** The trading days and the deadline that comes first, a line each, for example "2 of 4 trading days" and "Open a trade by 2 Nov 2026". */
+function footnotes(details: AccountDetails): string[] {
   const { account, results } = details;
   const parts: string[] = [];
   if (account.funded) {
@@ -206,5 +207,5 @@ function footnote(details: AccountDetails): string {
     parts.push(`Open a trade by ${formatDate(inactivity.lastDay)}`);
   }
 
-  return parts.join(" · ");
+  return parts;
 }

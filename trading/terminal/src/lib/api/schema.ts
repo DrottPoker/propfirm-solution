@@ -2246,7 +2246,7 @@ export interface components {
     schemas: {
         /**
          * @description What the terminal shows about an account, set by the firm's systems. Label names it for the trader,
-         *     for example "#1001 Two-step 100K · Phase 1". ProfitTarget is the balance that passes it.
+         *     for example "#1001 Two-step 100K, Phase 1". ProfitTarget is the balance that passes it.
          *     TimeZone is its trading day's, which the terminal shows times in. DetailsUrl is
          *     where the trader sees more about it, for example the account in the firm's portal. Each is null when not set.
          */

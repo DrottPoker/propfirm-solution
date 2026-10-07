@@ -47,7 +47,7 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         await Eventually.ThatAsync(() => factory.Trading.DetailsOf(Phase1) is not null, "the account to be described");
         var details = factory.Trading.DetailsOf(Phase1)!;
 
-        Assert.Equal(("#1001 Two-step 100K · Phase 1", 110_000m, "Europe/Stockholm"), (details.Label, details.ProfitTarget, details.TimeZone));
+        Assert.Equal(("#1001 Two-step 100K, Phase 1", 110_000m, "Europe/Stockholm"), (details.Label, details.ProfitTarget, details.TimeZone));
         Assert.Equal(new Uri($"http://localhost:3002/accounts/{id}"), details.DetailsUrl);
 
         // The trader's own limits count in the firm's trading day (ADR 0054).

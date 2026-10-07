@@ -141,7 +141,7 @@ function Positions({
           <tr key={p.positionId} className="border-t border-border transition-colors duration-150 hover:bg-raised/50">
             <SymbolCell symbol={p.symbol} title={`Position ${p.positionId}`} />
             <Cell>
-              <SideBadge side={p.side} />
+              <SideLabel side={p.side} />
             </Cell>
             <Cell number>{formatVolume(p.volume)}</Cell>
             <Cell number>{formatPrice(p.openPrice, digits)}</Cell>
@@ -281,14 +281,14 @@ function EditStops({
     : unit === "money"
       ? [resolved.stopLoss !== null && `SL ${formatPrice(resolved.stopLoss, digits)}`, resolved.takeProfit !== null && `TP ${formatPrice(resolved.takeProfit, digits)}`]
           .filter(Boolean)
-          .join(" · ")
+          .join(", ")
       : [resolved.stopLoss, resolved.takeProfit]
           .map((price, i) => {
             const amount = amountAt(price);
             return amount === null ? null : `${i === 0 ? "SL" : "TP"} ${formatSignedMoney(amount)}`;
           })
           .filter(Boolean)
-          .join(" · ");
+          .join(", ");
 
   const save = () => {
     if (!resolved.ok) {
@@ -425,7 +425,7 @@ function TrailingTag({ distance, digits }: { distance: number; digits: number })
   return (
     <span
       title={`Trailing stop: the stop loss follows the price ${trailingPips(distance, digits)} pips behind it, and never moves back.`}
-      className="mr-1.5 rounded bg-accent/15 px-1 py-px font-sans text-[10px] font-medium tracking-wide text-accent uppercase"
+      className="mr-1.5 font-sans text-[10px] font-semibold tracking-wide text-accent uppercase"
     >
       Trail
     </span>
@@ -482,7 +482,7 @@ function Orders({ accountId, digitsOf, onError }: { accountId: string; digitsOf:
             <SymbolCell symbol={o.symbol} title={`Order ${o.orderId}`} />
             <Cell>{o.type}</Cell>
             <Cell>
-              <SideBadge side={o.side} />
+              <SideLabel side={o.side} />
             </Cell>
             <Cell number>{formatVolume(o.volume)}</Cell>
             <Cell number>{formatPrice(o.price, digits)}</Cell>
@@ -622,7 +622,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
               <Cell number>{formatTime(c.timestamp, timeZone)}</Cell>
               <SymbolCell symbol={c.symbol} title={`Position ${c.positionId}`} />
               <Cell>
-                <SideBadge side={c.side} />
+                <SideLabel side={c.side} />
               </Cell>
               <Cell number>{formatVolume(c.volume)}</Cell>
               <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
@@ -648,7 +648,7 @@ function History({ events, digitsOf }: { events: EngineEvent[]; digitsOf: Digits
             <Cell number>{formatTime(c.timestamp, timeZone)}</Cell>
             <SymbolCell symbol={c.symbol} title={`Position ${c.positionId}`} />
             <Cell>
-              <SideBadge side={c.side} />
+              <SideLabel side={c.side} />
             </Cell>
             <Cell number>{formatVolume(c.volume)}</Cell>
             <Cell number>{formatPrice(c.openPrice, digits)}</Cell>
@@ -719,9 +719,8 @@ function SymbolCell({ symbol, title }: { symbol: string; title: string }) {
   );
 }
 
-function SideBadge({ side }: { side: Side }) {
-  const color = side === "Buy" ? "border-buy/40 bg-buy/10 text-buy" : "border-sell/40 bg-sell/10 text-sell";
-  return <span className={`rounded border px-1.5 py-0.5 text-xs font-medium ${color}`}>{side}</span>;
+function SideLabel({ side }: { side: Side }) {
+  return <span className={`font-medium ${side === "Buy" ? "text-buy" : "text-sell"}`}>{side}</span>;
 }
 
 function ActionButton({

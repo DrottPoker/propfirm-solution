@@ -61,15 +61,16 @@ export function OpsIncidents() {
               {data.incidents.map((incident) => (
                 <li key={incident.id} className="border-t border-border first:border-t-0">
                   <Link href={`/ops/incidents/${incident.id}`} className="flex flex-col gap-1 px-5 py-4 hover:bg-background/50">
-                    <span className="flex flex-wrap items-center gap-2.5">
+                    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span className="font-medium">{incident.title}</span>
                       <Badge tone={statusTones[incident.status]}>{statusLabels[incident.status]}</Badge>
-                      {incident.detected && <Badge tone="accent">Found by the platform</Badge>}
+                      {incident.detected && <span className="text-sm text-muted">Found by the platform</span>}
                     </span>
                     <span className="text-sm text-muted">
-                      {kindLabels[incident.kind]} · {periodText(incident.startedAt, incident.endedAt)} {localZone()}
-                      {incident.endedAt && <> · {durationText(incident.startedAt, incident.endedAt)}</>} ·{" "}
-                      {incident.firms === null ? "Every firm" : `${incident.firms.length} ${incident.firms.length === 1 ? "firm" : "firms"}`}
+                      {kindLabels[incident.kind]} at{" "}
+                      {incident.firms === null ? "every firm" : `${incident.firms.length} ${incident.firms.length === 1 ? "firm" : "firms"}`}:{" "}
+                      {periodText(incident.startedAt, incident.endedAt)} {localZone()}
+                      {incident.endedAt && <> ({durationText(incident.startedAt, incident.endedAt)})</>}
                     </span>
                   </Link>
                 </li>
@@ -176,10 +177,12 @@ export function OpsIncident({ incidentId }: { incidentId: string | null }) {
         title={incident === null ? "Declare an incident" : incident.title}
         description={
           incident && (
-            <span className="flex flex-wrap items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <Badge tone={statusTones[incident.status]}>{statusLabels[incident.status]}</Badge>
-              {periodText(incident.startedAt, incident.endedAt, undefined, true)} {localZone()}
-              {incident.publishedAt && <> · published {formatDateTime(incident.publishedAt)}</>}
+              <span>
+                {periodText(incident.startedAt, incident.endedAt, undefined, true)} {localZone()}
+                {incident.publishedAt && <>, published {formatDateTime(incident.publishedAt)}</>}
+              </span>
             </span>
           )
         }

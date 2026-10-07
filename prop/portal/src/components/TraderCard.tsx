@@ -48,7 +48,7 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
           </h2>
           {data.name && <span className="truncate text-sm text-muted">{data.email}</span>}
           <span className="text-xs text-muted">
-            {data.country ? `${countryName(data.country)} · ` : ""}Trader since {formatDate(data.since)}
+            {data.country ? `${countryName(data.country)}, trader` : "Trader"} since {formatDate(data.since)}
           </span>
           <span className="flex flex-wrap gap-x-3 text-xs">
             <Link href={`/admin/support/new?email=${encodeURIComponent(data.email)}&account=${account.id}`} className="text-accent hover:underline">
@@ -91,7 +91,7 @@ export function TraderCard({ account, challengeName }: { account: Account; chall
               <li key={other.id} className="flex items-center justify-between gap-2 border-t border-border py-2">
                 {other.id === account.id ? (
                   <span>
-                    <span>#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)} · this one</span>
+                    <span>#{other.number}</span> <span className="text-muted">{challengeName(other.challengeId)} (this one)</span>
                   </span>
                 ) : (
                   <Link href={`/admin/accounts/${other.id}`} className="min-w-0 truncate">

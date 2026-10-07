@@ -141,7 +141,7 @@ function Form({ templates, existing, currency }: { templates: ChallengeTemplate[
                   <span>
                     {template.name} {sizeName(size)}
                     <span className="block text-xs text-muted">
-                      {formatMoney(size)} {currency} account{taken ? " · you have it already" : ""}
+                      {formatMoney(size)} {currency} account{taken ? ", you have it already" : ""}
                     </span>
                   </span>
                 </label>

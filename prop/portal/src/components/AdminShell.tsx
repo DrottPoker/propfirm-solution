@@ -85,10 +85,10 @@ function navigation(status: FirmStatus): NavLink[] {
 // The keyboard does not change while the page is open.
 const noChanges = () => () => {};
 
-const statusLine: Record<FirmStatus, { text: string; dot: string }> = {
-  Provisioning: { text: "Setting up", dot: "bg-muted" },
-  Sandbox: { text: "Sandbox", dot: "bg-warning" },
-  Live: { text: "Live", dot: "bg-profit" },
+const statusLine: Record<FirmStatus, { text: string; tone: string }> = {
+  Provisioning: { text: "setting up", tone: "text-muted" },
+  Sandbox: { text: "sandbox", tone: "text-warning" },
+  Live: { text: "live", tone: "text-profit" },
 };
 
 /**
@@ -162,9 +162,8 @@ function FirmMark() {
   const branding = useBranding();
   const status = statusLine[branding.status];
   const line = (
-    <span className="flex items-center gap-1.5 whitespace-nowrap text-xs text-muted">
-      <span aria-hidden="true" className={`size-1.5 rounded-full ${status.dot}`} />
-      Admin · {status.text}
+    <span className="whitespace-nowrap text-xs text-muted">
+      Admin, <span className={status.tone}>{status.text}</span>
     </span>
   );
 

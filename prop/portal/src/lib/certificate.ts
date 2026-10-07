@@ -35,7 +35,7 @@ export function certificatesOf(details: AccountDetails): Certificate[] {
       headline: `Passed the ${challenge.name} challenge`,
       figure: challenge.name,
       figureLabel: "Passed the challenge",
-      detail: `Account #${account.number} · ${size}`,
+      detail: `Account #${account.number}, ${size}`,
       date: formatDate(passedAt, timeZone),
       fileName: `certificate-${account.number}-passed.png`,
     });
@@ -50,7 +50,7 @@ export function certificatesOf(details: AccountDetails): Certificate[] {
       headline: `Paid out ${formatMoney(payout.amount)} ${payout.currency}`,
       figure: `${formatMoney(payout.amount)} ${payout.currency}`,
       figureLabel: "Paid out",
-      detail: `${challenge.name} · account #${account.number}${paid.length > 1 ? ` · payout ${index + 1}` : ""}`,
+      detail: `${challenge.name}, account #${account.number}${paid.length > 1 ? `, payout ${index + 1}` : ""}`,
       date: formatDate(payout.paidAt!, timeZone),
       fileName: `certificate-${account.number}-payout-${index + 1}.png`,
     });

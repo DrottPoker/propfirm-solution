@@ -63,7 +63,7 @@ function FirmPage({ firm, tab, tabs, onTab, now }: { firm: Firm; tab: OpsFirmTab
         }
         title={firm.name}
         description={
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Badge tone={stage.tone}>{stage.label}</Badge>
             <span>{summaryLine(firm)}</span>
           </span>
@@ -103,7 +103,7 @@ function FirmPage({ firm, tab, tabs, onTab, now }: { firm: Firm; tab: OpsFirmTab
   );
 }
 
-/** The firm in a line, for example "acme · signed up 12 Sep 2026 · live since 3 Mar 2026 · 2 administrators". */
+/** The firm in a line, for example "acme, signed up 12 Sep 2026, live since 3 Mar 2026, 2 administrators". */
 function summaryLine(firm: Firm): string {
   return [
     firm.id,
@@ -112,7 +112,7 @@ function summaryLine(firm: Firm): string {
     `${firm.admins.length} ${firm.admins.length === 1 ? "administrator" : "administrators"}`,
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(", ");
 }
 
 /** A suspended firm says why, with the way to lift it. */
@@ -182,7 +182,7 @@ function Overview({ firm, onTab }: { firm: Firm; onTab: (tab: OpsFirmTab) => voi
             label="Open challenges"
             value={String(billing.slots.used)}
             unit={billing.slots.slots === null ? "no limit" : `of ${billing.slots.slots}`}
-            note={`${figures.accounts.evaluation} in evaluation · ${figures.accounts.funded} funded${billing.pausedChallenges > 0 ? ` · ${billing.pausedChallenges} paused` : ""}`}
+            note={`${figures.accounts.evaluation} in evaluation, ${figures.accounts.funded} funded${billing.pausedChallenges > 0 ? `, ${billing.pausedChallenges} paused` : ""}`}
           />
           <StatTile label="Sales, last 30 days" value={formatTotals(figures.sales.totals, currency)} note={`${figures.sales.orders} ${figures.sales.orders === 1 ? "challenge" : "challenges"} bought in its portal`} />
           <StatTile
@@ -236,18 +236,18 @@ function TraderPayouts({ firm }: { firm: Firm }) {
     <Panel title="How the firm pays its traders">
       <dl className="flex flex-col text-sm">
         <PayoutRow label="Asked for, waiting for the firm">
-          {summary.toApprove.count === 0 ? "None" : `${summary.toApprove.count} · ${formatTotals(summary.toApprove.totals, currency)}${summary.toApprove.oldest ? ` · oldest ${formatDate(summary.toApprove.oldest)}` : ""}`}
+          {summary.toApprove.count === 0 ? "None" : `${summary.toApprove.count} for ${formatTotals(summary.toApprove.totals, currency)}${summary.toApprove.oldest ? `, the oldest from ${formatDate(summary.toApprove.oldest)}` : ""}`}
         </PayoutRow>
         <PayoutRow label="Approved, not paid">
-          {summary.toPay.count === 0 ? "None" : `${summary.toPay.count} · ${formatTotals(summary.toPay.totals, currency)}${summary.toPay.oldest ? ` · approved ${formatDate(summary.toPay.oldest)}` : ""}`}
+          {summary.toPay.count === 0 ? "None" : `${summary.toPay.count} for ${formatTotals(summary.toPay.totals, currency)}${summary.toPay.oldest ? `, the oldest approved ${formatDate(summary.toPay.oldest)}` : ""}`}
         </PayoutRow>
         <PayoutRow label="From request to paid, last 30 days">
           {summary.averageDaysToPay === null ? "Nothing paid" : `${summary.averageDaysToPay} days`}
-          {payouts.platformAverageDaysToPay !== null && <span className="text-muted"> · every firm {payouts.platformAverageDaysToPay}</span>}
+          {payouts.platformAverageDaysToPay !== null && <span className="text-muted"> (every firm: {payouts.platformAverageDaysToPay})</span>}
         </PayoutRow>
         <PayoutRow label="Rejected, last 90 days">
           {payouts.decidedLast90Days === 0 ? "None decided" : `${payouts.rejectedLast90Days} of ${payouts.decidedLast90Days}`}
-          {platformShare !== null && <span className="text-muted"> · every firm {platformShare}%</span>}
+          {platformShare !== null && <span className="text-muted"> (every firm: {platformShare}%)</span>}
         </PayoutRow>
       </dl>
       {payouts.waiting.length > 0 && (
@@ -528,7 +528,7 @@ function SuspendDialog({ firm, open, onClose }: { firm: Firm; open: boolean; onC
                 type="button"
                 aria-pressed={reason === r.text}
                 onClick={() => setReason(r.text)}
-                className={`rounded-full border px-3 py-1.5 text-sm ${reason === r.text ? "border-loss bg-loss/10 text-foreground" : "border-border hover:border-muted"}`}
+                className={`rounded-lg border px-3 py-1.5 text-sm ${reason === r.text ? "border-loss bg-loss/10 text-foreground" : "border-border hover:border-muted"}`}
               >
                 {r.label}
               </button>

@@ -55,7 +55,7 @@ function titleOf(names: string[]): string {
 function rowsOf(items: ShopItem[]): ShopRow[] {
   const first = items[0].challenge;
   const stages = [...first.evaluation, first.funded];
-  const amount = (challenge: ChallengeDefinition, percent: number) => `${percent}% · ${wholeAmount((challenge.initialBalance * percent) / 100)} ${challenge.currency}`;
+  const amount = (challenge: ChallengeDefinition, percent: number) => `${percent}% (${wholeAmount((challenge.initialBalance * percent) / 100)} ${challenge.currency})`;
   const each = (value: (challenge: ChallengeDefinition) => string) => items.map((i) => value(i.challenge));
   const rows: ShopRow[] = [{ label: "Price", values: items.map((i) => `${formatMoney(i.price)} ${i.currency}`) }];
 

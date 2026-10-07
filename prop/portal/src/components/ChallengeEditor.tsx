@@ -391,7 +391,7 @@ function Preview({ form, price }: { form: ChallengeForm; price: PriceForm }) {
           <span className="text-sm">{priceText(price)}</span>
         </span>
         <span className="text-xs text-muted">
-          {size === null ? "-" : formatMoney(size)} {form.currency} account ·{" "}
+          {size === null ? "-" : formatMoney(size)} {form.currency} account,{" "}
           {form.evaluation.length === 0 ? "funded from the start" : form.evaluation.length === 1 ? "1 phase, then funded" : `${form.evaluation.length} phases, then funded`}, with{" "}
           {form.funded.profitSplitPercent || "-"}% of the profit
         </span>

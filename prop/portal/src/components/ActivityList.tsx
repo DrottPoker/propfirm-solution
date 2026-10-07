@@ -55,10 +55,10 @@ export function ActivityList({ activity, now }: { activity: Activity[]; now: num
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span>
                   <span className="font-medium">{view.title}</span>
-                  {view.note && <span className="text-muted"> · {view.note}</span>}
+                  {view.note && <span className="text-muted">, {view.note}</span>}
                 </span>
                 <span className="truncate text-xs text-muted">
-                  {item.email} ·{" "}
+                  {item.email},{" "}
                   <Link href={`/admin/accounts/${item.accountId}`} className="text-accent hover:underline">
                     #{item.accountNumber}
                   </Link>{" "}

@@ -78,8 +78,8 @@ test("our staff publish an incident, the firm adds its note, and the status page
 async function traderWithPosition(context: BrowserContext, page: Page, request: APIRequestContext, name: string) {
   await logIn(page, "/admin/login", admin.email, admin.password);
   await startChallenge(page, `${name}-${test.info().testId.slice(0, 8)}@e2e.example`);
-  await expect(page.getByText(/Trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
-  const accountId = (await page.getByText(/Trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
+  await expect(page.getByText(/trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
+  const accountId = (await page.getByText(/trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
   const adminAccountUrl = page.url();
   await page.getByRole("button", { name: "Create invitation link" }).click();
   const invitation = await page.getByLabel(/Invitation link/).inputValue();

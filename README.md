@@ -166,7 +166,7 @@ pnpm dev:portal
 
 1. Logga in som administratör och starta en challenge åt en trader, till exempel `anna@test.com`.
 2. Logga in som trader i en ny flik och se kontot på startsidan. Administratören är fortfarande inloggad, eftersom rollerna har var sin session.
-3. Klicka på Open terminal för att handla på kontot. Starta terminalen först (`pnpm dev:terminal`). Terminalen visar firmans namn och kontot som portalen, till exempel "#1001 Two-step 100K · Phase 1", med vinstmålet, gränserna, tiderna i challengens tidszon och länken Back to Demo Firm. Konton som öppnades innan får sitt namn när propfirm-tjänsten startar om.
+3. Klicka på Open terminal för att handla på kontot. Starta terminalen först (`pnpm dev:terminal`). Terminalen visar firmans namn och kontot som portalen, till exempel "#1001 Two-step 100K, Phase 1", med vinstmålet, gränserna, tiderna i challengens tidszon och länken Back to Demo Firm. Konton som öppnades innan får sitt namn när propfirm-tjänsten startar om.
 4. Klicka på Details för kontots sida, med målen, grafen över saldot, dag för dag, statistik, de stängda affärerna och reglerna. Affärerna dyker upp där några sekunder efter att de stängts i terminalen. Ett underkänt konto förklarar varför saldot slutade under gränsen och har knappen Try again, och ett konto som klarat utvärderingen eller fått en utbetalning har diplom att ladda ned.
 5. Andra traders får en inbjudningslänk från kontots sida i adminpanelen. Där finns också traderns kort med firmans kontroller (ID och adress), mejlet till tradern som visas innan det skickas, och regelloggen i vanliga meningar.
 6. Glömt lösenord finns på alla inloggningar. Länken kommer till Mailpit på http://localhost:8025 och gäller i en timme.

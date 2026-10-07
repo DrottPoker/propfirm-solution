@@ -27,8 +27,8 @@ describe("the shop's price tables", () => {
       "Inactivity",
     ]);
     expect(tables[0].rows[0].values).toEqual(["299.00 USD", "499.00 USD"]);
-    expect(tables[0].rows[1].values).toEqual(["10% · 5,000 USD", "10% · 10,000 USD"]);
-    expect(tables[0].rows[3].values).toEqual(["5% · 2,500 USD", "5% · 5,000 USD"]);
+    expect(tables[0].rows[1].values).toEqual(["10% (5,000 USD)", "10% (10,000 USD)"]);
+    expect(tables[0].rows[3].values).toEqual(["5% (2,500 USD)", "5% (5,000 USD)"]);
   });
 
   it("show a consistency rule for payouts", () => {

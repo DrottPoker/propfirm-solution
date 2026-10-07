@@ -156,7 +156,7 @@ describe("objectivesOf", () => {
     expect(objectives[0]).toMatchObject({
       progress: 25,
       ghost: 28,
-      detail: "2,500.00 of 10,000.00 · reach a balance of 110,000.00. Closed trades count: with your open ones closed now, it would be 2,800.00.",
+      detail: "2,500.00 of 10,000.00 made, toward a balance of 110,000.00. Closed trades count: with your open ones closed now, it would be 2,800.00.",
     });
     expect(objectives[1].detail).toMatch(/^Equity may not fall below 97,000.00 today. It starts again /);
     expect(objectives[1].room).toEqual({ share: 100, state: "ok" });
@@ -277,7 +277,7 @@ describe("stepState and statusText", () => {
     const expired: AccountDetails = testDetails({ account: { ...testAccount, status: "Failed" }, expiry: { time: "2026-11-05T23:00:00Z", reason: "Inactivity", day: "2026-11-06" } });
 
     expect(statusText(testDetails())).toBe("Phase 1");
-    expect(statusText(testDetails({ account: { ...testAccount, paused: true } }))).toBe("Phase 1 · Paused");
+    expect(statusText(testDetails({ account: { ...testAccount, paused: true } }))).toBe("Phase 1, paused");
     expect(statusText(expired)).toBe("Ended");
     expect(endingText(expired)).toBe("no new trade in time");
   });

@@ -125,12 +125,12 @@ function Header({ details }: { details: AccountDetails }) {
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>
           <p className="text-sm text-muted">
-            Account #{account.number} ·{" "}
+            Account #{account.number},{" "}
             <Link href={`/admin/accounts?search=${encodeURIComponent(account.email)}`} className="text-accent hover:underline">
               {account.email}
             </Link>
-            {account.reference && <> · Ref. {account.reference}</>}
-            {account.tradingAccountId && <> · Trading account {account.tradingAccountId}</>} · Started {formatDate(account.createdAt, details.challenge.tradingDay.timeZone)}
+            {account.reference && <>, reference {account.reference}</>}
+            {account.tradingAccountId && <>, trading account {account.tradingAccountId}</>}, started {formatDate(account.createdAt, details.challenge.tradingDay.timeZone)}
           </p>
         </div>
         {canCancel(account) && <ActionsMenu items={[{ label: "Cancel account", danger: true, onSelect: () => setCancelling(true) }]} />}
@@ -298,7 +298,7 @@ function CancelDialog({ details, onClose }: { details: AccountDetails; onClose: 
       open
       onClose={onClose}
       title={`Cancel account #${account.number}?`}
-      description={`${account.email} · ${details.challenge.name}. Its trading account is closed, and this cannot be undone. A refund is not made here.`}
+      description={`${details.challenge.name} for ${account.email}. Its trading account is closed, and this cannot be undone. A refund is not made here.`}
       footer={
         <>
           <button type="button" onClick={onClose} className={secondaryButtonClass}>
@@ -403,7 +403,7 @@ function StepDetails({ step }: { step: Step }) {
       <p>
         Step {step.step}: {kindOf(step.input)}
         {outputs.length > 0 && ` \u2192 ${outputs.join(", ")}`}
-        {step.sourceEvent ? ` · evidence ${kindOf(step.sourceEvent)}` : ""}
+        {step.sourceEvent ? ` (evidence ${kindOf(step.sourceEvent)})` : ""}
       </p>
       <pre className="max-h-72 overflow-auto whitespace-pre-wrap font-mono text-muted">
         {JSON.stringify({ input: step.input, decisions: step.outputs, evidence: step.sourceEvent ?? null }, null, 2)}

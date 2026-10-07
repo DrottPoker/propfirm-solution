@@ -1,5 +1,7 @@
-// Short sounds made with the Web Audio API, so there is no sound file to load: a chime when an order fills and a
-// signal with a warning about the account's rules.
+// Short sounds made with the Web Audio API, so there is no sound file to load: a chime when an order fills, a softer
+// one when a position closes and a signal with a warning about the account's rules. All at the trader's volume.
+
+import { useSettings } from "./settings";
 
 let context: AudioContext | null = null;
 
@@ -23,13 +25,28 @@ export function playFillSound() {
   playTones([880, 1320], { gap: 0.08, length: 0.16, wave: "sine", volume: 0.12 });
 }
 
+/** Two quick, soft tones a fourth apart, falling: a position closed. */
+export function playCloseSound() {
+  playTones([1320, 990], { gap: 0.08, length: 0.14, wave: "sine", volume: 0.1 });
+}
+
 /** Two longer tones falling a fifth, a little louder: a rule needs the trader's attention. */
 export function playWarningSound() {
   playTones([784, 523], { gap: 0.16, length: 0.26, wave: "triangle", volume: 0.18 });
 }
 
-function playTones(frequencies: readonly number[], { gap, length, wave, volume: peak }: { gap: number; length: number; wave: OscillatorType; volume: number }) {
-  const ctx = audio();
+/**
+ * How much of a sound's full strength plays at the trader's volume from 0 to 100. Squared, since the ear hears
+ * strength that way: half way on the slider sounds about half as loud.
+ */
+export function loudness(volume: number): number {
+  const share = Math.min(100, Math.max(0, volume)) / 100;
+  return share * share;
+}
+
+function playTones(frequencies: readonly number[], { gap, length, wave, volume: full }: { gap: number; length: number; wave: OscillatorType; volume: number }) {
+  const peak = full * loudness(useSettings.getState().soundVolume);
+  const ctx = peak > 0 ? audio() : null;
   if (!ctx) {
     return;
   }

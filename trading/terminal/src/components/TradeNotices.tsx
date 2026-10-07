@@ -7,7 +7,7 @@ import type { DigitsOf } from "@/lib/events";
 import { formatSignedMoney } from "@/lib/format";
 import { newEvents, tradeNotice } from "@/lib/notices";
 import { useSettings } from "@/lib/settings";
-import { playFillSound } from "@/lib/sound";
+import { playCloseSound, playFillSound } from "@/lib/sound";
 import { useTradingStore } from "@/lib/store";
 
 import { ClosedIcon } from "./icons";
@@ -54,8 +54,11 @@ export function useTradeNotices(digitsOf: DigitsOf) {
             });
           }
 
-          if (notice.kind === "filled" && useSettings.getState().fillSound) {
+          const settings = useSettings.getState();
+          if (notice.kind === "filled" && settings.fillSound) {
             playFillSound();
+          } else if (notice.kind === "closed" && settings.closeSound) {
+            playCloseSound();
           }
         }
       }),

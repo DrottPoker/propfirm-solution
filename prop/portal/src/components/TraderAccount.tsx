@@ -30,8 +30,8 @@ import { AccountHistory } from "./AccountHistory";
 import { useConfetti } from "./Celebrate";
 import { Certificates } from "./Certificates";
 import { ChallengeRules } from "./ChallengeRules";
-import { AlertIcon, ChartIcon, ClockIcon, CrossIcon, InfoIcon, PauseIcon, ShieldCheckIcon, TerminalIcon, TrophyIcon } from "./icons";
-import { AnimatedMoney, LiveDot, RoomBar } from "./Live";
+import { AlertIcon, ChartIcon, ChevronRightIcon, ClockIcon, CrossIcon, InfoIcon, PauseIcon, PayoutIcon, ShieldCheckIcon, TerminalIcon, TrophyIcon } from "./icons";
+import { AnimatedMoney, RoomBar } from "./Live";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { PayoutHistory, PayoutPanel } from "./PayoutPanel";
 import { StageStepper, StageTiles } from "./StageSteps";
@@ -108,8 +108,8 @@ function Header({ details }: { details: AccountDetails }) {
           </Badge>
         </div>
         <p className="text-sm text-muted">
-          Account #{account.number} · {formatMoney(account.initialBalance)} {account.currency} · Started {formatDate(account.createdAt, timeZone)} · Times shown
-          in {timeZoneName(timeZone)}
+          Account #{account.number}, {formatMoney(account.initialBalance)} {account.currency}, started {formatDate(account.createdAt, timeZone)}. Times are
+          shown in {timeZoneName(timeZone)}.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2.5">
@@ -429,7 +429,11 @@ function TradingDayToast({ details }: { details: AccountDetails }) {
   return null;
 }
 
-const stepDots: Record<NextStep["tone"], string> = { info: "bg-accent", warning: "bg-warning", profit: "bg-profit" };
+const stepIcons: Record<NextStep["tone"], React.ReactNode> = {
+  info: <ChevronRightIcon className="size-3.5 text-accent" />,
+  warning: <AlertIcon className="size-4" />,
+  profit: <PayoutIcon className="size-4" />,
+};
 
 /** What the trader can do next, under the figures. */
 function NextSteps({ steps }: { steps: NextStep[] }) {
@@ -442,7 +446,7 @@ function NextSteps({ steps }: { steps: NextStep[] }) {
       <span className="text-muted">Next</span>
       {steps.map((step) => (
         <span key={step.key} className={`flex items-center gap-2 ${step.tone === "warning" ? "text-warning" : step.tone === "profit" ? "text-profit" : ""}`}>
-          <span aria-hidden="true" className={`size-1.5 rounded-full ${stepDots[step.tone]}`} />
+          <span aria-hidden="true">{stepIcons[step.tone]}</span>
           {step.key === "payout" ? (
             <a href="#payout" className="font-medium hover:underline">
               {step.text}
@@ -487,10 +491,7 @@ export function KeyFigures({
       )}
       <div className="grid gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] lg:items-center">
         <dl className="flex flex-col gap-1.5">
-          <dt className="flex items-center gap-3 text-sm text-muted">
-            {valued ? "Equity" : "Balance"}
-            {live && <LiveDot />}
-          </dt>
+          <dt className="text-sm text-muted">{!valued ? "Balance" : live ? "Live equity" : "Equity"}</dt>
           <dd className="text-4xl font-medium tracking-tight sm:text-5xl">
             <AnimatedMoney value={results.equity ?? results.balance} />{" "}
             <span className="text-base font-normal tracking-normal text-muted">{account.currency}</span>
@@ -506,7 +507,7 @@ export function KeyFigures({
               "No open positions"
             ) : (
               <>
-                {account.openPositions} open {account.openPositions === 1 ? "position" : "positions"} ·{" "}
+                {account.openPositions} open {account.openPositions === 1 ? "position" : "positions"},{" "}
                 <AnimatedMoney value={results.floating} signed className={toneText[resultTone(results.floating)]} />
               </>
             )}

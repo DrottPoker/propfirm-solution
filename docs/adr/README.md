@@ -60,6 +60,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0052](0052-regelboken-varningar-och-storlek-fran-risk.md) | Regelboken i terminalen, varningar, storlek från risk och inställningar på kontot | Beslutad |
 | [0053](0053-detaljer-rapporter-och-incidenter.md) | Detaljer per affär, rapport per regelbrott och incidenter med statussida | Beslutad |
 | [0054](0054-egna-sparrar-for-tradern.md) | Egna spärrar för tradern | Beslutad |
+| [0055](0055-installningar-i-terminalen.md) | Inställningar i terminalen | Föreslagen |
 
 ## Så skriver du en ny ADR
 

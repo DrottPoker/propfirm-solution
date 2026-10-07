@@ -170,7 +170,7 @@ describe("opsActivityView", () => {
   it("words a firm going live with its slots and payment", () => {
     expect(opsActivityView(activity({ kind: "WentLive", amount: 1_075, currency: "USD", slots: 40, chargeKind: "Activation" }))).toEqual({
       title: "Went live",
-      note: "40 slots · 1,075.00 USD paid",
+      note: "40 slots, 1,075.00 USD paid",
       tone: "profit",
       icon: "rocket",
     });
@@ -178,7 +178,7 @@ describe("opsActivityView", () => {
 
   it("words a declined card with its month and reason", () => {
     expect(opsActivityView(activity({ kind: "ChargeDeclined", amount: 675, currency: "USD", chargeKind: "Renewal", month: "2026-10-01", text: "Insufficient funds." })).note).toBe(
-      "October 2026 · 675.00 USD · Insufficient funds.",
+      "October 2026, 675.00 USD. Insufficient funds.",
     );
   });
 

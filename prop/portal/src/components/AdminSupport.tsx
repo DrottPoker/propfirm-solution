@@ -138,8 +138,8 @@ function TicketRow({ ticket, now, firmName }: { ticket: SupportTicketSummary; no
           </span>
           <span className="text-xs text-muted">
             {ticket.traderEmail}
-            {ticket.account && <> · Account #{ticket.account.number}</>} · {ticket.messages} {ticket.messages === 1 ? "message" : "messages"}
-            {ticket.openedBy === "Firm" && <> · Opened by your team</>}
+            {ticket.account && <>, account #{ticket.account.number}</>}, {ticket.messages} {ticket.messages === 1 ? "message" : "messages"}
+            {ticket.openedBy === "Firm" && <>, opened by your team</>}
           </span>
         </span>
         <span className={`shrink-0 text-xs sm:pt-1 sm:text-right ${late ? "text-warning" : "text-muted"}`}>
@@ -274,7 +274,7 @@ export function AdminNewTicket({ initialEmail, initialAccountId }: { initialEmai
               .sort((a, b) => b.number - a.number)
               .map((account) => (
                 <option key={account.id} value={account.id}>
-                  Account #{account.number} · {challengeName(account.challengeId)} · {account.stageName}
+                  Account #{account.number}, {challengeName(account.challengeId)}, {account.stageName}
                 </option>
               ))}
           </select>
@@ -351,7 +351,7 @@ export function AdminTicket({ ticketId }: { ticketId: string }) {
         title={data.subject}
         description={
           <>
-            {data.openedBy === "Firm" ? `Ticket #${data.number} to ${trader}` : `Ticket #${data.number} from ${trader}`} · Opened {formatDateTime(data.createdAt)}
+            {data.openedBy === "Firm" ? `Ticket #${data.number} to ${trader}` : `Ticket #${data.number} from ${trader}`}, opened {formatDateTime(data.createdAt)}
           </>
         }
         actions={
@@ -396,7 +396,7 @@ export function AdminTicket({ ticketId }: { ticketId: string }) {
               <dd>
                 {data.account ? (
                   <Link href={`/admin/accounts/${data.account.id}`} className="text-accent hover:underline">
-                    Account #{data.account.number} · {data.account.challengeName}
+                    Account #{data.account.number}, {data.account.challengeName}
                   </Link>
                 ) : (
                   "No account in particular"

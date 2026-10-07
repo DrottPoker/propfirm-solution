@@ -250,7 +250,7 @@ export function activityView(activity: Activity): ActivityView {
     case "PayoutRequested":
       return { title: "Payout asked for", note: amount, tone: "accent", icon: "payout" };
     case "PayoutPaid":
-      return { title: "Payout marked as paid", note: [amount, activity.reference && `reference ${activity.reference}`].filter(Boolean).join(" · ") || null, tone: "muted", icon: "paid" };
+      return { title: "Payout marked as paid", note: [amount, activity.reference && `reference ${activity.reference}`].filter(Boolean).join(", ") || null, tone: "muted", icon: "paid" };
     case "PayoutRejected":
       return { title: "Payout rejected", note: amount, tone: "loss", icon: "cross" };
   }

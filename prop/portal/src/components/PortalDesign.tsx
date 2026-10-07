@@ -83,7 +83,7 @@ export function BrandSwatches({
         {children}
       </div>
       <span className="text-xs text-muted">
-        {chosen ? chosen.name : "Your own color"} · <span className="font-mono">{value}</span>
+        {chosen ? chosen.name : "Your own color"} <span className="font-mono">({value})</span>
       </span>
     </div>
   );
@@ -460,10 +460,10 @@ function Preview({ colors, settings }: { colors: ThemeColors; settings: FirmSett
           </span>
         </p>
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <PreviewCard name="Two-step 100K" number="#1003 · 100,000.00 USD" stage="Phase 2" equity="103,655.20" result="+3,655.20" resultTone="text-profit" progress={68} daily="5,555.20 left" max="13,655.20 left" />
+          <PreviewCard name="Two-step 100K" number="#1003, 100,000.00 USD" stage="Phase 2" equity="103,655.20" result="+3,655.20" resultTone="text-profit" progress={68} daily="5,555.20 left" max="13,655.20 left" />
           <PreviewCard
             name="One-step 50K"
-            number="#1005 · 50,000.00 USD"
+            number="#1005, 50,000.00 USD"
             stage="Phase 1"
             equity="48,230.40"
             result="-1,769.60"
@@ -502,7 +502,7 @@ function PreviewCard(props: {
           <span className="font-semibold">{props.name}</span>
           <span className="text-xs text-muted">{props.number}</span>
         </span>
-        <span className="self-start rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium">{props.stage}</span>
+        <span className="text-[11px] font-medium text-accent">{props.stage}</span>
       </div>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-lg font-medium">{props.equity}</span>

@@ -7,6 +7,8 @@
 
 Genomgången av UI och UX (`reports/Genomgång av UI och UX.md`) fann att portalen och terminalen ser ut som tusen andra mörka Next.js-appar: typsnittet Geist, Tailwinds standardblå, platta kort utan skuggor, belopp i monospace med överstrukna nollor, nästan ingen rörelse, egenritade ikoner och ingen logga för Kronant. Portalen och terminalen hade dessutom var sina färger, rundningar och knappar.
 
+Senare (2026-10-07) fann vi att två vanor fick sidorna att se genererade och generiska ut: punkten "·" mellan ord och delar av meningar, och statusar i runda bubblor med en prick, som "Live prices" i terminalen.
+
 Portalen är white label: en firmas traders ska se firmans färger och logga ([ADR 0014](0014-vitmarkt-portal-pa-firmans-adress.md)). Terminalen, plattformens egna sidor och vår adminvy är våra ([ADR 0046](0046-namn-pa-bolaget-och-produkterna.md)).
 
 ## Beslut
@@ -19,6 +21,7 @@ Portalen är white label: en firmas traders ska se firmans färger och logga ([A
   - JetBrains Mono för kod, nycklar, adresser och terminalens priser.
 - **Ett gemensamt paket** i `shared/web/design` (`@kronant/design`) har tokens som båda apparna importerar i sin `globals.css`: Kronants färger, skuggor i tre nivåer med en ljus kant överst, ett fint brus, easing och tider, animationerna, `stagger` och `skeleton`. Skuggorna följer temats `color-scheme` med `light-dark()`.
 - **Rörelse** är kort och lugn, avstannande, och står helt still för den som valt minskad rörelse i systemet: sidor kommer in i en kort kaskad, staplar fylls, flikarnas markering glider, siffror rullar till sina nya värden, laddning visas som skelett, och det som sparas bekräftas med en kort notis.
+- **Text och status utan pynt.** Punkten "·" används inte som skiljetecken. Delar skiljs med komma, parentes eller en ny mening, eller med färg och vikt, till exempel ett namn följt av fasen i dämpad text, och en rad med flera fakta kan delas på flera rader. En status, som Funded eller Paid, är text i sin färg utan bubbla (`Badge` i `ui.tsx`). Levande siffror säger det med ord, som "Live equity". Den enda pulserande pricken är terminalens anslutning i statusraden längst ner, grön vid Live och röd vid Offline, och kontoraden visar ingen anslutning. Runda bubblor och prickar finns annars kvar bara som aviseringar, som antalet olästa svar i menyerna eller en regel som behöver uppmärksamhet, och som markeringar i steg och tidslinjer. Kontots namn i terminalen skrivs "#1001 Two-step 100K, Phase 1".
 - **Paket**:
   - `motion` för flikarnas markering och det som byter plats.
   - `@number-flow/react` för siffror som rullar.

@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { suspendedHelp } from "@/lib/account";
 import { CommandRejectedError } from "@/lib/api/client";
-import type { InstrumentInfo, MarketPeriod, OrderType, PointValue, Side } from "@/lib/api/types";
+import type { InstrumentInfo, MarketPeriod, OrderType, PlaceOrderRequest, PointValue, Side } from "@/lib/api/types";
 import { rejectionText } from "@/lib/events";
 import { formatMoney, formatPrice, formatSignedMoney, formatUnits, formatVolume, timeZoneName } from "@/lib/format";
 import { closingSoon, isClosed, opensText, sessionLines, useNow } from "@/lib/marketHours";
+import { orderQuestion } from "@/lib/orderConfirm";
 import { ghostLines, sideOfStops, useOrderDraft } from "@/lib/orderDraft";
 import { orderLockText, tradesUsed, tradesUsedText } from "@/lib/ownLimits";
 import { parsePrice, parseVolume, pipSize, stepPrice, stepVolume } from "@/lib/orderInput";
@@ -15,6 +16,7 @@ import { estimatedMargin, nearestLimit, pipValue, riskText, shareOfRoom, shareRi
 import { ageText, priceAgeMs, priceTooOld } from "@/lib/priceAge";
 import { useMarket, useMarketHours, useMe, usePlaceOrder, usePointValue } from "@/lib/queries";
 import { loadSizing, riskAmount, saveSizing, sizeForRisk, stepRisk, type RiskSize, type RiskUnit, type Sizing } from "@/lib/riskSize";
+import { useSettings } from "@/lib/settings";
 import { estimatedProfit, resolveStops, stepAmount, type ResolvedStops, type StopKind, type StopUnit } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
@@ -59,10 +61,15 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
   const [trailing, setTrailing] = useState(false);
   // In lots, or from what the order risks at its stop loss. Kept between orders and on every device (ADR 0052).
   const [sizing, setSizing] = useState(loadSizing);
+  // The order waiting for the trader's yes, when they chose in Settings to be asked before an order goes (ADR 0055).
+  const confirmOrders = useSettings((s) => s.confirmOrders);
+  const [asking, setAsking] = useState<PlaceOrderRequest | null>(null);
+  const cancelAsking = useCallback(() => setAsking(null), []);
 
   if (volumeSymbol !== instrument.symbol) {
     setVolumeSymbol(instrument.symbol);
     setVolume(startVolume(instrument, loadVolumes()));
+    setAsking(null);
   }
 
   const quote = useTradingStore((s) => s.prices[instrument.symbol]);
@@ -180,28 +187,33 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
       return;
     }
 
-    placeOrder.mutate(
-      {
-        orderId: crypto.randomUUID(),
-        symbol: instrument.symbol,
-        side,
-        type,
-        volume: lots ?? 0,
-        price: type === "Market" ? null : orderPrice,
-        stopLoss: resolved.stopLoss,
-        takeProfit: resolved.takeProfit,
-        trailingStop: trailing,
-      },
-      {
-        onSuccess: () => {
-          // The next order starts clean but keeps the volume, the order type and how stops are typed.
-          setPrice("");
-          setStops({ price: noStops, money: noStops });
-        },
-        onError: (e) => showError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service."),
-      },
-    );
+    const order: PlaceOrderRequest = {
+      orderId: crypto.randomUUID(),
+      symbol: instrument.symbol,
+      side,
+      type,
+      volume: lots ?? 0,
+      price: type === "Market" ? null : orderPrice,
+      stopLoss: resolved.stopLoss,
+      takeProfit: resolved.takeProfit,
+      trailingStop: trailing,
+    };
+    if (confirmOrders) {
+      setAsking(order);
+    } else {
+      send(order);
+    }
   };
+
+  const send = (order: PlaceOrderRequest) =>
+    placeOrder.mutate(order, {
+      onSuccess: () => {
+        // The next order starts clean but keeps the volume, the order type and how stops are typed.
+        setPrice("");
+        setStops({ price: noStops, money: noStops });
+      },
+      onError: (e) => showError(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service."),
+    });
 
   // The other way of seeing the stops, per side: prices for typed amounts, and amounts for typed prices.
   const preview = (side: Side): string[] => {
@@ -425,18 +437,31 @@ function OrderTicket({ accountId, instrument }: { accountId: string; instrument:
             The market closes in {closing.minutes} min, at {closing.at}. Open positions stay open over the close.
           </p>
         )}
-        <div className="grid grid-cols-2 gap-2">
-          {sides.map((side) => (
-            <TradeButton
-              key={side}
-              side={side}
-              price={formatPrice(side === "Buy" ? quote?.ask : quote?.bid, digits)}
-              disabled={disabled}
-              onClick={() => submit(side)}
-              onPoint={(pointed) => setPointedSide(pointed ? side : null)}
-            />
-          ))}
-        </div>
+        {asking ? (
+          <ConfirmOrder
+            order={asking}
+            digits={digits}
+            disabled={disabled}
+            onConfirm={() => {
+              send(asking);
+              setAsking(null);
+            }}
+            onCancel={cancelAsking}
+          />
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {sides.map((side) => (
+              <TradeButton
+                key={side}
+                side={side}
+                price={formatPrice(side === "Buy" ? quote?.ask : quote?.bid, digits)}
+                disabled={disabled}
+                onClick={() => submit(side)}
+                onPoint={(pointed) => setPointedSide(pointed ? side : null)}
+              />
+            ))}
+          </div>
+        )}
         {previews.some((lines) => lines.length > 0) && (
           <div className="grid grid-cols-2 gap-2 text-center font-mono text-[11px] text-muted tabular-nums" title="Estimated before commission">
             {sides.map((side, i) => (
@@ -717,6 +742,73 @@ function Stepper({
           <PlusIcon className="size-3.5" />
         </button>
       </span>
+    </div>
+  );
+}
+
+/**
+ * The order the trader is asked about, in place of the buy and sell buttons. The question comes first, so the second
+ * click of a double click lands on it and not on Confirm. Esc cancels.
+ */
+function ConfirmOrder({
+  order,
+  digits,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  order: PlaceOrderRequest;
+  digits: number;
+  disabled: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const question = orderQuestion(order, digits);
+  // The question takes the focus once, so a screen reader reads it, and keeps it while prices move.
+  useEffect(() => ref.current?.focus(), []);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onCancel();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onCancel]);
+
+  return (
+    <div
+      ref={ref}
+      role="alertdialog"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      className="flex animate-pop flex-col gap-3 rounded-lg border border-border bg-background p-3 outline-none"
+    >
+      <div className="flex flex-col gap-0.5">
+        <p id={titleId} className="font-medium">
+          {question.title}?
+        </p>
+        <p className="text-xs text-muted">{question.stops}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg bg-raised py-2 font-medium ring-1 ring-border transition duration-150 hover:ring-muted active:translate-y-px"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={disabled}
+          className={`rounded-lg py-2 font-semibold text-background transition duration-150 hover:brightness-110 active:translate-y-px disabled:pointer-events-none disabled:opacity-40 ${order.side === "Buy" ? "bg-buy" : "bg-sell"}`}
+        >
+          Confirm {order.side.toLowerCase()}
+        </button>
+      </div>
     </div>
   );
 }

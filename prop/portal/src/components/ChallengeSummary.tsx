@@ -9,7 +9,7 @@ export function ChallengeSummary({ challenge, showId = true }: { challenge: Chal
         {challenge.name} {showId && <span className="text-muted">({challenge.id})</span>}
       </span>
       <span>
-        {formatMoney(challenge.initialBalance)} {challenge.currency} · trading days start at {challenge.tradingDay.start.slice(0, 5)}{" "}
+        {formatMoney(challenge.initialBalance)} {challenge.currency}, trading days start at {challenge.tradingDay.start.slice(0, 5)}{" "}
         {challenge.tradingDay.timeZone}
       </span>
       <ul className="text-muted">

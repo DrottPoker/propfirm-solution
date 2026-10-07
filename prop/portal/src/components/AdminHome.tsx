@@ -123,7 +123,7 @@ function NeedsYou({ items }: { items: NeedsYouItem[] }) {
         <h2 id="needs-you" className="font-semibold">
           Needs you
         </h2>
-        <span className={`rounded-full px-2 text-xs font-medium ${items.length > 0 ? "bg-accent text-accent-foreground" : "bg-background text-muted"}`}>{items.length}</span>
+        <span className={`text-sm tabular-nums ${items.length > 0 ? "font-medium text-accent" : "text-muted"}`}>{items.length}</span>
       </div>
       {items.length === 0 ? (
         <p className="flex items-center gap-2.5 border-t border-border px-5 py-4 text-sm text-muted">
@@ -177,7 +177,7 @@ function Figures({ overview, currency, sells }: { overview: AdminOverview; curre
   const payoutWeeks = weeklySeries(overview.weeks, "payouts", currency);
   return (
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatTile label="Trading now" value={String(accounts.evaluation + accounts.funded)} note={`${accounts.evaluation} in evaluation · ${accounts.funded} funded`} />
+      <StatTile label="Trading now" value={String(accounts.evaluation + accounts.funded)} note={`${accounts.evaluation} in evaluation, ${accounts.funded} funded`} />
       <StatTile
         label="Sales, last 30 days"
         value={formatTotals(sales.totals, currency)}
@@ -191,7 +191,7 @@ function Figures({ overview, currency, sells }: { overview: AdminOverview; curre
       <StatTile
         label="Payouts, last 30 days"
         value={formatTotals(payouts.paidLast30Days.totals, currency)}
-        note={`${payouts.paidLast30Days.count} paid · ${formatTotals([...payouts.toApprove.totals, ...payouts.toPay.totals].reduce(sumByCurrency, []), currency)} waiting`}
+        note={`${payouts.paidLast30Days.count} paid, ${formatTotals([...payouts.toApprove.totals, ...payouts.toPay.totals].reduce(sumByCurrency, []), currency)} waiting`}
         aside={payoutWeeks.some((v) => v > 0) ? <Sparkline values={payoutWeeks} tone="profit" /> : undefined}
       />
       <StatTile
@@ -208,7 +208,7 @@ function TrendNote({ change, children }: { change: number | null; children: Reac
   return (
     <span className="flex flex-wrap items-center gap-x-1.5">
       {change !== null && (
-        <span className={`rounded-full px-1.5 font-medium ${change >= 0 ? "bg-profit/15 text-profit" : "bg-loss/15 text-loss"}`}>
+        <span className={`font-medium ${change >= 0 ? "text-profit" : "text-loss"}`}>
           {change >= 0 ? "+" : ""}
           {Math.round(change * 100)}% <span className="sr-only">compared with the four weeks before</span>
         </span>

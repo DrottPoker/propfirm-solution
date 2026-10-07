@@ -43,7 +43,7 @@ function Breadcrumb({ role, details, page }: { role: Role; details: AccountDetai
       </Link>{" "}
       <span aria-hidden="true">/</span>{" "}
       <Link href={accountHref(role, details.account.id)} className="hover:text-foreground">
-        #{details.account.number} {details.challenge.name} · {details.account.stageName}
+        #{details.account.number} {details.challenge.name}, {details.account.stageName}
       </Link>{" "}
       <span aria-hidden="true">/</span> <span className="text-foreground">{page}</span>
     </nav>

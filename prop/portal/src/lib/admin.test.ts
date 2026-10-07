@@ -170,7 +170,7 @@ describe("activityView", () => {
       tone: "loss",
     });
     expect(activityView(activity({ kind: "ChallengeExpired", stageName: "Phase 2", reason: "Inactivity" })).note).toBe("no new trade for too long");
-    expect(activityView(activity({ kind: "PayoutPaid", amount: 1_840, currency: "USD", reference: "TRF-88412" })).note).toBe("1,840.00 USD · reference TRF-88412");
+    expect(activityView(activity({ kind: "PayoutPaid", amount: 1_840, currency: "USD", reference: "TRF-88412" })).note).toBe("1,840.00 USD, reference TRF-88412");
     expect(activityView(activity({ kind: "EvaluationPassed" })).title).toBe("Passed every stage");
   });
 });

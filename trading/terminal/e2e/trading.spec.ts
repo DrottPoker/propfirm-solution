@@ -65,6 +65,15 @@ async function lowerStopLoss(page: Page) {
   }
 }
 
+/** Settings are in the menu behind the trader's initials, one tab at a time. */
+async function openSettings(page: Page, tab: "Chart" | "Sounds" | "Trading") {
+  await page.getByRole("button", { name: "User menu" }).click();
+  await page.getByRole("button", { name: "Settings" }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  await dialog.getByRole("tab", { name: tab }).click();
+  return dialog;
+}
+
 /** Log out is in the menu behind the trader's initials. */
 async function logOut(page: Page) {
   await page.getByRole("button", { name: "User menu" }).click();
@@ -105,7 +114,7 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
   await logIn(page, trader.email);
   await expect(page.getByText(trader.accountId, { exact: true })).toBeVisible();
   await expect(page.getByRole("banner").getByText(server.name, { exact: true })).toBeVisible();
-  await expect(page.getByText("Live prices")).toBeVisible();
+  await expect(page.getByRole("contentinfo").getByText("Live", { exact: true })).toBeVisible();
 
   // The buttons are enabled once prices have arrived.
   const buy = page.getByRole("button", { name: /^buy/i });
@@ -135,16 +144,14 @@ test("a trader logs in, buys, closes and sees the history", async ({ page, reque
   await page.getByRole("tab", { name: "Events" }).click();
   await expect(page.getByText(/^Closed Buy 1\.00 EURUSD/)).toBeVisible();
 
-  // The sound on fills is off until the trader turns it on in the menu, and stays as chosen.
-  await page.getByRole("button", { name: "User menu" }).click();
-  const sound = page.getByRole("switch", { name: "Sound on fills" });
+  // The sound on fills is off until the trader turns it on in Settings, and stays as chosen.
+  const sound = (await openSettings(page, "Sounds")).getByRole("switch", { name: "Sound on fills" });
   await expect(sound).toHaveAttribute("aria-checked", "false");
   await sound.click();
   await expect(sound).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
   await page.reload();
-  await page.getByRole("button", { name: "User menu" }).click();
-  await expect(page.getByRole("switch", { name: "Sound on fills" })).toHaveAttribute("aria-checked", "true");
+  await expect((await openSettings(page, "Sounds")).getByRole("switch", { name: "Sound on fills" })).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
 
   await logOut(page);
@@ -244,9 +251,20 @@ test("a right click on the chart sets stops where the mouse is", async ({ page, 
   await expect(menu).toHaveCount(0);
   await expect(page.getByLabel("Take profit", { exact: true })).toHaveValue(/^\d\.\d{5}$/);
 
-  // The take profit's ghost line is now where the mouse is, and a right click on it removes it.
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
-  await menu.getByRole("group", { name: "New order" }).getByRole("menuitem", { name: "Remove take profit" }).click();
+  // The take profit's ghost line is now where the mouse is, and a right click on it removes it. New prices can rescale
+  // the chart between the clicks and move the line away from the mouse, so a missed line is put back under it first.
+  const newOrder = menu.getByRole("group", { name: "New order" });
+  await expect(async () => {
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: "right" });
+    await expect(menu).toBeVisible();
+    const remove = newOrder.getByRole("menuitem", { name: "Remove take profit" });
+    if ((await remove.count()) === 0) {
+      await newOrder.getByRole("menuitem", { name: "Take profit", exact: true }).click();
+      throw new Error("The take profit moved away from the mouse.");
+    }
+
+    await remove.click();
+  }).toPass({ timeout: 20_000 });
   await expect(page.getByLabel("Take profit", { exact: true })).toHaveValue("");
 
   // An open buy gets a stop loss below the price. The menu names the position.
@@ -317,14 +335,14 @@ test("the account is shown as the firm's portal names it, with its target and li
   const detailsUrl = "http://localhost:3002/accounts/described";
   const details = await request.put(`${serviceUrl}/api/admin/v1/accounts/${trader.accountId}/details`, {
     headers: adminHeaders,
-    data: { label: "#1001 Two-step 100K \u00b7 Phase 1", profitTarget: 110_000, timeZone: "Europe/Stockholm", detailsUrl },
+    data: { label: "#1001 Two-step 100K, Phase 1", profitTarget: 110_000, timeZone: "Europe/Stockholm", detailsUrl },
   });
   expect(details.ok()).toBeTruthy();
   await setFloor(request, trader.accountId, "daily", 95_000);
 
   await logIn(page, trader.email);
   const banner = page.getByRole("banner");
-  await expect(banner.getByText("#1001 Two-step 100K \u00b7 Phase 1", { exact: true })).toBeVisible();
+  await expect(banner.getByText("#1001 Two-step 100K, Phase 1", { exact: true })).toBeVisible();
   await expect(banner.getByText("10,000.00 to go")).toBeVisible();
   await expect(banner.getByText("Daily loss limit")).toBeVisible();
   await expect(banner.getByText("5,000.00 left")).toBeVisible();
@@ -610,6 +628,45 @@ test("an order is sized from what it risks at its stop loss", async ({ page, req
   await expect(page.getByLabel("Risk (USD)", { exact: true })).toHaveValue("200");
 });
 
+test("the trader's settings change the chart and ask before an order goes", async ({ page, request }) => {
+  const trader = await createTrader(request, "settings");
+  await logIn(page, trader.email);
+
+  const settings = await openSettings(page, "Chart");
+  await settings.getByRole("radio", { name: "Blue and orange" }).click();
+  await expect(settings.getByRole("radio", { name: "Blue and orange" })).toHaveAttribute("aria-checked", "true");
+  await settings.getByRole("switch", { name: "Ask price line" }).click();
+  await settings.getByRole("tab", { name: "Trading" }).click();
+  await settings.getByRole("switch", { name: "Ask before placing an order" }).click();
+  await settings.getByRole("button", { name: "Done" }).click();
+  await expect(settings).toBeHidden();
+
+  // The order panel asks first, and Cancel sends nothing.
+  const buy = page.getByRole("button", { name: /^buy/i });
+  await expect(buy).toBeEnabled();
+  await buy.click();
+  const question = page.getByRole("alertdialog", { name: "Buy 1.00 EURUSD at market?" });
+  await expect(question).toContainText("No stop loss or take profit.");
+  await question.getByRole("button", { name: "Cancel" }).click();
+  await expect(question).toBeHidden();
+  await expect(page.getByRole("tab", { name: "Positions", exact: true })).toBeVisible();
+
+  await buy.click();
+  await page.getByRole("button", { name: "Confirm buy" }).click();
+  await expect(page.getByText(boughtNote)).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Positions (1)" })).toBeVisible();
+
+  // The choices stay after a reload, and a reset needs a second click.
+  await page.reload();
+  const again = await openSettings(page, "Chart");
+  await expect(again.getByRole("radio", { name: "Blue and orange" })).toHaveAttribute("aria-checked", "true");
+  await again.getByRole("button", { name: "Reset to defaults" }).click();
+  await again.getByRole("button", { name: "Click again to reset everything" }).click();
+  await expect(again.getByRole("radio", { name: "Green and red" })).toHaveAttribute("aria-checked", "true");
+  await again.getByRole("tab", { name: "Trading" }).click();
+  await expect(again.getByRole("switch", { name: "Ask before placing an order" })).toHaveAttribute("aria-checked", "false");
+});
+
 test("the trader's choices follow them to another device", async ({ page, request, browser }) => {
   const trader = await createTrader(request, "devices");
   await logIn(page, trader.email);
@@ -618,10 +675,10 @@ test("the trader's choices follow them to another device", async ({ page, reques
   await page.getByRole("button", { name: "Indicators" }).click();
   await page.getByRole("dialog", { name: "Indicators" }).getByRole("button", { name: "RSI", exact: true }).click();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "User menu" }).click();
-  await page.getByRole("switch", { name: "Sound on warnings" }).click();
+  await (await openSettings(page, "Sounds")).getByRole("switch", { name: "Sound on warnings" }).click();
+  await page.keyboard.press("Escape");
   // Logging out sends what is not sent yet.
-  await page.getByRole("button", { name: "Log out" }).click();
+  await logOut(page);
   await expect(page).toHaveURL(/\/login$/);
 
   const other = await browser.newContext({ baseURL: test.info().project.use.baseURL });
@@ -629,8 +686,7 @@ test("the trader's choices follow them to another device", async ({ page, reques
   await logIn(device, trader.email);
   await expect(device.getByRole("button", { name: "Remove XAUUSD from favorites" }).first()).toBeVisible();
   await expect(device.getByRole("button", { name: "Indicators (1)" })).toBeVisible();
-  await device.getByRole("button", { name: "User menu" }).click();
-  await expect(device.getByRole("switch", { name: "Sound on warnings" })).toHaveAttribute("aria-checked", "false");
+  await expect((await openSettings(device, "Sounds")).getByRole("switch", { name: "Sound on warnings" })).toHaveAttribute("aria-checked", "false");
   await other.close();
 });
 

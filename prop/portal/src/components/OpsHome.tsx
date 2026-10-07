@@ -83,7 +83,7 @@ function NeedsUs({ items }: { items: NeedsUsItem[] }) {
         <h2 id="needs-us" className="font-semibold">
           Needs us
         </h2>
-        <span className="rounded-full bg-background px-2 text-xs text-muted">{items.length}</span>
+        <span className={`text-sm tabular-nums ${items.length > 0 ? "font-medium text-accent" : "text-muted"}`}>{items.length}</span>
       </div>
       {items.length === 0 ? (
         <p className="flex items-center gap-2.5 border-t border-border px-5 py-4 text-sm text-muted">
@@ -126,13 +126,13 @@ function Figures({ overview }: { overview: OpsOverview }) {
   ].filter(Boolean);
   return (
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <StatTile label="Live firms" value={String(firms.live)} note={`${firms.sandbox} in the sandbox · ${firms.suspended} suspended`} />
+      <StatTile label="Live firms" value={String(firms.live)} note={`${firms.sandbox} in the sandbox, ${firms.suspended} suspended`} />
       <StatTile label="Paid each month" value={formatMoney(monthly.amount)} unit={currency} note={`${count(monthly.firms, "firm") ?? "No firm"} on a plan, before VAT`} />
       <StatTile label="Paid to us, last 30 days" value={formatTotals(paid.totals, currency)} note={paidFor.length > 0 ? paidFor.join(", ") : "Nothing paid yet"} />
       <StatTile
         label="Open challenges"
         value={String(challenges.open)}
-        note={`At live firms, in ${monthly.slots} paid slots${challenges.paused > 0 ? ` · ${challenges.paused} paused` : ""}`}
+        note={`At live firms, in ${monthly.slots} paid slots${challenges.paused > 0 ? `, ${challenges.paused} paused` : ""}`}
       />
     </dl>
   );
@@ -159,7 +159,7 @@ function Funnel({ overview }: { overview: OpsOverview }) {
                 <span>{step.label}</span>
                 <span className="tabular-nums">
                   {step.value}
-                  {step !== steps[0] && funnel.signedUp > 0 && <span className="text-muted"> · {share}%</span>}
+                  {step !== steps[0] && funnel.signedUp > 0 && <span className="text-muted"> ({share}%)</span>}
                 </span>
               </span>
               <ProgressBar value={funnel.signedUp === 0 ? 0 : (step.value / funnel.signedUp) * 100} label={`${step.label}: ${step.value} of ${funnel.signedUp}`} tone="accent" />
@@ -221,13 +221,13 @@ function OpsActivityList({ activity, now }: { activity: OpsActivity[]; now: numb
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span>
                 <span className="font-medium">{view.title}</span>
-                {view.note && <span className="text-muted"> · {view.note}</span>}
+                {view.note && <span className="text-muted">, {view.note}</span>}
               </span>
               <span className="truncate text-xs text-muted">
                 <Link href={`/ops/firms/${encodeURIComponent(item.firmId)}`} className="text-accent hover:underline">
                   {item.firmName}
                 </Link>{" "}
-                · {item.firmId}
+                ({item.firmId})
               </span>
             </span>
             <time dateTime={item.time} className="shrink-0 text-xs text-muted">

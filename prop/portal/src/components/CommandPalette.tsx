@@ -91,10 +91,10 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
                 <AccountsIcon className="size-4 text-muted" />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">
-                    #{account.number} · {account.email}
+                    #{account.number} <span className="text-muted">{account.email}</span>
                   </span>
                   <span className="truncate text-xs text-muted">
-                    {account.stageName} · {accountStatus(account).label}
+                    {account.stageName}, {accountStatus(account).label.toLowerCase()}
                   </span>
                 </span>
                 <ChevronRightIcon className="size-3.5 text-muted" />

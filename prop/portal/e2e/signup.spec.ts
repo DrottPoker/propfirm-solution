@@ -51,7 +51,7 @@ test("a firm signs up, gets its own portal and server, and starts a challenge in
   await panel.getByRole("button", { name: "Cancel" }).click();
 
   await startChallenge(page, "trader@nordic-e2e-prop.e2e.example");
-  await expect(page.getByText("Trading account nordic-e2e-prop-1001-1")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText("trading account nordic-e2e-prop-1001-1")).toBeVisible({ timeout: 20_000 });
 });
 
 test("the firm changes its look and makes challenges of its own", async ({ page }) => {

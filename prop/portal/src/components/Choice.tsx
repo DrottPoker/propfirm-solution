@@ -37,9 +37,7 @@ export function FilterTabs<T extends string>({
               {chosen && <motion.span layoutId="marker" transition={slide} className="absolute inset-0 rounded-lg bg-raised shadow-card" />}
               <span className="relative">{option.label}</span>
               {option.count !== undefined && (
-                <span
-                  className={`relative rounded-full px-1.5 text-xs ${option.highlight && option.count > 0 ? "bg-warning/20 text-warning" : chosen ? "text-foreground/70" : "text-muted"}`}
-                >
+                <span className={`relative text-xs tabular-nums ${option.highlight && option.count > 0 ? "font-medium text-warning" : chosen ? "text-foreground/70" : "text-muted"}`}>
                   {option.count}
                 </span>
               )}

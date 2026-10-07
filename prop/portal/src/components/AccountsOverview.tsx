@@ -9,7 +9,6 @@ import { useMe, useMyAccounts, useSendEmailConfirmation, useShop } from "@/lib/q
 
 import { AccountCard } from "./AccountCard";
 import { AlertIcon, BagIcon, CheckIcon, InfoIcon } from "./icons";
-import { LiveDot } from "./Live";
 import { VerifyIdentityNotice } from "./TraderIdentity";
 import { buttonClass, EmptyState, ErrorText, Loading, Message, PageHeader, SectionLabel, TraderPage } from "./ui";
 
@@ -42,16 +41,12 @@ export function AccountsOverview() {
       <PageHeader
         title="Your accounts"
         description={
-          current.length > 0 && (
-            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              {trading === 0
-                ? "No account is trading right now."
-                : trading === 1
-                  ? "One account is trading right now."
-                  : `${trading} accounts are trading right now.`}
-              {trading > 0 && <LiveDot label="Figures update live" />}
-            </span>
-          )
+          current.length > 0 &&
+          (trading === 0
+            ? "No account is trading right now."
+            : trading === 1
+              ? "One account is trading right now, and its figures update live."
+              : `${trading} accounts are trading right now, and their figures update live.`)
         }
       />
 
@@ -171,8 +166,8 @@ function Outcome({ details }: { details: AccountDetails }) {
     <span className="text-muted">Cancelled by the firm</span>
   ) : (
     <>
-      <span className={details.breach ? "text-loss" : "text-muted"}>{details.breach ? "Failed" : "Ended"}</span>{" "}
-      <span className="text-muted">· {endingText(details)}</span>
+      <span className={details.breach ? "text-loss" : "text-muted"}>{details.breach ? "Failed" : "Ended"}</span>
+      {endingText(details) && <span className="text-muted">, {endingText(details)}</span>}
     </>
   );
 }
@@ -202,7 +197,7 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
               </span>
               <span className="text-xs text-muted">
                 {details.account.stageName}
-                {details.endedAt && ` · ended ${formatDate(details.endedAt, details.challenge.tradingDay.timeZone)}`}
+                {details.endedAt && `, ended ${formatDate(details.endedAt, details.challenge.tradingDay.timeZone)}`}
               </span>
             </Link>
             <RetryLink details={details} className="mt-2 block text-sm" />
@@ -239,7 +234,7 @@ function EndedAccounts({ accounts }: { accounts: AccountDetails[] }) {
                   </Link>
                 </td>
                 <td className="px-5 py-3">
-                  {details.challenge.name} · {details.account.stageName}
+                  {details.challenge.name} <span className="text-muted">{details.account.stageName}</span>
                 </td>
                 <td className="px-5 py-3">
                   <Outcome details={details} />

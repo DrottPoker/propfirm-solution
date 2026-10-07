@@ -30,7 +30,7 @@ import { useOrderDraft, type GhostLine } from "@/lib/orderDraft";
 import { isClosed, useNow } from "@/lib/marketHours";
 import { fetchOlderCandles, useCandles, useDaySummary, useMarket, useModifyStops, usePointValue } from "@/lib/queries";
 import type { DrawingTool } from "@/lib/drawings";
-import { useSettings } from "@/lib/settings";
+import { useSettings, type CandleColors } from "@/lib/settings";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
@@ -79,19 +79,17 @@ const priceMargins = { withVolume: { top: 0.08, bottom: 0.2 }, withoutVolume: { 
 // The buttons above the chart: the timeframes, the volume and full screen.
 const toolClass = "shrink-0 rounded-md py-1 font-medium transition duration-150 ease-out-soft active:translate-y-px";
 
-// Kronant's colors: candles in green and red on the panel, and lines of our own, such as the last price, in brass.
+// Kronant's colors: candles in the trader's colors on the panel (green and red unless chosen otherwise in Settings),
+// and lines of our own, such as the last price, in brass.
 const colors = {
   background: kronant.panel,
   text: kronant.muted,
   grid: mix(kronant.border, kronant.panel, 0.45),
   border: kronant.border,
   crosshair: mix(kronant.muted, kronant.panel, 0.6),
-  up: kronant.profit,
-  down: kronant.loss,
-  // Faint, since every candle has about as many prices and full colors would look like a barcode.
-  upVolume: withAlpha(kronant.profit, 0.14),
-  downVolume: withAlpha(kronant.loss, 0.14),
   last: kronant.brass,
+  // The price a buy opens at, quieter than the bid's brass line, since the candles are bids.
+  ask: mix(kronant.foreground, kronant.panel, 0.55),
   open: kronant.brass,
   // A pending order's price, dotted and a little dimmer than an open position's.
   order: mix(kronant.brass, kronant.panel, 0.25),
@@ -102,8 +100,6 @@ const colors = {
   // The indicators' lines in turn, apart from the candles' green and red and from brass, which marks our own lines.
   studies: ["#7aa7e0", "#b48ee6", "#5cc8c0", "#e08ab4", "#d9c38c", kronant.foreground],
   studyGuide: mix(kronant.muted, kronant.panel, 0.6),
-  studyUp: withAlpha(kronant.profit, 0.55),
-  studyDown: withAlpha(kronant.loss, 0.55),
   drawing: {
     line: mix(kronant.foreground, kronant.panel, 0.75),
     fill: withAlpha(kronant.foreground, 0.05),
@@ -155,7 +151,13 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   const [timeframe, setTimeframe] = useState<Timeframe>("M1");
   const fullScreen = useFullScreen(sectionRef);
   const showVolume = useSettings((s) => s.chartVolume);
+  const showGrid = useSettings((s) => s.chartGrid);
+  const showAsk = useSettings((s) => s.chartAsk);
+  const showTrades = useSettings((s) => s.chartTrades);
+  const candleColors = useSettings((s) => s.candles);
   const changeSetting = useSettings((s) => s.change);
+  // The volume bars take the candles' colors, read when they are drawn.
+  const candleColorsRef = useRef(candleColors);
 
   const symbol = instrument?.symbol ?? null;
   const candles = useCandles(accountId, symbol, timeframe);
@@ -193,10 +195,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       },
     });
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: colors.up,
-      downColor: colors.down,
-      wickUpColor: colors.up,
-      wickDownColor: colors.down,
+      ...candleOptions(candleColorsRef.current),
       borderVisible: false,
       priceLineColor: colors.last,
       priceLineStyle: LineStyle.Dashed,
@@ -216,7 +215,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     series.attachPrimitive(keepInView);
     const drawingsLayer = new DrawingsLayer(colors.drawing);
     series.attachPrimitive(drawingsLayer);
-    const studies = new IndicatorSeries(chart, { lines: colors.studies, up: colors.studyUp, down: colors.studyDown, guide: colors.studyGuide });
+    const studies = new IndicatorSeries(chart, { lines: colors.studies, ...studyUpDown(candleColorsRef.current), guide: colors.studyGuide });
 
     chartRef.current = chart;
     seriesRef.current = series;
@@ -245,6 +244,53 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
   useEffect(() => {
     studiesRef.current?.setIndicators(indicators, digits);
   }, [indicators, digits]);
+
+  // The trader's candle colors, also on the volume bars already drawn.
+  useEffect(() => {
+    candleColorsRef.current = candleColors;
+    seriesRef.current?.applyOptions(candleOptions(candleColors));
+    volumeRef.current?.setData(barsRef.current.map((bar) => toVolume(bar, candleColors)));
+    const { up, down } = studyUpDown(candleColors);
+    studiesRef.current?.setUpDown(up, down);
+  }, [candleColors]);
+
+  useEffect(() => {
+    chartRef.current?.applyOptions({ grid: { vertLines: { visible: showGrid }, horzLines: { visible: showGrid } } });
+  }, [showGrid]);
+
+  // The ask as a line of its own, which follows every new price, since a buy opens there and the candles are bids.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series || !symbol || !showAsk) {
+      return;
+    }
+
+    let line: IPriceLine | null = null;
+    const place = (ask: number | undefined) => {
+      if (ask === undefined) {
+        return;
+      }
+
+      if (line) {
+        line.applyOptions({ price: ask });
+      } else {
+        line = series.createPriceLine({ price: ask, color: colors.ask, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "Ask" });
+      }
+    };
+    place(useTradingStore.getState().prices[symbol]?.ask);
+    const stop = useTradingStore.subscribe((state, previous) => {
+      const price = state.prices[symbol];
+      if (price && price !== previous.prices[symbol]) {
+        place(price.ask);
+      }
+    });
+    return () => {
+      stop();
+      if (line) {
+        series.removePriceLine(line);
+      }
+    };
+  }, [symbol, showAsk]);
 
   // Without the volume, the candles take its place.
   useEffect(() => {
@@ -280,7 +326,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
     barsRef.current = bars;
     olderRef.current = { loading: false, exhausted: false };
     seriesRef.current.setData(bars.map(toCandle));
-    volumeRef.current.setData(bars.map(toVolume));
+    volumeRef.current.setData(bars.map((bar) => toVolume(bar, candleColorsRef.current)));
     studiesRef.current?.setBars(bars);
     drawingsRef.current?.setBars(bars.map((b) => b.time), secondsOf(timeframe), digits);
     chartRef.current?.timeScale().scrollToRealTime();
@@ -321,7 +367,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
           const visible = chart.timeScale().getVisibleLogicalRange();
           barsRef.current = merged;
           seriesRef.current.setData(merged.map(toCandle));
-          volumeRef.current.setData(merged.map(toVolume));
+          volumeRef.current.setData(merged.map((bar) => toVolume(bar, candleColorsRef.current)));
           if (visible) {
             chart.timeScale().setVisibleLogicalRange({ from: visible.from + added, to: visible.to + added });
           }
@@ -359,7 +405,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       const bar = applyPrice(last, price.bid, Date.parse(price.timestamp) / 1000, timeframe);
       if (bar) {
         seriesRef.current.update(toCandle(bar));
-        volumeRef.current.update(toVolume(bar));
+        volumeRef.current.update(toVolume(bar, candleColorsRef.current));
         if (last && bar.time === last.time) {
           bars[bars.length - 1] = bar;
         } else {
@@ -423,7 +469,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
       },
       { onError: (e) => showMessage(e instanceof CommandRejectedError ? rejectionText(e.reason) : "Could not reach the trading service.") },
     );
-  useTradeMarkers(markersRef, symbol, timeframe);
+  useTradeMarkers(markersRef, showTrades ? symbol : null, timeframe);
 
   return (
     <section
@@ -499,7 +545,7 @@ export function PriceChart({ accountId, instrument }: { accountId: string; instr
           className="ml-auto shrink-0 pl-2 whitespace-nowrap text-muted @max-xl:hidden"
           title={`Candles show the bid. Times are in ${timeZone}, the time zone of the account's trading day.`}
         >
-          Bid · {timeZoneName(timeZone)}
+          Bid, {timeZoneName(timeZone)}
         </span>
         <button
           type="button"
@@ -810,7 +856,8 @@ function useGhostLines(
   }, [seriesRef, keepInViewRef, ghosts]);
 }
 
-// Arrows where the symbol's positions opened and closed. Redrawn only when a trade or the timeframe changed.
+// Arrows where the symbol's positions opened and closed, none without a symbol. Redrawn only when a trade or the
+// timeframe changed.
 function useTradeMarkers(markersRef: React.RefObject<TradeMarkers | null>, symbol: string | null, timeframe: Timeframe) {
   const events = useTradingStore((s) => s.events);
   const positions = useTradingStore((s) => s.account?.positions);
@@ -828,6 +875,16 @@ function toCandle(bar: Bar) {
   return { time: bar.time as UTCTimestamp, open: bar.open, high: bar.high, low: bar.low, close: bar.close };
 }
 
-function toVolume(bar: Bar) {
-  return { time: bar.time as UTCTimestamp, value: bar.ticks, color: bar.close >= bar.open ? colors.upVolume : colors.downVolume };
+function candleOptions({ up, down }: CandleColors) {
+  return { upColor: up, downColor: down, wickUpColor: up, wickDownColor: down };
+}
+
+// MACD's bars above and below zero, in the candles' colors but lighter.
+function studyUpDown({ up, down }: CandleColors) {
+  return { up: withAlpha(up, 0.55), down: withAlpha(down, 0.55) };
+}
+
+// Faint, since every candle has about as many prices and full colors would look like a barcode.
+function toVolume(bar: Bar, { up, down }: CandleColors) {
+  return { time: bar.time as UTCTimestamp, value: bar.ticks, color: withAlpha(bar.close >= bar.open ? up : down, 0.14) };
 }

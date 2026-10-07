@@ -79,8 +79,9 @@ export function StageTiles({ details, audience = "trader" }: { details: AccountD
           >
             <TileMark state={state} number={stage.stage + 1} />
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className={`font-medium ${state === "upcoming" ? "text-muted" : ""}`}>
-                {stage.name} · {tileState(state)}
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className={`font-medium ${state === "upcoming" ? "text-muted" : ""}`}>{stage.name}</span>
+                <span className="text-xs text-muted">{tileState(state)}</span>
               </span>
               <span className="text-xs text-muted">{tileDetail(stage, state, details, audience)}</span>
             </span>
@@ -131,12 +132,12 @@ function tileDetail(stage: StageSummary, state: StepState, details: AccountDetai
   switch (state) {
     case "passed": {
       const days = stage.tradingDays == null ? "" : ` in ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"}`;
-      const when = stage.passedAt ? `${formatDate(stage.passedAt, timeZone)} · ` : "";
-      return stage.result == null ? when.replace(/ · $/, "") : `${when}${formatSignedMoney(stage.result)}${days}`;
+      const when = stage.passedAt ? formatDate(stage.passedAt, timeZone) : null;
+      return [when, stage.result == null ? null : `${formatSignedMoney(stage.result)}${days}`].filter(Boolean).join(", ");
     }
     case "current":
       return stage.startedAt
-        ? `Since ${formatDate(stage.startedAt, timeZone)}${stage.tradingDays == null ? "" : ` · ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"} so far`}`
+        ? `Since ${formatDate(stage.startedAt, timeZone)}${stage.tradingDays == null ? "" : `, ${stage.tradingDays} trading ${stage.tradingDays === 1 ? "day" : "days"} so far`}`
         : "The trading account is being opened.";
     case "waiting":
       return audience === "firm" ? "Every evaluation stage is passed. The funded account waits for your approval." : "Every evaluation stage is passed. The firm is reviewing the funded account.";

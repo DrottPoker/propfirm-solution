@@ -7,14 +7,17 @@ import { formatDateTime, formatMoney, formatPercent, timeZoneName } from "@/lib/
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
 
+import { ConnectionStatusText, useConnectionStatus } from "./ConnectionStatus";
 import { KronantMark } from "./KronantMark";
 
 /**
- * Our name, the firm's server, the time in the account's time zone like every other time on screen, and the
- * account's margin figures. The account bar above is the firm's; this is where the terminal says it is ours.
+ * Our name, the firm's server and whether prices come from it live, the time in the account's time zone like every
+ * other time on screen, and the account's margin figures. The account bar above is the firm's; this is where the
+ * terminal says it is ours.
  */
-export function StatusBar({ serverName }: { serverName: string }) {
+export function StatusBar({ accountId, serverName }: { accountId: string; serverName: string }) {
   const account = useTradingStore((s) => s.account);
+  const connection = useConnectionStatus(accountId);
 
   return (
     <footer className="flex h-8 shrink-0 items-center gap-6 overflow-x-auto border-t border-border bg-panel px-4 text-xs whitespace-nowrap text-muted">
@@ -25,6 +28,7 @@ export function StatusBar({ serverName }: { serverName: string }) {
       <span>
         Server: <span className="text-foreground">{serverName}</span>
       </span>
+      <ConnectionStatusText status={connection} />
       <Clock />
       {account && (
         <span className="ml-auto flex gap-6">

@@ -6,8 +6,8 @@ import type { FloorFigure } from "@/lib/api/types";
 import { floorState, roomShare, type FloorState } from "@/lib/dashboard";
 import { formatMoney } from "@/lib/format";
 
-// Figures that move: amounts that roll to their new value when they change, a dot that says the figures are live, and
-// how much room is left to a loss limit. Rolling stands still for those who asked their system for less motion.
+// Figures that move: amounts that roll to their new value when they change, and how much room is left to a loss limit.
+// Rolling stands still for those who asked their system for less motion.
 
 const money = { minimumFractionDigits: 2, maximumFractionDigits: 2 } as const;
 
@@ -25,16 +25,6 @@ export function AnimatedMoney({ value, signed = false, className = "" }: { value
       respectMotionPreference
       className={className}
     />
-  );
-}
-
-/** A small pulsing dot, beside figures that update by themselves. */
-export function LiveDot({ label = "Live" }: { label?: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted">
-      <span aria-hidden="true" className="size-1.5 animate-pulse-dot rounded-full bg-profit text-profit/50" />
-      {label}
-    </span>
   );
 }
 

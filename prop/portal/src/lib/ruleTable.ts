@@ -11,19 +11,19 @@ const rules: Rule[] = [
   {
     label: "Profit target",
     value: (rules, stage) =>
-      rules.profitTargetPercent == null || stage.profitTarget == null ? "None" : `${rules.profitTargetPercent}% · ${formatMoney(stage.profitTarget)}`,
+      rules.profitTargetPercent == null || stage.profitTarget == null ? "None" : `${rules.profitTargetPercent}% (${formatMoney(stage.profitTarget)})`,
   },
   {
     label: "Daily loss limit",
     value: (rules, stage) =>
-      `${rules.dailyLoss.percent}% · ${formatMoney(stage.dailyLoss)} below ${rules.dailyLoss.reference === "Balance" ? "the balance" : "the higher of balance and equity"} when the day starts`,
+      `${rules.dailyLoss.percent}% (${formatMoney(stage.dailyLoss)}) below ${rules.dailyLoss.reference === "Balance" ? "the balance" : "the higher of balance and equity"} when the day starts`,
   },
   {
     label: "Max loss limit",
     value: (rules, stage) =>
       rules.maxLoss.kind === "Fixed"
-        ? `${rules.maxLoss.percent}% · ${formatMoney(stage.maxLoss)} below the initial balance`
-        : `${rules.maxLoss.percent}% · ${formatMoney(stage.maxLoss)} below the highest equity, rising no higher than the initial balance`,
+        ? `${rules.maxLoss.percent}% (${formatMoney(stage.maxLoss)}) below the initial balance`
+        : `${rules.maxLoss.percent}% (${formatMoney(stage.maxLoss)}) below the highest equity, rising no higher than the initial balance`,
   },
   {
     label: "Minimum trading days",

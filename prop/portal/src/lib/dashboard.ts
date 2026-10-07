@@ -117,11 +117,6 @@ export function initials(email: string, name?: string | null): string {
   return letters.toUpperCase() || "?";
 }
 
-/** The challenge's name with the account number, for example "Two-step 100K · #1003". */
-export function accountTitle(details: AccountDetails): string {
-  return `${details.challenge.name} · #${details.account.number}`;
-}
-
 /** How a stage looks in the stepper: passed, the current one and how it stands, or still to come. */
 export type StepState = "passed" | "current" | "waiting" | "failed" | "cancelled" | "upcoming";
 
@@ -151,15 +146,15 @@ export function statusText(details: AccountDetails): string {
   const { account } = details;
   switch (account.status) {
     case "OpeningAccount":
-      return `${account.stageName} · Opening`;
+      return `${account.stageName}, opening`;
     case "AwaitingFunding":
-      return "Passed · Under review";
+      return "Passed, under review";
     case "Failed":
       return details.expiry ? "Ended" : "Failed";
     case "Cancelled":
       return "Cancelled";
     default:
-      return account.paused ? `${account.stageName} · Paused` : account.stageName;
+      return account.paused ? `${account.stageName}, paused` : account.stageName;
   }
 }
 
@@ -356,7 +351,7 @@ export function objectivesOf(details: AccountDetails): Objective[] {
             state: reached ? "reached" : "progress",
             stateText: reached ? "Reached" : "In progress",
             detail:
-              `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} · reach a balance of ${formatMoney(account.profitTarget)}. Closed trades count` +
+              `${formatMoney(results.targetGained)} of ${formatMoney(results.targetRequired)} made, toward a balance of ${formatMoney(account.profitTarget)}. Closed trades count` +
               (withOpen === null || reached ? "." : `: with your open ones closed now, it would be ${formatMoney(withOpen)}.`),
             progress: results.targetPercent,
             ghost: withOpen === null || reached ? undefined : Math.min(100, Math.max(0, (100 * withOpen) / results.targetRequired)),

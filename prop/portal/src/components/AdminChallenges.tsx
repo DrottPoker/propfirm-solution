@@ -81,7 +81,7 @@ function ChallengeCard({ challenge, price, figures }: { challenge: ChallengeDefi
         <Badge tone={forSale ? "profit" : "muted"}>{forSale ? "For sale" : price ? "Not for sale" : "No price"}</Badge>
       </div>
       <PhaseJourney challenge={challenge} />
-      <ul aria-label="Rules" className="flex flex-wrap gap-1.5 text-xs">
+      <ul aria-label="Rules" className="flex flex-col gap-1 text-sm text-muted">
         {[
           `Daily loss ${first.dailyLoss.percent}%`,
           `Max loss ${first.maxLoss.percent}% ${first.maxLoss.kind === "Trailing" ? "trailing" : "fixed"}`,
@@ -91,9 +91,7 @@ function ChallengeCard({ challenge, price, figures }: { challenge: ChallengeDefi
         ]
           .filter((rule): rule is string => rule !== null)
           .map((rule) => (
-            <li key={rule} className="rounded-full border border-border bg-background/40 px-2.5 py-1 text-muted">
-              {rule}
-            </li>
+            <li key={rule}>{rule}</li>
           ))}
       </ul>
       {figures && (

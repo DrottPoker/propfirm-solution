@@ -51,7 +51,7 @@ export function PayoutDecisions({ payout, traderChecked }: { payout: Payout; tra
         onClose={() => setDialog(null)}
         onConfirm={approve}
         title="Approve without your checks of the trader?"
-        description={`${payout.email} · #${payout.accountNumber}. You have not ticked that you checked the trader's ID and address. Tick them on the account's trader card once you have.`}
+        description={`Account #${payout.accountNumber} of ${payout.email}. You have not ticked that you checked the trader's ID and address. Tick them on the account's trader card once you have.`}
         confirmLabel="Approve anyway"
         pendingLabel="Approving..."
         pending={decision.isPending}
@@ -79,7 +79,7 @@ function MarkPaidDialog({ payout, onClose }: { payout: Payout; onClose: () => vo
       open
       onClose={onClose}
       title={`Mark the payout of ${formatMoney(payout.amount)} ${payout.currency} as paid?`}
-      description={`${payout.email} · #${payout.accountNumber}. Do this once you have sent the money. The trader sees it as paid.`}
+      description={`Account #${payout.accountNumber} of ${payout.email}. Do this once you have sent the money. The trader sees it as paid.`}
       footer={
         <>
           <button type="button" onClick={onClose} className={secondaryButtonClass}>
@@ -98,7 +98,7 @@ function MarkPaidDialog({ payout, onClose }: { payout: Payout; onClose: () => vo
         </div>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">
-            Reference <span className="font-normal text-muted">· the trader sees it · optional</span>
+            Reference <span className="font-normal text-muted">(optional, the trader sees it)</span>
           </span>
           <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="For example a bank transfer id" className={fieldClass} />
         </label>
@@ -129,7 +129,7 @@ function RejectDialog({ payout, onClose }: { payout: Payout; onClose: () => void
       open
       onClose={onClose}
       title={`Reject the payout of ${formatMoney(payout.amount)} ${payout.currency}?`}
-      description={`${payout.email} · #${payout.accountNumber}`}
+      description={`Account #${payout.accountNumber} of ${payout.email}`}
       footer={
         <>
           <button type="button" onClick={onClose} className={secondaryButtonClass}>
@@ -166,7 +166,7 @@ function RejectDialog({ payout, onClose }: { payout: Payout; onClose: () => void
         </fieldset>
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">
-            Reason <span className="font-normal text-muted">· the trader sees this</span>
+            Reason <span className="font-normal text-muted">(the trader sees it)</span>
           </span>
           <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={4} className={`${fieldClass} resize-y`} />
         </label>

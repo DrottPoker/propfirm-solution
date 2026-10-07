@@ -262,7 +262,7 @@ export function opsActivityView(activity: OpsActivity): OpsActivityView {
     case "SuspensionLifted":
       return { title: "Suspension lifted", note: by, tone: "profit", icon: "play" };
     case "WentLive":
-      return { title: "Went live", note: [activity.slots != null ? `${activity.slots} slots` : null, amount && `${amount} paid`].filter(Boolean).join(" · ") || null, tone: "profit", icon: "rocket" };
+      return { title: "Went live", note: [activity.slots != null ? `${activity.slots} slots` : null, amount && `${amount} paid`].filter(Boolean).join(", ") || null, tone: "profit", icon: "rocket" };
     case "ChargePaid":
       return {
         title: activity.chargeKind === "Renewal" && activity.month ? `Paid for ${monthName(activity.month)}` : "Paid for more slots",
@@ -273,7 +273,8 @@ export function opsActivityView(activity: OpsActivity): OpsActivityView {
     case "ChargeDeclined":
       return {
         title: "Card declined",
-        note: [activity.chargeKind === "Renewal" && activity.month ? monthName(activity.month) : null, amount, activity.text].filter(Boolean).join(" · ") || null,
+        // The card's reason is a sentence of its own, such as "Insufficient funds."
+        note: [[activity.chargeKind === "Renewal" && activity.month ? monthName(activity.month) : null, amount].filter(Boolean).join(", "), activity.text].filter(Boolean).join(". ") || null,
         tone: "loss",
         icon: "declined",
       };

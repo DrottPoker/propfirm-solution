@@ -9,25 +9,13 @@ import type { AccountDetails, AccountStatus, FloorSnapshot, OwnLimitsSnapshot, S
 import { formatClock, formatMoney, formatPercent } from "@/lib/format";
 import { closeness } from "@/lib/ownLimits";
 import { useLogout } from "@/lib/queries";
-import { useSettings, type Setting } from "@/lib/settings";
-import { playFillSound, playWarningSound, unlockSound } from "@/lib/sound";
-import { useTradingStore, type ConnectionState } from "@/lib/store";
+import { useSheet } from "@/lib/sheet";
+import { useTradingStore } from "@/lib/store";
 
-import { ArrowLeftIcon, BellIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SoundIcon } from "./icons";
-import { useFeedStopped } from "./PriceAlerts";
+import { ConnectionStatusText, useConnectionStatus } from "./ConnectionStatus";
+import { ArrowLeftIcon, ChevronDownIcon, InfoIcon, LogOutIcon, SettingsIcon } from "./icons";
 import { RulesMenu } from "./RulesMenu";
 import { useDismiss } from "./useDismiss";
-
-// "Live prices", not "Live": the accounts are practice accounts, and "Live" could be read as a real money account.
-// The dot pulses while prices stream in.
-const connectionStyles: Record<ConnectionState, { label: string; className: string; dot: string }> = {
-  connecting: { label: "Connecting", className: "border-warning/30 bg-warning/10 text-warning", dot: "" },
-  connected: { label: "Live prices", className: "border-profit/30 bg-profit/10 text-profit", dot: "animate-pulse-dot" },
-  reconnecting: { label: "Reconnecting", className: "border-warning/30 bg-warning/10 text-warning", dot: "" },
-  disconnected: { label: "Offline", className: "border-loss/30 bg-loss/10 text-loss", dot: "" },
-};
-
-const pausedStyle = { label: "Prices paused", className: "border-warning/30 bg-warning/10 text-warning", dot: "" };
 
 const riskColors: Record<FloorRisk, string> = { ok: "text-muted", warning: "text-warning", danger: "text-loss" };
 
@@ -51,10 +39,7 @@ export function AccountBar({
   server: ServerInfo;
 }) {
   const account = useTradingStore((s) => s.account);
-  // Connected without prices for a minute: the price feed has stopped, which the connection itself cannot show.
-  const paused = useFeedStopped(accountId) !== null;
-  const state = useTradingStore((s) => s.connection);
-  const connection = paused ? pausedStyle : connectionStyles[state];
+  const connection = useConnectionStatus(accountId);
   const router = useRouter();
   const current = details.find((d) => d.accountId === account?.accountId);
   const back = backLink(current, server);
@@ -71,13 +56,12 @@ export function AccountBar({
         )}
       </span>
 
-      <span
-        className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors duration-300 ${connection.className}`}
-        title="Prices and figures come live from the trading service"
-      >
-        <span className={`size-1.5 rounded-full bg-current ${connection.dot}`} />
-        <span className="max-sm:sr-only">{connection.label}</span>
-      </span>
+      {/* The connection is in the status bar, which a phone does not show, so a phone says it here when it is not live. */}
+      {connection.tone !== "live" && (
+        <span className="shrink-0 text-xs lg:hidden">
+          <ConnectionStatusText status={connection} />
+        </span>
+      )}
 
       <div className="flex h-full min-w-0 flex-1 items-stretch overflow-x-auto max-lg:order-last max-lg:-mx-4 max-lg:mt-2 max-lg:h-12 max-lg:basis-full max-lg:border-t max-lg:border-border max-lg:*:first:border-l-0">
         {account && (
@@ -181,15 +165,15 @@ function AccountPicker({
           <span className="font-medium">{nameOf(accountId)}</span>
         </>
       )}
-      {status === "Disabled" && <span className="mt-0.5 w-fit rounded bg-loss/15 px-1.5 text-[11px] font-medium text-loss">Ended</span>}
+      {status === "Disabled" && <span className="text-[11px] font-medium text-loss">Ended</span>}
       {status === "Suspended" && (
-        <span className="mt-0.5 w-fit rounded bg-warning/15 px-1.5 text-[11px] font-medium text-warning" title={suspendedHelp}>
+        <span className="text-[11px] font-medium text-warning" title={suspendedHelp}>
           Paused
         </span>
       )}
       {status !== "Disabled" && own.lock && (
         <span
-          className="mt-0.5 w-fit rounded bg-accent/15 px-1.5 text-[11px] font-medium whitespace-nowrap text-accent"
+          className="text-[11px] font-medium whitespace-nowrap text-accent"
           title="New orders are locked until the next trading day. You can still close positions and change their stops."
         >
           Locked until {formatClock(own.lock.until, own.tradingDay.timeZone)}
@@ -235,7 +219,7 @@ function Figure({ label, value, unit, note, help }: { label: string; value: stri
         {unit && (
           <>
             {" "}
-            <span className="rounded bg-raised px-1 py-px font-sans text-[10px] text-muted">{unit}</span>
+            <span className="font-sans text-[11px] text-muted">{unit}</span>
           </>
         )}
       </span>
@@ -295,10 +279,17 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
             <p className="truncate font-medium">{email}</p>
             <p className="text-xs text-muted">Server {serverName}</p>
           </div>
-          <div className="mt-1">
-            <SoundSwitch setting="fillSound" label="Sound on fills" icon={<SoundIcon />} play={playFillSound} />
-            <SoundSwitch setting="warningSound" label="Sound on warnings" icon={<BellIcon />} play={playWarningSound} />
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              useSheet.getState().open({ kind: "settings" });
+            }}
+            className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+          >
+            <SettingsIcon />
+            Settings
+          </button>
           <button
             type="button"
             disabled={logout.isPending}
@@ -311,39 +302,5 @@ function UserMenu({ email, serverName }: { email: string; serverName: string }) 
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * Turns a sound on or off, on every device the trader uses. Turning it on plays it once, so the trader hears what it
- * is, and lets the browser play it later.
- */
-function SoundSwitch({ setting, label, icon, play }: { setting: Setting; label: string; icon: React.ReactNode; play: () => void }) {
-  const on = useSettings((s) => s[setting]);
-  const change = useSettings((s) => s.change);
-  const toggle = () => {
-    change(setting, !on);
-    if (!on) {
-      unlockSound();
-      play();
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      onClick={toggle}
-      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
-    >
-      {icon}
-      <span className="flex-1">{label}</span>
-      <span aria-hidden="true" className={`relative h-4 w-7 rounded-full transition-colors duration-150 ${on ? "bg-accent" : "bg-border"}`}>
-        <span
-          className={`absolute top-0.5 left-0.5 size-3 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${on ? "translate-x-3" : ""}`}
-        />
-      </span>
-    </button>
   );
 }

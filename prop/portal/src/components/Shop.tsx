@@ -59,9 +59,9 @@ export function Shop({ challenge = null, code = null }: { challenge?: string | n
         </h1>
         <p className="max-w-2xl text-lg text-muted">Prove your trading in an evaluation with {branding.name}, get a funded account, and ask for payouts.</p>
         {payouts && (
-          <ul aria-label={`What ${branding.name} paid out`} className="flex flex-wrap gap-2.5 text-sm">
+          <ul aria-label={`What ${branding.name} paid out`} className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             {payoutLines(payouts).map((line, index) => (
-              <li key={line} className="flex items-center gap-2 rounded-full border border-profit/25 bg-profit/[0.07] px-3.5 py-1.5">
+              <li key={line} className="flex items-center gap-2">
                 {index === 0 ? <PayoutIcon className="size-4 text-profit" /> : <ClockIcon className="size-4 text-profit" />}
                 {line}
               </li>

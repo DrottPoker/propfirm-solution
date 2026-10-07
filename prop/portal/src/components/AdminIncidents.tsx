@@ -83,8 +83,8 @@ function IncidentRow({ incident }: { incident: FirmIncidentSummary }) {
             <Badge tone={statusTones[incident.status]}>{statusLabels[incident.status]}</Badge>
           </span>
           <span className="text-sm text-muted">
-            {kindLabels[incident.kind]} · {periodText(incident.startedAt, incident.endedAt)} {localZone()}
-            {incident.endedAt && <> · {durationText(incident.startedAt, incident.endedAt)}</>}
+            {kindLabels[incident.kind]}: {periodText(incident.startedAt, incident.endedAt)} {localZone()}
+            {incident.endedAt && <> ({durationText(incident.startedAt, incident.endedAt)})</>}
           </span>
         </span>
         <span className="shrink-0 text-sm text-muted">
@@ -231,7 +231,7 @@ function AccountRow({ incident, account, onAct }: { incident: FirmIncident; acco
     <tr className="border-t border-border align-top">
       <td className="py-3 pl-5">
         <Link href={`/admin/accounts/${account.accountId}`} className="font-medium hover:text-accent">
-          #{account.number} {account.challengeName} · {account.stageName}
+          #{account.number} {account.challengeName}, {account.stageName}
         </Link>
         <span className="block text-xs text-muted">{account.traderEmail}</span>
       </td>
@@ -311,7 +311,7 @@ function ReinstateDialog({ incident, account, onClose }: { incident: FirmInciden
     <Modal
       open
       onClose={onClose}
-      title={`Reinstate #${account.number} ${account.challengeName} · ${account.stageName}`}
+      title={`Reinstate #${account.number} ${account.challengeName}, ${account.stageName}`}
       description={
         <>
           {account.traderEmail}&apos;s phase ended
@@ -405,7 +405,7 @@ function CreditDialog({ incident, account, onClose }: { incident: FirmIncident; 
     <Modal
       open
       onClose={onClose}
-      title={`Credit #${account.number} ${account.challengeName} · ${account.stageName}`}
+      title={`Credit #${account.number} ${account.challengeName}, ${account.stageName}`}
       description={`${account.traderEmail}. The amount goes on the trading account once, and the balance goes up by it. ${whatHappened(account).text}`}
       footer={
         <>

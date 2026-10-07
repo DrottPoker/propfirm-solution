@@ -5,18 +5,19 @@ import { formatDateTime, formatMoney } from "@/lib/format";
 import { payoutNote, payoutStatusLabels } from "@/lib/payouts";
 
 import { PayoutDecisions } from "./PayoutDecisions";
+import { Badge, type BadgeTone } from "./ui";
 
-const statusStyles: Record<PayoutStatus, string> = {
-  Withdrawing: "bg-warning/20 text-warning",
-  Pending: "bg-warning/20 text-warning",
-  Approved: "bg-accent/20 text-accent",
-  Paid: "bg-profit/20 text-profit",
-  Rejected: "bg-loss/20 text-loss",
-  Failed: "bg-muted/20 text-muted",
+const statusTones: Record<PayoutStatus, BadgeTone> = {
+  Withdrawing: "warning",
+  Pending: "warning",
+  Approved: "accent",
+  Paid: "profit",
+  Rejected: "loss",
+  Failed: "muted",
 };
 
 export function PayoutBadge({ status }: { status: PayoutStatus }) {
-  return <span className={`whitespace-nowrap rounded px-2 py-0.5 text-sm ${statusStyles[status]}`}>{payoutStatusLabels[status]}</span>;
+  return <Badge tone={statusTones[status]}>{payoutStatusLabels[status]}</Badge>;
 }
 
 /**

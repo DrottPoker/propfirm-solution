@@ -133,7 +133,7 @@ function Documents({ firm }: { firm: OpsFirm }) {
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{document.fileName}</span>
                   <span className="text-xs text-muted">
-                    {fileSize(document.size)} · added {formatDate(document.uploadedAt)}
+                    {fileSize(document.size)}, added {formatDate(document.uploadedAt)}
                   </span>
                 </span>
                 <span className="text-accent">Open</span>
@@ -476,7 +476,7 @@ function DecisionDialog({
                     aria-pressed={added}
                     disabled={added}
                     onClick={() => setMessage(message.trim() ? `${message.trim()}\n\n${s.text}` : s.text)}
-                    className={`rounded-full border px-3 py-1.5 text-sm ${added ? "border-accent bg-accent/15 text-foreground" : "border-border hover:border-muted"}`}
+                    className={`rounded-lg border px-3 py-1.5 text-sm ${added ? "border-accent bg-accent/15 text-foreground" : "border-border hover:border-muted"}`}
                   >
                     {s.label}
                   </button>

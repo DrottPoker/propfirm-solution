@@ -35,8 +35,14 @@ export class IndicatorSeries {
 
   constructor(
     private readonly chart: IChartApi,
-    private readonly colors: StudyColors,
+    private colors: StudyColors,
   ) {}
+
+  /** New colors for MACD's bars above and below zero, which follow the candles' colors. */
+  setUpDown(up: string, down: string) {
+    this.colors = { ...this.colors, up, down };
+    this.render(true);
+  }
 
   /** Draws these indicators instead of the ones before. */
   setIndicators(indicators: readonly Indicator[], digits: number) {

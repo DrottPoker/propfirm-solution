@@ -8,7 +8,7 @@ import { useAdmins, useInviteAdmin, useRemoveAdmin, useWithdrawAdminInvite } fro
 import { lastLoginText } from "@/lib/team";
 
 import { ConfirmDialog } from "./Dialog";
-import { AdminPage, Badge, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
+import { AdminPage, buttonClass, ErrorText, fieldClass, PageHeader, Panel } from "./ui";
 
 /** The firm's administrators: who they are, when they last logged in, invitations that wait, sent again or taken back, and removal. */
 export function AdminTeam() {
@@ -34,10 +34,10 @@ export function AdminTeam() {
               <span className="flex min-w-0 flex-col">
                 <span className="flex items-center gap-2 font-medium">
                   {admin.email}
-                  {admin.isYou && <Badge tone="accent">You</Badge>}
+                  {admin.isYou && <span className="font-normal text-muted">(you)</span>}
                 </span>
                 <span className="text-xs text-muted">
-                  Administrator since {formatDateTime(admin.createdAt)} ·{" "}
+                  Administrator since {formatDateTime(admin.createdAt)}.{" "}
                   {admin.lastLoginAt ? (
                     <time dateTime={admin.lastLoginAt} title={formatDateTime(admin.lastLoginAt)}>
                       {lastLoginText(admin.lastLoginAt, admins.dataUpdatedAt)}
@@ -45,6 +45,7 @@ export function AdminTeam() {
                   ) : (
                     lastLoginText(null, admins.dataUpdatedAt)
                   )}
+                  .
                 </span>
               </span>
               {!admin.isYou && (

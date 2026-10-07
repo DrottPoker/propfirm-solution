@@ -144,7 +144,7 @@ function TradingTerminal({
         </main>
         <PhoneTabs view={view} onChange={setView} />
         <div className="hidden lg:contents">
-          <StatusBar serverName={server.name} />
+          <StatusBar accountId={accountId} serverName={server.name} />
         </div>
         <Sheets accountId={accountId} digitsOf={digitsOf} firmName={server.name} />
       </div>

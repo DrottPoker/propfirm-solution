@@ -31,12 +31,12 @@ export function AccountHistory({ details, now, role = "trader" }: { details: Acc
     <section aria-labelledby="history-heading" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="history-heading" className="text-lg font-semibold">
-          History{data ? ` · ${data.stageName}` : ""}
+          History {data && <span className="font-normal text-muted">{data.stageName}</span>}
         </h2>
         {started.length > 1 && (
           <SegmentedControl
             label="Stage"
-            options={started.map((s) => ({ value: s.stage, label: s.progress === "Current" ? `${s.name} · now` : s.name }))}
+            options={started.map((s) => ({ value: s.stage, label: s.progress === "Current" ? `${s.name} (now)` : s.name }))}
             value={stage ?? 0}
             onChange={setChosen}
           />
@@ -122,7 +122,7 @@ function Statistics({ statistics: s }: { statistics: TradeStatistics }) {
 
   const figures: { label: string; value: string; tone?: string }[] = [
     { label: "Closed trades", value: `${s.trades}` },
-    { label: "Winning trades", value: s.winRatePercent == null ? `${s.wins}` : `${s.wins} · ${s.winRatePercent}%` },
+    { label: "Winning trades", value: s.winRatePercent == null ? `${s.wins}` : `${s.wins} (${s.winRatePercent}%)` },
     { label: "Average win", value: formatSignedMoney(s.averageWin), tone: s.averageWin == null ? undefined : "text-profit" },
     { label: "Average loss", value: formatSignedMoney(s.averageLoss), tone: s.averageLoss == null ? undefined : "text-loss" },
     { label: "Best trade", value: formatSignedMoney(s.bestTrade) },

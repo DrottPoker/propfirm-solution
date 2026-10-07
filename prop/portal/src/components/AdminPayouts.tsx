@@ -51,7 +51,7 @@ export function AdminPayouts({ initialView }: { initialView: PayoutView }) {
           <StatTile
             label="To approve"
             value={formatTotals(data.toApprove.totals, currency)}
-            note={data.toApprove.count === 0 ? "Nothing waits" : `${data.toApprove.count} ${data.toApprove.count === 1 ? "payout" : "payouts"}${data.toApprove.oldest ? ` · the oldest ${ageText(data.toApprove.oldest, summary.dataUpdatedAt)}` : ""}`}
+            note={data.toApprove.count === 0 ? "Nothing waits" : `${data.toApprove.count} ${data.toApprove.count === 1 ? "payout" : "payouts"}${data.toApprove.oldest ? `, the oldest ${ageText(data.toApprove.oldest, summary.dataUpdatedAt)}` : ""}`}
             highlight={data.toApprove.count > 0}
           />
           <StatTile

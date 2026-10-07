@@ -5,7 +5,6 @@
 import {
   ArrowLeftIcon as PhArrowLeftIcon,
   ArrowsDownUpIcon,
-  BellRingingIcon,
   CaretDownIcon,
   ClockCountdownIcon,
   CopyIcon as PhCopyIcon,
@@ -16,6 +15,7 @@ import {
   CornersOutIcon,
   EyeIcon as PhEyeIcon,
   EyeSlashIcon as PhEyeSlashIcon,
+  GearSixIcon,
   InfoIcon as PhInfoIcon,
   LineSegmentIcon,
   ListBulletsIcon,
@@ -70,7 +70,6 @@ export const SuccessIcon = icon(CheckCircleIcon, "duotone");
 export const ErrorIcon = icon(WarningCircleIcon, "duotone");
 export const WarningIcon = icon(PhWarningIcon, "duotone");
 export const RulesIcon = icon(ListChecksIcon, "duotone");
-export const BellIcon = icon(BellRingingIcon, "duotone");
 export const OldPriceIcon = icon(ClockCountdownIcon, "bold", "size-3.5");
 export const PrintIcon = icon(PhPrinterIcon, "duotone");
 export const CopyIcon = icon(PhCopyIcon, "duotone");
@@ -83,6 +82,7 @@ export const TrendLineIcon = icon(LineSegmentIcon, "bold");
 export const RectangleIcon = icon(PhRectangleIcon, "duotone");
 export const TrashIcon = icon(PhTrashIcon, "duotone");
 export const LockIcon = icon(LockSimpleIcon, "duotone");
+export const SettingsIcon = icon(GearSixIcon, "duotone");
 
 /** A horizontal line across the chart with a level on it. Phosphor has none, so drawn here in its bold style. */
 export function HorizontalLineIcon({ className = "size-4" }: IconProps) {

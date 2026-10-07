@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatTime, timeZoneName } from "@/lib/format";
 import { useNow } from "@/lib/marketHours";
 import { ageText, feedStoppedFor, priceAgeMs, priceIsOld } from "@/lib/priceAge";
-import { noticeLine } from "@/lib/notices";
+import { noticeParagraphs } from "@/lib/notices";
 import { useMarketHours, useNotice } from "@/lib/queries";
 import { useTradingStore } from "@/lib/store";
 import { useTimeZone } from "@/lib/timeZone";
@@ -50,6 +50,8 @@ export function PriceAlerts({ accountId }: { accountId: string }) {
     return null;
   }
 
+  const paragraphs = notice ? noticeParagraphs(notice.text) : [];
+
   return (
     <div className="mx-2 mt-2 flex flex-col gap-2">
       {stopped !== null && (
@@ -77,12 +79,16 @@ export function PriceAlerts({ accountId }: { accountId: string }) {
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded((e) => !e)}
-            title={expanded ? undefined : `${notice.title}: ${noticeLine(notice.text)}`}
-            className={`min-w-0 flex-1 text-left ${expanded ? "" : "truncate"}`}
+            title={expanded ? undefined : [notice.title, ...paragraphs].join("\n")}
+            className={`min-w-0 flex-1 text-left ${expanded ? "flex flex-col gap-0.5" : "truncate"}`}
           >
-            <span className="font-semibold">{notice.title}</span>
-            <span className="text-muted"> · </span>
-            {noticeLine(notice.text)}
+            {/* Space between the title and the paragraphs on one line, and a line each when open. */}
+            <span className={`font-semibold ${expanded ? "" : "mr-3"}`}>{notice.title}</span>
+            {paragraphs.map((part, index) => (
+              <span key={index} className={`text-foreground/80 ${expanded ? "" : "mr-3"}`}>
+                {part}
+              </span>
+            ))}
           </button>
           {notice.url && (
             <a
@@ -113,7 +119,7 @@ export function OldPriceTag({ ageMs, compact = false }: { ageMs: number; compact
   }
 
   return (
-    <span title={title} className="rounded border border-warning/40 px-1 py-px text-[10px] font-medium tracking-wide text-warning uppercase">
+    <span title={title} className="text-[10px] font-semibold tracking-wide text-warning uppercase">
       No prices
     </span>
   );

@@ -36,7 +36,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   // The firm starts the challenge and invites the trader.
   await logIn(page, "/admin/login", admin.email, admin.password);
   await startChallenge(page, email, /^Quick test 100K/);
-  const phaseOne = page.getByText(/Trading account demo-firm-\d+-1/);
+  const phaseOne = page.getByText(/trading account demo-firm-\d+-1/);
   await expect(phaseOne).toBeVisible({ timeout: 20_000 });
   const accountBase = (await phaseOne.textContent())!.match(/demo-firm-\d+/)![0];
   await page.getByRole("button", { name: "Create invitation link" }).click();
@@ -54,7 +54,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   // Both evaluation stages are passed, and the firm approves the funded account.
   for (const stage of [1, 2]) {
     const accountId = `${accountBase}-${stage}`;
-    await expect(page.getByText(`Trading account ${accountId}`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(`trading account ${accountId}`)).toBeVisible({ timeout: 20_000 });
     await deposit(request, accountId, 200);
     await tradeOnce(request, accountId);
   }
@@ -62,7 +62,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   await page.getByRole("button", { name: "Approve funded account" }).click({ timeout: 20_000 });
   await page.getByRole("dialog").getByRole("button", { name: "Approve funded account" }).click();
   const funded = `${accountBase}-3`;
-  await expect(page.getByText(`Trading account ${funded}`)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(`trading account ${funded}`)).toBeVisible({ timeout: 20_000 });
   await deposit(request, funded, 8_000);
   await tradeOnce(request, funded);
 
@@ -77,7 +77,7 @@ test("a funded trader asks for a payout, and the firm approves and pays it", asy
   // The trader opens the account from the start page, sees the funded stage's trade and asks for the payout. The
   // profit comes off the trading account at once.
   await trader.getByRole("link", { name: /^Details of account/ }).click();
-  await expect(trader.getByRole("heading", { name: "History · Funded" })).toBeVisible({ timeout: 20_000 });
+  await expect(trader.getByRole("heading", { name: "History Funded" })).toBeVisible({ timeout: 20_000 });
   await expect(trader.getByRole("cell", { name: "EURUSD" }).first()).toBeVisible({ timeout: 20_000 });
   const requestPayout = trader.getByRole("button", { name: "Request payout" });
   await expect(requestPayout).toBeEnabled({ timeout: 20_000 });

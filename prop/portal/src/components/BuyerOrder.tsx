@@ -12,6 +12,7 @@ import { useBuyerOrder, useChooseOrderPassword, useResendInvite } from "@/lib/qu
 
 import { SuccessMark, useConfetti } from "./Celebrate";
 import { FirmName } from "./FirmName";
+import { ClockIcon } from "./icons";
 import { PasswordFields } from "./PasswordReset";
 import { buttonClass, ErrorText, Loading, Message, secondaryButtonClass } from "./ui";
 
@@ -94,7 +95,7 @@ function Stage({ order, token }: { order: BuyerOrder; token: string }) {
       return (
         <div role="status" className="flex flex-col gap-3 text-sm">
           <p className="flex items-center gap-2.5">
-            <span aria-hidden="true" className="size-2 animate-pulse-dot rounded-full bg-accent text-accent/40" />
+            <ClockIcon className="size-4 shrink-0 text-accent" />
             Waiting for the payment to be confirmed. This page updates by itself.
           </p>
           {order.checkoutUrl && (

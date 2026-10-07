@@ -118,19 +118,16 @@ export function Panel({ title, actions, children }: { title?: string; actions?: 
 export type BadgeTone = "accent" | "profit" | "loss" | "warning" | "muted";
 
 const badgeTones: Record<BadgeTone, string> = {
-  accent: "bg-accent/15 text-accent ring-accent/25",
-  profit: "bg-profit/15 text-profit ring-profit/25",
-  loss: "bg-loss/15 text-loss ring-loss/25",
-  warning: "bg-warning/15 text-warning ring-warning/25",
-  muted: "bg-muted/15 text-muted ring-muted/20",
+  accent: "text-accent",
+  profit: "text-profit",
+  loss: "text-loss",
+  warning: "text-warning",
+  muted: "text-muted",
 };
 
+/** A short status, such as "Funded", as text in its tone. No pill around it, so it reads as part of the page. */
 export function Badge({ tone, children }: { tone: BadgeTone; children: React.ReactNode }) {
-  return (
-    <span className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${badgeTones[tone]}`}>
-      {children}
-    </span>
-  );
+  return <span className={`inline-flex items-center whitespace-nowrap text-sm font-medium ${badgeTones[tone]}`}>{children}</span>;
 }
 
 const barTones: Record<"profit" | "accent" | "warning" | "loss", string> = {

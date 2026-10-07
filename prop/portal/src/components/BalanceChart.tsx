@@ -297,7 +297,7 @@ function EdgeTags({ lines, places }: { lines: { line: ChartLine; label: string; 
             style={{ left: margin.left + 6, ...(where === "above" ? { top: margin.top + 4 } : { bottom: margin.bottom + 6 }) }}
           >
             {edge(where).map((tag) => (
-              <span key={tag.line} className={`rounded-full border border-border bg-panel/90 px-2 py-0.5 text-[11px] ${tagTones[tag.line]}`}>
+              <span key={tag.line} className={`rounded-md border border-border bg-panel/90 px-2 py-0.5 text-[11px] ${tagTones[tag.line]}`}>
                 {where === "above" ? "↑" : "↓"} {tag.label} {formatMoney(tag.level)}
               </span>
             ))}

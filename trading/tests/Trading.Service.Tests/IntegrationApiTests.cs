@@ -88,15 +88,15 @@ public sealed class IntegrationApiTests
         var before = await trader.GetJsonAsync("/api/auth/me");
         var saved = await admin.PutJsonAsync(
             "/api/admin/v1/accounts/T1/details",
-            new { label = "#1001 Two-step 100K \u00b7 Phase 1", profitTarget = 110_000m, timeZone = "Europe/Stockholm", detailsUrl = "https://acme.example.com/accounts/1" });
+            new { label = "#1001 Two-step 100K, Phase 1", profitTarget = 110_000m, timeZone = "Europe/Stockholm", detailsUrl = "https://acme.example.com/accounts/1" });
         var after = await trader.GetJsonAsync("/api/auth/me");
         var cleared = await admin.PutJsonAsync("/api/admin/v1/accounts/T1/details", new { label = "", profitTarget = (decimal?)null, timeZone = "", detailsUrl = "" });
 
         Assert.Equal(("T1", JsonValueKind.Null), (before.GetProperty("accountDetails")[0].GetProperty("accountId").GetString(), before.GetProperty("accountDetails")[0].GetProperty("label").ValueKind));
-        Assert.Equal("#1001 Two-step 100K \u00b7 Phase 1", saved.GetProperty("label").GetString());
+        Assert.Equal("#1001 Two-step 100K, Phase 1", saved.GetProperty("label").GetString());
         var details = Assert.Single(after.GetProperty("accountDetails").EnumerateArray());
         Assert.Equal(
-            ("#1001 Two-step 100K \u00b7 Phase 1", 110_000m, "Europe/Stockholm", "https://acme.example.com/accounts/1"),
+            ("#1001 Two-step 100K, Phase 1", 110_000m, "Europe/Stockholm", "https://acme.example.com/accounts/1"),
             (details.GetProperty("label").GetString(), details.GetProperty("profitTarget").GetDecimal(), details.GetProperty("timeZone").GetString(), details.GetProperty("detailsUrl").GetString()));
         Assert.Equal((JsonValueKind.Null, JsonValueKind.Null), (cleared.GetProperty("label").ValueKind, cleared.GetProperty("detailsUrl").ValueKind));
         await other.PutJsonAsync("/api/admin/v1/accounts/T1/details", new { label = "Not theirs" }, HttpStatusCode.NotFound);

@@ -63,7 +63,7 @@ export function TraderTickets() {
                     </span>
                     <span className="text-xs text-muted">
                       #{ticket.number}
-                      {ticket.account && <> · Account #{ticket.account.number}</>}
+                      {ticket.account && <>, account #{ticket.account.number}</>}
                     </span>
                   </span>
                   <time dateTime={ticket.updatedAt} className="shrink-0 text-xs text-muted">
@@ -169,7 +169,7 @@ export function NewTicket({ initialAccountId }: { initialAccountId: string | nul
             <option value="">No account in particular</option>
             {choices.map((details) => (
               <option key={details.account.id} value={details.account.id}>
-                Account #{details.account.number} · {details.challenge.name} · {details.account.stageName}
+                Account #{details.account.number}, {details.challenge.name}, {details.account.stageName}
               </option>
             ))}
           </select>
@@ -240,14 +240,13 @@ export function TraderTicket({ ticketId }: { ticketId: string }) {
             {data.openedBy === "Firm" && <> from {branding.name}</>}
             {data.account && (
               <>
-                {" "}
-                · About{" "}
+                , about{" "}
                 <Link href={`/accounts/${data.account.id}`} className="text-accent hover:underline">
                   account #{data.account.number}
                 </Link>
               </>
-            )}{" "}
-            · Opened {formatDateTime(data.createdAt)}
+            )}
+            , opened {formatDateTime(data.createdAt)}
           </p>
         </div>
         {data.status !== "Closed" && (

@@ -13,9 +13,9 @@ describe("ruleTable", () => {
       { stage: 1, name: "Phase 2", now: false },
       { stage: 2, name: "Funded", now: false },
     ]);
-    expect(row("Daily loss limit").same).toBe("5% · 5,000.00 below the balance when the day starts");
+    expect(row("Daily loss limit").same).toBe("5% (5,000.00) below the balance when the day starts");
     expect(row("Time limit").same).toBe("None");
-    expect(row("Profit target")).toMatchObject({ same: null, values: ["10% · 10,000.00", "5% · 5,000.00", "None"] });
+    expect(row("Profit target")).toMatchObject({ same: null, values: ["10% (10,000.00)", "5% (5,000.00)", "None"] });
     expect(row("Minimum trading days").values).toEqual(["4", "4", "5 per payout"]);
   });
 

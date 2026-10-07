@@ -31,8 +31,8 @@ test("the firm sees the limits the trader set in the terminal, and the day they 
   const email = `limits-${test.info().testId.slice(0, 8)}@e2e.example`;
   await logIn(page, "/admin/login", admin.email, admin.password);
   await startChallenge(page, email);
-  await expect(page.getByText(/Trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
-  const tradingAccountId = (await page.getByText(/Trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
+  await expect(page.getByText(/trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
+  const tradingAccountId = (await page.getByText(/trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
   await page.getByRole("button", { name: "Create invitation link" }).click();
   const invitation = await page.getByLabel(/Invitation link/).inputValue();
 
@@ -65,8 +65,8 @@ test("the firm starts a challenge and invites the trader, who opens the terminal
   // The firm's administrator starts the challenge and waits for its trading account.
   await logIn(page, "/admin/login", admin.email, admin.password);
   await startChallenge(page, email);
-  await expect(page.getByText(/Trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
-  const tradingAccountId = (await page.getByText(/Trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
+  await expect(page.getByText(/trading account demo-firm-\d+-1/)).toBeVisible({ timeout: 20_000 });
+  const tradingAccountId = (await page.getByText(/trading account demo-firm-\d+-1/).textContent())!.match(/demo-firm-\d+-1/)![0];
 
   await page.getByRole("button", { name: "Create invitation link" }).click();
   const invitation = await page.getByLabel(/Invitation link/).inputValue();

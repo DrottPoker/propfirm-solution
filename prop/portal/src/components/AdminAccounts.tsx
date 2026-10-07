@@ -124,7 +124,7 @@ export function AdminAccounts({ initialGroup, initialSearch }: { initialGroup: A
                       <span className="truncate">{account.email}</span>
                       <span className="flex items-baseline justify-between gap-3 text-xs text-muted">
                         <span>
-                          {stageLabel(account)} ·{" "}
+                          {stageLabel(account)},{" "}
                           {account.minTradingDays > 0 ? `${account.tradingDays} of ${account.minTradingDays} days` : `${account.tradingDays} trading days`}
                         </span>
                         <span className="text-sm text-foreground tabular-nums">

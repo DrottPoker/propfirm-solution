@@ -141,14 +141,18 @@ function SettingsForm({ settings }: { settings: IdentitySettings }) {
             <label className="flex items-start gap-2.5">
               <input type="checkbox" checked={checkAddress} onChange={(e) => setCheckAddress(e.target.checked)} className="mt-0.5" />
               <span className="flex flex-col">
-                <span>The trader&apos;s address, from a bank statement or a bill · {money(prices.address)} a check</span>
+                <span>
+                  The trader&apos;s address, from a bank statement or a bill <span className="text-muted">({money(prices.address)} a check)</span>
+                </span>
                 <span className="text-xs text-muted">When it is approved, Address checked is ticked for you too.</span>
               </span>
             </label>
             <label className="flex items-start gap-2.5">
               <input type="checkbox" checked={checkSanctions} onChange={(e) => setCheckSanctions(e.target.checked)} className="mt-0.5" />
               <span className="flex flex-col">
-                <span>Sanctions and politically exposed persons lists · {money(prices.sanctions)} a check</span>
+                <span>
+                  Sanctions and politically exposed persons lists <span className="text-muted">({money(prices.sanctions)} a check)</span>
+                </span>
                 <span className="text-xs text-muted">A trader on a list is not approved.</span>
               </span>
             </label>

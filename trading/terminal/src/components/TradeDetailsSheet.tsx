@@ -23,7 +23,7 @@ export function TradeDetailsSheet({ accountId, positionId }: { accountId: string
   const title = data ? `${data.side} ${formatVolume(data.opened.volume)} ${data.symbol}` : "Trade details";
 
   return (
-    <Sheet label="Trade details" title={title} subtitle={`Position ${positionId} · times in ${timeZoneName(timeZone)}`}>
+    <Sheet label="Trade details" title={title} subtitle={`Position ${positionId}, times in ${timeZoneName(timeZone)}`}>
       {details.isError && <p className="px-5 py-4 text-sm text-loss">Could not load the trade&apos;s details.</p>}
       {details.isPending && <p className="px-5 py-4 text-sm text-muted">Loading...</p>}
       {data && <DetailsBody receipt={data} timeZone={timeZone} />}

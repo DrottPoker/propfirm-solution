@@ -24,7 +24,7 @@ export function ClosedTag({ market, compact = false }: { market: MarketHours; co
   }
 
   return (
-    <span title={title} className="rounded bg-raised px-1 py-px text-[10px] font-medium tracking-wide text-muted uppercase">
+    <span title={title} className="text-[10px] font-semibold tracking-wide text-muted uppercase">
       Closed
     </span>
   );

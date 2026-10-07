@@ -75,7 +75,7 @@ export function RulesMenu({
           setOpen(!open);
         }}
         title={attention ? "A rule needs your attention" : "The account's rules"}
-        className={`relative flex h-9 items-center gap-1.5 rounded-full bg-raised px-3 text-xs font-medium ring-1 transition duration-150 hover:ring-accent active:translate-y-px ${open ? "ring-accent" : "ring-border"}`}
+        className={`relative flex h-9 items-center gap-1.5 rounded-lg bg-raised px-3 text-xs font-medium ring-1 transition duration-150 hover:ring-accent active:translate-y-px ${open ? "ring-accent" : "ring-border"}`}
       >
         <RulesIcon />
         <span className="max-sm:sr-only">Rules</span>

@@ -10,11 +10,11 @@ import { monthlyPriceFor } from "@/lib/billing";
 import { priceText } from "@/lib/format";
 import { reviewTime } from "@/lib/review";
 
-import { BagIcon, ChartIcon, CheckIcon, GlobeIcon, OverviewIcon, PlusIcon, ShieldCheckIcon, TeamIcon } from "./icons";
+import { BagIcon, ChartIcon, CheckIcon, GlobeIcon, OverviewIcon, PayoutIcon, PlusIcon, ShieldCheckIcon, SupportIcon, TeamIcon } from "./icons";
 import { KronantWordmark } from "./KronantMark";
-import { AnimatedMoney, LiveDot, RoomBar } from "./Live";
+import { AnimatedMoney, RoomBar } from "./Live";
 import { PhaseJourney } from "./PhaseJourney";
-import { buttonClass, secondaryButtonClass, Sparkline } from "./ui";
+import { Badge, buttonClass, secondaryButtonClass, Sparkline } from "./ui";
 
 // The platform's front page: what Kronant Prop is, shown with the product itself, what it costs with a calculator,
 // the questions firms ask, and who we are. The product pictures are drawn with the portal's own parts, so they look
@@ -82,9 +82,7 @@ function Hero() {
       <div aria-hidden="true" className="absolute inset-x-0 -top-40 -z-10 h-[38rem] bg-[radial-gradient(50%_60%_at_70%_30%,color-mix(in_oklab,var(--accent)_16%,transparent),transparent)]" />
       <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-14 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:py-24">
         <div className="stagger flex flex-col gap-6">
-          <span className="self-start rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-medium text-accent">
-            For new and growing prop firms
-          </span>
+          <span className="text-sm font-medium text-accent">For new and growing prop firms</span>
           <h1 className="font-serif text-5xl leading-[1.02] tracking-tight sm:text-6xl">
             Start your own <em className="text-accent">prop firm</em>
           </h1>
@@ -147,13 +145,13 @@ function ProductShot() {
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-0.5">
               <span className="font-serif text-2xl leading-tight">Two-step 100K</span>
-              <span className="text-xs text-muted">#1043 · 100,000 USD</span>
+              <span className="text-xs text-muted">#1043, 100,000 USD</span>
             </div>
-            <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-xs font-medium text-accent ring-1 ring-accent/25 ring-inset">Phase 2</span>
+            <Badge tone="accent">Phase 2</Badge>
           </div>
           <div className="mt-5 flex items-end justify-between gap-3">
             <div className="flex flex-col gap-1">
-              <LiveDot />
+              <span className="text-xs text-muted">Live equity</span>
               <span className="text-4xl font-medium tracking-tight">
                 <AnimatedMoney value={equity} />
               </span>
@@ -349,9 +347,9 @@ function ShopPicture() {
 
 function AdminPicture() {
   const rows = [
-    { tone: "bg-warning", text: "Payout of $1,240 to approve", detail: "#1043 · Sara Lind" },
-    { tone: "bg-profit", text: "#1051 passed Phase 2", detail: "Funded account to approve" },
-    { tone: "bg-accent", text: "New ticket", detail: "About account #1038" },
+    { icon: <PayoutIcon className="size-4 text-warning" />, text: "Payout of $1,240 to approve", detail: "Sara Lind, #1043" },
+    { icon: <CheckIcon className="size-4 text-profit" />, text: "#1051 passed Phase 2", detail: "Funded account to approve" },
+    { icon: <SupportIcon className="size-4 text-accent" />, text: "New ticket", detail: "About account #1038" },
   ];
   return (
     <div className="flex flex-col gap-5 p-6">
@@ -373,7 +371,7 @@ function AdminPicture() {
         </span>
         {rows.map((row) => (
           <span key={row.text} className="flex items-center gap-3 rounded-lg border border-border bg-background/40 px-3 py-2.5 text-sm">
-            <span className={`size-2 rounded-full ${row.tone}`} />
+            {row.icon}
             <span className="flex-1">{row.text}</span>
             <span className="text-xs text-muted">{row.detail}</span>
           </span>

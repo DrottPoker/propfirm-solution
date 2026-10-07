@@ -6,11 +6,12 @@ import { useSheet } from "@/lib/sheet";
 import { BreachReportSheet } from "./BreachReportSheet";
 import { LockDayDialog } from "./LockDayDialog";
 import { OwnLimitsSheet } from "./OwnLimitsSheet";
+import { SettingsDialog } from "./SettingsDialog";
 import { TradeDetailsSheet } from "./TradeDetailsSheet";
 
 /**
  * The panel open over the terminal, if any: a trade's details or the breach report (ADR 0053), the trader's own limits
- * or locking the rest of the day (ADR 0054).
+ * or locking the rest of the day (ADR 0054), or the settings (ADR 0055).
  */
 export function Sheets({ accountId, digitsOf, firmName }: { accountId: string; digitsOf: DigitsOf; firmName: string }) {
   const sheet = useSheet((s) => s.sheet);
@@ -23,6 +24,8 @@ export function Sheets({ accountId, digitsOf, firmName }: { accountId: string; d
       return <OwnLimitsSheet accountId={accountId} firmName={firmName} />;
     case "lock":
       return <LockDayDialog accountId={accountId} firmName={firmName} />;
+    case "settings":
+      return <SettingsDialog />;
     default:
       return null;
   }

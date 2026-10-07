@@ -21,7 +21,7 @@ export function ChallengeRules({ details, audience = "trader" }: { details: Acco
             {columns.map((column) => (
               <th key={column.stage} scope="col" className={`py-2 pl-4 font-normal ${column.stage === account.stage ? "font-medium text-foreground" : ""}`}>
                 {column.name}
-                {column.now && <span className="ml-1.5 rounded-full bg-accent/15 px-1.5 py-0.5 text-[0.7rem] font-medium text-accent">now</span>}
+                {column.now && <span className="ml-1.5 text-xs font-medium text-accent">now</span>}
               </th>
             ))}
           </tr>
@@ -34,7 +34,7 @@ export function ChallengeRules({ details, audience = "trader" }: { details: Acco
               </th>
               {row.same !== null ? (
                 <td colSpan={columns.length} className="py-2.5 pl-4">
-                  {row.same} <span className="text-xs text-muted">· every phase</span>
+                  {row.same} <span className="text-xs text-muted">(every phase)</span>
                 </td>
               ) : (
                 row.values.map((value, index) => (
@@ -77,7 +77,7 @@ function RuleValues({ row, names }: { row: RuleRow; names: string[] }) {
   if (row.same !== null) {
     return (
       <dd>
-        {row.same} <span className="text-xs text-muted">· every phase</span>
+        {row.same} <span className="text-xs text-muted">(every phase)</span>
       </dd>
     );
   }
