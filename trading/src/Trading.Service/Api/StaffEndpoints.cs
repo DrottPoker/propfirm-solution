@@ -106,14 +106,22 @@ internal static class StaffEndpoints
             ? TypedResults.Ok(account)
             : Problem(StatusCodes.Status404NotFound, "There is no such account.");
 
-    /// <summary>Makes a server for a firm that uses the platform on its own. Its admin key is shown only now.</summary>
+    /// <summary>
+    /// Makes a server for a firm that uses the platform on its own, of the kind of business chosen (ADR 0058). Its admin
+    /// key is shown only now.
+    /// </summary>
     private static async Task<Results<Created<StaffCreatedServerResponse>, ProblemHttpResult>> CreateServerAsync(
         StaffCreateServerRequest request,
         ClaimsPrincipal principal,
         TenantProvisioner provisioner,
         CancellationToken cancellationToken)
     {
-        var result = await provisioner.CreateAsync(TenantMaker.OfStaff(StaffAuth.EmailOf(principal)), request.Id, request.Name, request.Currency, cancellationToken);
+        if (request.Kind is not { } kind || !Enum.IsDefined(kind))
+        {
+            return NoKind();
+        }
+
+        var result = await provisioner.CreateAsync(TenantMaker.OfStaff(StaffAuth.EmailOf(principal)), request.Id, request.Name, request.Currency, kind, cancellationToken);
         return result switch
         {
             ProvisioningResult.Created created => TypedResults.Created(
@@ -127,14 +135,17 @@ internal static class StaffEndpoints
     }
 
     /// <summary>
-    /// Puts the server on the list traders choose from or takes it off. A partner that lists its servers itself, such as
-    /// Kronant Prop when a firm goes live, can list it again.
+    /// Puts the server on the list traders choose from or takes it off, and changes its kind of business. A partner that
+    /// lists its servers itself, such as Kronant Prop when a firm goes live, can list it again. The kind can only be
+    /// changed when our staff set it: a partner keeps its servers' terminals as it needs, and the configuration sets its
+    /// own again at every start.
     /// </summary>
     private static async Task<Results<Ok<StaffServerResponse>, ProblemHttpResult>> UpdateServerAsync(
         string id,
         StaffUpdateServerRequest request,
         ClaimsPrincipal principal,
         TenantCatalog tenants,
+        PartnerCatalog partners,
         TenantProvisioner provisioner,
         StaffFigures figures,
         CancellationToken cancellationToken)
@@ -144,9 +155,29 @@ internal static class StaffEndpoints
             return UnknownServer();
         }
 
+        var by = TenantMaker.OfStaff(StaffAuth.EmailOf(principal));
+        if (request.Kind is { } kind && kind != tenant.Profile.Kind)
+        {
+            if (!Enum.IsDefined(kind))
+            {
+                return NoKind();
+            }
+
+            switch (provisioner.TerminalSetBy(tenant))
+            {
+                case TerminalSetBy.Partner:
+                    var partner = partners.All.FirstOrDefault(p => p.Id == tenant.PartnerId)?.Name ?? "The partner that made it";
+                    return Problem(StatusCodes.Status409Conflict, $"{partner} sets the kind of this server.");
+                case TerminalSetBy.Configuration:
+                    return Problem(StatusCodes.Status409Conflict, "The service's configuration sets the kind of this server.");
+            }
+
+            tenant = await provisioner.SetTerminalKindAsync(tenant, kind, by, cancellationToken);
+        }
+
         if (request.Listed is { } listed && listed != tenant.Listed)
         {
-            await provisioner.SetListingAsync(tenant, listed, tenant.LoginUrl, tenant.LogoUrl, TenantMaker.OfStaff(StaffAuth.EmailOf(principal)), cancellationToken);
+            await provisioner.SetListingAsync(tenant, listed, tenant.LoginUrl, tenant.LogoUrl, by, cancellationToken);
         }
 
         return TypedResults.Ok((await figures.ServerAsync(id, cancellationToken))!);
@@ -208,6 +239,9 @@ internal static class StaffEndpoints
     private static ProblemHttpResult NoHistory() => Problem(StatusCodes.Status409Conflict, "Made-up prices have no history to load.");
 
     private static ProblemHttpResult UnknownServer() => Problem(StatusCodes.Status404NotFound, "There is no such server.");
+
+    private static ProblemHttpResult NoKind() =>
+        Problem(StatusCodes.Status422UnprocessableEntity, "Choose the kind of business: Prop, Broker, Practice or Desk.");
 
     private static ProblemHttpResult Problem(int statusCode, string title, string? reason = null) =>
         TypedResults.Problem(

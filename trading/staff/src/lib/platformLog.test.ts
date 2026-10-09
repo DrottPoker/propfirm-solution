@@ -18,8 +18,14 @@ describe("platform log", () => {
     expect(logText(entry({ kind: "ServerCreated", serverId: "fjord-traders", detail: { partner: "Kronant Prop", name: "Fjord Traders", currency: "EUR" } }), now)).toBe(
       "Kronant Prop made the server fjord-traders, Fjord Traders in EUR",
     );
-    expect(logText(entry({ kind: "ServerCreated", serverId: "helix", staffEmail: "ops@test.com", detail: { name: "Helix", currency: "GBP" } }), now)).toBe(
-      "ops@test.com made the server helix, Helix in GBP",
+    expect(logText(entry({ kind: "ServerCreated", serverId: "helix", staffEmail: "ops@test.com", detail: { name: "Helix", currency: "GBP", kind: "Practice" } }), now)).toBe(
+      "ops@test.com made the server helix, Helix in GBP, type Practice",
+    );
+  });
+
+  it("says who changed a server's type, and from what", () => {
+    expect(logText(entry({ kind: "TerminalKindChanged", serverId: "helix", staffEmail: "ops@test.com", detail: { from: "Practice", kind: "Desk" } }), now)).toBe(
+      "ops@test.com changed the type of helix from Practice to Trading desk",
     );
   });
 

@@ -5,6 +5,7 @@ using Trading.Service.Engine;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
 using Trading.Service.Staff;
+using Trading.Service.Tenancy;
 
 namespace Trading.Service.Api;
 
@@ -115,6 +116,7 @@ public sealed record StaffServerRow(
     string? CreatedBy,
     DateTimeOffset? CreatedAt,
     bool Listed,
+    TerminalKind Kind,
     IReadOnlyList<string> Currencies,
     int Traders,
     int AccountsTrading,
@@ -141,6 +143,12 @@ public sealed record AdminKeyInfo(string? HeldBy, DateTimeOffset? MadeAt, DateTi
 /// <summary>When the firm's system last asked for its events, after which event, how many wait now, at most 1,001, and whether it is late.</summary>
 public sealed record EventReadInfo(DateTimeOffset? LastReadAt, long? After, int Waiting, bool Stale);
 
+/// <summary>
+/// How the server's terminal works (ADR 0058): the kind of business, the parts it shows, whether orders ask before they
+/// are sent and whether traders log in with a password. Only a kind our staff set can be changed here.
+/// </summary>
+public sealed record StaffTerminal(TerminalKind Kind, TerminalModules Modules, bool ConfirmOrders, bool PasswordLogin, TerminalSetBy SetBy);
+
 /// <summary>One server in the staff panel (ADR 0057).</summary>
 public sealed record StaffServerResponse(
     string Id,
@@ -153,6 +161,7 @@ public sealed record StaffServerResponse(
     DateTimeOffset? ListedAt,
     Uri? LoginUrl,
     Uri? LogoUrl,
+    StaffTerminal Terminal,
     PlatformFigures Figures,
     IReadOnlyList<StaffGroupResponse> Groups,
     AdminKeyInfo AdminKey,
@@ -163,14 +172,17 @@ public sealed record StaffServerResponse(
 /// <summary>The server's latest events, of one account when asked, newest first.</summary>
 public sealed record StaffServerEventsResponse(IReadOnlyList<EventEnvelope> Events);
 
-/// <summary>A new server made by our staff, for a firm that uses the platform on its own (ADR 0057).</summary>
-public sealed record StaffCreateServerRequest(string? Id, string? Name, string? Currency);
+/// <summary>
+/// A new server made by our staff, for a firm that uses the platform on its own (ADR 0057), with its kind of business
+/// (ADR 0058). Its traders log in to the terminal with a password.
+/// </summary>
+public sealed record StaffCreateServerRequest(string? Id, string? Name, string? Currency, TerminalKind? Kind);
 
 /// <summary>A new server and the key to its admin API, which is shown only now.</summary>
 public sealed record StaffCreatedServerResponse(string Id, string Name, string AdminApiKey);
 
-/// <summary>Whether the server is on the list traders choose from.</summary>
-public sealed record StaffUpdateServerRequest(bool? Listed);
+/// <summary>Whether the server is on the list traders choose from, and its kind of business when our staff set it.</summary>
+public sealed record StaffUpdateServerRequest(bool? Listed = null, TerminalKind? Kind = null);
 
 /// <summary>Why our staff replace the server's admin key, for the platform's log.</summary>
 public sealed record StaffReplaceKeyRequest(string? Reason);

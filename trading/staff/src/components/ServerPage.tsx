@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import type { Server, StaffAccount, StaffGroup } from "@/lib/api/types";
+import type { Server, StaffAccount, StaffGroup, TerminalKind } from "@/lib/api/types";
 import { describeEvent } from "@/lib/events";
 import { formatAgo, formatCount, formatCountOf, formatDate, formatDuration, formatMoney, formatTime, formatWhen } from "@/lib/format";
-import { useAccount, useInstruments, useReplaceKey, useServer, useServerEvents, useSetListed } from "@/lib/queries";
+import { kindNames, partsShown } from "@/lib/kinds";
+import { useAccount, useInstruments, useReplaceKey, useServer, useServerEvents, useSetKind, useSetListed } from "@/lib/queries";
 import { useNow } from "@/lib/useNow";
 
 import { KeyIcon, LateIcon } from "./icons";
+import { KindChoice } from "./KindChoice";
 import { LatestPanel } from "./OverviewPage";
 import {
   buttonClass,
@@ -30,12 +32,13 @@ import {
   thClass,
 } from "./ui";
 
-/** One server: its figures, groups, login, key, message and latest events (ADR 0057). */
+/** One server: its figures, groups, terminal, login, key, message and latest events (ADR 0057). */
 export function ServerPage({ id, account }: { id: string; account: string | null }) {
   const server = useServer(id);
   const now = useNow();
   const [listing, setListing] = useState(false);
   const [stoppingKey, setStoppingKey] = useState(false);
+  const [changingKind, setChangingKind] = useState(false);
 
   if (server.isPending) {
     return <Loading label="Loading the server" />;
@@ -126,6 +129,7 @@ export function ServerPage({ id, account }: { id: string; account: string | null
           {data.groups.length === 0 && <Panel title="Groups">No groups.</Panel>}
         </div>
         <div className="flex min-w-0 flex-col gap-4">
+          <TerminalPanel server={data} onChange={() => setChangingKind(true)} />
           <Panel title="Login">
             <Facts
               items={[
@@ -182,7 +186,82 @@ export function ServerPage({ id, account }: { id: string; account: string | null
 
       <ListingDialog server={data} open={listing} onClose={() => setListing(false)} />
       <NewKeyDialog server={data} open={stoppingKey} onClose={() => setStoppingKey(false)} />
+      <KindDialog server={data} open={changingKind} onClose={() => setChangingKind(false)} />
     </div>
+  );
+}
+
+/** How the server's terminal works for its traders (ADR 0058): its type of business, what it shows and how orders go. */
+function TerminalPanel({ server, onChange }: { server: Server; onChange: () => void }) {
+  const terminal = server.terminal;
+  const setBy =
+    terminal.setBy === "Partner"
+      ? `${server.partnerName} sets the type for its firms.`
+      : terminal.setBy === "Configuration"
+        ? "The service's configuration sets the type at every start."
+        : "A new type reaches its terminals the next time they open.";
+  return (
+    <Panel
+      title="Terminal"
+      aside={
+        terminal.setBy === "Staff" && (
+          <button type="button" onClick={onChange} className="font-medium text-accent hover:underline">
+            Change the type
+          </button>
+        )
+      }
+    >
+      <Facts
+        items={[
+          { label: "Type", value: kindNames[terminal.kind] },
+          { label: "Shows", value: partsShown(terminal.modules) },
+          { label: "Orders", value: terminal.confirmOrders ? "Ask before they are sent" : "Go at the first click" },
+        ]}
+      />
+      <p className="text-sm leading-relaxed text-muted">{setBy}</p>
+    </Panel>
+  );
+}
+
+/** Makes the server another type of business. Its terminals take the type's words and parts the next time they open. */
+function KindDialog({ server, open, onClose }: { server: Server; open: boolean; onClose: () => void }) {
+  const setKind = useSetKind(server.id);
+  const [kind, setChosen] = useState<TerminalKind>(server.terminal.kind);
+  const close = () => {
+    setKind.reset();
+    setChosen(server.terminal.kind);
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      title={
+        <>
+          Type of <span className="font-mono text-base">{server.id}</span>
+        </>
+      }
+      description="The terminal's words, the parts it shows and whether orders ask first follow the type. The starting size, the login, the firm's pages and its risk warning stay as they are."
+      footer={
+        <>
+          <button type="button" onClick={close} className={secondaryButtonClass}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={setKind.isPending || kind === server.terminal.kind}
+            onClick={() => setKind.mutate(kind, { onSuccess: close })}
+            className={buttonClass}
+          >
+            {setKind.isPending ? "Changing..." : "Change the type"}
+          </button>
+        </>
+      }
+    >
+      <KindChoice value={kind} onChange={setChosen} />
+      <ErrorText error={setKind.error} />
+    </Modal>
   );
 }
 

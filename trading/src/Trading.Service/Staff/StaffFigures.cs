@@ -28,6 +28,7 @@ internal sealed class StaffFigures(
     IChartStore charts,
     ChartHistory history,
     TenantCatalog tenants,
+    TenantProvisioner provisioner,
     PartnerCatalog partners,
     PartnerActivity partnerActivity,
     TenantActivity tenantActivity,
@@ -95,6 +96,7 @@ internal sealed class StaffFigures(
                 tenant.CreatedBy,
                 tenant.CreatedAt,
                 tenant.Listed,
+                tenant.Profile.Kind,
                 currencies.GetValueOrDefault(tenant.Id) ?? [],
                 figures.Traders,
                 figures.AccountsTrading,
@@ -150,6 +152,7 @@ internal sealed class StaffFigures(
             tenant.Listed ? log.FirstOrDefault(e => e.Kind == PlatformEventKind.ServerListed)?.At : null,
             tenant.LoginUrl,
             tenant.LogoUrl,
+            new StaffTerminal(tenant.Profile.Kind, tenant.Profile.Modules, tenant.Profile.ConfirmOrders, tenant.Profile.PasswordLogin, provisioner.TerminalSetBy(tenant)),
             Figures(state, tenant),
             [.. groups.Select(g => new StaffGroupResponse(
                 g.Group!.Id,

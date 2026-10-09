@@ -4421,7 +4421,7 @@ export interface components {
          * @description What can happen on the platform that our staff see in the staff panel's log (ADR 0057).
          * @enum {unknown}
          */
-        PlatformEventKind: "ServiceStarted" | "ServerCreated" | "ServerListed" | "ServerUnlisted" | "AdminKeyReplaced" | "SymbolSilent" | "SymbolBack" | "FeedSilent" | "FeedBack" | "ChartGapFilled" | "ChartGapNotFilled" | "ChartHistoryReloaded";
+        PlatformEventKind: "ServiceStarted" | "ServerCreated" | "ServerListed" | "ServerUnlisted" | "AdminKeyReplaced" | "SymbolSilent" | "SymbolBack" | "FeedSilent" | "FeedBack" | "ChartGapFilled" | "ChartGapNotFilled" | "ChartHistoryReloaded" | "TerminalKindChanged";
         /** @description Figures across the whole platform, or one server. Today is the day in UTC, and new traders came in the last 7 days. */
         PlatformFigures: {
             /** Format: int32 */
@@ -4711,11 +4711,15 @@ export interface components {
             name: string;
             adminApiKey: string;
         };
-        /** @description A new server made by our staff, for a firm that uses the platform on its own (ADR 0057). */
+        /**
+         * @description A new server made by our staff, for a firm that uses the platform on its own (ADR 0057), with its kind of business
+         *     (ADR 0058). Its traders log in to the terminal with a password.
+         */
         StaffCreateServerRequest: {
             id: null | string;
             name: null | string;
             currency: null | string;
+            kind: null | components["schemas"]["TerminalKind"];
         };
         /**
          * @description The engine, its journal and the terminals in the staff panel (ADR 0057). JournalBytes is null when the
@@ -4936,6 +4940,7 @@ export interface components {
             loginUrl: null | string;
             /** Format: uri */
             logoUrl: null | string;
+            terminal: components["schemas"]["StaffTerminal"];
             figures: components["schemas"]["PlatformFigures"];
             groups: components["schemas"]["StaffGroupResponse"][];
             adminKey: components["schemas"]["AdminKeyInfo"];
@@ -4956,6 +4961,7 @@ export interface components {
             /** Format: date-time */
             createdAt: null | string;
             listed: boolean;
+            kind: components["schemas"]["TerminalKind"];
             currencies: string[];
             /** Format: int32 */
             traders: number;
@@ -4994,6 +5000,17 @@ export interface components {
             nextChange: null | string;
             state: components["schemas"]["SymbolFeedState"];
         };
+        /**
+         * @description How the server's terminal works (ADR 0058): the kind of business, the parts it shows, whether orders ask before they
+         *     are sent and whether traders log in with a password. Only a kind our staff set can be changed here.
+         */
+        StaffTerminal: {
+            kind: components["schemas"]["TerminalKind"];
+            modules: components["schemas"]["TerminalModules"];
+            confirmOrders: boolean;
+            passwordLogin: boolean;
+            setBy: components["schemas"]["TerminalSetBy"];
+        };
         /** @description Named trading hours as configured, in the market's time zone, and the symbols that follow them with the current feed. */
         StaffTradingHours: {
             name: string;
@@ -5001,9 +5018,10 @@ export interface components {
             sessions: string[];
             symbols: string[];
         };
-        /** @description Whether the server is on the list traders choose from. */
+        /** @description Whether the server is on the list traders choose from, and its kind of business when our staff set it. */
         StaffUpdateServerRequest: {
-            listed: null | boolean;
+            listed?: null | boolean;
+            kind?: null | components["schemas"]["TerminalKind"];
         };
         /** @description How an order ticket starts on a symbol. Value is the lots or the percent of the room, and null for the smallest. */
         StartingSize: {
@@ -5178,6 +5196,11 @@ export interface components {
             links: components["schemas"]["TerminalLinks"];
             riskWarning: null | string;
         };
+        /**
+         * @description Who sets a server's kind of business: our staff, the partner that made it, or the service's configuration.
+         * @enum {unknown}
+         */
+        TerminalSetBy: "Staff" | "Partner" | "Configuration";
         /** @enum {unknown} */
         Timeframe: "M1" | "M5" | "M15" | "M30" | "H1" | "H4" | "D1" | "W1" | "MN";
         /**

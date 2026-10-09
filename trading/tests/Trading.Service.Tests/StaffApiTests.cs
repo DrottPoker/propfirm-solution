@@ -185,7 +185,8 @@ public sealed class StaffApiTests
         using var staff = await factory.CreateStaffClientAsync();
 
         Assert.True((await staff.GetJsonAsync($"{Staff}/server-names/helix")).GetProperty("available").GetBoolean());
-        var created = await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets", currency = "GBP" }, HttpStatusCode.Created);
+        await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets", currency = "GBP" }, HttpStatusCode.UnprocessableEntity);
+        var created = await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets", currency = "GBP", kind = "Practice" }, HttpStatusCode.Created);
         var key = created.GetProperty("adminApiKey").GetString()!;
 
         // The key reaches the new server's admin API, with a group in pounds.
@@ -195,11 +196,18 @@ public sealed class StaffApiTests
         var server = await staff.GetJsonAsync($"{Staff}/servers/helix");
         Assert.Equal(("Staff", ServiceFactory.StaffEmail), (server.GetProperty("madeBy").GetString(), server.GetProperty("createdBy").GetString()));
         Assert.DoesNotContain("adminApiKey", server.GetRawText(), StringComparison.Ordinal);
-        Assert.Equal(ServiceFactory.StaffEmail, Assert.Single(factory.Backend.Log.Entries, e => e.Kind == PlatformEventKind.ServerCreated).StaffEmail);
+        var made = Assert.Single(factory.Backend.Log.Entries, e => e.Kind == PlatformEventKind.ServerCreated);
+        Assert.Equal((ServiceFactory.StaffEmail, "Practice"), (made.StaffEmail, made.Detail["kind"]));
 
-        await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Again", currency = "USD" }, HttpStatusCode.Conflict);
-        await staff.PostJsonAsync($"{Staff}/servers", new { id = "No Spaces", name = "Bad", currency = "USD" }, HttpStatusCode.UnprocessableEntity);
-        await staff.PostJsonAsync($"{Staff}/servers", new { id = "sekfirm", name = "Kronor", currency = "SEK" }, HttpStatusCode.UnprocessableEntity);
+        // A practice server's terminal shows no rules or own limits, and its traders log in with a password.
+        var terminal = server.GetProperty("terminal");
+        Assert.Equal(("Practice", "Staff", true), (terminal.GetProperty("kind").GetString(), terminal.GetProperty("setBy").GetString(), terminal.GetProperty("passwordLogin").GetBoolean()));
+        Assert.False(terminal.GetProperty("modules").GetProperty("rulebook").GetBoolean());
+        Assert.Equal("Practice", Row(await staff.GetJsonAsync($"{Staff}/servers"), "helix").GetProperty("kind").GetString());
+
+        await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Again", currency = "USD", kind = "Prop" }, HttpStatusCode.Conflict);
+        await staff.PostJsonAsync($"{Staff}/servers", new { id = "No Spaces", name = "Bad", currency = "USD", kind = "Prop" }, HttpStatusCode.UnprocessableEntity);
+        await staff.PostJsonAsync($"{Staff}/servers", new { id = "sekfirm", name = "Kronor", currency = "SEK", kind = "Prop" }, HttpStatusCode.UnprocessableEntity);
     }
 
     [Fact]
@@ -238,7 +246,7 @@ public sealed class StaffApiTests
     {
         using var factory = new ServiceFactory();
         using var staff = await factory.CreateStaffClientAsync();
-        var created = await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets" }, HttpStatusCode.Created);
+        var created = await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets", kind = "Desk" }, HttpStatusCode.Created);
         using var oldKey = factory.CreateAdminClient(created.GetProperty("adminApiKey").GetString()!);
 
         var stopped = await staff.PostJsonAsync($"{Staff}/servers/helix/admin-key", new { reason = "Rotated after a staff change" });
@@ -247,6 +255,47 @@ public sealed class StaffApiTests
         using var newKey = factory.CreateAdminClient(stopped.GetProperty("adminApiKey").GetString()!);
         await newKey.GetJsonAsync("/api/admin/v1/groups");
         Assert.Equal(HttpStatusCode.Unauthorized, (await oldKey.GetAsync(new Uri("/api/admin/v1/groups", UriKind.Relative), TestContext.Current.CancellationToken)).StatusCode);
+    }
+
+    // The kind of business decides the terminal's words and parts (ADR 0058). Only a kind our staff set can change here.
+    [Fact]
+    public async Task StaffChangeTheKindOfAServerTheyMadeButNotOfOnesAPartnerKeeps()
+    {
+        using var factory = new ServiceFactory();
+        using var partner = factory.CreatePartnerClient();
+        await partner.PostJsonAsync("/api/partner/v1/tenants", new { id = "acme", name = "Acme Prop" }, HttpStatusCode.Created);
+        using var staff = await factory.CreateStaffClientAsync();
+        using var anonymous = factory.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        await staff.PostJsonAsync($"{Staff}/servers", new { id = "helix", name = "Helix Markets", kind = "Practice" }, HttpStatusCode.Created);
+        var acme = await staff.GetJsonAsync($"{Staff}/servers/acme");
+
+        var changed = await SendAsync(staff, HttpMethod.Patch, $"{Staff}/servers/helix", new { kind = "Broker" });
+        var refused = await staff.SendJsonAsync(HttpMethod.Patch, $"{Staff}/servers/acme", new { kind = "Broker" }, HttpStatusCode.Conflict);
+
+        // A broker's orders ask first and its traders get their own limits, and the terminal gets it at its next login.
+        var terminal = changed.GetProperty("terminal");
+        Assert.Equal(("Broker", true, true), (terminal.GetProperty("kind").GetString(), terminal.GetProperty("confirmOrders").GetBoolean(), terminal.GetProperty("modules").GetProperty("ownLimits").GetBoolean()));
+        Assert.True(terminal.GetProperty("passwordLogin").GetBoolean());
+        Assert.Equal("Broker", (await anonymous.GetJsonAsync("/api/servers/helix")).GetProperty("profile").GetProperty("kind").GetString());
+        var log = Assert.Single(factory.Backend.Log.Entries, e => e.Kind == PlatformEventKind.TerminalKindChanged);
+        Assert.Equal(("helix", ServiceFactory.StaffEmail, "Practice", "Broker"), (log.ServerId, log.StaffEmail, log.Detail["from"], log.Detail["kind"]));
+
+        // Kronant Prop keeps its firms' terminals as prop firms.
+        Assert.Equal(("Prop", "Partner"), (acme.GetProperty("terminal").GetProperty("kind").GetString(), acme.GetProperty("terminal").GetProperty("setBy").GetString()));
+        Assert.Contains("Kronant Prop", refused.GetProperty("title").GetString(), StringComparison.Ordinal);
+        Assert.Equal("Prop", (await staff.GetJsonAsync($"{Staff}/servers/acme")).GetProperty("terminal").GetProperty("kind").GetString());
+    }
+
+    [Fact]
+    public async Task AConfiguredServerWhoseConfigurationSetsItsTerminalKeepsItsKind()
+    {
+        using var factory = new ServiceFactory(settings: new Dictionary<string, string> { ["Tenants:0:Terminal:Kind"] = "Desk" });
+        using var staff = await factory.CreateStaffClientAsync();
+
+        var demo = await staff.GetJsonAsync($"{Staff}/servers/{ServiceFactory.DemoServer}");
+        await staff.SendJsonAsync(HttpMethod.Patch, $"{Staff}/servers/{ServiceFactory.DemoServer}", new { kind = "Practice" }, HttpStatusCode.Conflict);
+
+        Assert.Equal(("Desk", "Configuration"), (demo.GetProperty("terminal").GetProperty("kind").GetString(), demo.GetProperty("terminal").GetProperty("setBy").GetString()));
     }
 
     [Fact]

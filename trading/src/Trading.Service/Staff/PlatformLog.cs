@@ -14,7 +14,7 @@ public enum PlatformEventKind
     /// <summary>The service started. Detail: <c>replayed</c> inputs, <c>milliseconds</c> it took.</summary>
     ServiceStarted,
 
-    /// <summary>A server was made. Detail: <c>name</c>, <c>currency</c>, and <c>partner</c> when a partner made it.</summary>
+    /// <summary>A server was made. Detail: <c>name</c>, <c>currency</c>, <c>kind</c> when our staff made it, and <c>partner</c> when a partner did.</summary>
     ServerCreated,
 
     /// <summary>A server was put on the list traders choose from. Detail: <c>partner</c> when a partner did it.</summary>
@@ -46,6 +46,9 @@ public enum PlatformEventKind
 
     /// <summary>The charts' history was loaded again. Detail: <c>bars</c>, or <c>problem</c> when it failed.</summary>
     ChartHistoryReloaded,
+
+    /// <summary>A server's kind of business changed (ADR 0058). Detail: <c>kind</c> and the kind it was, <c>from</c>.</summary>
+    TerminalKindChanged,
 }
 
 /// <summary>

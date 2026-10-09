@@ -58,7 +58,7 @@ internal static class PartnerEndpoints
         TenantProvisioner provisioner,
         CancellationToken cancellationToken)
     {
-        var result = await provisioner.CreateAsync(TenantMaker.Of(PartnerApiKeyFilter.PartnerOf(context)), request.Id, request.Name, request.Currency, cancellationToken);
+        var result = await provisioner.CreateAsync(TenantMaker.Of(PartnerApiKeyFilter.PartnerOf(context)), request.Id, request.Name, request.Currency, kind: null, cancellationToken);
         return result switch
         {
             ProvisioningResult.Created created => TypedResults.Created(

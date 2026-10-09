@@ -1,9 +1,12 @@
 import type { PlatformLogEntry } from "./api/types";
 import { feedName, formatClock, formatCount, formatDuration, formatWhen } from "./format";
+import { kindNames } from "./kinds";
 
 const by = (entry: PlatformLogEntry) => entry.detail.partner ?? entry.staffEmail ?? "the configuration";
 
 const seconds = (value: string | undefined) => formatDuration(Number(value ?? 0));
+
+const kindName = (value: string | undefined) => (value && value in kindNames ? kindNames[value as keyof typeof kindNames] : (value ?? ""));
 
 const startTime = (milliseconds: number) => (milliseconds < 60_000 ? `${(milliseconds / 1000).toFixed(1)} s` : formatDuration(milliseconds / 1000));
 
@@ -18,7 +21,7 @@ export function logText(entry: PlatformLogEntry, now: Date = new Date()): string
     case "ServiceStarted":
       return `The service started in ${startTime(Number(d.milliseconds ?? 0))}, replaying ${formatCount(Number(d.replayed ?? 0))} inputs after the snapshot`;
     case "ServerCreated":
-      return `${by(entry)} made the server ${server}, ${d.name ?? server}${d.currency ? ` in ${d.currency}` : ""}`;
+      return `${by(entry)} made the server ${server}, ${d.name ?? server}${d.currency ? ` in ${d.currency}` : ""}${d.kind ? `, type ${kindName(d.kind)}` : ""}`;
     case "ServerListed":
       return `${server} is listed, by ${by(entry)}`;
     case "ServerUnlisted":
@@ -37,6 +40,8 @@ export function logText(entry: PlatformLogEntry, now: Date = new Date()): string
       return `Chart gap ${gap(entry, now)} filled with ${formatCount(Number(d.bars ?? 0))} bars`;
     case "ChartGapNotFilled":
       return `Chart gap ${gap(entry, now)} could not be filled`;
+    case "TerminalKindChanged":
+      return `${by(entry)} changed the type of ${server} from ${kindName(d.from)} to ${kindName(d.kind)}`;
     case "ChartHistoryReloaded":
       return d.problem
         ? `Loading the chart history again failed: ${d.problem}`

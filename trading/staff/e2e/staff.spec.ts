@@ -85,7 +85,7 @@ test("the overview shows the platform in figures, the feed, the engine and what 
   await snap(page, "overview");
 });
 
-test("staff make a server, see its key once, and stop the key again", async ({ page }) => {
+test("staff make a server of a type of business, see its key once, change its type and stop the key", async ({ page }) => {
   const id = `e2e-${test.info().testId.slice(0, 6)}`;
   await logIn(page);
   await page.getByRole("link", { name: "Servers" }).first().click();
@@ -98,6 +98,9 @@ test("staff make a server, see its key once, and stop the key again", async ({ p
   await dialog.getByLabel("Server").fill(id);
   await dialog.getByLabel("Firm name").fill("Helix Markets");
   await dialog.getByLabel("Account currency").selectOption("GBP");
+  // Nothing is chosen for the firm, so the type is always a decision.
+  await expect(dialog.getByRole("button", { name: "Make the server" })).toBeDisabled();
+  await dialog.getByRole("radio", { name: /^Practice/ }).check();
   await dialog.getByRole("button", { name: "Make the server" }).click();
 
   const made = page.getByRole("dialog", { name: `Server ${id} is made` });
@@ -105,6 +108,18 @@ test("staff make a server, see its key once, and stop the key again", async ({ p
   await made.getByRole("button", { name: "Done" }).click();
   await expect(page.getByRole("heading", { name: "Helix Markets" })).toBeVisible();
   await expect(page.getByText(`made by ${staff.email}`, { exact: false })).toBeVisible();
+
+  // A practice terminal shows no rules or limits. As a broker, its orders ask first.
+  const terminal = page.getByRole("region", { name: "Terminal", exact: true });
+  await expect(terminal).toContainText("Practice");
+  await expect(terminal).toContainText("Sizing from risk and trade details");
+  await terminal.getByRole("button", { name: "Change the type" }).click();
+  const type = page.getByRole("dialog", { name: `Type of ${id}` });
+  await type.getByRole("radio", { name: /^Broker/ }).check();
+  await type.getByRole("button", { name: "Change the type" }).click();
+  await expect(type).toBeHidden();
+  await expect(terminal).toContainText("Ask before they are sent");
+  await expect(page.getByText(`${staff.email} changed the type of ${id} from Practice to Broker`)).toBeVisible();
 
   await page.getByRole("button", { name: "New admin key" }).click();
   const key = page.getByRole("dialog", { name: `New admin key for ${id}` });
@@ -127,6 +142,9 @@ test("a partner's server can be listed by staff, and its key is never shown", as
   await logIn(page);
   await page.goto(`/servers/${id}`);
   await expect(page.getByRole("heading", { name: "Partner Firm" })).toBeVisible();
+  // Kronant Prop keeps its firms' terminals as prop firms.
+  await expect(page.getByRole("region", { name: "Terminal", exact: true })).toContainText("Kronant Prop sets the type for its firms.");
+  await expect(page.getByRole("button", { name: "Change the type" })).toHaveCount(0);
   await page.getByRole("button", { name: "Put on the list" }).click();
   await page.getByRole("dialog", { name: `Put ${id} on the list?` }).getByRole("button", { name: "Put on the list" }).click();
   await expect(page.getByRole("button", { name: "Stop listing" })).toBeVisible();

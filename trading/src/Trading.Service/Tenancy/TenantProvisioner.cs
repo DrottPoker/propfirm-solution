@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
 using Trading.Engine;
@@ -24,6 +25,7 @@ internal sealed class TenantProvisioner(
     EngineConfiguration configuration,
     IOptions<TenancyOptions> tenancy,
     PlatformEvents events,
+    IConfiguration settings,
     TimeProvider time) : IDisposable
 {
     public const int MaxNameLength = 100;
@@ -31,15 +33,26 @@ internal sealed class TenantProvisioner(
     // One creation at a time, so two requests for the same server cannot both take its groups.
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    // The configured firms whose terminal the configuration sets, which it sets again at every start.
+    private readonly Lazy<HashSet<string>> _configuredTerminals = new(() =>
+        [.. (settings.GetSection(TenantOptions.SectionName).Get<List<TenantOptions>>() ?? []).Where(t => t.Terminal is not null).Select(t => t.Id)]);
+
     /// <summary>Whether a firm with the id can be created now.</summary>
     public bool IsAvailable(string id) =>
         TenantCatalog.IsValidId(id) && tenants.ById(id) is null && GroupIdsFor(id).All(g => tenants.ByGroup(g) is null && !IsConfiguredGroup(g));
 
     /// <summary>
     /// Creates the firm with its groups in <paramref name="currency"/>, one of <see cref="TenancyOptions.Currencies"/>, or
-    /// in the templates' own currency when it is null.
+    /// in the templates' own currency when it is null. A firm made with a <paramref name="kind"/> gets that kind's
+    /// terminal with password login (ADR 0058); one without has the standard until its partner sets it.
     /// </summary>
-    public async Task<ProvisioningResult> CreateAsync(TenantMaker maker, string? id, string? name, string? currency, CancellationToken cancellationToken)
+    public async Task<ProvisioningResult> CreateAsync(
+        TenantMaker maker,
+        string? id,
+        string? name,
+        string? currency,
+        TerminalKind? kind,
+        CancellationToken cancellationToken)
     {
         var trimmedName = name?.Trim() ?? "";
         if (!TenantCatalog.IsValidId(id) || trimmedName.Length is 0 or > MaxNameLength)
@@ -85,24 +98,60 @@ internal sealed class TenantProvisioner(
                 maker.PartnerId,
                 Listed: false,
                 CreatedAt: now,
-                CreatedBy: maker.StaffEmail);
+                CreatedBy: maker.StaffEmail,
+                Terminal: kind is { } chosen ? TerminalProfile.Default(chosen, passwordLogin: true) : null);
             if (!await store.CreateAsync(tenant, now, cancellationToken))
             {
                 return new ProvisioningResult.Taken();
             }
 
             tenants.Put(tenant);
-            await events.RecordAsync(
-                PlatformEventKind.ServerCreated,
-                tenant.Id,
-                maker.StaffEmail,
-                maker.Detail(new() { ["name"] = tenant.Name, ["currency"] = groups.Count > 0 ? groups[0].Currency : "" }));
+            var detail = maker.Detail(new() { ["name"] = tenant.Name, ["currency"] = groups.Count > 0 ? groups[0].Currency : "" });
+            if (kind is { } made)
+            {
+                detail["kind"] = made.ToString();
+            }
+
+            await events.RecordAsync(PlatformEventKind.ServerCreated, tenant.Id, maker.StaffEmail, detail);
             return new ProvisioningResult.Created(tenant, groups, apiKey);
         }
         finally
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    /// Who sets the firm's kind of business: the partner that made it, which keeps its terminal as it needs, the
+    /// configuration when it sets the terminal at every start, or else our staff.
+    /// </summary>
+    public TerminalSetBy TerminalSetBy(Tenant tenant) =>
+        tenant.PartnerId is not null ? Tenancy.TerminalSetBy.Partner
+        : tenant.IsConfigured && _configuredTerminals.Value.Contains(tenant.Id) ? Tenancy.TerminalSetBy.Configuration
+        : Tenancy.TerminalSetBy.Staff;
+
+    /// <summary>
+    /// Makes the firm another kind of business: its terminal takes the kind's words, parts and whether orders ask first
+    /// the next time it opens, and the rest of the profile stays. Written to the platform's log.
+    /// </summary>
+    public async Task<Tenant> SetTerminalKindAsync(Tenant tenant, TerminalKind kind, TenantMaker by, CancellationToken cancellationToken)
+    {
+        var current = tenants.ById(tenant.Id) ?? tenant;
+        if (current.Profile.Kind == kind)
+        {
+            return current;
+        }
+
+        var profile = current.Profile.WithKind(kind);
+        await store.SetTerminalProfileAsync(current.Id, profile, cancellationToken);
+        var changed = current with { Terminal = profile };
+        tenants.Put(changed);
+        await events.RecordAsync(
+            PlatformEventKind.TerminalKindChanged,
+            current.Id,
+            by.StaffEmail,
+            by.Detail(new() { ["kind"] = kind.ToString(), ["from"] = current.Profile.Kind.ToString() }));
+        return changed;
     }
 
     /// <summary>

@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import type { ServerRow } from "@/lib/api/types";
+import type { ServerRow, TerminalKind } from "@/lib/api/types";
 import { formatAgo, formatCount, formatDate } from "@/lib/format";
+import { kindNames } from "@/lib/kinds";
 import { type ServerGroup, useCreateServer, useCurrencies, useServerName, useServers } from "@/lib/queries";
 import { useDebounced } from "@/lib/useDebounced";
 import { useNow } from "@/lib/useNow";
 
 import { PlusIcon, SearchIcon } from "./icons";
+import { KindChoice } from "./KindChoice";
 import { buttonClass, CopyButton, ErrorText, fieldClass, Loading, Modal, PageHeader, secondaryButtonClass, TableBox, tdClass, thClass } from "./ui";
 
 const shownAtFirst = 25;
@@ -86,11 +88,14 @@ export function ServersPage() {
           {rows.length === 0 ? (
             <p className="py-6 text-center text-muted">No servers here.</p>
           ) : (
-            <TableBox minWidth={980}>
+            <TableBox minWidth={1080}>
               <thead>
                 <tr className="text-right">
                   <th scope="col" className={`${thClass} text-left`}>
                     Server
+                  </th>
+                  <th scope="col" className={`${thClass} text-left`}>
+                    Type
                   </th>
                   <th scope="col" className={`${thClass} text-left`}>
                     Made by
@@ -155,6 +160,7 @@ function Row({ row, now }: { row: ServerRow; now: Date }) {
           </span>
         </Link>
       </th>
+      <td className={`${tdClass} text-left`}>{kindNames[row.kind]}</td>
       <td className={`${tdClass} text-left text-muted`}>{madeBy}</td>
       <td className={`${tdClass} text-left font-medium ${row.listed ? "" : "text-muted"}`}>{row.listed ? "Listed" : "Not listed"}</td>
       <td className={tdClass}>{formatCount(row.traders)}</td>
@@ -166,7 +172,7 @@ function Row({ row, now }: { row: ServerRow; now: Date }) {
   );
 }
 
-/** Makes a server for a firm that uses Kronant Trader on its own, and shows its admin key once. */
+/** Makes a server for a firm that uses Kronant Trader on its own, of the type of business chosen, and shows its admin key once. */
 function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const currencies = useCurrencies();
@@ -174,6 +180,8 @@ function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void
   const [id, setId] = useState("");
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("USD");
+  // Nothing is chosen for the firm, so the type is always a decision.
+  const [kind, setKind] = useState<TerminalKind | null>(null);
   const availability = useServerName(useDebounced(id.trim(), 250));
   const validId = /^[a-z0-9][a-z0-9-]{1,62}$/.test(id.trim());
   const created = create.data;
@@ -186,6 +194,7 @@ function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void
     create.reset();
     setId("");
     setName("");
+    setKind(null);
     onClose();
   };
 
@@ -212,7 +221,7 @@ function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void
             <button
               type="submit"
               form="new-server"
-              disabled={create.isPending || !validId || name.trim().length === 0 || availability.data?.available === false}
+              disabled={create.isPending || !validId || name.trim().length === 0 || kind === null || availability.data?.available === false}
               className={buttonClass}
             >
               {create.isPending ? "Making..." : "Make the server"}
@@ -234,7 +243,9 @@ function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void
           id="new-server"
           onSubmit={(event) => {
             event.preventDefault();
-            create.mutate({ id: id.trim(), name: name.trim(), currency });
+            if (kind) {
+              create.mutate({ id: id.trim(), name: name.trim(), currency, kind });
+            }
           }}
           className="flex flex-col gap-4"
         >
@@ -268,6 +279,7 @@ function NewServerDialog({ open, onClose }: { open: boolean; onClose: () => void
               ))}
             </select>
           </label>
+          <KindChoice value={kind} onChange={setKind} />
           <ErrorText error={create.error} />
         </form>
       )}

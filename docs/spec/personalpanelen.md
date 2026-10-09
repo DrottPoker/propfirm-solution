@@ -24,8 +24,8 @@ Menyn visar bredvid platserna det som behöver oss: hur många symboler som är 
 | Sida | Väg | Innehåll |
 |---|---|---|
 | Översikt | `/` | Det som behöver oss, nyckeltal (servrar, traders, konton som handlar, öppna positioner, positioner öppnade i dag med nekade förfrågningar, öppna terminaler), prisflödet med priser per minut den senaste timmen, motorn, den största nettoexponeringen och plattformens logg. |
-| Servrar | `/servers` | Alla servrar, flest konton först, med grupperna Alla, Behöver oss, Listade, Inte listade och Från konfigurationen, och sök på id eller namn. Knappen New server. |
-| En server | `/servers/{id}` | Nyckeltal, grupperna med villkor och öppna positioner per symbol, inloggning, logga, admin-nyckeln, meddelandet i terminalerna, de senaste händelserna och serverns logg. Med `?account=` kontots siffror och bara dess händelser. Knapparna för listningen och en ny admin-nyckel. |
+| Servrar | `/servers` | Alla servrar, flest konton först, med typen av verksamhet (Prop firm, Broker, Practice eller Trading desk), grupperna Alla, Behöver oss, Listade, Inte listade och Från konfigurationen, och sök på id eller namn. Knappen New server. |
+| En server | `/servers/{id}` | Nyckeltal, grupperna med villkor och öppna positioner per symbol, terminalen (typen, vilka delar den visar och om ordrar frågar först), inloggning, logga, admin-nyckeln, meddelandet i terminalerna, de senaste händelserna och serverns logg. Med `?account=` kontots siffror och bara dess händelser. Knapparna för listningen och en ny admin-nyckel, och Change the type för en server vi själva bestämmer typen på. |
 | Prisflödet | `/price-feed` | Flödet nu, priser per minut, varje symbols råa pris med ålder, priser senaste minuten, marknaden och läget, glappen i graferna med Try again och historiken med Load the history again. |
 | Instrumenten | `/instruments` | Alla instrument per kategori med valutor, kontrakt, decimaler, lotter, öppettider och veckan som stapel, öppettiderna och de stängda dagarna framåt. |
 | Exponeringen | `/exposure` | Lång, kort, netto, tradernas öppna resultat och marginal i USD, per symbol med en stapel för lång eller kort, de största positionerna och nettot per server. Med `?server=` bara den servern. |
@@ -48,7 +48,8 @@ Varje rad har en förklaring och en länk dit man ser mer. Utan något visas "No
 
 ### Dialogerna
 
-- **New server**: server (2 till 63 små bokstäver, siffror och bindestreck, kontrolleras medan man skriver), firmans namn och kontovaluta (`Tenancy:Currencies`). Efter Make the server visas admin-nyckeln en gång med Copy, och Done öppnar serverns sida.
+- **New server**: server (2 till 63 små bokstäver, siffror och bindestreck, kontrolleras medan man skriver), firmans namn, kontovaluta (`Tenancy:Currencies`) och typen av verksamhet med vad den betyder för firmans traders (ADR 0058). Ingen typ är förvald, så Make the server väntar tills en är vald. Serverns traders loggar in i terminalen med lösenord. Efter Make the server visas admin-nyckeln en gång med Copy, och Done öppnar serverns sida.
+- **Change the type**: samma val av typ. Terminalens ord, delarna den visar och om ordrar frågar först följer typen, medan startstorleken, inloggningen, firmans sidor och riskvarningen står kvar. Terminalerna får den nya typen nästa gång de öppnas. Bara för servrar vi gjort och konfigurerade servrar vars konfiguration inte sätter terminalen: Kronant Prop håller sina firmor som propfirmor, och en konfiguration som sätter terminalen gör det igen vid varje start, vilket panelen säger i stället för knappen.
 - **New admin key**: skäl (sparas i loggen) och serverns id för att bekräfta. För en server en partner gjort förklaras att partnern hämtar en ny nyckel själv, och ingen nyckel visas efteråt. För en server vi gjort visas den nya nyckeln en gång. En konfigurerad servers knapp är avstängd.
 - **Stop listing / Put on the list**: förklarar vad traders ser, och att en partner kan lista servern igen.
 
@@ -67,7 +68,7 @@ Alla vägar börjar med `/api/staff/v1`. Utom inloggningen kräver de personalen
 ## Tester
 
 - Enhetstester med Vitest för texterna: det som behöver oss, plattformens logg, händelserna, veckans stapel, stängda dagar och formateringen.
-- Playwright (`pnpm e2e`) startar en egen handelstjänst på port 5131 med syntetiska priser och en egen databas, `trading_staff_e2e`, och appen på port 3031. Testerna loggar in och ut, ser översikten med en position, gör en server och stoppar dess nyckel, listar en partners server och stoppar dess nyckel utan att någon nyckel visas, söker fram ett konto och ser dess händelser, går igenom prisflödet, instrumenten, exponeringen och motorn, och använder menyn på en telefon. Med `STAFF_SCREENSHOTS` satt till en mapp sparas varje sida som bild där.
+- Playwright (`pnpm e2e`) startar en egen handelstjänst på port 5131 med syntetiska priser och en egen databas, `trading_staff_e2e`, och appen på port 3031. Testerna loggar in och ut, ser översikten med en position, gör en server av typen Practice, byter den till Broker och stoppar dess nyckel, listar en partners server, ser att Kronant Prop bestämmer dess typ och stoppar dess nyckel utan att någon nyckel visas, söker fram ett konto och ser dess händelser, går igenom prisflödet, instrumenten, exponeringen och motorn, och använder menyn på en telefon. Med `STAFF_SCREENSHOTS` satt till en mapp sparas varje sida som bild där.
 
 ## Begränsningar
 

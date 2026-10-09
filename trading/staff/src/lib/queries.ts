@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ApiError, api, ensureOk, unwrap } from "./api/client";
+import type { TerminalKind } from "./api/types";
 
 /** How often the live pages ask again. The figures change with every price, so a few seconds is enough. */
 export const liveInterval = 5_000;
@@ -170,7 +171,7 @@ export function useServerName(id: string) {
 export function useCreateServer() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (server: { id: string; name: string; currency: string }) =>
+    mutationFn: async (server: { id: string; name: string; currency: string; kind: TerminalKind }) =>
       unwrap(await api.POST("/api/staff/v1/servers", { body: server }), "make the server"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staff"] }),
   });
@@ -181,6 +182,19 @@ export function useSetListed(id: string) {
   return useMutation({
     mutationFn: async (listed: boolean) =>
       unwrap(await api.PATCH("/api/staff/v1/servers/{id}", { params: { path: { id } }, body: { listed } }), "change the listing"),
+    onSuccess: (server) => {
+      queryClient.setQueryData(["staff", "server", id], server);
+      return queryClient.invalidateQueries({ queryKey: ["staff", "servers"] });
+    },
+  });
+}
+
+/** Changes the server's type of business (ADR 0058), which its terminals take the next time they open. */
+export function useSetKind(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (kind: TerminalKind) =>
+      unwrap(await api.PATCH("/api/staff/v1/servers/{id}", { params: { path: { id } }, body: { kind } }), "change the type"),
     onSuccess: (server) => {
       queryClient.setQueryData(["staff", "server", id], server);
       return queryClient.invalidateQueries({ queryKey: ["staff", "servers"] });

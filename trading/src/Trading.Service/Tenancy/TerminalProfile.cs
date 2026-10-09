@@ -13,6 +13,14 @@ public enum TerminalKind
     Desk,
 }
 
+/// <summary>Who sets a server's kind of business: our staff, the partner that made it, or the service's configuration.</summary>
+public enum TerminalSetBy
+{
+    Staff,
+    Partner,
+    Configuration,
+}
+
 /// <summary>How an order ticket starts on a symbol the trader has not traded before.</summary>
 public enum StartingSizeKind
 {
@@ -64,6 +72,16 @@ public sealed record TerminalProfile(
     /// logs its traders in through its own portal, as Kronant Prop does, turns password login off in its profile.
     /// </summary>
     public static readonly TerminalProfile Standard = Default(TerminalKind.Prop, passwordLogin: true);
+
+    /// <summary>
+    /// The profile for another kind of business: the kind's words, the parts it shows and whether its orders ask first.
+    /// The starting size, password login, the firm's pages and the risk warning stay as they are.
+    /// </summary>
+    public TerminalProfile WithKind(TerminalKind kind)
+    {
+        var standard = Default(kind, PasswordLogin);
+        return this with { Kind = kind, Modules = standard.Modules, ConfirmOrders = standard.ConfirmOrders };
+    }
 
     /// <summary>What each kind of business starts with.</summary>
     public static TerminalProfile Default(TerminalKind kind, bool passwordLogin) => kind switch

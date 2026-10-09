@@ -6699,7 +6699,8 @@
           "FeedBack",
           "ChartGapFilled",
           "ChartGapNotFilled",
-          "ChartHistoryReloaded"
+          "ChartHistoryReloaded",
+          "TerminalKindChanged"
         ],
         "description": "What can happen on the platform that our staff see in the staff panel's log (ADR 0057)."
       },
@@ -7547,7 +7548,8 @@
         "required": [
           "id",
           "name",
-          "currency"
+          "currency",
+          "kind"
         ],
         "type": "object",
         "properties": {
@@ -7568,9 +7570,19 @@
               "null",
               "string"
             ]
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalKind"
+              }
+            ]
           }
         },
-        "description": "A new server made by our staff, for a firm that uses the platform on its own (ADR 0057)."
+        "description": "A new server made by our staff, for a firm that uses the platform on its own (ADR 0057), with its kind of business\n(ADR 0058). Its traders log in to the terminal with a password."
       },
       "StaffEngineResponse": {
         "required": [
@@ -8251,6 +8263,7 @@
           "listedAt",
           "loginUrl",
           "logoUrl",
+          "terminal",
           "figures",
           "groups",
           "adminKey",
@@ -8312,6 +8325,9 @@
             ],
             "format": "uri"
           },
+          "terminal": {
+            "$ref": "#/components/schemas/StaffTerminal"
+          },
           "figures": {
             "$ref": "#/components/schemas/PlatformFigures"
           },
@@ -8355,6 +8371,7 @@
           "createdBy",
           "createdAt",
           "listed",
+          "kind",
           "currencies",
           "traders",
           "accountsTrading",
@@ -8394,6 +8411,9 @@
           },
           "listed": {
             "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TerminalKind"
           },
           "currencies": {
             "type": "array",
@@ -8514,6 +8534,34 @@
         },
         "description": "A symbol's raw price from the feed, before any firm's markup, with the symbol's decimals, when it came, how many came\nin the last whole minute, and whether its market is open, with when that changes. A market that never closes has AlwaysOpen."
       },
+      "StaffTerminal": {
+        "required": [
+          "kind",
+          "modules",
+          "confirmOrders",
+          "passwordLogin",
+          "setBy"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TerminalKind"
+          },
+          "modules": {
+            "$ref": "#/components/schemas/TerminalModules"
+          },
+          "confirmOrders": {
+            "type": "boolean"
+          },
+          "passwordLogin": {
+            "type": "boolean"
+          },
+          "setBy": {
+            "$ref": "#/components/schemas/TerminalSetBy"
+          }
+        },
+        "description": "How the server's terminal works (ADR 0058): the kind of business, the parts it shows, whether orders ask before they\nare sent and whether traders log in with a password. Only a kind our staff set can be changed here."
+      },
       "StaffTradingHours": {
         "required": [
           "name",
@@ -8545,9 +8593,6 @@
         "description": "Named trading hours as configured, in the market's time zone, and the symbols that follow them with the current feed."
       },
       "StaffUpdateServerRequest": {
-        "required": [
-          "listed"
-        ],
         "type": "object",
         "properties": {
           "listed": {
@@ -8555,9 +8600,19 @@
               "null",
               "boolean"
             ]
+          },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalKind"
+              }
+            ]
           }
         },
-        "description": "Whether the server is on the list traders choose from."
+        "description": "Whether the server is on the list traders choose from, and its kind of business when our staff set it."
       },
       "StartingSize": {
         "required": [
@@ -8983,6 +9038,14 @@
           }
         },
         "description": "How a server's terminal works for its traders (ADR 0058): the kind of business, the parts shown, whether an order\nasks before it is sent and how a ticket starts, whether traders can log in to the terminal with a password, the\nfirm's own pages, and a warning about risk shown at the login, such as a broker must show. Every server has one;\none not set is the default for its kind. The terminal's look is always ours (ADR 0009)."
+      },
+      "TerminalSetBy": {
+        "enum": [
+          "Staff",
+          "Partner",
+          "Configuration"
+        ],
+        "description": "Who sets a server's kind of business: our staff, the partner that made it, or the service's configuration."
       },
       "Timeframe": {
         "enum": [
