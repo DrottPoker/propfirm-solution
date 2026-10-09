@@ -10,6 +10,22 @@ const adminHeaders = { "X-Api-Key": "dev-admin-key" };
 const partnerHeaders = { "X-Api-Key": "dev-partner-key" };
 const password = "e2e-password";
 
+// A page that throws, or that the browser's policy stops (ADR 0060), fails the test it is in.
+const pageErrors = new WeakMap<Page, string[]>();
+test.beforeEach(({ page }) => {
+  const errors: string[] = [];
+  pageErrors.set(page, errors);
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("Content Security Policy")) {
+      errors.push(message.text());
+    }
+  });
+});
+test.afterEach(({ page }) => {
+  expect(pageErrors.get(page) ?? []).toEqual([]);
+});
+
 // With STAFF_SCREENSHOTS set to a folder, every page is saved there too, to look at by eye.
 async function snap(page: Page, name: string) {
   const folder = process.env.STAFF_SCREENSHOTS;

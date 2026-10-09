@@ -14,6 +14,7 @@ Vår personal driver handelsplattformen härifrån: ser vad som behöver oss, al
 - Sessionen har en egen cookie, `trading_staff_session`, och gäller i `Login:SessionLifetime` med glidande giltighet. Den når bara `/api/staff/v1`, och en traders session når inte dit.
 - Varje sida i panelen kräver en inloggad. Utan session skickas man till `/login`, och en session som går ut medan en sida är öppen gör detsamma.
 - Personal skapas från `Staff:SeedUsers` vid start. I utveckling finns `ops@test.com` med lösenordet `ops`.
+- **Säkerhetspolicy** som terminalens ([ADR 0060](../adr/0060-sakerhetspolicy-i-webblasaren.md)). Varje sida får en egen nonce från `src/proxy.ts`, och bara skript med den, och de skript de laddar, körs. Sidan pratar bara med handelstjänsten, visas aldrig inuti en annan sida, och bilder, som servrarnas loggor, får komma från alla adresser med `https`. Rubrikerna för alla svar står i `next.config.ts`.
 
 ## Sidorna
 
@@ -67,8 +68,8 @@ Alla vägar börjar med `/api/staff/v1`. Utom inloggningen kräver de personalen
 
 ## Tester
 
-- Enhetstester med Vitest för texterna: det som behöver oss, plattformens logg, händelserna, veckans stapel, stängda dagar och formateringen.
-- Playwright (`pnpm e2e`) startar en egen handelstjänst på port 5131 med syntetiska priser och en egen databas, `trading_staff_e2e`, och appen på port 3031. Testerna loggar in och ut, ser översikten med en position, gör en server av typen Practice, byter den till Broker och stoppar dess nyckel, listar en partners server, ser att Kronant Prop bestämmer dess typ och stoppar dess nyckel utan att någon nyckel visas, söker fram ett konto och ser dess händelser, går igenom prisflödet, instrumenten, exponeringen och motorn, och använder menyn på en telefon. Med `STAFF_SCREENSHOTS` satt till en mapp sparas varje sida som bild där.
+- Enhetstester med Vitest för texterna: det som behöver oss, plattformens logg, händelserna, veckans stapel, stängda dagar och formateringen, och för säkerhetspolicyn.
+- Playwright (`pnpm e2e`) startar en egen handelstjänst på port 5131 med syntetiska priser och en egen databas, `trading_staff_e2e`, och appen på port 3031. Testerna loggar in och ut, ser översikten med en position, gör en server av typen Practice, byter den till Broker och stoppar dess nyckel, listar en partners server, ser att Kronant Prop bestämmer dess typ och stoppar dess nyckel utan att någon nyckel visas, söker fram ett konto och ser dess händelser, går igenom prisflödet, instrumenten, exponeringen och motorn, och använder menyn på en telefon. Ett fel som sidan inte fångar, eller något som säkerhetspolicyn stoppar, fäller testet. Med `STAFF_SCREENSHOTS` satt till en mapp sparas varje sida som bild där.
 
 ## Begränsningar
 

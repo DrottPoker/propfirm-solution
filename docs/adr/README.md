@@ -65,6 +65,7 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0057](0057-personalpanel-for-handelsplattformen.md) | Vår personalpanel för handelsplattformen | Föreslagen |
 | [0058](0058-terminalen-som-egen-produkt.md) | Terminalen som egen produkt: en profil per server och en lugnare terminal | Föreslagen |
 | [0059](0059-tak-for-anrop-en-skrivare-och-matt-omstart.md) | Tak för anrop, en enda skrivare av journalen och priser som bara värderar de konton de rör | Accepterad |
+| [0060](0060-sakerhetspolicy-i-webblasaren.md) | Säkerhetspolicy i webbläsaren för terminalen och personalpanelen: bara sidans egna skript, bara handelstjänsten | Accepterad |
 
 ## Så skriver du en ny ADR
 

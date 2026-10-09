@@ -11,15 +11,21 @@ const productName = "Kronant Trader";
 
 const password = "e2e-password";
 
-// An error the page does not catch fails the test, also when what the test looks at still works.
-const pageErrors = new WeakMap<Page, Error[]>();
+// An error the page does not catch fails the test, also when what the test looks at still works. So does anything the
+// page's security policy refuses (ADR 0060), since a rule that is too tight breaks the terminal only where it is used.
+const pageErrors = new WeakMap<Page, string[]>();
 test.beforeEach(({ page }) => {
-  const errors: Error[] = [];
+  const errors: string[] = [];
   pageErrors.set(page, errors);
-  page.on("pageerror", (error) => errors.push(error));
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error" && message.text().includes("Content Security Policy")) {
+      errors.push(message.text());
+    }
+  });
 });
 test.afterEach(({ page }) => {
-  expect(pageErrors.get(page)?.map((e) => e.message) ?? []).toEqual([]);
+  expect(pageErrors.get(page) ?? []).toEqual([]);
 });
 
 /** Sets a loss limit at a fixed level through the admin API, like the prop platform does. */

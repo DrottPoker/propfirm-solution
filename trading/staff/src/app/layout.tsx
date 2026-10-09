@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Familjen_Grotesk, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { connection } from "next/server";
 
 import { productName } from "@/lib/config";
 
@@ -17,7 +18,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Every page is drawn per request, so Next.js can put the nonce from the proxy on its scripts (ADR 0060).
+  await connection();
   return (
     <html lang="en" className={`${text.variable} ${code.variable} ${display.variable} antialiased`}>
       <body className="flex min-h-dvh flex-col">
