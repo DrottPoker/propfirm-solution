@@ -21,6 +21,13 @@ internal sealed class MarketCatalog(EngineConfiguration configuration, IOptions<
     private readonly Dictionary<string, InstrumentCategory> _categories =
         trading.Value.Instruments.ToDictionary(i => i.Symbol, i => i.Category ?? InstrumentCategory.Forex, StringComparer.Ordinal);
 
+    // A pair without a configured name is named by its currencies, for example "EUR / USD", and anything else by its symbol.
+    private readonly Dictionary<string, string> _names =
+        trading.Value.Instruments.ToDictionary(
+            i => i.Symbol,
+            i => i.Name is { Length: > 0 } name ? name.Trim() : i.Category is InstrumentCategory.Forex ? $"{i.BaseCurrency} / {i.QuoteCurrency}" : i.Symbol,
+            StringComparer.Ordinal);
+
     public bool TryGet(TradingGroup group, string symbol, [NotNullWhen(true)] out Instrument? instrument, [NotNullWhen(true)] out SymbolConditions? conditions)
     {
         conditions = group.Symbols.FirstOrDefault(s => string.Equals(s.Symbol, symbol, StringComparison.Ordinal));
@@ -37,7 +44,7 @@ internal sealed class MarketCatalog(EngineConfiguration configuration, IOptions<
     public IReadOnlyList<InstrumentInfo> InstrumentsFor(TradingGroup group) =>
         group.Symbols
             .OrderBy(s => s.Symbol, StringComparer.Ordinal)
-            .Select(s => InstrumentInfo.From(_instruments[s.Symbol], _categories[s.Symbol], s))
+            .Select(s => InstrumentInfo.From(_instruments[s.Symbol], _names[s.Symbol], _categories[s.Symbol], s))
             .ToList();
 
     /// <summary>When each of the group's symbols can be traded, seen from <paramref name="now"/>, by symbol (ADR 0050).</summary>
@@ -55,9 +62,10 @@ internal sealed class MarketCatalog(EngineConfiguration configuration, IOptions<
 /// <param name="Sessions">The periods the market is open from now and a week on, in UTC, the current one first. Null if it never closes.</param>
 public sealed record MarketHours(string Symbol, bool IsOpen, DateTimeOffset? NextChange, IReadOnlyList<MarketPeriod>? Sessions);
 
-/// <summary>An instrument as one group trades it.</summary>
+/// <summary>An instrument as one group trades it. <paramref name="Name"/> is its name for traders, such as "Gold".</summary>
 public sealed record InstrumentInfo(
     string Symbol,
+    string Name,
     InstrumentCategory Category,
     string BaseCurrency,
     string QuoteCurrency,
@@ -70,9 +78,10 @@ public sealed record InstrumentInfo(
     int SpreadMarkupPoints,
     decimal CommissionPerLotPerSide)
 {
-    public static InstrumentInfo From(Instrument instrument, InstrumentCategory category, SymbolConditions conditions) =>
+    public static InstrumentInfo From(Instrument instrument, string name, InstrumentCategory category, SymbolConditions conditions) =>
         new(
             instrument.Symbol,
+            name,
             category,
             instrument.BaseCurrency,
             instrument.QuoteCurrency,

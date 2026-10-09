@@ -37,9 +37,10 @@ describe("filledAtAsk", () => {
 
 describe("markupText", () => {
   it("names the points and the side, and nothing when unknown", () => {
-    expect(markupText(fill(), true)).toBe("2 points on the ask");
-    expect(markupText(fill({ markupPoints: 1 }), false)).toBe("1 point on the bid");
-    expect(markupText(fill({ markupPoints: null }), true)).toBeNull();
+    expect(markupText(fill(), true, 5)).toBe("0.2 pips on the ask");
+    expect(markupText(fill({ markupPoints: 1 }), false, 5)).toBe("0.1 pips on the bid");
+    expect(markupText(fill({ markupPoints: 10 }), false, 1, "points")).toBe("1 point on the bid");
+    expect(markupText(fill({ markupPoints: null }), true, 5)).toBeNull();
   });
 });
 
@@ -65,9 +66,9 @@ describe("detailsText", () => {
     expect(detailsText(receipt, "Europe/Stockholm").split("\n")).toEqual([
       "Trade details: Buy 1.00 EURUSD, position 4f2a9c1e, account A1",
       "Opened 2026-10-06 14:02:11: 1.00 at 1.08723, commission 3.50 USD",
-      "  Feed price bid 1.08718 ask 1.08721, journal entry 4182993, markup 2 points on the ask",
+      "  Feed price bid 1.08718 ask 1.08721, journal entry 4182993, markup 0.2 pips on the ask",
       "Closed (stop loss) 2026-10-06 15:10:03: 1.00 at 1.08524, commission 3.50 USD",
-      "  Feed price bid 1.08718 ask 1.08721, journal entry 4182993, markup 1 point on the bid",
+      "  Feed price bid 1.08718 ask 1.08721, journal entry 4182993, markup 0.1 pips on the bid",
       "Result -206.00 USD after 7.00 commission",
     ]);
   });

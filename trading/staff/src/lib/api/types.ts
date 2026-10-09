@@ -1,0 +1,35 @@
+import type { components } from "./schema";
+
+type Schemas = components["schemas"];
+
+export type StaffMe = Schemas["StaffMeResponse"];
+export type Overview = Schemas["StaffOverviewResponse"];
+export type NeedsUsItem = Schemas["NeedsUsItem"];
+export type NeedsUsKind = Schemas["NeedsUsKind"];
+export type PlatformFigures = Schemas["PlatformFigures"];
+export type FeedSummary = Schemas["FeedSummary"];
+export type EngineSummary = Schemas["EngineSummary"];
+export type PlatformLogEntry = Schemas["PlatformLogEntry"];
+export type PlatformEventKind = Schemas["PlatformEventKind"];
+export type ServersResponse = Schemas["StaffServersResponse"];
+export type ServerRow = Schemas["StaffServerRow"];
+export type ServerMaker = Schemas["ServerMaker"];
+export type Server = Schemas["StaffServerResponse"];
+export type StaffGroup = Schemas["StaffGroupResponse"];
+export type ServerEvents = Schemas["StaffServerEventsResponse"];
+export type EventEnvelope = Schemas["EventEnvelope"];
+export type EngineEvent = Schemas["EngineEvent"];
+export type StaffAccount = Schemas["StaffAccountResponse"];
+export type SearchResponse = Schemas["StaffSearchResponse"];
+export type PriceFeed = Schemas["StaffPriceFeedResponse"];
+export type SymbolFeed = Schemas["StaffSymbolFeed"];
+export type SymbolFeedState = Schemas["SymbolFeedState"];
+export type ChartGap = Schemas["ChartGapResponse"];
+export type Instruments = Schemas["StaffInstrumentsResponse"];
+export type StaffInstrument = Schemas["StaffInstrument"];
+export type MarketPeriod = Schemas["MarketPeriod"];
+export type Exposure = Schemas["StaffExposureResponse"];
+export type SymbolExposure = Schemas["SymbolExposureResponse"];
+export type EngineStatus = Schemas["StaffEngineResponse"];
+export type EngineMinute = Schemas["EngineMinuteResponse"];
+export type TerminalNotice = Schemas["TerminalNotice"];

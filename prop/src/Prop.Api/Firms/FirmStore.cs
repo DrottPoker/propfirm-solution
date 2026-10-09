@@ -23,7 +23,7 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                coalesce(array_agg(h.host order by h.host) filter (where h.host is not null), '{}'),
                f.payment_provider, f.stripe_secret_key, f.stripe_webhook_secret, f.checkout_url, f.shop_terms_url,
                f.suspended_at, f.suspension_reason, (select l.sha256 from firm_logos l where l.firm_id = f.id), f.email_settings,
-               f.account_currency, f.support_email, f.shop_shows_payouts
+               f.account_currency, f.support_email, f.shop_shows_payouts, f.configured
         from firms f left join firm_hosts h on h.firm_id = f.id
         """;
 
@@ -146,6 +146,10 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 FirmStatus.Provisioning.ToString(), FirmStatus.Sandbox.ToString(), now,
             ],
             cancellationToken);
+
+    /// <summary>The firm's new key to its server's admin API, after the trading platform refused the one it had.</summary>
+    public Task SetTradingApiKeyAsync(string firmId, string apiKey, DateTimeOffset now, CancellationToken cancellationToken) =>
+        UpdateAsync("trading_api_key = $2", firmId, [secrets.Protect(apiKey, TradingKeyPurpose(firmId))], now, cancellationToken);
 
     /// <summary>The firm has paid and goes live. Done in the caller's transaction.</summary>
     public static Task SetLiveAsync(NpgsqlConnection connection, string firmId, DateTimeOffset now, CancellationToken cancellationToken) =>
@@ -338,7 +342,8 @@ internal sealed class FirmStore(NpgsqlDataSource dataSource, DatabaseSchema sche
                 JsonSerializer.Deserialize<Dictionary<string, bool>>(reader.GetString(22)) ?? [],
                 reader.GetString(23),
                 reader.IsDBNull(24) ? null : reader.GetString(24),
-                reader.GetBoolean(25)));
+                reader.GetBoolean(25),
+                reader.GetBoolean(26)));
         }
 
         return firms;

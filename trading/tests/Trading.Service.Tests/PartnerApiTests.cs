@@ -182,9 +182,9 @@ public sealed class PartnerApiTests
 
         using var trader = await CreateTraderAsync(factory, apiKey, "acme", "ACME1");
         using var anonymous = factory.CreateClient();
-        var servers = await anonymous.GetJsonAsync("/api/servers");
+        var servers = await anonymous.GetJsonAsync("/api/servers?search=Acme");
 
-        Assert.Equal([ServiceFactory.DemoServer], servers.EnumerateArray().Select(s => s.GetProperty("id").GetString()));
+        Assert.Equal(0, servers.GetArrayLength());
         Assert.Equal("acme", (await trader.GetJsonAsync("/api/auth/me")).GetProperty("server").GetProperty("id").GetString());
     }
 
@@ -199,7 +199,7 @@ public sealed class PartnerApiTests
 
         var unlisted = await anonymous.GetJsonAsync("/api/servers/acme");
         var changed = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = true, loginUrl = "https://acme.example.com/terminal" }, HttpStatusCode.OK);
-        var servers = await anonymous.GetJsonAsync("/api/servers");
+        var servers = await anonymous.GetJsonAsync("/api/servers?search=Acme");
         var onlyListing = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { listed = false }, HttpStatusCode.OK);
         var cleared = await partner.SendJsonAsync(HttpMethod.Patch, "/api/partner/v1/tenants/acme", new { loginUrl = "" }, HttpStatusCode.OK);
 
@@ -258,7 +258,7 @@ public sealed class PartnerApiTests
 
         using var second = new ServiceFactory(backend);
         using var anonymous = second.CreateClient();
-        var acme = (await anonymous.GetJsonAsync("/api/servers")).EnumerateArray().Single(s => s.GetProperty("id").GetString() == "acme");
+        var acme = (await anonymous.GetJsonAsync("/api/servers?search=acme")).EnumerateArray().Single(s => s.GetProperty("id").GetString() == "acme");
 
         Assert.Equal("https://acme.example.com/terminal", acme.GetProperty("loginUrl").GetString());
     }

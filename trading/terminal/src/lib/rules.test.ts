@@ -78,6 +78,17 @@ describe("rulebook", () => {
     ]);
   });
 
+  it("tells a funded trader their share and whether a payout can be asked for", () => {
+    const row = (payoutAvailable: boolean) =>
+      rulebook({ account: accountWith(), profitTarget: null, rules: rulesWith({ funded: true, profitSplitPercent: 80, payoutAvailable }), now, timeZone }).find(
+        (r) => r.id === "payout",
+      );
+
+    expect(row(true)).toMatchObject({ value: "80% of the profit", note: "You can ask for one now", state: "done", action: "payout" });
+    expect(row(false)).toMatchObject({ note: "Not yet", state: "ok", action: undefined });
+    expect(rulebook({ account: accountWith(), profitTarget: 110_000, rules: rulesWith({ profitSplitPercent: 80 }), now, timeZone }).some((r) => r.id === "payout")).toBe(false);
+  });
+
   // An account of a firm whose system tells no rules says nothing it does not know.
   it("leaves out what the firm's system has not told", () => {
     const none = rulesWith({ tradingDaysRequired: null, tradingDaysCounted: null, openPositionBy: null });
@@ -97,9 +108,9 @@ describe("rulebook", () => {
       timeZone,
     });
 
-    expect(rows.filter((r) => r.id.startsWith("floor")).map((r) => [r.id, r.state])).toEqual([
-      ["floor-daily", "danger"],
-      ["floor-max-loss", "ok"],
+    expect(rows.filter((r) => r.id.startsWith("floor")).map((r) => [r.id, r.state, r.note])).toEqual([
+      ["floor-daily", "danger", "Broken"],
+      ["floor-max-loss", "ok", undefined],
     ]);
     expect(rows.some((r) => r.id === "target" || r.id === "pass-by")).toBe(false);
   });

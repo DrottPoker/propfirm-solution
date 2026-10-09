@@ -1,5 +1,6 @@
 // Short sounds made with the Web Audio API, so there is no sound file to load: a chime when an order fills, a softer
-// one when a position closes and a signal with a warning about the account's rules. All at the trader's volume.
+// one when a position closes, a bright one for a price alert and a signal with a warning about the account's rules. All
+// at the trader's volume.
 
 import { useSettings } from "./settings";
 
@@ -28,6 +29,11 @@ export function playFillSound() {
 /** Two quick, soft tones a fourth apart, falling: a position closed. */
 export function playCloseSound() {
   playTones([1320, 990], { gap: 0.08, length: 0.14, wave: "sine", volume: 0.1 });
+}
+
+/** Three bright tones rising: a price alert the trader set has fired. */
+export function playAlertSound() {
+  playTones([660, 880, 1100], { gap: 0.11, length: 0.2, wave: "sine", volume: 0.16 });
 }
 
 /** Two longer tones falling a fifth, a little louder: a rule needs the trader's attention. */

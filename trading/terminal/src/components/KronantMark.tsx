@@ -20,16 +20,16 @@ export function KronantMark({ className = "size-7" }: { className?: string }) {
 
 /**
  * The product's name as a wordmark: the mark, "Kronant" in the serif and the rest of the name, "Trader", small after
- * it. Screen readers get the name in one piece.
+ * it, or a smaller one, such as under a firm's login. Screen readers get the name in one piece.
  */
-export function KronantWordmark({ name, className = "" }: { name: string; className?: string }) {
+export function KronantWordmark({ name, className = "", small = false }: { name: string; className?: string; small?: boolean }) {
   const product = name.replace(/^Kronant\s*/, "");
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className}`}>
-      <KronantMark className="size-8" />
+    <span className={`inline-flex items-center ${small ? "gap-1.5" : "gap-2.5"} ${className}`}>
+      <KronantMark className={small ? "size-4" : "size-8"} />
       <span aria-hidden="true" className="flex items-baseline gap-1.5">
-        <span className="font-serif text-[1.6rem] leading-none tracking-tight">Kronant</span>
-        {product && <span className="text-xs font-semibold tracking-[0.18em] text-muted uppercase">{product}</span>}
+        <span className={`font-serif leading-none tracking-tight text-foreground ${small ? "text-base" : "text-[1.6rem]"}`}>Kronant</span>
+        {product && <span className={`font-semibold tracking-[0.18em] text-muted uppercase ${small ? "text-[9px]" : "text-xs"}`}>{product}</span>}
       </span>
       <span className="sr-only">{name}</span>
     </span>

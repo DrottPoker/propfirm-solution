@@ -42,6 +42,7 @@ internal sealed partial class EngineHost : BackgroundService
     private readonly TimeProvider _time;
     private readonly JournalOptions _options;
     private readonly IHostApplicationLifetime _lifetime;
+    private readonly EngineMetrics _metrics;
     private readonly ILogger<EngineHost> _logger;
 
     // Engine loop only.
@@ -54,6 +55,7 @@ internal sealed partial class EngineHost : BackgroundService
     private Batch? _lastHandedOff;
 
     private long _quotesApplied;
+    private int _queued;
     private volatile Exception? _journalFailure;
 
     public EngineHost(
@@ -63,6 +65,7 @@ internal sealed partial class EngineHost : BackgroundService
         TimeProvider time,
         IOptions<JournalOptions> options,
         IHostApplicationLifetime lifetime,
+        EngineMetrics metrics,
         ILogger<EngineHost> logger)
     {
         _configuration = configuration;
@@ -73,6 +76,7 @@ internal sealed partial class EngineHost : BackgroundService
         _time = time;
         _options = options.Value;
         _lifetime = lifetime;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -85,9 +89,12 @@ internal sealed partial class EngineHost : BackgroundService
     /// <summary>Number of live prices the engine has applied.</summary>
     public long QuotesApplied => Interlocked.Read(ref _quotesApplied);
 
+    /// <summary>Prices, commands and queries waiting for the engine loop now.</summary>
+    public int QueueLength => Math.Max(0, Volatile.Read(ref _queued));
+
     /// <summary>Applies a live price. The feed is stored with it, so the charts can tell real prices from made-up ones.</summary>
     public void EnqueueQuote(string feed, string symbol, decimal bid, decimal ask) =>
-        _queue.Writer.TryWrite(new QuoteWork(feed, symbol, bid, ask));
+        Write(new QuoteWork(feed, symbol, bid, ask));
 
     /// <summary>Applies a command and returns its events once they are stored. The function receives the timestamp to use.</summary>
     public Task<IReadOnlyList<EventEnvelope>> SendAsync(Func<DateTimeOffset, EngineInput> createInput, CancellationToken cancellationToken = default)
@@ -119,6 +126,7 @@ internal sealed partial class EngineHost : BackgroundService
             _queue.Writer.TryComplete();
             while (_queue.Reader.TryRead(out var work))
             {
+                Interlocked.Decrement(ref _queued);
                 work.Fail(exception);
             }
 
@@ -137,6 +145,7 @@ internal sealed partial class EngineHost : BackgroundService
                     continue;
                 }
 
+                _metrics.QueueSampled(Interlocked.Decrement(ref _queued));
                 work.Run(this);
                 HandOffPendingBatch();
             }
@@ -159,6 +168,7 @@ internal sealed partial class EngineHost : BackgroundService
 
     private async Task RecoverAsync(CancellationToken cancellationToken)
     {
+        var started = _time.GetTimestamp();
         await _journal.InitializeAsync(cancellationToken);
 
         var snapshot = await _journal.LoadLatestSnapshotAsync(cancellationToken);
@@ -218,6 +228,7 @@ internal sealed partial class EngineHost : BackgroundService
 
         // Every start begins with a snapshot that records the current configuration.
         await _journal.AppendAsync(new JournalBatch([], [], CreateSnapshot()), cancellationToken);
+        _metrics.Started(_time.GetUtcNow(), _time.GetElapsedTime(started), replayed, stored is not null);
         LogRecovered(_logger, _inputSequence, replayed);
     }
 
@@ -233,7 +244,9 @@ internal sealed partial class EngineHost : BackgroundService
 
             try
             {
+                var saving = _time.GetTimestamp();
                 await AppendWithRetryAsync(batch.ToJournalBatch());
+                _metrics.BatchSaved(_time.GetElapsedTime(saving));
             }
             catch (Exception exception)
             {
@@ -247,7 +260,7 @@ internal sealed partial class EngineHost : BackgroundService
             batch.Release();
 
             // Lets the loop hand off the batch that built up in the meantime.
-            _queue.Writer.TryWrite(FlushWork.Instance);
+            Write(FlushWork.Instance);
         }
     }
 
@@ -298,16 +311,30 @@ internal sealed partial class EngineHost : BackgroundService
     {
         while (_queue.Reader.TryRead(out var work))
         {
+            Interlocked.Decrement(ref _queued);
             work.Cancel();
         }
     }
 
     private void Enqueue(EngineWork work)
     {
-        if (!_queue.Writer.TryWrite(work))
+        if (!Write(work))
         {
             throw new InvalidOperationException("The engine has stopped.");
         }
+    }
+
+    // Counts what waits, since the queue cannot count itself with one reader.
+    private bool Write(EngineWork work)
+    {
+        Interlocked.Increment(ref _queued);
+        if (_queue.Writer.TryWrite(work))
+        {
+            return true;
+        }
+
+        Interlocked.Decrement(ref _queued);
+        return false;
     }
 
     // Engine loop only.
@@ -315,6 +342,7 @@ internal sealed partial class EngineHost : BackgroundService
     {
         var events = _engine.Apply(input);
         _pending.Inputs.Add(new JournaledInput(++_inputSequence, input) { Feed = feed });
+        _metrics.InputApplied(input, events);
 
         var envelopes = new List<EventEnvelope>(events.Count);
         foreach (var engineEvent in events)

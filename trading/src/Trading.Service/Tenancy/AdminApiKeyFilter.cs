@@ -1,7 +1,7 @@
 namespace Trading.Service.Tenancy;
 
 /// <summary>Admin requests carry the firm's API key. The firm it belongs to is the only one the request may act on.</summary>
-internal sealed class AdminApiKeyFilter(TenantCatalog tenants) : IEndpointFilter
+internal sealed class AdminApiKeyFilter(TenantCatalog tenants, TenantActivity activity) : IEndpointFilter
 {
     public const string HeaderName = "X-Api-Key";
 
@@ -16,6 +16,7 @@ internal sealed class AdminApiKeyFilter(TenantCatalog tenants) : IEndpointFilter
             return TypedResults.Problem(statusCode: StatusCodes.Status401Unauthorized, title: $"A valid {HeaderName} header is required.");
         }
 
+        activity.KeyUsed(tenant.Id);
         http.Items[TenantKey] = tenant;
         return await next(context);
     }

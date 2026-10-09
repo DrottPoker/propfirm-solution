@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { useNow } from "@/lib/marketHours";
+import { notifyInBackground } from "@/lib/notify";
+import { wordsFor, type TerminalProfile } from "@/lib/profile";
 import { useAccountRules } from "@/lib/queries";
 import { nextWarnings, type RuleWarning, type WarningMemory } from "@/lib/ruleWarnings";
 import { useSettings } from "@/lib/settings";
@@ -27,7 +29,7 @@ export function dismissRuleWarnings() {
  * best day goes above the consistency rule or the profit target is reached, with a sound unless the trader turned it
  * off (ADR 0052). What already holds when the terminal opens is told without a sound.
  */
-export function useRuleWarnings(accountId: string, profitTarget: number | null, timeZone: string) {
+export function useRuleWarnings(accountId: string, profitTarget: number | null, timeZone: string, profile: TerminalProfile) {
   const account = useTradingStore((s) => s.account);
   const rules = useAccountRules(accountId);
   const now = useNow(30_000);
@@ -41,7 +43,13 @@ export function useRuleWarnings(accountId: string, profitTarget: number | null, 
     }
 
     const first = memory.current === null;
-    const next = nextWarnings(memory.current, { account, profitTarget, rules: rulesData, now: now.getTime(), timeZone });
+    // Without the rulebook in the firm's profile, only the loss limits and the trader's own warn (ADR 0058).
+    const rulebook = profile.modules.rulebook;
+    const next = nextWarnings(
+      memory.current,
+      { account, profitTarget: rulebook ? profitTarget : null, rules: rulebook ? rulesData : null, now: now.getTime(), timeZone },
+      wordsFor(profile.kind).carriesOn,
+    );
     memory.current = next.memory;
     next.warnings.forEach(showWarning);
     if (!first && next.warnings.length > 0 && useSettings.getState().warningSound) {
@@ -51,11 +59,12 @@ export function useRuleWarnings(accountId: string, profitTarget: number | null, 
         playFillSound();
       }
     }
-  }, [account, rulesLoaded, rulesData, now, profitTarget, timeZone]);
+  }, [account, rulesLoaded, rulesData, now, profitTarget, timeZone, profile]);
 }
 
 function showWarning(warning: RuleWarning) {
   shown.add(warning.id);
+  notifyInBackground(warning.title, warning.description);
   const options = { id: warning.id, description: warning.description, duration: warningDuration };
   if (warning.level === "success") {
     toast.success(warning.title, options);

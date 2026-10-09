@@ -24,11 +24,18 @@ internal static class TerminalRules
 
         decimal? consistency = null;
         decimal? bestDay = null;
-        if (state.IsFunded && rules.ConsistencyPercent is { } percent)
+        bool? payoutAvailable = null;
+        if (state.IsFunded)
         {
-            consistency = percent;
             var quote = ChallengeRules.QuotePayout(state);
-            bestDay = quote.Profit > 0m && quote.BestDayProfit is { } best ? Math.Round(best / quote.Profit * 100m, 1) : null;
+            if (rules.ConsistencyPercent is { } percent)
+            {
+                consistency = percent;
+                bestDay = quote.Profit > 0m && quote.BestDayProfit is { } best ? Math.Round(best / quote.Profit * 100m, 1) : null;
+            }
+
+            // Whether the trader can ask for a payout now, in the portal; why not is in the other rules (ADR 0058).
+            payoutAvailable = rules.ProfitSplitPercent is null ? null : quote.Refusal is null;
         }
 
         return new TradingAccountRules(
@@ -38,6 +45,8 @@ internal static class TerminalRules
             StartOf(state.StageDeadline),
             StartOf(state.InactivityDeadline),
             consistency,
-            bestDay);
+            bestDay,
+            state.IsFunded ? rules.ProfitSplitPercent : null,
+            payoutAvailable);
     }
 }

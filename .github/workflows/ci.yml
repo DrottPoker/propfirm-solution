@@ -63,7 +63,7 @@ jobs:
       - name: Check that the API types are up to date
         run: |
           pnpm generate:api
-          git diff --exit-code -- trading/terminal/src/lib/api/schema.ts prop/portal/src/lib/api/schema.ts
+          git diff --exit-code -- trading/terminal/src/lib/api/schema.ts trading/staff/src/lib/api/schema.ts prop/portal/src/lib/api/schema.ts
 
       - name: Lint
         run: pnpm lint
@@ -124,6 +124,9 @@ jobs:
       - name: Run the terminal's end-to-end tests
         run: pnpm --filter @trading/terminal e2e
 
+      - name: Run the staff panel's end-to-end tests
+        run: pnpm --filter @trading/staff e2e
+
       # The whole chain: the trading platform, Prop.Api and the portal.
       - name: Run the portal's end-to-end tests
         run: pnpm --filter @prop/portal e2e
@@ -136,5 +139,7 @@ jobs:
           path: |
             trading/terminal/playwright-report
             trading/terminal/test-results
+            trading/staff/playwright-report
+            trading/staff/test-results
             prop/portal/playwright-report
             prop/portal/test-results

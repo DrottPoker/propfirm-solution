@@ -12,6 +12,7 @@
     "build": "pnpm -r build",
     "generate:api": "pnpm -r generate:api",
     "dev:terminal": "pnpm --filter @trading/terminal dev",
+    "dev:staff": "pnpm --filter @trading/staff dev",
     "dev:portal": "pnpm --filter @prop/portal dev"
   }
 }

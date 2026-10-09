@@ -1,5 +1,6 @@
 packages:
   - trading/terminal
+  - trading/staff
   - prop/portal
   - shared/web/design
 

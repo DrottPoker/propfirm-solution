@@ -24,7 +24,7 @@ export function OwnLimitsSheet({ accountId, firmName }: { accountId: string; fir
   const account = useTradingStore((s) => s.account);
   const details = useMe().data?.accountDetails.find((d) => d.accountId === accountId);
   return (
-    <Sheet label="Your limits" title="Stricter than the firm's" subtitle={accountName(accountId, details)} printable={false}>
+    <Sheet label={accountName(accountId, details)} title="Your own limits" subtitle="" printable={false}>
       {account ? (
         <LimitsBody accountId={accountId} own={account.ownLimits} currency={account.currency} firmLoss={firmDailyLoss(account.floors)} firmName={firmName} />
       ) : (
@@ -92,85 +92,77 @@ function LimitsBody({
           firm&apos;s daily loss limit.
         </p>
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 font-semibold">Daily loss limit</legend>
-          <div className="flex items-center gap-2">
-            <label htmlFor={ids.loss} className="sr-only">
-              Daily loss limit {form.lossUnit === "amount" ? `in ${currency}` : "in percent of the day's start"}
-            </label>
-            <LimitInput id={ids.loss} value={form.dailyLoss} invalid={error?.field === "dailyLoss"} onChange={(dailyLoss) => change({ dailyLoss })} />
-            <span role="group" aria-label="Daily loss limit in" className="flex shrink-0 rounded-lg bg-raised p-0.5 ring-1 ring-border">
-              {(["amount", "percent"] as const).map((unit) => (
-                <button
-                  key={unit}
-                  type="button"
-                  aria-pressed={form.lossUnit === unit}
-                  onClick={() => change({ lossUnit: unit })}
-                  className={`h-8 rounded-md px-2.5 text-xs font-medium transition-colors duration-150 ${form.lossUnit === unit ? "bg-accent text-accent-foreground" : "text-muted hover:text-foreground"}`}
-                >
-                  {unit === "amount" ? currency : "% of day start"}
-                </button>
-              ))}
-            </span>
-          </div>
-          <FieldNote error={error?.field === "dailyLoss" ? error.message : null}>
-            {lossAmount !== null && `Today that is equity ${formatMoney(own.dayStartBalance - lossAmount)}. `}
-            {firmLoss !== null && `${firmName}'s daily loss limit is ${formatMoney(firmLoss)}, and yours must be smaller.`}
-          </FieldNote>
-        </fieldset>
-
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 font-semibold">Daily profit target</legend>
-          <div className="flex items-center gap-2">
-            <label htmlFor={ids.target} className="sr-only">
-              Daily profit target in {currency}
-            </label>
-            <LimitInput id={ids.target} value={form.dailyTarget} invalid={error?.field === "dailyTarget"} onChange={(dailyTarget) => change({ dailyTarget })} />
-            <span className="w-32 shrink-0 text-xs text-muted">Off when empty</span>
-          </div>
-          <FieldNote error={error?.field === "dailyTarget" ? error.message : null}>
-            {targetAmount !== null ? `Stop while you are ahead: today that is equity ${formatMoney(own.dayStartBalance + targetAmount)}.` : "Stop while you are ahead."}
-          </FieldNote>
-        </fieldset>
-
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 font-semibold">Trades a day</legend>
-          <div className="flex items-center gap-2">
-            <label htmlFor={ids.trades} className="sr-only">
-              Most trades a day
-            </label>
-            <LimitInput
-              id={ids.trades}
-              value={form.maxTrades}
-              invalid={error?.field === "maxTrades"}
-              onChange={(maxTrades) => change({ maxTrades })}
-              numeric
-              className="w-24"
-            />
-            <span className="text-xs text-muted">Each opened position counts. {own.tradesToday} so far today.</span>
-          </div>
-          {error?.field === "maxTrades" && <FieldNote error={error.message} />}
-        </fieldset>
-
-        <div className="flex flex-col gap-1.5 rounded-xl bg-raised px-4 py-3 leading-relaxed">
-          <strong className="font-semibold">When a limit is reached</strong>
-          <span className="text-muted">
-            The loss limit or the profit target closes every position at that price and locks new orders until {nextDay}. The trade count only refuses
-            new orders. None of it breaks a rule of {firmName}&apos;s.
-          </span>
+        {/* The three limits look alike: a field of the same width, its unit beside it, and a line under it. */}
+        <div className="flex flex-col divide-y divide-border rounded-xl border border-border">
+          <LimitRow
+            id={ids.loss}
+            title="Daily loss limit"
+            label={`Daily loss limit ${form.lossUnit === "amount" ? `in ${currency}` : "in percent of the day's start"}`}
+            value={form.dailyLoss}
+            invalid={error?.field === "dailyLoss"}
+            onChange={(dailyLoss) => change({ dailyLoss })}
+            unit={
+              <span role="group" aria-label="Daily loss limit in" className="flex rounded-lg bg-background p-0.5 ring-1 ring-border">
+                {(["amount", "percent"] as const).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    aria-pressed={form.lossUnit === unit}
+                    title={unit === "amount" ? `In ${currency}` : "In percent of the balance the trading day started with"}
+                    onClick={() => change({ lossUnit: unit })}
+                    className={`h-7 flex-1 rounded-md px-2 text-xs font-medium transition-colors duration-150 ${form.lossUnit === unit ? "bg-raised text-foreground shadow-card" : "text-muted hover:text-foreground"}`}
+                  >
+                    {unit === "amount" ? currency : "%"}
+                  </button>
+                ))}
+              </span>
+            }
+          >
+            <FieldNote error={error?.field === "dailyLoss" ? error.message : null}>
+              {lossAmount !== null && `Today that is equity ${formatMoney(own.dayStartBalance - lossAmount)}. `}
+              {firmLoss !== null && `${firmName}'s is ${formatMoney(firmLoss)}, and yours must be smaller.`}
+            </FieldNote>
+          </LimitRow>
+          <LimitRow
+            id={ids.target}
+            title="Daily profit target"
+            label={`Daily profit target in ${currency}`}
+            value={form.dailyTarget}
+            invalid={error?.field === "dailyTarget"}
+            onChange={(dailyTarget) => change({ dailyTarget })}
+            unit={<span className="text-xs text-muted">{currency}</span>}
+          >
+            <FieldNote error={error?.field === "dailyTarget" ? error.message : null}>
+              {targetAmount !== null ? `Stop while you are ahead: today that is equity ${formatMoney(own.dayStartBalance + targetAmount)}.` : "Stop while you are ahead."}
+            </FieldNote>
+          </LimitRow>
+          <LimitRow
+            id={ids.trades}
+            title="Trades a day"
+            label="Most trades a day"
+            value={form.maxTrades}
+            invalid={error?.field === "maxTrades"}
+            onChange={(maxTrades) => change({ maxTrades })}
+            numeric
+            unit={<span className="text-xs text-muted">trades</span>}
+          >
+            <FieldNote error={error?.field === "maxTrades" ? error.message : null}>
+              Each opened position counts. {own.tradesToday} so far today.
+            </FieldNote>
+          </LimitRow>
         </div>
 
-        <div className="flex flex-col gap-1.5 rounded-xl border border-warning/35 bg-warning/5 px-4 py-3 leading-relaxed">
-          <strong className="font-semibold text-warning">Stricter now, looser tomorrow</strong>
-          <span className="text-muted">
-            A stricter limit applies at once. A looser one, or one you turn off, applies from the next trading day, so a bad moment cannot undo it.
-          </span>
-          {later && (
-            <span data-testid="limits-later" className="font-mono text-xs text-warning tabular-nums">
-              {later}
-            </span>
-          )}
-        </div>
+        <p className="leading-relaxed text-muted">
+          A limit that is reached closes every position at that price and locks new orders until {nextDay}; the trade count only refuses new orders.
+          None of it breaks a rule of {firmName}&apos;s. A stricter limit applies at once, a looser one from the next trading day.
+        </p>
+
+        {/* Only when a change is looser, so nothing looks like a warning before it is one. */}
+        {later && (
+          <p data-testid="limits-later" className="rounded-lg bg-warning/10 px-3 py-2 text-xs leading-relaxed text-warning tabular-nums">
+            {later}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-3">
@@ -198,32 +190,49 @@ function LimitsBody({
   );
 }
 
-function LimitInput({
+/** A limit as a row: its name, a field of one width for all, its unit and a line under it. Empty turns it off. */
+function LimitRow({
   id,
+  title,
+  label,
   value,
   invalid,
   onChange,
   numeric = false,
-  className = "flex-1",
+  unit,
+  children,
 }: {
   id: string;
+  title: string;
+  label: string;
   value: string;
   invalid: boolean;
   onChange: (value: string) => void;
   numeric?: boolean;
-  className?: string;
+  unit: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <input
-      id={id}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      inputMode={numeric ? "numeric" : "decimal"}
-      autoComplete="off"
-      placeholder="Off"
-      aria-invalid={invalid || undefined}
-      className={`h-10 min-w-0 rounded-lg border bg-background px-3 text-right font-mono tabular-nums outline-none transition-colors duration-150 placeholder:text-muted/60 focus:border-accent ${invalid ? "border-loss" : "border-border"} ${className}`}
-    />
+    <div className="flex flex-col gap-1.5 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <label htmlFor={id} className="min-w-0 flex-1 font-medium">
+          {title}
+          <span className="sr-only">, {label}</span>
+        </label>
+        <input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode={numeric ? "numeric" : "decimal"}
+          autoComplete="off"
+          placeholder="Off"
+          aria-invalid={invalid || undefined}
+          className={`h-9 w-28 rounded-lg border bg-background px-3 text-right tabular-nums outline-none transition-colors duration-150 placeholder:text-muted/60 focus:border-accent ${invalid ? "border-loss" : "border-border"}`}
+        />
+        <span className="flex w-32 shrink-0 items-center">{unit}</span>
+      </div>
+      {children}
+    </div>
   );
 }
 

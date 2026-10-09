@@ -18,7 +18,8 @@ import { useModifyOrder, useModifyStops } from "@/lib/queries";
 import { clampEntry, clampStop, estimatedProfit, type StopKind } from "@/lib/stops";
 import { useTradingStore } from "@/lib/store";
 
-import type { KeepInView } from "./KeepInView";
+import type { ChartLines } from "./ChartLines";
+import { isRemoved } from "./chartRemoval";
 
 export interface PositionLineColors {
   open: string;
@@ -124,8 +125,8 @@ export class StopHandles implements ISeriesPrimitive<Time> {
  * Lines for the symbol's positions and pending orders. A position has its open price, stop loss and take profit; a
  * pending order its price, dotted, and its stop loss and take profit. Stop lines show the estimated result at their
  * level. While the market is open, stops and order prices can be dragged to a new level, which is sent to the engine
- * when the mouse is released. An order's stops move with its price, at the same distance. The price scale makes room
- * for the lines, so one is never out of reach above or below the candles.
+ * when the mouse is released. An order's stops move with its price, at the same distance. A line beyond the view is
+ * told at its edge, and a press there brings every line into view (ADR 0058).
  */
 export function usePositionLines({
   accountId,
@@ -136,7 +137,7 @@ export function usePositionLines({
   chartRef,
   seriesRef,
   handlesRef,
-  keepInViewRef,
+  chartLinesRef,
   containerRef,
   onError,
 }: {
@@ -148,7 +149,7 @@ export function usePositionLines({
   chartRef: React.RefObject<IChartApi | null>;
   seriesRef: React.RefObject<ISeriesApi<"Candlestick"> | null>;
   handlesRef: React.RefObject<StopHandles | null>;
-  keepInViewRef: React.RefObject<KeepInView | null>;
+  chartLinesRef: React.RefObject<ChartLines | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
   onError: (text: string) => void;
 }) {
@@ -227,15 +228,18 @@ export function usePositionLines({
       showDragged(lines, latest.current, drag);
     }
 
-    keepInViewRef.current?.set("stops", parsed.filter((s) => s.kind !== "open").map((s) => s.price));
+    // A line beyond the view is told at its edge, rather than squeezing the candles to make room for it.
+    chartLinesRef.current?.set("trades", parsed.map((s) => ({ price: s.price, label: s.title, color: s.color })));
 
     return () => {
-      for (const { line } of lines.values()) {
-        series.removePriceLine(line);
+      if (!isRemoved(series)) {
+        for (const { line } of lines.values()) {
+          series.removePriceLine(line);
+        }
       }
       lines.clear();
     };
-  }, [seriesRef, handlesRef, keepInViewRef, specsKey]);
+  }, [seriesRef, handlesRef, chartLinesRef, specsKey]);
 
   // Lines can be grabbed only while the market is open, since the engine refuses changes when it is closed.
   useEffect(() => {

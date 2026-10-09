@@ -5,7 +5,8 @@ import type { BreachReport } from "@/lib/api/types";
 import { describeEvent, isWarning, type DigitsOf } from "@/lib/events";
 import { formatMoment, formatMoney, formatPrice, formatSignedMoney, formatTime, formatVolume, timeZoneName } from "@/lib/format";
 import { equityChart } from "@/lib/miniCharts";
-import { useBreachReport } from "@/lib/queries";
+import { useBreachReport, useInstruments } from "@/lib/queries";
+import { distanceUnit, markupPips, pipsText } from "@/lib/ticket";
 import { useTimeZone } from "@/lib/timeZone";
 
 import { ProofIcon } from "./icons";
@@ -18,6 +19,9 @@ import { Sheet, SheetSection } from "./Sheet";
  */
 export function BreachReportSheet({ accountId, digitsOf }: { accountId: string; digitsOf: DigitsOf }) {
   const report = useBreachReport(accountId);
+  const instruments = useInstruments(accountId).data;
+  // Distances in the same unit as everywhere else: pips for currencies and metals, points for the rest (ADR 0058).
+  const unitOf = (symbol: string) => distanceUnit(instruments?.find((i) => i.symbol === symbol) ?? { category: "Forex" });
   const timeZone = useTimeZone();
   const data = report.data;
 
@@ -29,12 +33,22 @@ export function BreachReportSheet({ accountId, digitsOf }: { accountId: string; 
     >
       {report.isError && <p className="px-5 py-4 text-sm text-loss">Could not load the report.</p>}
       {report.isPending && <p className="px-5 py-4 text-sm text-muted">Loading...</p>}
-      {data && <ReportBody report={data} digitsOf={digitsOf} timeZone={timeZone} />}
+      {data && <ReportBody report={data} digitsOf={digitsOf} unitOf={unitOf} timeZone={timeZone} />}
     </Sheet>
   );
 }
 
-function ReportBody({ report, digitsOf, timeZone }: { report: BreachReport; digitsOf: DigitsOf; timeZone: string }) {
+function ReportBody({
+  report,
+  digitsOf,
+  unitOf,
+  timeZone,
+}: {
+  report: BreachReport;
+  digitsOf: DigitsOf;
+  unitOf: (symbol: string) => "pips" | "points";
+  timeZone: string;
+}) {
   return (
     <>
       <div className="grid grid-cols-3 gap-2 border-b border-border px-5 py-4">
@@ -58,14 +72,16 @@ function ReportBody({ report, digitsOf, timeZone }: { report: BreachReport; digi
               <th className="pb-1 text-right font-normal">Your bid / ask</th>
             </tr>
           </thead>
-          <tbody className="font-mono tabular-nums">
+          <tbody className="tabular-nums">
             {report.prices.map((p) => {
               const digits = digitsOf(p.symbol);
               return (
                 <tr key={p.symbol} className="border-t border-border">
                   <td className="py-1.5 font-sans font-medium">{p.symbol}</td>
                   <td className="py-1.5 text-right">{p.feed ? `${formatPrice(p.feed.bid, digits)} / ${formatPrice(p.feed.ask, digits)}` : "-"}</td>
-                  <td className="py-1.5 text-right text-muted">{p.bidMarkupPoints === null || p.askMarkupPoints === null ? "-" : `${p.bidMarkupPoints + p.askMarkupPoints} pts`}</td>
+                  <td className="py-1.5 text-right text-muted">
+                    {p.bidMarkupPoints === null || p.askMarkupPoints === null ? "-" : pipsText(markupPips(p.bidMarkupPoints + p.askMarkupPoints, digits), unitOf(p.symbol))}
+                  </td>
                   <td className="py-1.5 text-right">
                     {formatPrice(p.bid, digits)} / {formatPrice(p.ask, digits)}
                   </td>
@@ -86,7 +102,7 @@ function ReportBody({ report, digitsOf, timeZone }: { report: BreachReport; digi
               <th className="pb-1 text-right font-normal">Result</th>
             </tr>
           </thead>
-          <tbody className="font-mono tabular-nums">
+          <tbody className="tabular-nums">
             {report.positions.map((p) => {
               const digits = digitsOf(p.symbol);
               return (
@@ -114,7 +130,7 @@ function ReportBody({ report, digitsOf, timeZone }: { report: BreachReport; digi
         <ol className="flex flex-col gap-2">
           {report.events.map((e) => (
             <li key={e.sequence} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3">
-              <span className="font-mono text-xs text-muted tabular-nums">{formatTime(e.event.timestamp, timeZone)}</span>
+              <span className="text-xs text-muted tabular-nums">{formatTime(e.event.timestamp, timeZone)}</span>
               <span className={`text-xs leading-relaxed ${isWarning(e.event) ? "text-warning" : ""}`}>{describeEvent(e.event, digitsOf)}</span>
             </li>
           ))}
@@ -137,7 +153,7 @@ function Figure({ label, value, className = "" }: { label: string; value: string
   return (
     <div className="flex flex-col gap-0.5 rounded-lg bg-background px-3 py-2">
       <span className="text-[11px] text-muted">{label}</span>
-      <span className={`font-mono text-base font-semibold tabular-nums ${className}`}>{value}</span>
+      <span className={`text-base font-semibold tabular-nums ${className}`}>{value}</span>
     </div>
   );
 }

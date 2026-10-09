@@ -15,6 +15,8 @@ internal sealed partial class PartnerCatalog
         Require(_partners.Select(p => p.Id).Distinct(StringComparer.Ordinal).Count() == _partners.Count, "Partner ids must be unique.");
     }
 
+    public IReadOnlyList<Partner> All => _partners;
+
     /// <summary>The partner the key belongs to. Compared in constant time.</summary>
     public Partner? ByApiKey(string? apiKey)
     {
@@ -49,7 +51,7 @@ internal sealed partial class PartnerCatalog
 internal sealed record Partner(string Id, string Name, byte[] ApiKeyHash);
 
 /// <summary>Partner requests carry the partner's API key, and reach only the firms the partner created.</summary>
-internal sealed class PartnerApiKeyFilter(PartnerCatalog partners, TenantCatalog tenants) : IEndpointFilter
+internal sealed class PartnerApiKeyFilter(PartnerCatalog partners, TenantCatalog tenants, PartnerActivity activity) : IEndpointFilter
 {
     private static readonly object PartnerKey = new();
 
@@ -62,10 +64,22 @@ internal sealed class PartnerApiKeyFilter(PartnerCatalog partners, TenantCatalog
         }
 
         await tenants.Ready.WaitAsync(http.RequestAborted);
+        activity.Called(partner.Id);
         http.Items[PartnerKey] = partner;
         return await next(context);
     }
 
     public static Partner PartnerOf(HttpContext context) =>
         context.Items[PartnerKey] as Partner ?? throw new InvalidOperationException("The partner API key filter did not run.");
+}
+
+/// <summary>When each partner and each firm's system last called, for the staff panel (ADR 0057). Kept in memory.</summary>
+internal sealed class PartnerActivity(TimeProvider time)
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTimeOffset> _calls = new(StringComparer.Ordinal);
+
+    public void Called(string partnerId) => _calls[partnerId] = time.GetUtcNow();
+
+    /// <summary>When the partner last called since the service started, or null.</summary>
+    public DateTimeOffset? LastCall(string partnerId) => _calls.TryGetValue(partnerId, out var at) ? at : null;
 }

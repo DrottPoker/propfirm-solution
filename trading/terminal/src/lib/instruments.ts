@@ -29,11 +29,6 @@ export function digitsLookup(instruments: readonly InstrumentInfo[]): DigitsOf {
   return (symbol) => bySymbol.get(symbol) ?? 5;
 }
 
-/** The spread in points, the smallest price step of the instrument. */
-export function spreadPoints(bid: number, ask: number, digits: number): number {
-  return Math.round((ask - bid) * 10 ** digits);
-}
-
 const currencySigns: Record<string, string> = {
   USD: "$",
   EUR: "€",

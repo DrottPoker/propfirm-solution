@@ -50,6 +50,9 @@ public sealed record BalanceOperationRequest(string? OperationId, decimal Amount
 
 public sealed record SetPasswordRequest(string? Password);
 
+/// <summary>The trader's name as the firm knows it, or nothing to remove it.</summary>
+public sealed record SetNameRequest(string? Name);
+
 /// <summary>The balance a disabled account opens again with (ADR 0053).</summary>
 public sealed record ReopenAccountRequest(decimal Balance);
 
@@ -77,7 +80,9 @@ public sealed record AccountRulesRequest(
     DateTimeOffset? PassBy = null,
     DateTimeOffset? OpenPositionBy = null,
     decimal? ConsistencyPercent = null,
-    decimal? BestDayPercent = null)
+    decimal? BestDayPercent = null,
+    decimal? ProfitSplitPercent = null,
+    bool? PayoutAvailable = null)
 {
     /// <summary>What is wrong with the rules, or null.</summary>
     public string? Problem() =>
@@ -85,10 +90,20 @@ public sealed record AccountRulesRequest(
         : TradingDaysCounted is < 0 ? "The trading days counted cannot be negative."
         : ConsistencyPercent is <= 0 or > 100 ? "The consistency rule must be above 0 and at most 100 percent, or empty for no rule."
         : BestDayPercent is < 0 ? "The best day's share cannot be negative."
+        : ProfitSplitPercent is <= 0 or > 100 ? "The profit split must be above 0 and at most 100 percent, or empty for no payouts."
         : null;
 
     public AccountRules ToRules() =>
-        new(Funded, TradingDaysRequired, TradingDaysCounted, PassBy?.ToUniversalTime(), OpenPositionBy?.ToUniversalTime(), ConsistencyPercent, BestDayPercent);
+        new(
+            Funded,
+            TradingDaysRequired,
+            TradingDaysCounted,
+            PassBy?.ToUniversalTime(),
+            OpenPositionBy?.ToUniversalTime(),
+            ConsistencyPercent,
+            BestDayPercent,
+            ProfitSplitPercent,
+            PayoutAvailable);
 }
 
 /// <summary>

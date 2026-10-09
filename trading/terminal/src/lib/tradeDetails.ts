@@ -1,6 +1,7 @@
 import type { ReceiptClose, ReceiptFill, Side, TradeReceipt } from "./api/types";
 import { closeReasons } from "./events";
 import { formatDateTime, formatMoney, formatPrice, formatSignedMoney, formatVolume } from "./format";
+import { markupPips, pipsText } from "./ticket";
 
 // A trade's details (ADR 0053): what the account got at each fill, the feed's price behind it and the firm's markup.
 
@@ -9,13 +10,16 @@ export function filledAtAsk(side: Side, opening: boolean): boolean {
   return (side === "Buy") === opening;
 }
 
-/** What the firm's markup was on the filled side, for example "2 points on the ask", or null when it is not known. */
-export function markupText(fill: ReceiptFill, atAsk: boolean): string | null {
+/**
+ * What the firm's markup was on the filled side, in the unit the rest of the terminal tells distances in (ADR 0058),
+ * for example "0.2 pips on the ask", or null when it is not known.
+ */
+export function markupText(fill: ReceiptFill, atAsk: boolean, digits: number, unit: "pips" | "points" = "pips"): string | null {
   if (fill.markupPoints === null) {
     return null;
   }
 
-  return `${fill.markupPoints} ${fill.markupPoints === 1 ? "point" : "points"} on the ${atAsk ? "ask" : "bid"}`;
+  return `${pipsText(markupPips(fill.markupPoints, digits), unit)} on the ${atAsk ? "ask" : "bid"}`;
 }
 
 /**
@@ -46,7 +50,7 @@ export function fillsOf(receipt: TradeReceipt): { fill: ReceiptFill; close: Rece
 }
 
 /** The trade's details in plain text, to paste into a message to the firm. */
-export function detailsText(receipt: TradeReceipt, timeZone: string): string {
+export function detailsText(receipt: TradeReceipt, timeZone: string, unit: "pips" | "points" = "pips"): string {
   const { digits, currency } = receipt;
   const lines = [
     `Trade details: ${receipt.side} ${formatVolume(receipt.opened.volume)} ${receipt.symbol}, position ${receipt.positionId}, account ${receipt.accountId}`,
@@ -60,7 +64,7 @@ export function detailsText(receipt: TradeReceipt, timeZone: string): string {
     const what = close === null ? "Opened" : `Closed (${closeReasons[close.reason].toLowerCase()})`;
     lines.push(`${what} ${formatDateTime(fill.at, timeZone)}: ${formatVolume(fill.volume)} at ${formatPrice(fill.price, digits)}, commission ${formatMoney(fill.commission)} ${currency}`);
     if (fill.feed) {
-      const markup = markupText(fill, filledAtAsk(receipt.side, opening));
+      const markup = markupText(fill, filledAtAsk(receipt.side, opening), receipt.digits, unit);
       lines.push(`  Feed price bid ${formatPrice(fill.feed.bid, digits)} ask ${formatPrice(fill.feed.ask, digits)}, journal entry ${fill.feed.inputSequence}${markup ? `, markup ${markup}` : ""}`);
     }
   }

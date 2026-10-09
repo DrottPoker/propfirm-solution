@@ -58,7 +58,7 @@ internal static class PartnerEndpoints
         TenantProvisioner provisioner,
         CancellationToken cancellationToken)
     {
-        var result = await provisioner.CreateAsync(PartnerApiKeyFilter.PartnerOf(context), request.Id, request.Name, request.Currency, cancellationToken);
+        var result = await provisioner.CreateAsync(TenantMaker.Of(PartnerApiKeyFilter.PartnerOf(context)), request.Id, request.Name, request.Currency, cancellationToken);
         return result switch
         {
             ProvisioningResult.Created created => TypedResults.Created(
@@ -139,7 +139,8 @@ internal static class PartnerEndpoints
             }
         }
 
-        var changed = await provisioner.SetListingAsync(tenant, request.Listed ?? tenant.Listed, loginUrl, logoUrl, cancellationToken);
+        var changed = await provisioner.SetListingAsync(
+            tenant, request.Listed ?? tenant.Listed, loginUrl, logoUrl, TenantMaker.Of(PartnerApiKeyFilter.PartnerOf(context)), cancellationToken);
         return TypedResults.Ok(await ToResponseAsync(changed, engine, cancellationToken));
     }
 
@@ -151,7 +152,8 @@ internal static class PartnerEndpoints
         TenantProvisioner provisioner,
         CancellationToken cancellationToken) =>
         PartnerTenant(context, tenants, id) is { } tenant
-            ? TypedResults.Ok(new AdminApiKeyResponse(await provisioner.ReplaceAdminApiKeyAsync(tenant, cancellationToken)))
+            ? TypedResults.Ok(new AdminApiKeyResponse(
+                await provisioner.ReplaceAdminApiKeyAsync(tenant, TenantMaker.Of(PartnerApiKeyFilter.PartnerOf(context)), null, cancellationToken)))
             : UnknownTenant();
 
     // Firms of other partners, and configured firms, look like they do not exist.

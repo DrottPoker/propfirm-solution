@@ -73,10 +73,10 @@ describe("the lock and the trades used", () => {
     expect(lockTitle(loss, timestamp, timeZone)).toBe("Your own daily loss limit was reached at 16:32:08 Stockholm time");
     expect(lockTitle(trader, null, timeZone)).toBe("You locked the rest of the day");
     expect(lockDescription(loss, 2, timeZone)).toBe(
-      "Every position was closed at that price. New orders are locked until the next trading day starts at 00:00 Stockholm time. This was your limit, not the firm's: the challenge goes on.",
+      "Every position was closed at that price. New orders are locked until the next trading day starts at 00:00 Stockholm time. This was your limit, not the firm's. The challenge goes on.",
     );
-    expect(lockDescription({ ...loss, reason: "DailyTarget" }, 0, timeZone)).toBe(
-      "New orders are locked until the next trading day starts at 00:00 Stockholm time. This was your limit, not the firm's: the challenge goes on.",
+    expect(lockDescription({ ...loss, reason: "DailyTarget" }, 0, timeZone, "The account stays open.")).toBe(
+      "New orders are locked until the next trading day starts at 00:00 Stockholm time. This was your limit, not the firm's. The account stays open.",
     );
     expect(orderLockText(trader, timeZone)).toBe(
       "You locked the rest of the day, until 00:00 Stockholm time. You can still close positions and change their stops.",

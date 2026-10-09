@@ -15,6 +15,8 @@ export interface RuleRow {
   note?: string;
   state: RuleState;
   help: string;
+  /** Something to do about the rule at the firm, such as asking for a payout there. */
+  action?: "payout";
 }
 
 const minuteMs = 60_000;
@@ -88,8 +90,8 @@ export function rulebook({ account, profitTarget, rules, now, timeZone }: Rulebo
       id: `floor-${floor.floorId}`,
       label: floorLabel(floor.floorId),
       value: formatMoney(floor.level),
-      note: floorLeftText(floor),
-      // Once trading has ended, only a broken limit still says so.
+      // Once trading has ended, only a broken limit still says where it stands, as in the account bar.
+      note: ended && floor.headroom > 0 ? undefined : floorLeftText(floor),
       state: ended && floor.headroom > 0 ? "ok" : floorRisk(floor),
       help: floorHelp(floor),
     });
@@ -141,6 +143,22 @@ export function rulebook({ account, profitTarget, rules, now, timeZone }: Rulebo
       note: `At most ${percentText(rules.consistencyPercent)}`,
       state: best !== null && best > rules.consistencyPercent ? "warning" : "ok",
       help: `The consistency rule: the best trading day may make at most ${percentText(rules.consistencyPercent)} of the profit since the last payout. A payout waits until it does.`,
+    });
+  }
+
+  // What a payout pays the trader, and whether one can be asked for now, at the firm (ADR 0058).
+  if (funded && rules?.profitSplitPercent != null && !ended) {
+    const available = rules.payoutAvailable === true;
+    rows.push({
+      id: "payout",
+      label: "Payout",
+      value: `${percentText(rules.profitSplitPercent)} of the profit`,
+      note: available ? "You can ask for one now" : "Not yet",
+      state: available ? "done" : "ok",
+      help: available
+        ? "Ask for the payout on the account's page at the firm."
+        : "A payout needs a profit, every position closed and the rules above met.",
+      action: available ? "payout" : undefined,
     });
   }
 

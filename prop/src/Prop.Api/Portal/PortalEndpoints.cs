@@ -94,6 +94,7 @@ internal static class PortalEndpoints
         admin.MapAdminPanel();
         admin.MapAdminSettings();
         admin.MapTradingConditions();
+        admin.MapTerminalSettings();
         admin.MapAdminOrders();
         admin.MapAdminDiscounts();
         admin.MapAdminDomain();

@@ -2,17 +2,22 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-import { kronant } from "@/lib/colors";
-import { candlePresets, presetOf, useSettings, type CandleColors, type Setting } from "@/lib/settings";
+import { askForNotifications, notificationsSupported } from "@/lib/notify";
+import { timeZoneName } from "@/lib/format";
+import { candlePresets, presetOf, themeChoices, timeZoneChoices, useSettings, type CandleColors, type Setting } from "@/lib/settings";
 import { useSheet } from "@/lib/sheet";
 import { playCloseSound, playFillSound, playWarningSound, unlockSound } from "@/lib/sound";
+import { useConfirmOrders } from "@/lib/ticketStore";
+import { useTimeZone } from "@/lib/timeZone";
 
-import { CandlesIcon, CloseIcon, SoundIcon, TradeIcon } from "./icons";
+import { CandlesIcon, CloseIcon, InfoIcon, SoundIcon, SunIcon, TradeIcon } from "./icons";
+import { Tooltip } from "./Tooltip";
 import { useDismiss } from "./useDismiss";
 
-type Tab = "Chart" | "Sounds" | "Trading";
+type Tab = "Display" | "Chart" | "Sounds" | "Trading";
 
 const tabs: { tab: Tab; Icon: (props: { className?: string }) => React.ReactNode }[] = [
+  { tab: "Display", Icon: SunIcon },
   { tab: "Chart", Icon: CandlesIcon },
   { tab: "Sounds", Icon: SoundIcon },
   { tab: "Trading", Icon: TradeIcon },
@@ -22,29 +27,31 @@ const tabs: { tab: Tab; Icon: (props: { className?: string }) => React.ReactNode
 const confirmResetMs = 4_000;
 
 /**
- * The trader's settings for the terminal (ADR 0055): the chart's candle colors and what it shows, the sounds and
- * their volume, and whether the order panel asks before an order goes. Every change applies at once and is saved on
- * the trader's login, so it follows them to every device (ADR 0052).
+ * The trader's settings for the terminal (ADR 0055): the theme and the time zone, the chart's candle colors and what it
+ * shows, the sounds and notifications, whether orders and closes ask first, and buying and selling on the chart
+ * (ADR 0058). Every choice says what it does in one line. Every change applies at once and is saved on the trader's
+ * login, so it follows them to every device (ADR 0052).
  */
 export function SettingsDialog() {
   const close = useSheet((s) => s.close);
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
-  const [tab, setTab] = useState<Tab>("Chart");
+  const [tab, setTab] = useState<Tab>("Display");
   useDismiss(true, ref, close);
 
   return (
+    // A fixed height, so the dialog does not move when a tab with more or fewer settings is chosen.
     <div className="fixed inset-0 z-30 flex animate-fade items-center justify-center bg-background/75 backdrop-blur-sm sm:p-4">
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex h-full w-full animate-pop flex-col overflow-hidden border-border bg-panel shadow-float sm:h-auto sm:max-h-[min(50rem,94vh)] sm:max-w-xl sm:rounded-2xl sm:border"
+        className="flex h-full w-full animate-pop flex-col overflow-hidden border-border bg-panel shadow-float sm:h-[min(42rem,92vh)] sm:max-w-xl sm:rounded-2xl sm:border"
       >
         <div className="flex items-start justify-between gap-3 px-6 pt-5">
           <div className="flex flex-col gap-1">
-            <h2 id={titleId} className="font-serif text-3xl leading-tight">
+            <h2 id={titleId} className="text-xl font-semibold">
               Settings
             </h2>
             <p className="text-sm text-muted">Saved on your login, so they follow you to every device.</p>
@@ -59,7 +66,7 @@ export function SettingsDialog() {
           </button>
         </div>
 
-        <div role="tablist" aria-label="Settings" className="mx-6 mt-4 grid grid-cols-3 gap-1 rounded-lg bg-background p-1 text-sm">
+        <div role="tablist" aria-label="Settings" className="mx-6 mt-4 grid grid-cols-4 gap-1 rounded-lg bg-background p-1 text-sm">
           {tabs.map(({ tab: t, Icon }) => (
             <button
               key={t}
@@ -76,6 +83,7 @@ export function SettingsDialog() {
         </div>
 
         <div role="tabpanel" aria-label={tab} className="min-h-0 flex-1 overflow-y-auto px-6 py-2">
+          {tab === "Display" && <DisplaySettings />}
           {tab === "Chart" && <ChartSettings />}
           {tab === "Sounds" && <SoundSettings />}
           {tab === "Trading" && <TradingSettings />}
@@ -96,14 +104,45 @@ export function SettingsDialog() {
   );
 }
 
+/** The theme, the time zone every time is shown in, and whether prices flash their colour as they move. */
+function DisplaySettings() {
+  const theme = useSettings((s) => s.theme);
+  const changeTheme = useSettings((s) => s.changeTheme);
+  const timeZone = useSettings((s) => s.timeZone);
+  const changeTimeZone = useSettings((s) => s.changeTimeZone);
+  const shownZone = useTimeZone();
+  const id = useId();
+  return (
+    <>
+      <Row title="Theme" titleId={`${id}-theme`} description="Dark is Kronant's own. As the computer follows its setting.">
+        <Choices labelledBy={`${id}-theme`} value={theme} options={themeChoices} onChange={changeTheme} />
+      </Row>
+      <Row
+        title="Time zone"
+        titleId={`${id}-zone`}
+        description={`Every time is shown in ${timeZoneName(shownZone)} now.`}
+        help="The account's is the one its trading day and the firm's portal follow."
+      >
+        <Choices labelledBy={`${id}-zone`} value={timeZone} options={timeZoneChoices} onChange={changeTimeZone} />
+      </Row>
+      <SwitchRow setting="priceTicks" title="Colour prices as they move" description="Green for a moment when a price rises, red when it falls." />
+    </>
+  );
+}
+
 function ChartSettings() {
   return (
     <>
       <CandleColorsSetting />
-      <SwitchRow setting="chartVolume" title="Volume under the candles" description="The number of prices in each candle, as faint bars along the bottom." />
-      <SwitchRow setting="chartGrid" title="Grid lines" description="Faint lines behind the candles at each price and time on the axes." />
-      <SwitchRow setting="chartAsk" title="Ask price line" description="The candles show the bid. This adds a dashed line at the ask, where a buy opens." />
-      <SwitchRow setting="chartTrades" title="Trades on the chart" description="Arrows where your positions opened and closed, joined by a line." />
+      <SwitchRow setting="chartVolume" title="Volume under the candles" description="Faint bars of how many prices each candle had." />
+      <SwitchRow setting="chartGrid" title="Grid lines" description="Faint lines at the prices and times on the axes." />
+      <SwitchRow
+        setting="chartAsk"
+        title="Ask price line"
+        description="A dashed line at the ask, where a buy opens."
+        help="The candles show the bid, the price a sell closes at."
+      />
+      <SwitchRow setting="chartTrades" title="Trades on the chart" description="Arrows where your positions opened and closed." />
     </>
   );
 }
@@ -117,7 +156,8 @@ function SoundSettings() {
       <Row
         title="Volume"
         titleId={`${id}-volume`}
-        description="For every sound below. The sounds are made in the browser, so the computer's own volume counts too."
+        description="For every sound below."
+        help="The sounds are made in the browser, so the computer's own volume counts too."
       >
         <span className="flex items-center gap-3">
           <input
@@ -130,7 +170,7 @@ function SoundSettings() {
             onChange={(e) => changeVolume(Number(e.target.value))}
             className="w-28 accent-[var(--accent)]"
           />
-          <span className="w-9 text-right font-mono text-xs tabular-nums">{volume}%</span>
+          <span className="w-9 text-right text-xs tabular-nums">{volume}%</span>
           <button
             type="button"
             onClick={() => {
@@ -143,40 +183,117 @@ function SoundSettings() {
           </button>
         </span>
       </Row>
-      <SwitchRow setting="fillSound" title="Sound on fills" description="Two short rising tones when an order is filled." play={playFillSound} />
+      <SwitchRow setting="fillSound" title="Sound on fills" description="Two short rising tones." play={playFillSound} />
       <SwitchRow
         setting="closeSound"
         title="Sound on closes"
-        description="Two soft falling tones when a position closes, also at a stop loss, a take profit or a loss limit."
+        description="Two soft falling tones, also at a stop loss or a limit."
         play={playCloseSound}
       />
       <SwitchRow
         setting="warningSound"
         title="Sound on warnings"
-        description="A longer signal with each warning about the account's rules, such as a loss limit getting close."
+        description="A longer signal when a rule needs your attention."
         play={playWarningSound}
       />
+      <NotificationsRow />
     </>
   );
 }
 
 function TradingSettings() {
+  // Until the trader chooses, orders ask as the firm's profile says (ADR 0058), and the switch shows that.
+  const confirmOrders = useConfirmOrders();
   return (
-    <SwitchRow
-      setting="confirmOrders"
-      title="Ask before placing an order"
-      description="The order panel shows the order and its stops, and sends it when you confirm. Orders from the chart's right-click menu go at once."
-    />
+    <>
+      <SwitchRow
+        setting="confirmOrders"
+        value={confirmOrders}
+        title="Ask before placing an order"
+        description="From the order panel or the chart, sent when you confirm."
+      />
+      <SwitchRow
+        setting="confirmCloses"
+        title="Ask before closing a position"
+        description="Close asks for a second press, as Close all does."
+      />
+      <SwitchRow
+        setting="chartTrading"
+        title="Buy and sell on the chart"
+        description="Market orders from the chart's corner, also in full screen."
+        help="At the order panel's volume, without stops. Set the stops afterwards by dragging on the chart."
+      />
+    </>
   );
 }
 
-/** A setting with its explanation on the left and the control on the right. */
-function Row({ title, titleId, description, children }: { title: string; titleId: string; description: string; children: React.ReactNode }) {
+/**
+ * The computer's own notifications while the terminal is in the background (ADR 0058). Turning them on asks the
+ * browser for leave, and a browser that refuses leaves them off, with where to allow them.
+ */
+function NotificationsRow() {
+  const on = useSettings((s) => s.notifications);
+  const change = useSettings((s) => s.change);
+  const [blocked, setBlocked] = useState(false);
+  const id = useId();
+  const supported = notificationsSupported();
+
+  const toggle = async () => {
+    if (on) {
+      change("notifications", false);
+      return;
+    }
+
+    const allowed = await askForNotifications();
+    setBlocked(!allowed);
+    if (allowed) {
+      change("notifications", true);
+    }
+  };
+
+  return (
+    <Row
+      title="Notifications from the computer"
+      titleId={id}
+      description={
+        !supported
+          ? "This browser cannot show notifications."
+          : blocked
+            ? "The browser blocks notifications for the terminal. Allow them in the browser's settings for this site, then turn this on."
+            : "While the terminal is in the background."
+      }
+    >
+      <SwitchButton on={on && supported} disabled={!supported} labelledBy={id} onClick={() => void toggle()} />
+    </Row>
+  );
+}
+
+/** A setting with its line of explanation on the left, more behind an info button, and the control on the right. */
+function Row({
+  title,
+  titleId,
+  description,
+  help,
+  children,
+}: {
+  title: string;
+  titleId: string;
+  description: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between gap-6 border-b border-border py-3.5 last:border-b-0">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span id={titleId} className="text-sm font-medium">
-          {title}
+        <span className="flex items-center gap-1.5">
+          <span id={titleId} className="text-sm font-medium">
+            {title}
+          </span>
+          {help && (
+            <Tooltip content={help} focusable className="rounded">
+              <InfoIcon className="size-3.5 text-muted" />
+            </Tooltip>
+          )}
         </span>
         <span className="text-xs leading-relaxed text-muted">{description}</span>
       </div>
@@ -185,9 +302,55 @@ function Row({ title, titleId, description, children }: { title: string; titleId
   );
 }
 
+/** A few choices side by side, such as the theme. */
+function Choices<T extends string>({
+  labelledBy,
+  value,
+  options,
+  onChange,
+}: {
+  labelledBy: string;
+  value: T;
+  options: readonly { value: T; name: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="radiogroup" aria-labelledby={labelledBy} className="flex flex-col gap-0.5 rounded-lg bg-background p-0.5 text-xs sm:flex-row">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={`rounded-md px-2.5 py-1 font-medium whitespace-nowrap transition duration-150 ${o.value === value ? "bg-raised text-foreground shadow-card" : "text-muted hover:text-foreground"}`}
+        >
+          {o.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** A choice turned on or off. A sound plays once when it is turned on, so the trader hears it and the browser allows it later. */
-function SwitchRow({ setting, title, description, play }: { setting: Setting; title: string; description: string; play?: () => void }) {
-  const on = useSettings((s) => s[setting]);
+function SwitchRow({
+  setting,
+  value,
+  title,
+  description,
+  help,
+  play,
+}: {
+  setting: Setting;
+  /** What the choice is in effect, when it is not simply the stored one. */
+  value?: boolean;
+  title: string;
+  description: string;
+  help?: string;
+  play?: () => void;
+}) {
+  const stored = useSettings((s) => s[setting]);
+  const on = value ?? stored;
   const change = useSettings((s) => s.change);
   const id = useId();
   const toggle = () => {
@@ -199,18 +362,25 @@ function SwitchRow({ setting, title, description, play }: { setting: Setting; ti
   };
 
   return (
-    <Row title={title} titleId={id} description={description}>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-labelledby={id}
-        onClick={toggle}
-        className={`relative flex h-6 w-11 items-center rounded-full transition-colors duration-150 ${on ? "bg-accent" : "bg-border"}`}
-      >
-        <span className={`absolute left-1 size-4 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${on ? "translate-x-5" : ""}`} />
-      </button>
+    <Row title={title} titleId={id} description={description} help={help}>
+      <SwitchButton on={on} labelledBy={id} onClick={toggle} />
     </Row>
+  );
+}
+
+function SwitchButton({ on, disabled = false, labelledBy, onClick }: { on: boolean; disabled?: boolean; labelledBy: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
+      onClick={onClick}
+      className={`relative flex h-6 w-11 items-center rounded-full transition-colors duration-150 disabled:opacity-40 ${on ? "bg-accent" : "bg-border"}`}
+    >
+      <span className={`absolute left-1 size-4 rounded-full bg-foreground shadow transition-transform duration-150 ease-out-soft ${on ? "translate-x-5" : ""}`} />
+    </button>
   );
 }
 
@@ -312,7 +482,7 @@ function CandlePreview({ colors }: { colors: CandleColors }) {
       aria-label="Candles in the chosen colors"
       viewBox={`0 0 ${previewStep * sample.length} ${previewHeight}`}
       className="w-full rounded-lg border border-border"
-      style={{ backgroundColor: kronant.panel }}
+      style={{ backgroundColor: "var(--panel)" }}
     >
       {sample.map(({ open, close, high, low }, i) => {
         const color = close >= open ? colors.up : colors.down;

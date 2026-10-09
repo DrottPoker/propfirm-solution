@@ -1,5 +1,5 @@
 import type { Side } from "./api/types";
-import { parsePrice } from "./orderInput";
+import { parsePrice, pipSize } from "./orderInput";
 
 // Amounts here are estimates for planning a stop loss or take profit. The engine values the position when it
 // closes, at the conversion rate of that moment, and commission comes on top.
@@ -94,8 +94,22 @@ export function stepAmount(input: string, direction: 1 | -1, step: number): stri
   return (next / 100).toFixed(2);
 }
 
-/** Whether the trader types stop loss and take profit as prices or as amounts in the account currency. */
-export type StopUnit = "price" | "money";
+/**
+ * Whether the trader types stop loss and take profit as prices, as amounts in the account currency, or as distances in
+ * pips from where the order opens (ADR 0058).
+ */
+export type StopUnit = "price" | "money" | "pips";
+
+/**
+ * The stop loss or take profit the distance in pips away from the entry, on the losing side for a stop loss and the
+ * winning side for a take profit. Null when the price would not be positive.
+ */
+export function priceForPips(kind: StopKind, side: Side, pips: number, entry: number, digits: number): number | null {
+  const scale = 10 ** digits;
+  const points = Math.round(pips * pipSize(digits) * scale);
+  const price = Math.round(entry * scale) + (isAbove(kind, side) ? points : -points);
+  return points >= 1 && price > 0 ? price / scale : null;
+}
 
 export type ResolvedStops = { ok: true; stopLoss: number | null; takeProfit: number | null } | { ok: false; error: string };
 
@@ -119,6 +133,30 @@ export function resolveStops(
     return sl.ok && tp.ok
       ? { ok: true, stopLoss: sl.value, takeProfit: tp.value }
       : { ok: false, error: `Stop loss and take profit need at most ${digits} decimals.` };
+  }
+
+  if (unit === "pips") {
+    const sl = parsePrice(stopLoss, 1);
+    const tp = parsePrice(takeProfit, 1);
+    if (!sl.ok || !tp.ok) {
+      return { ok: false, error: "Enter the distances as positive numbers with at most 1 decimal." };
+    }
+
+    if (sl.value === null && tp.value === null) {
+      return { ok: true, stopLoss: null, takeProfit: null };
+    }
+
+    if (entry === undefined) {
+      return { ok: false, error: "The distances cannot be turned into prices yet. Try again in a moment." };
+    }
+
+    const slPrice = sl.value === null ? null : priceForPips("stopLoss", side, sl.value, entry, digits);
+    const tpPrice = tp.value === null ? null : priceForPips("takeProfit", side, tp.value, entry, digits);
+    if ((sl.value !== null && slPrice === null) || (tp.value !== null && tpPrice === null)) {
+      return { ok: false, error: "A distance is smaller than one point, or too large for the price." };
+    }
+
+    return { ok: true, stopLoss: slPrice, takeProfit: tpPrice };
   }
 
   const sl = parsePrice(stopLoss, 2);

@@ -19,7 +19,7 @@ internal class ManualPriceFeed(string name = ManualPriceFeed.DefaultName) : IPri
     /// <summary>True by default, like a real feed. The test clock starts on a Monday morning, when every market is open.</summary>
     public bool FollowsTradingHours { get; init; } = true;
 
-    /// <summary>Returned for every history request, whatever the spans.</summary>
+    /// <summary>The feed's history. A request gets the bars that lie whole inside its spans, as from a real feed.</summary>
     public IReadOnlyList<ChartBar> History { get; set; } = [];
 
     /// <summary>When set, history requests throw it.</summary>
@@ -33,7 +33,14 @@ internal class ManualPriceFeed(string name = ManualPriceFeed.DefaultName) : IPri
     public Task<IReadOnlyList<ChartBar>> GetHistoryAsync(IReadOnlyList<HistorySpan> spans, CancellationToken cancellationToken)
     {
         _historyRequests.Enqueue(spans);
-        return HistoryFailure is { } failure ? Task.FromException<IReadOnlyList<ChartBar>>(failure) : Task.FromResult(History);
+        if (HistoryFailure is { } failure)
+        {
+            return Task.FromException<IReadOnlyList<ChartBar>>(failure);
+        }
+
+        IReadOnlyList<ChartBar> bars =
+            [.. History.Where(b => spans.Any(s => b.Candle.Time >= s.From && b.Candle.Time + CandleStore.Duration(b.Resolution) <= s.Until))];
+        return Task.FromResult(bars);
     }
 
     public IAsyncEnumerable<FeedQuote> StreamAsync(CancellationToken cancellationToken) => _quotes.Reader.ReadAllAsync(cancellationToken);

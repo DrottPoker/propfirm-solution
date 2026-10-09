@@ -1,34 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { initialServer, portalLogin } from "./servers";
+import { standardProfile } from "./profile";
+import { portalLogin } from "./servers";
 
 const servers = [
-  { id: "alpha-funded", name: "Alpha Funded", loginUrl: null },
-  { id: "nordic-prop", name: "Nordic Prop", loginUrl: "https://nordic-prop.example.com/terminal" },
+  { id: "alpha-funded", name: "Alpha Funded", loginUrl: null, logoUrl: null, profile: standardProfile },
+  { id: "nordic-prop", name: "Nordic Prop", loginUrl: "https://nordic-prop.example.com/terminal", logoUrl: null, profile: { ...standardProfile, passwordLogin: false } },
 ];
-
-describe("initialServer", () => {
-  it("prefers the server in the link from the firm's portal", () => {
-    expect(initialServer(servers, "nordic-prop", "alpha-funded")).toBe("nordic-prop");
-  });
-
-  it("falls back to the server last used on this device", () => {
-    expect(initialServer(servers, null, "alpha-funded")).toBe("alpha-funded");
-  });
-
-  it("ignores servers that do not exist", () => {
-    expect(initialServer(servers, "closed-firm", "nordic-prop")).toBe("nordic-prop");
-    expect(initialServer(servers, "closed-firm", null)).toBe("");
-  });
-
-  it("chooses the only server", () => {
-    expect(initialServer([servers[0]], null, null)).toBe("alpha-funded");
-  });
-
-  it("lets the trader choose among several", () => {
-    expect(initialServer(servers, null, null)).toBe("");
-  });
-});
 
 describe("portalLogin", () => {
   it("sends the trader to the firm's portal with the account to open", () => {

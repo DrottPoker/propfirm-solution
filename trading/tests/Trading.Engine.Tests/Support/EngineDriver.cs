@@ -64,6 +64,10 @@ internal sealed class EngineDriver(EngineConfiguration configuration)
 
     public PointValue? PointValue(string symbol = "EURUSD", string accountId = AccountId) => _engine.GetPointValue(accountId, symbol);
 
+    public IReadOnlyList<PositionValue> OpenPositions(string currency = "USD") => _engine.GetOpenPositions(currency);
+
+    public IReadOnlyDictionary<string, AccountCounts> AccountCounts() => _engine.GetAccountCounts();
+
     public EngineState ExportState() => _engine.ExportState();
 
     public AccountSnapshot Account(string accountId = AccountId) =>

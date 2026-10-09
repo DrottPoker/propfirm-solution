@@ -25,8 +25,11 @@ export interface FieldRequest {
 interface OrderDraftState {
   symbol: string | null;
   lines: GhostLine[];
+  /** The levels of a position or an order being changed from the tables, shown in place of the order panel's. */
+  edit: { symbol: string; lines: GhostLine[] } | null;
   fieldRequest: FieldRequest | null;
   setDraft: (symbol: string | null, lines: GhostLine[]) => void;
+  setEdit: (edit: { symbol: string; lines: GhostLine[] } | null) => void;
   requestField: (symbol: string, field: GhostLine["kind"], price: number | null) => void;
 }
 
@@ -34,8 +37,10 @@ interface OrderDraftState {
 export const useOrderDraft = create<OrderDraftState>()((set) => ({
   symbol: null,
   lines: [],
+  edit: null,
   fieldRequest: null,
   setDraft: (symbol, lines) => set({ symbol, lines }),
+  setEdit: (edit) => set({ edit }),
   requestField: (symbol, field, price) =>
     set((s) => ({ fieldRequest: { id: (s.fieldRequest?.id ?? 0) + 1, symbol, field, price } })),
 }));

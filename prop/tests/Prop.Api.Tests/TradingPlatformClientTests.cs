@@ -12,6 +12,9 @@ namespace Prop.Api.Tests;
 /// <summary>The HTTP client for our trading platform's admin API, against answers like the platform's.</summary>
 public sealed class TradingPlatformClientTests
 {
+    // What the trading platform answers a key it does not know.
+    private const string KeyRefused = """{"status":401,"title":"A valid X-Api-Key header is required."}""";
+
     private static readonly FirmTrading Firm = new("demo-firm", "dev-admin-key", "standard", "USD");
 
     [Fact]
@@ -103,6 +106,38 @@ public sealed class TradingPlatformClientTests
             () => Client(platform).WithdrawAsync(Firm, "A1", "payout-1", 8_000m, 100_000m, TestContext.Current.CancellationToken));
 
         Assert.Equal("InsufficientFunds", refused.Reason);
+    }
+
+    [Fact]
+    public async Task TheTerminalProfileIsReadAndSetAsThePlatformWritesIt()
+    {
+        const string stored = """
+            {"kind":"Prop","modules":{"rulebook":true,"ownLimits":true,"riskSizing":true,"tradeDetails":false,"breachReports":true},
+             "confirmOrders":true,"startingSize":{"kind":"RiskOfRoom","value":0.5},"passwordLogin":false,
+             "links":{"help":null,"support":"https://acme.test/support","terms":null,"privacy":null,"passwordReset":null},"riskWarning":null}
+            """;
+        var platform = new StubPlatform((HttpStatusCode.OK, stored), (HttpStatusCode.OK, stored), (HttpStatusCode.NoContent, ""));
+        var client = Client(platform);
+
+        var profile = await client.GetTerminalProfileAsync(Firm, TestContext.Current.CancellationToken);
+        await client.SetTerminalProfileAsync(Firm, profile with { StartingSize = new TerminalStartingSize(StartingSizeKind.Smallest, null) }, TestContext.Current.CancellationToken);
+        await client.SetUserNameAsync(Firm, Guid.Parse("6f9619ff-8b86-d011-b42d-00cf4fc964ff"), "Anna Berg", TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            new TerminalProfile(
+                TerminalKind.Prop,
+                new TerminalModules(true, true, true, false, true),
+                true,
+                new TerminalStartingSize(StartingSizeKind.RiskOfRoom, 0.5m),
+                false,
+                new TerminalLinks(null, new Uri("https://acme.test/support"), null, null, null),
+                null),
+            profile);
+        Assert.Equal(["GET api/admin/v1/terminal-profile", "PUT api/admin/v1/terminal-profile", "PUT api/admin/v1/users/6f9619ff-8b86-d011-b42d-00cf4fc964ff/name"], platform.Requests);
+        Assert.Equal(
+            """{"kind":"Prop","modules":{"rulebook":true,"ownLimits":true,"riskSizing":true,"tradeDetails":false,"breachReports":true},"confirmOrders":true,"startingSize":{"kind":"Smallest","value":null},"passwordLogin":false,"links":{"help":null,"support":"https://acme.test/support","terms":null,"privacy":null,"passwordReset":null},"riskWarning":null}""",
+            platform.Bodies[1]);
+        Assert.Equal("""{"name":"Anna Berg"}""", platform.Bodies[2]);
     }
 
     [Fact]
@@ -256,11 +291,89 @@ public sealed class TradingPlatformClientTests
             TradingPlatformClient.ToTradingRule(new TrailingFloor(10_000m, 100_000m)).ToJsonString());
     }
 
-    private static TradingPlatformClient Client(StubPlatform platform) => new(new Factory(platform));
+    // For example after our staff stopped the key in the trading platform's staff panel.
+    [Fact]
+    public async Task ARefusedKeyIsRenewedAndTheRequestSentOnceMoreWithTheNewKey()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Unauthorized, KeyRefused), (HttpStatusCode.OK, """{"events":[]}"""));
+        var keys = new StubRenewal(_ => "new-admin-key");
+
+        await Client(platform, keys).WithdrawAsync(Firm, "A1", "payout-1", 8_000m, 100_000m, TestContext.Current.CancellationToken);
+
+        Assert.Equal(Firm, Assert.Single(keys.Refused));
+        Assert.Equal(["POST api/admin/v1/accounts/A1/balance-operations", "POST api/admin/v1/accounts/A1/balance-operations"], platform.Requests);
+        Assert.Equal(["dev-admin-key", "new-admin-key"], platform.ApiKeys);
+        Assert.Equal(platform.Bodies[0], platform.Bodies[1]);
+    }
+
+    [Fact]
+    public async Task TheEventStreamRenewsARefusedKeyToo()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Unauthorized, KeyRefused), (HttpStatusCode.OK, """{"events":[],"cursor":6}"""));
+
+        var read = await Client(platform, new StubRenewal(_ => "new-admin-key")).ReadEventsAsync(Firm, 6, 500, 30, TestContext.Current.CancellationToken);
+
+        Assert.Equal(6, read.Cursor);
+        Assert.Equal(["dev-admin-key", "new-admin-key"], platform.ApiKeys);
+    }
+
+    [Fact]
+    public async Task ANewKeyThatIsRefusedTooFailsAsBefore()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Unauthorized, KeyRefused), (HttpStatusCode.Unauthorized, KeyRefused));
+        var keys = new StubRenewal(_ => "new-admin-key");
+
+        var refused = await Assert.ThrowsAsync<TradingPlatformRejectedException>(
+            () => Client(platform, keys).CloseAccountAsync(Firm, "A1", TestContext.Current.CancellationToken));
+
+        Assert.Single(keys.Refused);
+        Assert.Equal(["dev-admin-key", "new-admin-key"], platform.ApiKeys);
+        Assert.DoesNotContain("new-admin-key", refused.Message, StringComparison.Ordinal);
+    }
+
+    // For example a configured firm, whose key comes from the configuration.
+    [Fact]
+    public async Task AKeyThatCannotBeRenewedFailsAsBefore()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Unauthorized, KeyRefused));
+
+        var refused = await Assert.ThrowsAsync<TradingPlatformRejectedException>(
+            () => Client(platform, new StubRenewal(_ => null)).GetAccountAsync(Firm, "A1", TestContext.Current.CancellationToken));
+
+        Assert.Contains("401", refused.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("dev-admin-key", refused.Message, StringComparison.Ordinal);
+        Assert.Single(platform.Requests);
+    }
+
+    [Fact]
+    public async Task ARenewalThatFailsFailsTheCall()
+    {
+        var platform = new StubPlatform((HttpStatusCode.Unauthorized, KeyRefused));
+        var keys = new StubRenewal(_ => throw new TradingPlatformUnavailableException("The partner API did not answer."));
+
+        await Assert.ThrowsAsync<TradingPlatformUnavailableException>(
+            () => Client(platform, keys).GetAccountAsync(Firm, "A1", TestContext.Current.CancellationToken));
+
+        Assert.Single(platform.Requests);
+    }
+
+    private static TradingPlatformClient Client(StubPlatform platform, ITradingKeyRenewal? keys = null) => new(new Factory(platform), keys ?? new StubRenewal(_ => null));
 
     private sealed class Factory(StubPlatform platform) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(platform, disposeHandler: false) { BaseAddress = new Uri("https://trading.test/") };
+    }
+
+    /// <summary>Gives the key <paramref name="renew"/> gives for each refused key, and records the refused ones.</summary>
+    private sealed class StubRenewal(Func<FirmTrading, string?> renew) : ITradingKeyRenewal
+    {
+        public List<FirmTrading> Refused { get; } = [];
+
+        public Task<string?> RenewAsync(FirmTrading refused, CancellationToken cancellationToken)
+        {
+            Refused.Add(refused);
+            return Task.FromResult(renew(refused));
+        }
     }
 
     /// <summary>Answers in turn with the given status codes and bodies, and records what was asked.</summary>
@@ -314,6 +427,9 @@ public sealed class TradingContractTests
     [InlineData("/api/admin/v1/notice", "delete")]
     [InlineData("/api/admin/v1/accounts/{accountId}/trading-day", "put")]
     [InlineData("/api/partner/v1/price-feed", "get")]
+    [InlineData("/api/admin/v1/terminal-profile", "get")]
+    [InlineData("/api/admin/v1/terminal-profile", "put")]
+    [InlineData("/api/admin/v1/users/{userId}/name", "put")]
     public void EveryPathTheClientUsesIsInTheContract(string path, string method)
     {
         Assert.NotNull(Contract["paths"]?[path]?[method]);
@@ -382,6 +498,8 @@ public sealed class TradingContractTests
     [InlineData("AccountRulesRequest", "openPositionBy")]
     [InlineData("AccountRulesRequest", "consistencyPercent")]
     [InlineData("AccountRulesRequest", "bestDayPercent")]
+    [InlineData("AccountRulesRequest", "profitSplitPercent")]
+    [InlineData("AccountRulesRequest", "payoutAvailable")]
     [InlineData("ReopenAccountRequest", "balance")]
     [InlineData("AccountReopened", "balance")]
     [InlineData("TerminalNoticeRequest", "title")]
@@ -439,6 +557,26 @@ public sealed class TradingContractTests
     [InlineData("TradingLocked", "limit")]
     [InlineData("TradingLocked", "dayResult")]
     [InlineData("TradingLocked", "positionsClosed")]
+    [InlineData("TerminalProfile", "kind")]
+    [InlineData("TerminalProfile", "modules")]
+    [InlineData("TerminalProfile", "confirmOrders")]
+    [InlineData("TerminalProfile", "startingSize")]
+    [InlineData("TerminalProfile", "passwordLogin")]
+    [InlineData("TerminalProfile", "links")]
+    [InlineData("TerminalProfile", "riskWarning")]
+    [InlineData("TerminalModules", "rulebook")]
+    [InlineData("TerminalModules", "ownLimits")]
+    [InlineData("TerminalModules", "riskSizing")]
+    [InlineData("TerminalModules", "tradeDetails")]
+    [InlineData("TerminalModules", "breachReports")]
+    [InlineData("StartingSize", "kind")]
+    [InlineData("StartingSize", "value")]
+    [InlineData("TerminalLinks", "help")]
+    [InlineData("TerminalLinks", "support")]
+    [InlineData("TerminalLinks", "terms")]
+    [InlineData("TerminalLinks", "privacy")]
+    [InlineData("TerminalLinks", "passwordReset")]
+    [InlineData("SetNameRequest", "name")]
     public void EveryFieldTheClientUsesIsInTheContract(string schema, string property)
     {
         var schemas = Contract["components"]!["schemas"]!.AsObject();

@@ -4,20 +4,6 @@ const serverKey = "trading.server";
 const accountKey = "trading.account";
 
 /**
- * The server to preselect on the login page: the one in the link from the firm's portal, then the last
- * one used on this device, then the only one. Empty when the trader has to choose.
- */
-export function initialServer(servers: readonly ServerInfo[], requested: string | null, remembered: string | null): string {
-  for (const candidate of [requested, remembered]) {
-    if (candidate && servers.some((s) => s.id === candidate)) {
-      return candidate;
-    }
-  }
-
-  return servers.length === 1 ? servers[0].id : "";
-}
-
-/**
  * Where a trader of the server logs in, with the account to open afterwards, or null when the firm's traders log in
  * here with a password. The firm's portal opens the terminal again with a one-time link.
  */

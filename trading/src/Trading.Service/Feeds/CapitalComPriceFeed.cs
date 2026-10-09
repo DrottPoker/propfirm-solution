@@ -43,6 +43,12 @@ public sealed class CapitalComOptions
     /// <summary>Capital.com allows 10 calls a second, so the history starts its calls at least this far apart.</summary>
     public TimeSpan HistoryCallInterval { get; init; } = TimeSpan.FromMilliseconds(150);
 
+    /// <summary>
+    /// Capital.com allows one new session a second, and the stream and the history each open one, for example when a
+    /// gap in the charts is filled right after the stream connects (ADR 0056). New sessions start at least this far apart.
+    /// </summary>
+    public TimeSpan SessionInterval { get; init; } = TimeSpan.FromSeconds(1.2);
+
     /// <summary>The demo environment. A login with only a live account uses https://api-capital.backend-capital.com/, read only.</summary>
     public Uri ApiUrl { get; init; } = new("https://demo-api-capital.backend-capital.com/");
 
@@ -82,6 +88,10 @@ internal sealed partial class CapitalComPriceFeed : IPriceFeed
 
     private readonly IHttpClientFactory _http;
     private readonly CapitalComOptions _options;
+    private readonly Lock _sessionLock = new();
+
+    // When the next new session may start, as a Stopwatch timestamp.
+    private long _nextSessionAt;
     private readonly ILogger<CapitalComPriceFeed> _logger;
     private readonly Dictionary<string, (string Symbol, int Digits)> _byEpic;
     private readonly string[] _epics;
@@ -384,6 +394,20 @@ internal sealed partial class CapitalComPriceFeed : IPriceFeed
     /// <summary>A session with the API key, the account's email and the key's password.</summary>
     private async Task<Session> CreateSessionAsync(CancellationToken cancellationToken)
     {
+        TimeSpan wait;
+        lock (_sessionLock)
+        {
+            var now = Stopwatch.GetTimestamp();
+            var at = Math.Max(now, _nextSessionAt);
+            _nextSessionAt = at + (long)(_options.SessionInterval.TotalSeconds * Stopwatch.Frequency);
+            wait = Stopwatch.GetElapsedTime(now, at);
+        }
+
+        if (wait > TimeSpan.Zero)
+        {
+            await Task.Delay(wait, cancellationToken);
+        }
+
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(_options.ApiUrl, "api/v1/session"))
         {
             Content = JsonContent.Create(new { identifier = _options.Identifier, password = _options.Password, encryptedPassword = false }),

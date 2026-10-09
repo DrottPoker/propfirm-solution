@@ -35,6 +35,7 @@ internal static class AdminEndpoints
         admin.MapPost("/users", CreateUserAsync);
         admin.MapGet("/users", FindUserAsync);
         admin.MapPut("/users/{userId:guid}/password", SetPasswordAsync);
+        admin.MapPut("/users/{userId:guid}/name", SetNameAsync);
         admin.MapPost("/users/{userId:guid}/login-links", CreateLoginLinkAsync);
         admin.MapPost("/accounts", CreateAccountAsync);
         admin.MapGet("/accounts/{accountId}", GetAccountAsync);
@@ -57,7 +58,36 @@ internal static class AdminEndpoints
         admin.MapGet("/instruments", GetInstruments);
         admin.MapGet("/groups", ListGroupsAsync);
         admin.MapPut("/groups/{groupId}/symbols", ChangeGroupSymbolsAsync);
+        admin.MapGet("/terminal-profile", GetTerminalProfile);
+        admin.MapPut("/terminal-profile", SetTerminalProfileAsync);
         return app;
+    }
+
+    /// <summary>How the firm's terminal works for its traders (ADR 0058), as set or its kind's default.</summary>
+    private static Ok<TerminalProfile> GetTerminalProfile(HttpContext context) => TypedResults.Ok(AdminApiKeyFilter.TenantOf(context).Profile);
+
+    /// <summary>
+    /// Sets how the firm's terminal works: the kind of business, the parts shown, whether orders ask before they are sent
+    /// and how a ticket starts, password login, the firm's own pages and a risk warning. Terminals take it the next
+    /// time they open.
+    /// </summary>
+    private static async Task<Results<Ok<TerminalProfile>, ProblemHttpResult>> SetTerminalProfileAsync(
+        TerminalProfile profile,
+        HttpContext context,
+        ITenantStore store,
+        TenantCatalog catalog,
+        CancellationToken cancellationToken)
+    {
+        if (profile.Problem() is { } problem)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, problem);
+        }
+
+        var tenant = AdminApiKeyFilter.TenantOf(context);
+        var saved = profile with { RiskWarning = profile.RiskWarning?.Trim() };
+        await store.SetTerminalProfileAsync(tenant.Id, saved, cancellationToken);
+        catalog.Put((catalog.ById(tenant.Id) ?? tenant) with { Terminal = saved });
+        return TypedResults.Ok(saved);
     }
 
     private static async Task<Results<Ok<UserResponse>, ProblemHttpResult>> CreateUserAsync(
@@ -121,6 +151,32 @@ internal static class AdminEndpoints
         }
 
         await users.SetPasswordHashAsync(user.Id, hasher.HashPassword(user, request.Password!), cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Sets the trader's name as the firm knows it, which the terminal shows in its menu and initials (ADR 0058). An
+    /// empty or missing name removes it, and the terminal goes back to the email address.
+    /// </summary>
+    private static async Task<Results<NoContent, ProblemHttpResult>> SetNameAsync(
+        Guid userId,
+        SetNameRequest request,
+        HttpContext context,
+        IUserStore users,
+        CancellationToken cancellationToken)
+    {
+        var name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
+        if (name is { Length: > User.MaxNameLength })
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, $"A name has at most {User.MaxNameLength} characters.");
+        }
+
+        if (await FirmUserAsync(context, users, userId, cancellationToken) is not { } user)
+        {
+            return UnknownUser();
+        }
+
+        await users.SetNameAsync(user.Id, name, cancellationToken);
         return TypedResults.NoContent();
     }
 
@@ -466,6 +522,7 @@ internal static class AdminEndpoints
         HttpContext context,
         IEngineJournal journal,
         EventLog eventLog,
+        TenantActivity activity,
         TimeProvider time,
         CancellationToken cancellationToken,
         long after = 0,
@@ -479,7 +536,9 @@ internal static class AdminEndpoints
                 $"after cannot be negative, limit must be 1 to {MaxEventsPerRequest} and wait 0 to {MaxEventWait.TotalSeconds:0} seconds.");
         }
 
-        var groups = AdminApiKeyFilter.TenantOf(context).Groups;
+        var tenant = AdminApiKeyFilter.TenantOf(context);
+        activity.EventsRead(tenant.Id, after);
+        var groups = tenant.Groups;
         var deadline = time.GetUtcNow() + TimeSpan.FromSeconds(wait);
         while (true)
         {

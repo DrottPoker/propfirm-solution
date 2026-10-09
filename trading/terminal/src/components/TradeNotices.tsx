@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { DigitsOf } from "@/lib/events";
 import { formatSignedMoney } from "@/lib/format";
 import { newEvents, tradeNotice } from "@/lib/notices";
+import { notifyInBackground } from "@/lib/notify";
 import { useSettings } from "@/lib/settings";
 import { playCloseSound, playFillSound } from "@/lib/sound";
 import { useTradingStore } from "@/lib/store";
@@ -45,7 +46,7 @@ export function useTradeNotices(digitsOf: DigitsOf) {
               description: (
                 <>
                   Result{" "}
-                  <span className={`font-mono ${notice.result >= 0 ? "text-profit" : "text-loss"}`}>
+                  <span className={`${notice.result >= 0 ? "text-profit" : "text-loss"}`}>
                     {formatSignedMoney(notice.result)} {account?.currency}
                   </span>{" "}
                   after commission
@@ -53,6 +54,12 @@ export function useTradeNotices(digitsOf: DigitsOf) {
               ),
             });
           }
+
+          // In the background, the computer's own notification says it too.
+          notifyInBackground(
+            notice.title,
+            notice.result === undefined ? undefined : `Result ${formatSignedMoney(notice.result)} ${account?.currency ?? ""} after commission`.trimEnd(),
+          );
 
           const settings = useSettings.getState();
           if (notice.kind === "filled" && settings.fillSound) {

@@ -39,13 +39,15 @@ internal sealed class HostHarness : IAsyncDisposable
         var events = new EventLog();
         var lifetime = new FakeLifetime();
         journal ??= new InMemoryJournal();
+        var time = clock ?? new SettableTimeProvider(Start);
         var host = new EngineHost(
             Configuration,
             journal,
             events,
-            clock ?? new SettableTimeProvider(Start),
+            time,
             Options.Create(new JournalOptions { SnapshotInterval = snapshotInterval }),
             lifetime,
+            new EngineMetrics(time),
             NullLogger<EngineHost>.Instance);
         await host.StartAsync(TestContext.Current.CancellationToken);
         await host.Ready.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);

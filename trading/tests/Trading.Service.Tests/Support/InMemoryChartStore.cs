@@ -10,6 +10,8 @@ internal sealed class InMemoryChartStore : IChartStore
     private readonly Lock _lock = new();
     private readonly Dictionary<(string Feed, DateTimeOffset Time, string Symbol, Timeframe Resolution), ChartBar> _bars = [];
     private readonly Dictionary<string, DateTimeOffset> _histories = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _loaded = new(StringComparer.Ordinal);
+    private readonly Dictionary<Guid, ChartGap> _gaps = [];
 
     public int Saves { get; private set; }
 
@@ -53,6 +55,7 @@ internal sealed class InMemoryChartStore : IChartStore
             }
 
             _histories[feed] = reach;
+            _loaded[feed] = until;
             return Task.CompletedTask;
         }
     }
@@ -96,6 +99,32 @@ internal sealed class InMemoryChartStore : IChartStore
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    public Task<ChartHistoryInfo?> GetHistoryInfoAsync(string feed, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_loaded.TryGetValue(feed, out var loadedAt) ? new ChartHistoryInfo(loadedAt, _histories.GetValueOrDefault(feed)) : null);
+        }
+    }
+
+    public Task SaveGapAsync(ChartGap gap, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _gaps[gap.Id] = _gaps.TryGetValue(gap.Id, out var saved) ? gap with { Feed = saved.Feed, From = saved.From, Until = saved.Until, FoundAt = saved.FoundAt } : gap;
+            return Task.CompletedTask;
+        }
+    }
+
+    public Task<IReadOnlyList<ChartGap>> ListGapsAsync(string feed, int limit, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult<IReadOnlyList<ChartGap>>(
+                [.. _gaps.Values.Where(g => g.Feed == feed).OrderByDescending(g => g.FoundAt).ThenByDescending(g => g.From).Take(limit)]);
         }
     }
 

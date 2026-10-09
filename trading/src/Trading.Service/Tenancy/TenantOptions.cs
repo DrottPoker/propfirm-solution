@@ -22,6 +22,25 @@ public sealed class TenantOptions
 
     /// <summary>Where the firm's traders log in when they have no password for the terminal, for example its portal. Empty for none.</summary>
     public Uri? LoginUrl { get; init; }
+
+    /// <summary>How the firm's terminal works (ADR 0058). Left out, the firm keeps what it set, or the default.</summary>
+    public TenantTerminalOptions? Terminal { get; init; }
+}
+
+/// <summary>A configured firm's terminal: its kind's default, with whether orders ask first and password login if given.</summary>
+public sealed class TenantTerminalOptions
+{
+    public TerminalKind Kind { get; init; } = TerminalKind.Prop;
+
+    public bool? PasswordLogin { get; init; }
+
+    public bool? ConfirmOrders { get; init; }
+
+    public TerminalProfile ToProfile()
+    {
+        var profile = TerminalProfile.Default(Kind, PasswordLogin ?? true);
+        return ConfirmOrders is { } confirm ? profile with { ConfirmOrders = confirm } : profile;
+    }
 }
 
 /// <summary>A system that may create firms on the platform, such as our prop platform.</summary>

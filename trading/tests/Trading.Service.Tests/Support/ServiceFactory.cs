@@ -17,6 +17,7 @@ using Trading.Service.Engine;
 using Trading.Service.Feeds;
 using Trading.Service.Identity;
 using Trading.Service.Persistence;
+using Trading.Service.Staff;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Tests.Support;
@@ -43,6 +44,11 @@ internal sealed class ServiceFactory(
 
     /// <summary>The prop platform's partner key, from appsettings.Development.json.</summary>
     public const string PartnerApiKey = "dev-partner-key";
+
+    /// <summary>Our staff member in development, from appsettings.Development.json (ADR 0057).</summary>
+    public const string StaffEmail = "ops@test.com";
+
+    public const string StaffPassword = "ops";
 
     private readonly StartupFailureLog _startupFailures = new();
 
@@ -103,6 +109,23 @@ internal sealed class ServiceFactory(
         using var response = await client.PostAsJsonAsync(new Uri("/api/auth/login", UriKind.Relative), new { server, email, password });
         response.EnsureSuccessStatusCode();
         var setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("trading_session=", StringComparison.Ordinal));
+        return setCookie.Split(';')[0];
+    }
+
+    /// <summary>A client logged in as one of our staff, in the staff panel. It carries no admin key.</summary>
+    public async Task<HttpClient> CreateStaffClientAsync()
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        client.DefaultRequestHeaders.Add("Cookie", await StaffCookieAsync());
+        return client;
+    }
+
+    public async Task<string> StaffCookieAsync(string email = StaffEmail, string password = StaffPassword)
+    {
+        using var client = CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
+        using var response = await client.PostAsJsonAsync(new Uri("/api/staff/v1/login", UriKind.Relative), new { email, password });
+        response.EnsureSuccessStatusCode();
+        var setCookie = response.Headers.GetValues("Set-Cookie").Single(c => c.StartsWith("trading_staff_session=", StringComparison.Ordinal));
         return setCookie.Split(';')[0];
     }
 
@@ -168,12 +191,15 @@ internal sealed class ServiceFactory(
             services.AddSingleton<IPriceFeed>(Feed);
             if (postgresConnectionString is null)
             {
+                Backend.Users.Time = Time;
                 services.AddSingleton<IEngineJournal>(Backend.Journal);
                 services.AddSingleton<IUserStore>(Backend.Users);
                 services.AddSingleton<IXmlRepository>(Backend.Keys);
                 services.AddSingleton<ILoginLinkStore>(Backend.LoginLinks);
                 services.AddSingleton<ITenantStore>(Backend.Tenants);
                 services.AddSingleton<IChartStore>(Backend.Charts);
+                services.AddSingleton<IStaffStore>(Backend.Staff);
+                services.AddSingleton<IPlatformLog>(Backend.Log);
             }
         });
     }

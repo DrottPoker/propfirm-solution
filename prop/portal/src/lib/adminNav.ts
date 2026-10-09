@@ -21,6 +21,7 @@ export const settingsPlaces: AdminPlace[] = [
   { href: "/admin/domain", label: "Your domain", description: "Your portal on an address of your own.", keywords: ["dns", "url"] },
   { href: "/admin/checkout", label: "Checkout", description: "How traders pay in your shop.", keywords: ["stripe", "payments"] },
   { href: "/admin/trading", label: "Trading conditions", description: "Instruments, leverage, spreads and commission.", keywords: ["symbols", "leverage"] },
+  { href: "/admin/terminal", label: "Terminal", description: "How orders start in your traders' terminal.", keywords: ["orders", "confirm", "lots", "size"] },
   { href: "/admin/identity", label: "KYC", description: "How your traders' identity is checked.", keywords: ["identity", "id"] },
   { href: "/admin/notifications", label: "Notifications", description: "The emails we send for you.", keywords: ["emails"] },
   { href: "/admin/integrations", label: "Integrations", description: "Your firm API, keys and webhooks.", keywords: ["api", "webhooks"] },

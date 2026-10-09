@@ -4652,6 +4652,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/portal/admin/terminal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TerminalSettings"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TerminalSettings"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TerminalSettings"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/portal/admin/orders": {
         parameters: {
             query?: never;
@@ -9968,6 +10026,8 @@ export interface components {
             challengeId: null | string;
             reference?: null | string;
         };
+        /** @enum {unknown} */
+        StartingSizeKind: "Smallest" | "Lots" | "RiskOfRoom";
         /** @description An incident on the status page, with what we said and the firm's own note. */
         StatusIncidentResponse: {
             /** Format: uuid */
@@ -10147,6 +10207,17 @@ export interface components {
             /** Format: date-time */
             at: string;
             reason: string;
+        };
+        /**
+         * @description How orders start in the firm's terminal: whether each order asks before it is sent, and the size a ticket starts with,
+         *     the smallest the instrument allows, a number of lots, or what risks a share of what is left of today's loss limit at
+         *     the order's stop loss. StartingValue is the lots or the percent, and null for the smallest.
+         */
+        TerminalSettings: {
+            confirmOrders: boolean;
+            startingSize: components["schemas"]["StartingSizeKind"];
+            /** Format: double */
+            startingValue: null | number;
         };
         /** @description Completes a test checkout page with a test card that pays, or one that declines. */
         TestCheckoutRequest: {

@@ -18,11 +18,14 @@ const barSeconds: Record<Timeframe, number> = {
   H1: 3600,
   H4: 14_400,
   D1: 86_400,
+  W1: 604_800,
+  // A month varies; this is its length for placing drawings between bars, never for where a bar starts.
+  MN: 2_592_000,
 };
 
 export const timeframes = Object.keys(barSeconds) as Timeframe[];
 
-/** How long a bar of the timeframe is, in seconds. */
+/** How long a bar of the timeframe is, in seconds. A month counts as 30 days. */
 export function secondsOf(timeframe: Timeframe): number {
   return barSeconds[timeframe];
 }
@@ -33,8 +36,22 @@ export function mergeOlder(older: readonly Bar[], bars: readonly Bar[]): Bar[] {
   return [...older.filter((b) => b.time < first), ...bars];
 }
 
-/** Bar start in UTC seconds, the same rule as the service uses. */
+const daySeconds = 86_400;
+
+/** Bar start in UTC seconds, the same rule as the service uses: Monday 00:00 for a week, the first 00:00 for a month. */
 export function barStart(timeSeconds: number, timeframe: Timeframe): number {
+  if (timeframe === "W1") {
+    const day = timeSeconds - (timeSeconds % daySeconds);
+    // 1 January 1970 was a Thursday, three days after a Monday.
+    const sinceMonday = (Math.floor(day / daySeconds) + 3) % 7;
+    return day - sinceMonday * daySeconds;
+  }
+
+  if (timeframe === "MN") {
+    const date = new Date(timeSeconds * 1000);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1) / 1000;
+  }
+
   return timeSeconds - (timeSeconds % barSeconds[timeframe]);
 }
 
@@ -65,4 +82,20 @@ export function applyPrice(last: Bar | undefined, bid: number, timeSeconds: numb
   }
 
   return { ...last, high: Math.max(last.high, bid), low: Math.min(last.low, bid), close: bid, ticks: last.ticks + 1 };
+}
+
+/**
+ * Heikin Ashi bars from the bars: each closes at the average of its bar's four prices and opens halfway between the
+ * previous Heikin Ashi bar's open and close, which smooths the trend. Only for drawing; prices stay the bars' own.
+ */
+export function heikinAshi(bars: readonly Bar[]): Bar[] {
+  const result: Bar[] = [];
+  for (const bar of bars) {
+    const previous = result.at(-1);
+    const close = (bar.open + bar.high + bar.low + bar.close) / 4;
+    const open = previous ? (previous.open + previous.close) / 2 : (bar.open + bar.close) / 2;
+    result.push({ ...bar, open, close, high: Math.max(bar.high, open, close), low: Math.min(bar.low, open, close) });
+  }
+
+  return result;
 }

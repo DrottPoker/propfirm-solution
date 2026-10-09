@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
+using Trading.Engine;
 using Trading.Engine.Events;
 using Trading.Engine.Inputs;
 using Trading.Service.Engine;
@@ -263,6 +264,57 @@ internal sealed class InMemoryJournal : IEngineJournal
                 .Take(limit)
                 .ToList();
             return Task.FromResult(events);
+        }
+    }
+
+    public Task<IReadOnlyList<EventEnvelope>> ReadLatestGroupEventsAsync(
+        IReadOnlyCollection<string> groupIds,
+        string? accountId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            IReadOnlyList<EventEnvelope> events = _events
+                .Where(e => e.GroupId is { } groupId && groupIds.Contains(groupId) && (accountId is null || e.AccountId == accountId))
+                .Reverse()
+                .Take(limit)
+                .Select(e => new EventEnvelope(e.Sequence, JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!))
+                .ToList();
+            return Task.FromResult(events);
+        }
+    }
+
+    public Task<IReadOnlyDictionary<string, GroupActivity>> CountGroupActivityAsync(DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            var events = _events
+                .Where(e => e.GroupId is not null)
+                .Select(e => (GroupId: e.GroupId!, Event: JsonSerializer.Deserialize<EngineEvent>(e.Json, Json)!))
+                .Where(e => e.Event.Timestamp >= since)
+                .ToList();
+            IReadOnlyDictionary<string, GroupActivity> activity = events
+                .GroupBy(e => e.GroupId, StringComparer.Ordinal)
+                .Where(g => g.Any(e => e.Event is PositionOpened or InputRejected))
+                .ToDictionary(
+                    g => g.Key,
+                    g => new GroupActivity(
+                        g.Count(e => e.Event is PositionOpened),
+                        g.Count(e => e.Event is InputRejected),
+                        g.Count(e => e.Event is InputRejected { Reason: RejectReason.StalePrice })),
+                    StringComparer.Ordinal);
+            return Task.FromResult(activity);
+        }
+    }
+
+    public Task<JournalStats> GetStatsAsync(CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(new JournalStats(
+                null,
+                [.. _snapshots.Select(s => new SnapshotInfo(s.Snapshot.InputSequence, null)).OrderByDescending(s => s.InputSequence)]));
         }
     }
 

@@ -264,6 +264,7 @@ builder.Services.AddHttpClient(TradingPlatformClient.HttpClientName, (sp, client
 });
 builder.Services.AddSingleton<ITradingPlatform, TradingPlatformClient>();
 builder.Services.AddSingleton<ITradingPartner, TradingPartnerClient>();
+builder.Services.AddSingleton<ITradingKeyRenewal, TradingKeyRenewal>();
 // The firm chooses where its webhooks go, so they reach only the public internet (ADR 0044).
 builder.Services.AddHttpClient(WebhookWorker.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10))
     .ConfigurePrimaryHttpMessageHandler(PublicAddresses.CreateHandler);
@@ -300,6 +301,7 @@ if (!isOpenApiGeneration)
     builder.Services.AddSingleton<InactivityReminderWorker>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<InactivityReminderWorker>());
     builder.Services.AddHostedService<FirmProvisioner>();
+    builder.Services.AddHostedService<TerminalSync>();
     builder.Services.AddHostedService<BillingWorker>();
     builder.Services.AddHostedService<DomainVerificationWorker>();
     builder.Services.AddHostedService<TradingAccountDescriber>();

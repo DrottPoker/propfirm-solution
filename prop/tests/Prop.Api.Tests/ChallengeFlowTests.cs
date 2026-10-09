@@ -97,6 +97,28 @@ public sealed class ChallengeFlowTests(PostgresFixture postgres) : IClassFixture
         await Eventually.ThatAsync(() => factory.Trading.Commands.Count(c => c == $"rules {Phase1}") == 2, "the rules to be told again");
     }
 
+    // Accounts named in an older way, and an earlier stage's account that was never named, show the portal's names.
+    [Fact]
+    public async Task EveryTradingAccountIsNamedOnceAlsoAnEarlierStages()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = (await factory.StartActiveAccountAsync()).GetProperty("id").GetGuid();
+        await PassStageAsync(factory, id, Phase1, stage: 0, finalProfit: 7_000m);
+        await factory.WaitForAccountAsync(id, a => a.GetProperty("stage").GetInt32() == 1);
+        await Eventually.ThatAsync(() => factory.Trading.DetailsOf("demo-firm-1001-2") is not null, "phase 2's account to be described");
+        var service = factory.Services.GetRequiredService<ChallengeService>();
+        var firm = factory.Services.GetRequiredService<FirmCatalog>().ById("demo-firm")!;
+
+        await factory.ScalarAsync("update trading_accounts set described_label = null");
+        var named = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+        var thenNot = await service.DescribeOpenAccountsAsync(firm, TestContext.Current.CancellationToken);
+
+        Assert.Equal((2, 0), (named, thenNot));
+        await Eventually.ThatAsync(() => factory.Trading.Commands.Count(c => c == $"describe {Phase1}") == 2, "phase 1's account to be named again");
+        Assert.Equal("#1001 Two-step 100K, Phase 1", factory.Trading.DetailsOf(Phase1)!.Label);
+        Assert.Equal("#1001 Two-step 100K, Phase 2", factory.Trading.DetailsOf("demo-firm-1001-2")!.Label);
+    }
+
     [Fact]
     public async Task PassingPhaseOneClosesItsAccountOpensPhaseTwoAndTellsTheFirm()
     {

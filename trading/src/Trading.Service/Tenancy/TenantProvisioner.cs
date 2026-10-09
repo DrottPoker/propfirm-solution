@@ -8,12 +8,14 @@ using Trading.Engine;
 using Trading.Engine.Events;
 using Trading.Engine.Inputs;
 using Trading.Service.Engine;
+using Trading.Service.Staff;
 
 namespace Trading.Service.Tenancy;
 
 /// <summary>
-/// Creates firms for partners: a copy of each template group in the engine, then the firm in the store and the
-/// catalog. A group left by an attempt that failed before the firm was saved is taken over by the next attempt.
+/// Creates firms for partners and our staff: a copy of each template group in the engine, then the firm in the store
+/// and the catalog. A group left by an attempt that failed before the firm was saved is taken over by the next attempt.
+/// Every change is written to the platform's log with who made it (ADR 0057).
 /// </summary>
 internal sealed class TenantProvisioner(
     TenantCatalog tenants,
@@ -21,6 +23,7 @@ internal sealed class TenantProvisioner(
     EngineHost engine,
     EngineConfiguration configuration,
     IOptions<TenancyOptions> tenancy,
+    PlatformEvents events,
     TimeProvider time) : IDisposable
 {
     public const int MaxNameLength = 100;
@@ -36,7 +39,7 @@ internal sealed class TenantProvisioner(
     /// Creates the firm with its groups in <paramref name="currency"/>, one of <see cref="TenancyOptions.Currencies"/>, or
     /// in the templates' own currency when it is null.
     /// </summary>
-    public async Task<ProvisioningResult> CreateAsync(Partner partner, string? id, string? name, string? currency, CancellationToken cancellationToken)
+    public async Task<ProvisioningResult> CreateAsync(TenantMaker maker, string? id, string? name, string? currency, CancellationToken cancellationToken)
     {
         var trimmedName = name?.Trim() ?? "";
         if (!TenantCatalog.IsValidId(id) || trimmedName.Length is 0 or > MaxNameLength)
@@ -73,13 +76,27 @@ internal sealed class TenantProvisioner(
             }
 
             var apiKey = CreateApiKey();
-            var tenant = new Tenant(id!, trimmedName, [.. groups.Select(g => g.Id)], HashApiKey(apiKey), partner.Id, Listed: false);
-            if (!await store.CreateAsync(tenant, time.GetUtcNow(), cancellationToken))
+            var now = time.GetUtcNow();
+            var tenant = new Tenant(
+                id!,
+                trimmedName,
+                [.. groups.Select(g => g.Id)],
+                HashApiKey(apiKey),
+                maker.PartnerId,
+                Listed: false,
+                CreatedAt: now,
+                CreatedBy: maker.StaffEmail);
+            if (!await store.CreateAsync(tenant, now, cancellationToken))
             {
                 return new ProvisioningResult.Taken();
             }
 
             tenants.Put(tenant);
+            await events.RecordAsync(
+                PlatformEventKind.ServerCreated,
+                tenant.Id,
+                maker.StaffEmail,
+                maker.Detail(new() { ["name"] = tenant.Name, ["currency"] = groups.Count > 0 ? groups[0].Currency : "" }));
             return new ProvisioningResult.Created(tenant, groups, apiKey);
         }
         finally
@@ -88,39 +105,60 @@ internal sealed class TenantProvisioner(
         }
     }
 
-    /// <summary>Gives the firm a new admin API key. The old one stops working at once.</summary>
-    public async Task<string> ReplaceAdminApiKeyAsync(Tenant tenant, CancellationToken cancellationToken)
+    /// <summary>
+    /// Gives the firm a new admin API key. The old one stops working at once. <paramref name="reason"/> is why our staff
+    /// replaced it, for the platform's log.
+    /// </summary>
+    public async Task<string> ReplaceAdminApiKeyAsync(Tenant tenant, TenantMaker by, string? reason, CancellationToken cancellationToken)
     {
+        string apiKey;
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var apiKey = CreateApiKey();
+            apiKey = CreateApiKey();
             var hash = HashApiKey(apiKey);
             await store.SetAdminApiKeyAsync(tenant.Id, hash, cancellationToken);
             tenants.Put((tenants.ById(tenant.Id) ?? tenant) with { AdminApiKeyHash = hash });
-            return apiKey;
         }
         finally
         {
             _lock.Release();
         }
+
+        var detail = by.Detail([]);
+        if (reason is not null)
+        {
+            detail["reason"] = reason;
+        }
+
+        await events.RecordAsync(PlatformEventKind.AdminKeyReplaced, tenant.Id, by.StaffEmail, detail);
+        return apiKey;
     }
 
     /// <summary>Lists the firm's server or takes it off the list, and sets where its traders log in and the firm's logo.</summary>
-    public async Task<Tenant> SetListingAsync(Tenant tenant, bool listed, Uri? loginUrl, Uri? logoUrl, CancellationToken cancellationToken)
+    public async Task<Tenant> SetListingAsync(Tenant tenant, bool listed, Uri? loginUrl, Uri? logoUrl, TenantMaker by, CancellationToken cancellationToken)
     {
+        Tenant before;
+        Tenant changed;
         await _lock.WaitAsync(cancellationToken);
         try
         {
+            before = tenants.ById(tenant.Id) ?? tenant;
             await store.SetListingAsync(tenant.Id, listed, loginUrl, logoUrl, cancellationToken);
-            var changed = (tenants.ById(tenant.Id) ?? tenant) with { Listed = listed, LoginUrl = loginUrl, LogoUrl = logoUrl };
+            changed = before with { Listed = listed, LoginUrl = loginUrl, LogoUrl = logoUrl };
             tenants.Put(changed);
-            return changed;
         }
         finally
         {
             _lock.Release();
         }
+
+        if (before.Listed != listed)
+        {
+            await events.RecordAsync(listed ? PlatformEventKind.ServerListed : PlatformEventKind.ServerUnlisted, tenant.Id, by.StaffEmail, by.Detail([]));
+        }
+
+        return changed;
     }
 
     public void Dispose() => _lock.Dispose();
@@ -135,6 +173,25 @@ internal sealed class TenantProvisioner(
     private static string CreateApiKey() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 
     private static byte[] HashApiKey(string apiKey) => SHA256.HashData(Encoding.UTF8.GetBytes(apiKey));
+}
+
+/// <summary>Who makes or changes a firm: a partner, such as our prop platform, or one of our staff (ADR 0057).</summary>
+internal sealed record TenantMaker(string? PartnerId, string? PartnerName, string? StaffEmail)
+{
+    public static TenantMaker Of(Partner partner) => new(partner.Id, partner.Name, null);
+
+    public static TenantMaker OfStaff(string email) => new(null, null, email);
+
+    /// <summary>The detail for the platform's log, with the partner's name when a partner did it.</summary>
+    public Dictionary<string, string> Detail(Dictionary<string, string> detail)
+    {
+        if (PartnerName is not null)
+        {
+            detail["partner"] = PartnerName;
+        }
+
+        return detail;
+    }
 }
 
 internal abstract record ProvisioningResult

@@ -23,6 +23,27 @@
   --warning: var(--kronant-warning);
 }
 
+/*
+ * The light theme (ADR 0058): warm paper surfaces, near-black text, and brass, green and red a little darker so they
+ * read on white. The same values as the chart's light palette in src/lib/colors.ts.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #f3f1ec;
+  --panel: #fbfaf7;
+  --raised: #efece6;
+  --border: #dfd9cf;
+  --foreground: #1d1c1a;
+  --muted: #6e695f;
+  --accent: #a8823c;
+  --accent-foreground: #fffdf8;
+  --buy: #13895b;
+  --sell: #d4443a;
+  --profit: #13895b;
+  --loss: #d4443a;
+  --warning: #c2621c;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-panel: var(--panel);
@@ -41,6 +62,21 @@
   --font-sans: var(--font-text);
   --font-mono: var(--font-code);
   --font-serif: var(--font-display);
+  /* A price's text turns green or red for a moment when it moves, then back (ADR 0058). */
+  --animate-tick-up: tick-up 900ms ease-out;
+  --animate-tick-down: tick-down 900ms ease-out;
+}
+
+@keyframes tick-up {
+  from {
+    color: var(--profit);
+  }
+}
+
+@keyframes tick-down {
+  from {
+    color: var(--loss);
+  }
 }
 
 /* Figures line up in columns everywhere, also outside the monospace columns. */
@@ -75,6 +111,18 @@ body::before {
     outline: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
     outline-offset: 2px;
   }
+}
+
+/*
+ * Figures that follow the prices and the account, marked live. While the connection is lost they are dimmed, so none
+ * of them is taken for current (ADR 0058).
+ */
+.live {
+  transition: opacity 300ms ease-out;
+}
+
+[data-offline] .live {
+  opacity: 0.4;
 }
 
 * {

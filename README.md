@@ -7,7 +7,7 @@ Två produkter för små och nystartade propfirms, som kan säljas var för sig 
 
 Bolaget bakom heter Ludware. Se [ADR 0046](docs/adr/0046-namn-pa-bolaget-och-produkterna.md) för namnen.
 
-Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md), [registreringen](docs/spec/registrering.md), [platserna och betalningen](docs/spec/platser-och-betalning.md), [köp i portalen](docs/spec/kop.md) och [granskningen av firmor](docs/spec/granskning.md).
+Se [produktplanen](docs/produktplan-handelsplattform-propfirm.md), [arkitekturbesluten](docs/adr/README.md) och specarna för [handelsmotorn](docs/spec/handelsmotor.md), [handelstjänsten](docs/spec/handelstjanst.md), [handelsterminalen](docs/spec/handelsterminal.md), [personalpanelen](docs/spec/personalpanelen.md), [regelmotorn](docs/spec/regelmotor.md), [propfirm-tjänsten](docs/spec/propfirm-tjanst.md), [portalen](docs/spec/portal.md), [registreringen](docs/spec/registrering.md), [platserna och betalningen](docs/spec/platser-och-betalning.md), [köp i portalen](docs/spec/kop.md) och [granskningen av firmor](docs/spec/granskning.md).
 
 ## Struktur
 
@@ -22,7 +22,8 @@ propfirm-solution/
 │   ├── tests/
 │   │   ├── Trading.Engine.Tests/   # beteenden, uppspelning mot facit, arkitektur
 │   │   └── Trading.Service.Tests/  # tjänsten i minnet med styrda priser och klocka
-│   └── terminal/         # webbgränssnittet för traders (Next.js), med genererade API-typer
+│   ├── terminal/         # webbgränssnittet för traders (Next.js), med genererade API-typer
+│   └── staff/            # vår personalpanel över plattformen (Next.js), med genererade API-typer
 ├── prop/                 # Produkt 2: propfirm-plattformen
 │   ├── src/
 │   │   ├── Prop.Rules/        # regelmotorn: deterministisk, ingen I/O
@@ -81,6 +82,7 @@ Kör tjänsterna lokalt:
 | Handelsplattformens tjänst | `dotnet run --project trading/src/Trading.Service` | http://localhost:5101/health |
 | Propfirm-plattformens API | `dotnet run --project prop/src/Prop.Api` | http://localhost:5201/health |
 | Handelsterminalen | `pnpm dev:terminal` | http://localhost:3001 |
+| Personalpanelen för handelsplattformen | `pnpm dev:staff` | http://localhost:3003, logga in med `ops@test.com` och `ops` |
 | Portalen | `pnpm dev:portal` | http://localhost:3002 |
 | Postgres | | localhost:5432, databaserna `trading` och `prop` |
 | NATS | | localhost:4222, övervakning på http://localhost:8222 |
@@ -95,6 +97,7 @@ I Claude Code-appen kan handelsplattformen och propfirm-plattformen startas i f�
 | `trading-service` | Handelstjänsten med prisflödet från dina user secrets (se Riktiga priser från Capital.com och Riktiga priser från Tiingo) |
 | `trading-service-synthetic` | Handelstjänsten med syntetiska priser, till exempel när valutamarknaden är stängd |
 | `trading-terminal` | Handelsterminalen |
+| `trading-staff` | Personalpanelen för handelsplattformen. Behöver handelstjänsten. |
 | `prop-api` | Propfirm-tjänsten. Behöver handelstjänsten. |
 | `prop-portal` | Portalen. Behöver propfirm-tjänsten. |
 

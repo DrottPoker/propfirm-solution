@@ -8,7 +8,7 @@ import { notificationKinds } from "@/lib/notifications";
 import { providerLabels } from "@/lib/orders";
 import { useFirmSettings } from "@/lib/queries";
 
-import { CardIcon, ChevronRightIcon, CodeIcon, GlobeIcon, MailIcon, PaletteIcon, ServerIcon, ShieldCheckIcon, TeamIcon } from "./icons";
+import { CardIcon, ChevronRightIcon, CodeIcon, GlobeIcon, MailIcon, PaletteIcon, ServerIcon, ShieldCheckIcon, TeamIcon, TerminalIcon } from "./icons";
 import { AdminPage, Loading, Message, PageHeader } from "./ui";
 
 const icons: Record<string, (props: { className?: string }) => React.ReactNode> = {
@@ -16,6 +16,7 @@ const icons: Record<string, (props: { className?: string }) => React.ReactNode> 
   "/admin/domain": GlobeIcon,
   "/admin/checkout": CardIcon,
   "/admin/trading": ServerIcon,
+  "/admin/terminal": TerminalIcon,
   "/admin/identity": ShieldCheckIcon,
   "/admin/notifications": MailIcon,
   "/admin/integrations": CodeIcon,

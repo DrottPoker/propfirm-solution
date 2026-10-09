@@ -59,7 +59,15 @@ internal sealed partial class TenantSeeder(
         Require(options.Groups.All(g => engine.Groups.Any(eg => eg.Id == g)), $"Tenant {options.Id} has a group that is not configured.");
         Require(Sha256Hex().IsMatch(options.AdminApiKeySha256), $"Tenant {options.Id} needs AdminApiKeySha256 as 64 lowercase hex characters.");
         Require(options.LoginUrl is null || TenantCatalog.IsValidLoginUrl(options.LoginUrl), $"Tenant {options.Id} needs LoginUrl as an absolute http or https address.");
-        return new Tenant(options.Id, options.Name.Trim(), [.. options.Groups], Convert.FromHexString(options.AdminApiKeySha256), null, Listed: true, options.LoginUrl);
+        return new Tenant(
+            options.Id,
+            options.Name.Trim(),
+            [.. options.Groups],
+            Convert.FromHexString(options.AdminApiKeySha256),
+            null,
+            Listed: true,
+            options.LoginUrl,
+            Terminal: options.Terminal?.ToProfile());
     }
 
     private static void Require(bool condition, string message)

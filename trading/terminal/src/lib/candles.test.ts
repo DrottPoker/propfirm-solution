@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyPrice, barStart, mergeOlder, secondsOf, toBar } from "./candles";
+import { applyPrice, barStart, heikinAshi, mergeOlder, secondsOf, toBar } from "./candles";
 
 // 2026-10-05 08:00:00 UTC
 const eight = Date.UTC(2026, 9, 5, 8, 0, 0) / 1000;
@@ -55,5 +55,34 @@ describe("secondsOf", () => {
   it("gives the length of a bar", () => {
     expect(secondsOf("M15")).toBe(900);
     expect(secondsOf("D1")).toBe(86_400);
+  });
+});
+
+describe("barStart for weeks and months", () => {
+  it("starts a week on Monday at 00:00 UTC", () => {
+    // Friday 9 October 2026 at 14:30.
+    expect(barStart(Date.UTC(2026, 9, 9, 14, 30) / 1000, "W1")).toBe(Date.UTC(2026, 9, 5) / 1000);
+    expect(barStart(Date.UTC(2026, 9, 5) / 1000, "W1")).toBe(Date.UTC(2026, 9, 5) / 1000);
+    // A Sunday belongs to the week that began the Monday before.
+    expect(barStart(Date.UTC(2026, 9, 11, 23, 59) / 1000, "W1")).toBe(Date.UTC(2026, 9, 5) / 1000);
+  });
+
+  it("starts a month on its first day", () => {
+    expect(barStart(Date.UTC(2026, 9, 31, 23) / 1000, "MN")).toBe(Date.UTC(2026, 9, 1) / 1000);
+    expect(barStart(Date.UTC(2026, 1, 28) / 1000, "MN")).toBe(Date.UTC(2026, 1, 1) / 1000);
+  });
+});
+
+describe("heikinAshi", () => {
+  it("closes at the average and opens halfway along the previous bar", () => {
+    const bars = [
+      { time: 0, open: 10, high: 14, low: 8, close: 12, ticks: 1 },
+      { time: 60, open: 12, high: 16, low: 11, close: 15, ticks: 1 },
+    ];
+
+    const [first, second] = heikinAshi(bars);
+
+    expect([first.open, first.close, first.high, first.low]).toEqual([11, 11, 14, 8]);
+    expect([second.open, second.close, second.high, second.low]).toEqual([11, 13.5, 16, 11]);
   });
 });

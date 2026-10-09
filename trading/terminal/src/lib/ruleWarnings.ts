@@ -64,7 +64,11 @@ export function closenessStage(headroom: number, distance: number | null, previo
  * The warnings to tell now, and what has been told after them. The first time, with no memory, the conditions that
  * already hold are told, but not how close the loss limits are, which the account bar shows.
  */
-export function nextWarnings(memory: WarningMemory | null, input: RulebookInput): { memory: WarningMemory; warnings: RuleWarning[] } {
+export function nextWarnings(
+  memory: WarningMemory | null,
+  input: RulebookInput,
+  carriesOn = "The challenge goes on.",
+): { memory: WarningMemory; warnings: RuleWarning[] } {
   const { account } = input;
   const warnings: RuleWarning[] = [];
   const floors: Record<string, number> = {};
@@ -88,7 +92,7 @@ export function nextWarnings(memory: WarningMemory | null, input: RulebookInput)
     }
   }
 
-  const conditions = account.status === "Disabled" ? [] : conditionsOf(input);
+  const conditions = account.status === "Disabled" ? [] : conditionsOf(input, carriesOn);
   for (const condition of conditions) {
     if (!memory?.told.includes(condition.key)) {
       warnings.push(condition);
@@ -132,7 +136,7 @@ function ownLossWarning(left: number, level: number, stage: number, currency: st
   };
 }
 
-function conditionsOf({ account, profitTarget, rules, now, timeZone }: RulebookInput): RuleWarning[] {
+function conditionsOf({ account, profitTarget, rules, now, timeZone }: RulebookInput, carriesOn: string): RuleWarning[] {
   const conditions: RuleWarning[] = [];
   // A lock the trader chose needs no warning: the note under the account bar says it.
   const own = account.ownLimits;
@@ -142,7 +146,7 @@ function conditionsOf({ account, profitTarget, rules, now, timeZone }: RulebookI
       key: `own-lock-${own.lock.until}`,
       level: own.lock.reason === "DailyTarget" ? "success" : "warning",
       title: lockTitle(own.lock, null, own.tradingDay.timeZone),
-      description: lockDescription(own.lock, null, own.tradingDay.timeZone),
+      description: lockDescription(own.lock, null, own.tradingDay.timeZone, carriesOn),
     });
   } else if (!own.lock && tradesUsed(own)) {
     conditions.push({

@@ -43,10 +43,7 @@ const cancelledBecause: Record<CancelReason, string> = {
   TradeLimit: ": you have used your trades for the day",
 };
 
-const disabledBecause: Record<DisableReason, string> = {
-  EquityFloor: "a loss limit was broken",
-  Closed: "the firm closed it",
-};
+const disabledBecause: Record<DisableReason, string> = { EquityFloor: "a loss limit was broken", Closed: "the firm closed it" };
 
 /** Why the trading service refused something, in plain words. */
 const rejections: Record<RejectReason, string> = {
@@ -212,6 +209,41 @@ export function balanceOperationName(amount: number): "Deposit" | "Withdrawal" {
   return amount >= 0 ? "Deposit" : "Withdrawal";
 }
 
+type FloorSet = Extract<EngineEvent, { kind?: "EquityFloorSet" }>;
+type DaySet = Extract<EngineEvent, { kind?: "TradingDaySet" }>;
+
+/**
+ * The events without those that only repeat what the trader already knows: a loss limit set again at the level it had,
+ * as the firm's system does at the start of every trading day, and the trading day told again as it was. Oldest first.
+ */
+export function withoutRepeats(events: readonly EngineEvent[]): EngineEvent[] {
+  const floors = new Map<string, number>();
+  let day: string | null = null;
+  return events.filter((event) => {
+    if (event.kind === "EquityFloorSet") {
+      const floor = event as FloorSet;
+      const same = floors.get(floor.floorId) === floor.level;
+      floors.set(floor.floorId, floor.level);
+      return !same;
+    }
+
+    if (event.kind === "EquityFloorRemoved") {
+      floors.delete(event.floorId);
+      return true;
+    }
+
+    if (event.kind === "TradingDaySet") {
+      const set = event as DaySet;
+      const key = `${set.day.timeZone} ${set.day.start}`;
+      const same = day === key;
+      day = key;
+      return !same;
+    }
+
+    return true;
+  });
+}
+
 /** Events that need the trader's attention. */
 export function isWarning(event: EngineEvent): boolean {
   return (
@@ -223,6 +255,50 @@ export function isWarning(event: EngineEvent): boolean {
     event.kind === "OwnLimitReached" ||
     event.kind === "TradingLocked"
   );
+}
+
+/** What an event is about, for the filters of the event list: trading, the account, or something that needs attention. */
+export type EventTopic = "trades" | "account" | "warnings";
+
+const tradeKinds = new Set<string>([
+  "OrderPlaced",
+  "OrderModified",
+  "OrderCancelled",
+  "PositionOpened",
+  "PositionModified",
+  "PositionPartiallyClosed",
+  "PositionClosed",
+]);
+
+export function topicOf(event: EngineEvent): EventTopic {
+  return isWarning(event) ? "warnings" : tradeKinds.has(event.kind ?? "") ? "trades" : "account";
+}
+
+/** An event, or a run of events in a row that say the same, such as the same refusal four times. */
+export interface EventRun {
+  event: EngineEvent;
+  count: number;
+  /** When the run started, the first event's time. */
+  first: string;
+}
+
+/** The events with each run of events in a row that say the same told once, with how many times. Oldest first. */
+export function collapseRepeats(events: readonly EngineEvent[], describe: (event: EngineEvent) => string): EventRun[] {
+  const runs: EventRun[] = [];
+  let lastText: string | null = null;
+  for (const event of events) {
+    const text = `${event.kind} ${describe(event)}`;
+    const last = runs.at(-1);
+    if (last && text === lastText) {
+      last.count++;
+      last.event = event;
+    } else {
+      runs.push({ event, count: 1, first: event.timestamp });
+      lastText = text;
+    }
+  }
+
+  return runs;
 }
 
 /** Ids are client-generated UUIDs; the start is enough to tell them apart on screen. */

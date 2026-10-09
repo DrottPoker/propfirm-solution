@@ -23,6 +23,9 @@ public interface ITradingClient
 
     /// <summary>The firm's notice for its terminals, on subscribing and when it changes, or null for none (ADR 0053).</summary>
     Task Notice(TerminalNotice? notice);
+
+    /// <summary>The charts got bars for a time without prices, so the terminal loads them again (ADR 0056).</summary>
+    Task Charts();
 }
 
 /// <summary>Realtime connection for the trading terminal. Commands go through the REST API.</summary>

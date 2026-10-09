@@ -7,12 +7,14 @@ import { Toaster } from "sonner";
 import { ErrorIcon, InfoIcon, SuccessIcon, WarningIcon } from "@/components/icons";
 import { onSessionEnded } from "@/lib/api/client";
 import { meKey } from "@/lib/queries";
+import { useApplyTheme } from "@/lib/theme";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: 1 } } }));
 
   // A session that ends while the terminal is open logs the trader out, so the terminal sends them to log in again.
   useEffect(() => onSessionEnded(() => queryClient.setQueryData(meKey, null)), [queryClient]);
+  useApplyTheme();
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -23,15 +25,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The short notes about fills, closes, refusals and the account's rules. They come in over the top of the order
- * ticket, below the account bar, so they never cover the positions and their Close buttons.
+ * The short notes about fills, closes, refusals, alerts and the account's rules. They come in at the bottom left of the
+ * chart, over its oldest candles, so they never cover the order panel, the latest price or the positions and their
+ * Close buttons (ADR 0058). The workspace tells where the chart is. Several stand one above the other, never on top of
+ * each other. On a phone they come in at the top.
  */
 function Notes() {
   return (
     <Toaster
-      position="top-right"
-      offset={{ top: "calc(4rem + 1px)", right: "0.5rem" }}
+      position="bottom-left"
+      offset={{ left: "calc(var(--notes-left, 0px) + 0.75rem)", bottom: "calc(var(--notes-bottom, 2rem) + 0.75rem)" }}
       mobileOffset={{ top: "0.5rem", right: "0.5rem", left: "0.5rem" }}
+      expand
+      visibleToasts={4}
       gap={8}
       style={{ "--width": "18rem" } as React.CSSProperties}
       icons={{

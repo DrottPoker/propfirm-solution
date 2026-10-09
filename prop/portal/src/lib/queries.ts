@@ -15,6 +15,7 @@ import type {
   IdentitySettings,
   SupportTicket,
   SupportTicketGroup,
+  TerminalSettings,
   TraderSummary,
   TradingSymbolRequest,
   Verification,
@@ -652,6 +653,24 @@ export function useSaveTradingConditions() {
     mutationFn: async (symbols: TradingSymbolRequest[]) =>
       resultOf(await api.PUT("/api/portal/admin/trading-conditions", { body: { symbols } }), "the trading conditions"),
     onSuccess: (conditions) => queryClient.setQueryData(["trading-conditions"], conditions),
+  });
+}
+
+/** How orders start in the firm's terminal: whether each asks before it is sent, and the size a ticket starts with (ADR 0058). */
+export function useTerminalSettings(enabled = true) {
+  return useQuery({
+    queryKey: ["terminal-settings"],
+    enabled,
+    queryFn: async () => resultOf(await api.GET("/api/portal/admin/terminal"), "the terminal settings"),
+  });
+}
+
+/** Saves how orders start in the terminal. Terminals take it the next time they open. */
+export function useSaveTerminalSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings: TerminalSettings) => resultOf(await api.PUT("/api/portal/admin/terminal", { body: settings }), "the terminal settings"),
+    onSuccess: (settings) => queryClient.setQueryData(["terminal-settings"], settings),
   });
 }
 

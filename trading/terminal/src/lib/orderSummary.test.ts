@@ -96,7 +96,7 @@ describe("formatShare", () => {
 
 describe("riskText", () => {
   it("says what the stop loss risks and how much of the room it takes", () => {
-    expect(riskText(18, "USD", floor("daily", 4_500))).toBe("Risks 18.00 USD, 0.4% of today's room");
+    expect(riskText(18, "USD", floor("daily", 4_500))).toBe("Risks 18.00 USD, 0.4% of today's limit");
     expect(riskText(1_500, "USD", floor("max-loss", 3_000))).toBe("Risks 1,500.00 USD, 50% of the room to the max loss limit");
   });
 

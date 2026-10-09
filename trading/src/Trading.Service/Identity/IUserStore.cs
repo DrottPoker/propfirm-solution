@@ -8,6 +8,12 @@ public interface IUserStore
 
     Task<User?> FindByEmailAsync(string tenantId, string email, CancellationToken cancellationToken);
 
+    /// <summary>The users with the email address at every firm, for a login that names no server (ADR 0058).</summary>
+    Task<IReadOnlyList<User>> FindAllByEmailAsync(string email, CancellationToken cancellationToken);
+
+    /// <summary>Sets the trader's name as the firm knows it, or removes it with null. False if the user does not exist.</summary>
+    Task<bool> SetNameAsync(Guid userId, string? name, CancellationToken cancellationToken);
+
     Task<User?> FindByIdAsync(Guid userId, CancellationToken cancellationToken);
 
     /// <summary>Replaces the password. Returns false if the user does not exist.</summary>
@@ -48,7 +54,13 @@ public interface IUserStore
     /// returned, when the user already has <paramref name="maxSettings"/>.
     /// </summary>
     Task<bool> SetSettingAsync(Guid userId, string key, string? json, int maxSettings, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>How many traders each firm has, and how many of them came after <paramref name="newSince"/> (ADR 0057).</summary>
+    Task<IReadOnlyDictionary<string, TraderCount>> CountTradersAsync(DateTimeOffset newSince, CancellationToken cancellationToken);
 }
+
+/// <summary>A firm's traders, and the new ones among them.</summary>
+public sealed record TraderCount(int Total, int New);
 
 /// <summary>
 /// The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each
@@ -56,7 +68,9 @@ public interface IUserStore
 /// count toward a payout rather than passing the stage. <paramref name="PassBy"/> is when the stage fails unless it was
 /// passed, and <paramref name="OpenPositionBy"/> when the account ends unless a position is opened before.
 /// <paramref name="ConsistencyPercent"/> is the most of the profit the best trading day may have made for a payout,
-/// and <paramref name="BestDayPercent"/> what it has made now.
+/// and <paramref name="BestDayPercent"/> what it has made now. A funded account's <paramref name="ProfitSplitPercent"/>
+/// is the trader's share of the profit a payout pays, and <paramref name="PayoutAvailable"/> whether one can be asked for
+/// now, at the firm (ADR 0058).
 /// </summary>
 public sealed record AccountRules(
     bool Funded,
@@ -65,7 +79,9 @@ public sealed record AccountRules(
     DateTimeOffset? PassBy,
     DateTimeOffset? OpenPositionBy,
     decimal? ConsistencyPercent,
-    decimal? BestDayPercent)
+    decimal? BestDayPercent,
+    decimal? ProfitSplitPercent = null,
+    bool? PayoutAvailable = null)
 {
     /// <summary>An account the firm's system has told nothing about.</summary>
     public static readonly AccountRules None = new(false, null, null, null, null, null, null);
@@ -79,7 +95,11 @@ public sealed record AccountRules(
 /// </summary>
 public sealed record AccountDetails(string AccountId, string? Label, decimal? ProfitTarget, string? TimeZone, Uri? DetailsUrl);
 
-public sealed record User(Guid Id, string TenantId, string Email, string PasswordHash);
+/// <summary>A trader. <paramref name="Name"/> is the name the firm told, for the terminal's initials and menu, or null.</summary>
+public sealed record User(Guid Id, string TenantId, string Email, string PasswordHash, string? Name = null)
+{
+    public const int MaxNameLength = 100;
+}
 
 internal static class Emails
 {

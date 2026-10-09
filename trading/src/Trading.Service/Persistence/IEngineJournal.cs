@@ -68,7 +68,28 @@ public interface IEngineJournal
         long afterSequence,
         int limit,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The latest events of accounts in the groups, or of one of their accounts when <paramref name="accountId"/> is
+    /// given, newest first, at most the limit (ADR 0057).
+    /// </summary>
+    Task<IReadOnlyList<EventEnvelope>> ReadLatestGroupEventsAsync(IReadOnlyCollection<string> groupIds, string? accountId, int limit, CancellationToken cancellationToken);
+
+    /// <summary>Per group, the positions opened and the requests refused since the time (ADR 0057).</summary>
+    Task<IReadOnlyDictionary<string, GroupActivity>> CountGroupActivityAsync(DateTimeOffset since, CancellationToken cancellationToken);
+
+    /// <summary>How big the journal is and the snapshots it keeps, newest first (ADR 0057).</summary>
+    Task<JournalStats> GetStatsAsync(CancellationToken cancellationToken);
 }
+
+/// <summary>A group's positions opened and requests refused, and how many of those were refused for an old price.</summary>
+public sealed record GroupActivity(int PositionsOpened, int Refused, int RefusedForOldPrices);
+
+/// <summary>The journal's size on disk, null when the storage cannot tell, and its snapshots, newest first.</summary>
+public sealed record JournalStats(long? SizeBytes, IReadOnlyList<SnapshotInfo> Snapshots);
+
+/// <summary>A snapshot after the input, and when it was taken, null when the storage does not keep it.</summary>
+public sealed record SnapshotInfo(long InputSequence, DateTimeOffset? CreatedAt);
 
 /// <summary>An input with its gapless sequence number.</summary>
 public sealed record JournaledInput(long Sequence, EngineInput Input)

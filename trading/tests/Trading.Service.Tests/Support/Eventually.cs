@@ -36,4 +36,6 @@ internal static class Eventually
     }
 
     public static Task<T> Within<T>(Task<T> task) => task.WaitAsync(Timeout);
+
+    public static Task Within(Task task) => task.WaitAsync(Timeout);
 }

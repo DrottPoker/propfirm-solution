@@ -21,6 +21,70 @@ internal sealed class PostgresChartStore(NpgsqlDataSource dataSource, DatabaseSc
         return await command.ExecuteScalarAsync(cancellationToken) is DateTime reach ? new DateTimeOffset(reach, TimeSpan.Zero) : null;
     }
 
+    public async Task<ChartHistoryInfo?> GetHistoryInfoAsync(string feed, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("select loaded_at, reach from chart_histories where feed = $1");
+        command.Parameters.AddWithValue(feed);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? new ChartHistoryInfo(reader.GetFieldValue<DateTimeOffset>(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<DateTimeOffset>(1))
+            : null;
+    }
+
+    public async Task SaveGapAsync(ChartGap gap, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            insert into chart_gaps (id, feed, from_time, until_time, found_at, state, tries, finished_at, bars, problem)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            on conflict (id) do update set state = excluded.state, tries = excluded.tries, finished_at = excluded.finished_at,
+                bars = excluded.bars, problem = excluded.problem
+            """);
+        command.Parameters.AddWithValue(gap.Id);
+        command.Parameters.AddWithValue(gap.Feed);
+        command.Parameters.AddWithValue(gap.From);
+        command.Parameters.AddWithValue(gap.Until);
+        command.Parameters.AddWithValue(gap.FoundAt);
+        command.Parameters.AddWithValue(gap.State.ToString());
+        command.Parameters.AddWithValue(gap.Tries);
+        command.Parameters.Add(new NpgsqlParameter { Value = (object?)gap.FinishedAt ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.TimestampTz });
+        command.Parameters.AddWithValue(gap.Bars);
+        command.Parameters.Add(new NpgsqlParameter { Value = (object?)gap.Problem ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ChartGap>> ListGapsAsync(string feed, int limit, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            """
+            select id, feed, from_time, until_time, found_at, state, tries, finished_at, bars, problem
+            from chart_gaps where feed = $1 order by found_at desc, from_time desc limit $2
+            """);
+        command.Parameters.AddWithValue(feed);
+        command.Parameters.AddWithValue(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var gaps = new List<ChartGap>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            gaps.Add(new ChartGap(
+                reader.GetGuid(0),
+                reader.GetString(1),
+                reader.GetFieldValue<DateTimeOffset>(2),
+                reader.GetFieldValue<DateTimeOffset>(3),
+                reader.GetFieldValue<DateTimeOffset>(4),
+                Enum.Parse<ChartGapState>(reader.GetString(5)),
+                reader.GetInt32(6),
+                reader.IsDBNull(7) ? null : reader.GetFieldValue<DateTimeOffset>(7),
+                reader.GetInt32(8),
+                reader.IsDBNull(9) ? null : reader.GetString(9)));
+        }
+
+        return gaps;
+    }
+
     public async Task ForgetHistoryAsync(string feed, CancellationToken cancellationToken)
     {
         await schema.EnsureAsync(cancellationToken);

@@ -9,7 +9,18 @@ import type {
   Time,
 } from "lightweight-charts";
 
-import { hitDrawing, logicalOfTime, timeOfLogical, type ChartPoint, type Drawing, type DrawingPart, type DrawingPixels, type Pixel } from "@/lib/drawings";
+import {
+  fibonacciLevels,
+  fibonacciYs,
+  hitDrawing,
+  logicalOfTime,
+  timeOfLogical,
+  type ChartPoint,
+  type Drawing,
+  type DrawingPart,
+  type DrawingPixels,
+  type Pixel,
+} from "@/lib/drawings";
 
 type DrawTarget = Parameters<IPrimitivePaneRenderer["draw"]>[0];
 
@@ -30,7 +41,7 @@ const handleSize = 7;
 /**
  * Draws the trader's drawings on the candles, and the one being drawn. The selected drawing shows its ends, which can
  * be grabbed. Times are placed among the bars, so a drawing stays at its times on every timeframe. A horizontal line
- * also has its price on the price axis.
+ * also has its price on the price axis, and a retracement each level's share and price.
  */
 export class DrawingsLayer implements ISeriesPrimitive<Time> {
   private param: SeriesAttachedParameter<Time> | null = null;
@@ -41,10 +52,15 @@ export class DrawingsLayer implements ISeriesPrimitive<Time> {
   private barSeconds = 60;
   private digits = 5;
   private drawingMode = false;
+  private measurer: CanvasRenderingContext2D | null = null;
   private readonly views: readonly IPrimitivePaneView[];
   private axisViews: readonly ISeriesPrimitiveAxisView[] = [];
 
-  constructor(private readonly colors: DrawingColors) {
+  constructor(
+    private readonly colors: DrawingColors,
+    /** The notes' font in media pixels, such as "12px Familjen Grotesk". */
+    private readonly noteFont = "12px sans-serif",
+  ) {
     const renderer: IPrimitivePaneRenderer = { draw: (target) => this.draw(target) };
     this.views = [{ zOrder: () => "top", renderer: () => renderer }];
   }
@@ -133,6 +149,11 @@ export class DrawingsLayer implements ISeriesPrimitive<Time> {
     return { cursorStyle, externalId: `drawing:${hit.id}`, zOrder: "top" };
   }
 
+  /** Where a time and price are on the chart, such as a note being written. */
+  pixelAt(point: ChartPoint): Pixel | null {
+    return this.pixelOf(point);
+  }
+
   private pixelOf(point: ChartPoint): Pixel | null {
     const param = this.param;
     if (!param) {
@@ -149,14 +170,40 @@ export class DrawingsLayer implements ISeriesPrimitive<Time> {
   }
 
   private pixelsOf(drawing: Drawing): DrawingPixels | null {
-    if (drawing.kind === "horizontal") {
-      const y = this.param?.series.priceToCoordinate(drawing.price);
-      return y == null ? null : { kind: "horizontal", y };
+    switch (drawing.kind) {
+      case "horizontal": {
+        const y = this.param?.series.priceToCoordinate(drawing.price);
+        return y == null ? null : { kind: "horizontal", y };
+      }
+      case "vertical": {
+        const at = this.pixelOf({ time: drawing.time, price: 0 });
+        return at ? { kind: "vertical", x: at.x } : null;
+      }
+      case "text": {
+        const at = this.pixelOf(drawing.at);
+        return at ? { kind: "text", at, width: this.measure(drawing.text) } : null;
+      }
+      default: {
+        const from = this.pixelOf(drawing.from);
+        const to = this.pixelOf(drawing.to);
+        return from && to ? { kind: drawing.kind, from, to } : null;
+      }
+    }
+  }
+
+  // A note's width on the chart, for grabbing it.
+  private measure(text: string): number {
+    if (typeof document === "undefined") {
+      return text.length * 7;
     }
 
-    const from = this.pixelOf(drawing.from);
-    const to = this.pixelOf(drawing.to);
-    return from && to ? { kind: drawing.kind, from, to } : null;
+    this.measurer ??= document.createElement("canvas").getContext("2d");
+    if (!this.measurer) {
+      return text.length * 7;
+    }
+
+    this.measurer.font = this.noteFont;
+    return this.measurer.measureText(text).width;
   }
 
   private updateAxisViews() {
@@ -185,31 +232,59 @@ export class DrawingsLayer implements ISeriesPrimitive<Time> {
         }
 
         const selected = drawing.id === this.selected || drawing === this.draft;
+        const color = selected ? this.colors.selected : this.colors.line;
         context.save();
-        context.strokeStyle = selected ? this.colors.selected : this.colors.line;
+        context.strokeStyle = color;
         context.lineWidth = Math.max(1, Math.floor(hr)) * (selected ? 2 : 1);
         context.beginPath();
-        if (pixels.kind === "horizontal") {
-          const y = Math.round(pixels.y * vr) + 0.5;
-          context.moveTo(0, y);
-          context.lineTo(bitmapSize.width, y);
-          context.stroke();
-        } else if (pixels.kind === "trend") {
-          context.moveTo(pixels.from.x * hr, pixels.from.y * vr);
-          context.lineTo(pixels.to.x * hr, pixels.to.y * vr);
-          context.stroke();
-        } else {
-          const x = Math.min(pixels.from.x, pixels.to.x) * hr;
-          const y = Math.min(pixels.from.y, pixels.to.y) * vr;
-          const width = Math.abs(pixels.to.x - pixels.from.x) * hr;
-          const height = Math.abs(pixels.to.y - pixels.from.y) * vr;
-          context.fillStyle = this.colors.fill;
-          context.fillRect(x, y, width, height);
-          context.strokeRect(x, y, width, height);
+        switch (pixels.kind) {
+          case "horizontal": {
+            const y = Math.round(pixels.y * vr) + 0.5;
+            context.moveTo(0, y);
+            context.lineTo(bitmapSize.width, y);
+            context.stroke();
+            break;
+          }
+          case "vertical": {
+            const x = Math.round(pixels.x * hr) + 0.5;
+            context.moveTo(x, 0);
+            context.lineTo(x, bitmapSize.height);
+            context.stroke();
+            break;
+          }
+          case "trend":
+          case "arrow": {
+            context.moveTo(pixels.from.x * hr, pixels.from.y * vr);
+            context.lineTo(pixels.to.x * hr, pixels.to.y * vr);
+            context.stroke();
+            if (pixels.kind === "arrow") {
+              this.arrowHead(context, pixels.from, pixels.to, hr, vr, color);
+            }
+            break;
+          }
+          case "rectangle": {
+            const x = Math.min(pixels.from.x, pixels.to.x) * hr;
+            const y = Math.min(pixels.from.y, pixels.to.y) * vr;
+            const width = Math.abs(pixels.to.x - pixels.from.x) * hr;
+            const height = Math.abs(pixels.to.y - pixels.from.y) * vr;
+            context.fillStyle = this.colors.fill;
+            context.fillRect(x, y, width, height);
+            context.strokeRect(x, y, width, height);
+            break;
+          }
+          case "fibonacci":
+            this.fibonacci(context, drawing, pixels.from, pixels.to, bitmapSize.width, hr, vr, color);
+            break;
+          case "text":
+            context.font = this.noteFont.replace(/^(\d+)px/, (_, size) => `${Number(size) * vr}px`);
+            context.fillStyle = color;
+            context.textBaseline = "bottom";
+            context.fillText(drawing.kind === "text" ? drawing.text : "", pixels.at.x * hr, pixels.at.y * vr);
+            break;
         }
 
         // The ends of the selected drawing, to be grabbed.
-        if (selected && pixels.kind !== "horizontal") {
+        if (selected && pixels.kind !== "horizontal" && pixels.kind !== "vertical" && pixels.kind !== "text") {
           context.fillStyle = this.colors.selected;
           for (const end of [pixels.from, pixels.to]) {
             context.fillRect((end.x - handleSize / 2) * hr, (end.y - handleSize / 2) * vr, handleSize * hr, handleSize * vr);
@@ -218,5 +293,48 @@ export class DrawingsLayer implements ISeriesPrimitive<Time> {
         context.restore();
       }
     });
+  }
+
+  // A filled head at the arrow's end, pointing the way it was drawn.
+  private arrowHead(context: CanvasRenderingContext2D, from: Pixel, to: Pixel, hr: number, vr: number, color: string) {
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const size = 10;
+    context.fillStyle = color;
+    context.beginPath();
+    context.moveTo(to.x * hr, to.y * vr);
+    for (const side of [-1, 1]) {
+      const a = angle + Math.PI - side * 0.45;
+      context.lineTo((to.x + Math.cos(a) * size) * hr, (to.y + Math.sin(a) * size) * vr);
+    }
+    context.closePath();
+    context.fill();
+  }
+
+  // The retracement's levels from the left point to the right edge, each with its share and price, and the line
+  // between the two points dotted.
+  private fibonacci(context: CanvasRenderingContext2D, drawing: Drawing, from: Pixel, to: Pixel, width: number, hr: number, vr: number, color: string) {
+    if (drawing.kind !== "fibonacci") {
+      return;
+    }
+
+    const left = Math.min(from.x, to.x) * hr;
+    context.font = this.noteFont.replace(/^(\d+)px/, (_, size) => `${Math.round(Number(size) * 0.9 * vr)}px`);
+    context.textBaseline = "bottom";
+    fibonacciLevels.forEach((level, index) => {
+      const y = Math.round(fibonacciYs(from, to)[index] * vr) + 0.5;
+      context.beginPath();
+      context.moveTo(left, y);
+      context.lineTo(width, y);
+      context.stroke();
+      const price = drawing.from.price + (drawing.to.price - drawing.from.price) * level;
+      context.fillStyle = color;
+      context.fillText(`${(level * 100).toFixed(1).replace(/\.0$/, "")}%  ${price.toFixed(this.digits)}`, left + 4 * hr, y - 2 * vr);
+    });
+    context.setLineDash([3 * hr, 3 * hr]);
+    context.beginPath();
+    context.moveTo(from.x * hr, from.y * vr);
+    context.lineTo(to.x * hr, to.y * vr);
+    context.stroke();
+    context.setLineDash([]);
   }
 }

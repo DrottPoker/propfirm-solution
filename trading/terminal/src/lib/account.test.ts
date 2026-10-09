@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { EngineEvent, FloorSnapshot } from "./api/types";
-import { endedText, floorLabel, floorLeftText, floorRisk, initials, targetText } from "./account";
+import { endedText, floorLabel, floorLeftText, floorRisk, initials, nearestRoom, statusWord, targetText, todayResult } from "./account";
+import { accountWith, daily, ownLimitsWith } from "./rules.fixtures";
 
 describe("floorLabel", () => {
   it.each([
@@ -62,13 +63,16 @@ describe("endedText", () => {
   };
 
   it("says which limit broke, when and at what equity", () => {
-    expect(endedText([breach, { kind: "AccountDisabled", accountId: "demo", reason: "EquityFloor", timestamp }], "Europe/Stockholm")).toBe(
-      "The daily loss limit was broken at 17:38:12 Stockholm time: equity 9,482.50 fell below 9,500.00. Every position was closed at those prices.",
+    const sameDay = new Date("2026-10-05T18:00:00Z");
+    const later = new Date("2026-10-09T08:00:00Z");
+    expect(endedText([breach, { kind: "AccountDisabled", accountId: "demo", reason: "EquityFloor", timestamp }], "Europe/Stockholm", sameDay)).toBe(
+      "The daily loss limit was broken today at 17:38:12 Stockholm time: equity 9,482.50 fell below 9,500.00. Every position was closed at those prices.",
     );
+    expect(endedText([breach], "Europe/Stockholm", later)).toContain("was broken on 5 Oct at 17:38:12 Stockholm time");
   });
 
   it("says when the firm closed the account", () => {
-    expect(endedText([{ kind: "AccountDisabled", accountId: "demo", reason: "Closed", timestamp }], "UTC")).toBe("The firm closed the account.");
+    expect(endedText([{ kind: "AccountDisabled", accountId: "demo", reason: "Closed", timestamp }], "UTC", new Date(timestamp))).toBe("The firm closed the account.");
   });
 });
 
@@ -80,5 +84,37 @@ describe("initials", () => {
     ["@x.se", "?"],
   ])("takes %j as %j", (email, expected) => {
     expect(initials(email)).toBe(expected);
+  });
+
+  it("takes the name the firm told before the email address", () => {
+    expect(initials("test@test.com", "Anna Berg")).toBe("AB");
+    expect(initials("test@test.com", " Anna  Maria Berg ")).toBe("AB");
+    expect(initials("test@test.com", "Anna")).toBe("AN");
+    expect(initials("test@test.com", " ")).toBe("TE");
+  });
+});
+
+describe("the account bar's figures", () => {
+  it("counts today from the balance the trading day started with", () => {
+    expect(todayResult(accountWith({ equity: 100_250 }))).toEqual({ amount: 250, percent: 0.25 });
+    expect(todayResult(accountWith({ equity: 99_500 })).amount).toBe(-500);
+  });
+
+  it("finds the limit nearest to being broken, the firm's or the trader's own", () => {
+    const firm = nearestRoom(accountWith({ equity: 98_000, floors: [daily(3_000)] }));
+    expect(firm).toMatchObject({ name: "Left today", limit: "Daily loss limit", left: 3_000, share: 0.6, risk: "ok", own: false });
+
+    const own = nearestRoom(
+      accountWith({ equity: 99_000, floors: [daily(4_000)], ownLimits: ownLimitsWith({ limits: { dailyLoss: 1_500, dailyTarget: null, maxTrades: null }, lossLevel: 98_500 }) }),
+    );
+    expect(own).toMatchObject({ limit: "Your own daily loss limit", left: 500, own: true });
+    expect(nearestRoom(accountWith({ floors: [daily(0)] }))).toBeNull();
+  });
+
+  it("says the account's state in a word", () => {
+    expect(statusWord("Active", false).word).toBe("Active");
+    expect(statusWord("Active", true).word).toBe("Locked today");
+    expect(statusWord("Suspended", false).word).toBe("Paused");
+    expect(statusWord("Disabled", true).word).toBe("Ended");
   });
 });

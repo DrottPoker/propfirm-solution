@@ -3,7 +3,7 @@ using Trading.Service.Engine;
 
 namespace Trading.Service.Feeds;
 
-/// <summary>Moves prices from the feed into the candles and the engine, once the charts are filled.</summary>
+/// <summary>Moves prices from the feed into the charts and the engine, once the charts are filled.</summary>
 internal sealed class PriceFeedPump(
     IPriceFeed feed,
     EngineHost engine,
@@ -30,8 +30,9 @@ internal sealed class PriceFeedPump(
 
         await foreach (var quote in feed.StreamAsync(stoppingToken))
         {
-            // Prices are stamped with the service clock, like everything the engine sees.
-            candles.Add(quote.Symbol, quote.Bid, time.GetUtcNow());
+            // Prices are stamped with the service clock, like everything the engine sees. The charts may hold them back
+            // while they fill a gap, but the engine never waits.
+            history.AddPrice(quote.Symbol, quote.Bid, time.GetUtcNow());
             engine.EnqueueQuote(feed.Name, quote.Symbol, quote.Bid, quote.Ask);
         }
     }

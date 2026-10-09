@@ -281,7 +281,7 @@ internal sealed class ChallengeService(
                         [tradingAccountId, account.Id, open.Stage],
                         cancellationToken);
                     await QueueCommandAsync(connection, firm, account, new OpenTradingAccount(tradingAccountId, open.InitialBalance, account.TraderId), now, cancellationToken);
-                    await QueueCommandAsync(connection, firm, account, Describe(firm, account, tradingAccountId, open.Stage), now, cancellationToken);
+                    await QueueDescribeAsync(connection, firm, account, tradingAccountId, open.Stage, now, cancellationToken);
                     await ExecuteAsync(connection, "update challenge_accounts set described_account_id = $2 where id = $1", [account.Id, tradingAccountId], cancellationToken);
                     break;
                 case FloorRequested floor:
@@ -429,8 +429,9 @@ internal sealed class ChallengeService(
 
     /// <summary>
     /// Tells the trading platform how to show the firm's open trading accounts it was not told about, such as those opened
-    /// before it could be (ADR 0035), and the rules of those whose rules it was not told (ADR 0052). Each trading account
-    /// is described once; new ones already are when they open.
+    /// before it could be (ADR 0035), the names of every trading account it was not told the current name of, such as an
+    /// earlier stage's (ADR 0058), and the rules of those whose rules it was not told (ADR 0052). Each trading account is
+    /// described once; new ones already are when they open.
     /// </summary>
     public async Task<int> DescribeOpenAccountsAsync(Firm firm, CancellationToken cancellationToken)
     {
@@ -461,18 +462,48 @@ internal sealed class ChallengeService(
             foreach (var account in accounts)
             {
                 var tradingAccountId = account.State.AccountId!;
-                await QueueCommandAsync(connection, firm, account, Describe(firm, account, tradingAccountId, account.State.Stage), now, cancellationToken);
+                await QueueDescribeAsync(connection, firm, account, tradingAccountId, account.State.Stage, now, cancellationToken);
                 await ExecuteAsync(connection, "update challenge_accounts set described_account_id = $2 where id = $1", [account.Id, tradingAccountId], cancellationToken);
                 described++;
             }
 
+            // Every trading account the platform has, also an earlier stage's and an ended one's, is named as the portal
+            // names it now, once: those named before names were kept, and those never named (ADR 0058).
+            var unnamed = new List<(ChallengeAccount Account, string TradingAccountId, int Stage)>();
+            await using (var command = new NpgsqlCommand(
+                """
+                select a.id, a.firm_id, a.number, a.trader_id, t.email, a.definition_id, a.reference, a.state, a.steps, a.created_at, ta.account_id, ta.stage
+                from trading_accounts ta
+                join challenge_accounts a on a.id = ta.challenge_account_id
+                join traders t on t.id = a.trader_id
+                where a.firm_id = $1 and ta.created and ta.described_label is null
+                order by a.number, ta.stage
+                for update of ta
+                """,
+                connection))
+            {
+                command.Parameters.AddWithValue(firm.Id);
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    unnamed.Add((ReadAccount(reader), reader.GetString(10), reader.GetInt32(11)));
+                }
+            }
+
+            foreach (var (account, tradingAccountId, stage) in unnamed)
+            {
+                await QueueDescribeAsync(connection, firm, account, tradingAccountId, stage, now, cancellationToken);
+                described++;
+            }
+
             // Rules are told at every step that changes them, so this finds only accounts whose rules have not changed
-            // since the terminal began to show them.
+            // since the terminal began to show them, or since the rules told about payouts (ADR 0058).
             var untold = new List<ChallengeAccount>();
             await using (var command = new NpgsqlCommand(
                 $"""
                 {SelectAccount}
-                where a.firm_id = $1 and a.status not in ('Failed', 'Cancelled') and a.state ->> 'accountId' is not null and a.described_rules is null
+                where a.firm_id = $1 and a.status not in ('Failed', 'Cancelled') and a.state ->> 'accountId' is not null
+                  and (a.described_rules is null or not (a.described_rules -> 'rules' ? 'payoutAvailable'))
                 for update of a
                 """,
                 connection))
@@ -516,6 +547,21 @@ internal sealed class ChallengeService(
         var target = rules.ProfitTargetPercent is { } percent ? definition.InitialBalance + definition.PercentOfInitialBalance(percent) : (decimal?)null;
         return new DescribeTradingAccount(
             tradingAccountId, label, target, definition.TradingDay.TimeZone, new Uri(firm.Portal.Url, $"accounts/{account.Id}"), definition.TradingDay.Start);
+    }
+
+    /// <summary>Tells the trading platform how to show the stage's trading account, and remembers the name it was given.</summary>
+    private static async Task QueueDescribeAsync(
+        NpgsqlConnection connection,
+        Firm firm,
+        ChallengeAccount account,
+        string tradingAccountId,
+        int stage,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var describe = Describe(firm, account, tradingAccountId, stage);
+        await QueueCommandAsync(connection, firm, account, describe, now, cancellationToken);
+        await ExecuteAsync(connection, "update trading_accounts set described_label = $2 where account_id = $1", [tradingAccountId, describe.Label], cancellationToken);
     }
 
     private static NpgsqlParameter Text(string? value) => new() { Value = (object?)value ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text };

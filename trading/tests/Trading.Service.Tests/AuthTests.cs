@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 
 using Trading.Service.Tests.Support;
 
@@ -33,7 +34,63 @@ public sealed class AuthTests
 
         var problem = await client.PostJsonAsync("/api/auth/login", new { server, email, password }, HttpStatusCode.Unauthorized);
 
-        Assert.Equal("Wrong server, email or password.", problem.GetProperty("title").GetString());
+        Assert.Equal("Wrong email or password.", problem.GetProperty("title").GetString());
+    }
+
+    // The trader need not know the firm's server: the email address and the password find it (ADR 0058).
+    [Fact]
+    public async Task ATraderLogsInWithoutNamingTheServer()
+    {
+        using var factory = new ServiceFactory();
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using var client = factory.CreateClient();
+
+        var me = await client.PostJsonAsync("/api/auth/login", new { email = ServiceFactory.EmailOf("T1"), password = ServiceFactory.TraderPassword });
+
+        Assert.Equal("demo-firm", me.GetProperty("server").GetProperty("id").GetString());
+    }
+
+    // The same email address and password at two firms: the trader is told which, and chooses, without logging in.
+    [Fact]
+    public async Task ATraderAtTwoFirmsChoosesWhichToLogInTo()
+    {
+        using var factory = new ServiceFactory(settings: SecondFirm.Settings);
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using (var other = factory.CreateAdminClient(SecondFirm.ApiKey))
+        {
+            await other.PostJsonAsync("/api/admin/v1/users", new { email = ServiceFactory.EmailOf("T1"), password = ServiceFactory.TraderPassword });
+        }
+
+        using var client = factory.CreateClient();
+        var choose = await client.PostJsonAsync(
+            "/api/auth/login",
+            new { email = ServiceFactory.EmailOf("T1"), password = ServiceFactory.TraderPassword },
+            HttpStatusCode.Conflict);
+        var me = await client.PostJsonAsync("/api/auth/login", new { server = SecondFirm.Server, email = ServiceFactory.EmailOf("T1"), password = ServiceFactory.TraderPassword });
+
+        Assert.Equal(["Demo Firm", "Other Firm"], choose.GetProperty("servers").EnumerateArray().Select(s => s.GetProperty("name").GetString()));
+        Assert.Equal(SecondFirm.Server, me.GetProperty("server").GetProperty("id").GetString());
+    }
+
+    // A firm that logs its traders in through its own portal turns password login off, and a password then fits nowhere.
+    [Fact]
+    public async Task NoPasswordLoginAtAFirmThatTurnedItOff()
+    {
+        using var factory = new ServiceFactory();
+        (await factory.CreateTraderClientAsync("T1")).Dispose();
+        using (var admin = factory.CreateAdminClient())
+        {
+            var profile = await admin.GetJsonAsync("/api/admin/v1/terminal-profile");
+            var changed = JsonNode.Parse(profile.GetRawText())!;
+            changed["passwordLogin"] = false;
+            await admin.PutJsonAsync("/api/admin/v1/terminal-profile", changed);
+        }
+
+        using var client = factory.CreateClient();
+        await client.PostJsonAsync("/api/auth/login", new { server = ServiceFactory.DemoServer, email = ServiceFactory.EmailOf("T1"), password = ServiceFactory.TraderPassword }, HttpStatusCode.Unauthorized);
+        var server = await client.GetJsonAsync($"/api/servers/{ServiceFactory.DemoServer}");
+
+        Assert.False(server.GetProperty("profile").GetProperty("passwordLogin").GetBoolean());
     }
 
     [Fact]
@@ -204,16 +261,21 @@ public sealed class AuthTests
     }
 
     [Fact]
-    public async Task ServersAreListedByName()
+    public async Task ListedFirmsAreFoundByNameAndNeverAllListed()
     {
         using var factory = new ServiceFactory(settings: SecondFirm.Settings);
         using var client = factory.CreateClient();
 
-        var servers = await client.GetJsonAsync("/api/servers");
+        var firm = await client.GetJsonAsync("/api/servers?search=FIRM");
+        var other = await client.GetJsonAsync("/api/servers?search=other");
+        var tooShort = await client.GetJsonAsync("/api/servers?search=f");
+        var none = await client.GetJsonAsync("/api/servers");
 
         Assert.Equal(
             [("demo-firm", "Demo Firm"), ("other-firm", "Other Firm")],
-            servers.EnumerateArray().Select(s => (s.GetProperty("id").GetString(), s.GetProperty("name").GetString())));
+            firm.EnumerateArray().Select(s => (s.GetProperty("id").GetString(), s.GetProperty("name").GetString())));
+        Assert.Equal(["other-firm"], other.EnumerateArray().Select(s => s.GetProperty("id").GetString()));
+        Assert.Equal((0, 0), (tooShort.GetArrayLength(), none.GetArrayLength()));
     }
 
     [Theory]

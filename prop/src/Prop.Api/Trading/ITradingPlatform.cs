@@ -89,7 +89,57 @@ internal interface ITradingPlatform
     /// example SymbolInUse for a symbol with open positions, or GroupNotChangeable for a group from the platform's configuration.
     /// </summary>
     Task SetGroupSymbolsAsync(FirmTrading firm, IReadOnlyList<TradingSymbolConditions> symbols, CancellationToken cancellationToken);
+
+    /// <summary>How the firm's terminal works for its traders (ADR 0058).</summary>
+    Task<TerminalProfile> GetTerminalProfileAsync(FirmTrading firm, CancellationToken cancellationToken);
+
+    /// <summary>Sets how the firm's terminal works. Refused when the platform cannot use the profile.</summary>
+    Task SetTerminalProfileAsync(FirmTrading firm, TerminalProfile profile, CancellationToken cancellationToken);
+
+    /// <summary>The name the terminal shows for the user, or none with null (ADR 0058).</summary>
+    Task SetUserNameAsync(FirmTrading firm, Guid userId, string? name, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// How a firm's terminal works for its traders (ADR 0058): the kind of business, the parts shown, whether an order asks
+/// before it is sent and how a ticket starts, whether traders log in to the terminal with a password, the firm's own
+/// pages, and a warning about risk at the login.
+/// </summary>
+internal sealed record TerminalProfile(
+    TerminalKind Kind,
+    TerminalModules Modules,
+    bool ConfirmOrders,
+    TerminalStartingSize StartingSize,
+    bool PasswordLogin,
+    TerminalLinks Links,
+    string? RiskWarning);
+
+internal enum TerminalKind
+{
+    Prop,
+    Broker,
+    Practice,
+    Desk,
+}
+
+/// <summary>The parts of the terminal that are shown.</summary>
+internal sealed record TerminalModules(bool Rulebook, bool OwnLimits, bool RiskSizing, bool TradeDetails, bool BreachReports)
+{
+    public static readonly TerminalModules All = new(true, true, true, true, true);
+}
+
+/// <summary>How an order ticket starts: at the smallest volume, at a number of lots, or sized from a percent of the room left today.</summary>
+internal sealed record TerminalStartingSize(StartingSizeKind Kind, decimal? Value);
+
+public enum StartingSizeKind
+{
+    Smallest,
+    Lots,
+    RiskOfRoom,
+}
+
+/// <summary>The firm's own pages the terminal links to, each null when there is none.</summary>
+internal sealed record TerminalLinks(Uri? Help, Uri? Support, Uri? Terms, Uri? Privacy, Uri? PasswordReset);
 
 /// <summary>An instrument on the trading platform. <paramref name="ContractSize"/> is units of the base currency in one lot.</summary>
 internal sealed record TradingInstrument(string Symbol, string BaseCurrency, string QuoteCurrency, decimal ContractSize, int Digits);
@@ -301,7 +351,9 @@ internal sealed record TradingAccountDetails(string Label, decimal? ProfitTarget
 /// The account's rules as they stand now, for the terminal (ADR 0052). <paramref name="Funded"/> counts the trading days
 /// toward a payout. <paramref name="PassBy"/> is when the stage fails unless passed, and <paramref name="OpenPositionBy"/>
 /// when the challenge ends unless a position is opened. <paramref name="BestDayPercent"/> is the best trading day's share
-/// of the profit, which the consistency rule allows up to <paramref name="ConsistencyPercent"/>. Null for none.
+/// of the profit, which the consistency rule allows up to <paramref name="ConsistencyPercent"/>. A funded account's
+/// <paramref name="ProfitSplitPercent"/> is the trader's share of a payout, and <paramref name="PayoutAvailable"/> whether
+/// one can be asked for now (ADR 0058). Null for none.
 /// </summary>
 internal sealed record TradingAccountRules(
     bool Funded,
@@ -310,4 +362,6 @@ internal sealed record TradingAccountRules(
     DateTimeOffset? PassBy,
     DateTimeOffset? OpenPositionBy,
     decimal? ConsistencyPercent,
-    decimal? BestDayPercent);
+    decimal? BestDayPercent,
+    decimal? ProfitSplitPercent = null,
+    bool? PayoutAvailable = null);

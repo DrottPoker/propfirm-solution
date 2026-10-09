@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { InstrumentInfo } from "./api/types";
-import { categoriesOf, categoryOf, currencySign, digitsLookup, initialInstrument, spreadPoints } from "./instruments";
+import { categoriesOf, categoryOf, currencySign, digitsLookup, initialInstrument } from "./instruments";
 
 function instrument(symbol: string, baseCurrency: string, quoteCurrency: string, category: InstrumentInfo["category"] = "Forex"): InstrumentInfo {
   return {
     symbol,
+    name: symbol,
     category,
     baseCurrency,
     quoteCurrency,
@@ -49,13 +50,6 @@ describe("digitsLookup", () => {
     expect(digitsOf("XAUUSD")).toBe(2);
     expect(digitsOf("EURUSD")).toBe(5);
     expect(digitsOf("BTCUSD")).toBe(5);
-  });
-});
-
-describe("spreadPoints", () => {
-  it("counts whole points", () => {
-    expect(spreadPoints(1.08845, 1.08849, 5)).toBe(4);
-    expect(spreadPoints(2650.25, 2650.5, 2)).toBe(25);
   });
 });
 

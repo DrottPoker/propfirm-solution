@@ -37,10 +37,9 @@ export function Sheet({
       className="fixed inset-x-2 top-16 bottom-2 z-30 flex animate-slide-in flex-col overflow-hidden rounded-2xl border border-border bg-panel shadow-float sm:left-auto sm:w-[30rem] max-sm:inset-0 max-sm:rounded-none"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-5 pt-4 pb-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-accent uppercase">{label}</span>
-          <h2 className="font-serif text-3xl leading-tight">{title}</h2>
-          <span className="truncate text-xs text-muted">{subtitle}</span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2 className="text-xl leading-tight font-semibold">{title}</h2>
+          <span className="truncate text-xs text-muted">{subtitle ? `${label}, ${subtitle}` : label}</span>
         </div>
         <span className="flex shrink-0 items-center gap-1 print:hidden">
           {printable && (
@@ -75,7 +74,7 @@ export function SheetSection({ title, aside, children }: { title: string; aside?
     <section aria-label={title} className="flex flex-col gap-2.5 border-b border-border px-5 py-4 text-sm">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="font-semibold">{title}</h3>
-        {aside && <span className="font-mono text-xs text-muted tabular-nums">{aside}</span>}
+        {aside && <span className="text-xs text-muted tabular-nums">{aside}</span>}
       </div>
       {children}
     </section>

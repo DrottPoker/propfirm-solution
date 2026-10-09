@@ -111,6 +111,10 @@ public sealed class TradingOptions
         return null;
     }
 
+    /// <summary>The name of the trading hours the symbol follows with the feed, or null when it is always open (ADR 0057).</summary>
+    public string? HoursNameFor(string symbol, string? feed) =>
+        Instruments.FirstOrDefault(i => i.Symbol == symbol) is { } instrument && HoursNameOf(instrument, feed) is { Length: > 0 } name ? name : null;
+
     // The feed's own hours for the instrument when it has them, otherwise the instrument's. Empty for always open.
     private string? HoursNameOf(InstrumentOptions instrument, string? feed)
     {
@@ -200,6 +204,9 @@ public enum InstrumentCategory
 public sealed class InstrumentOptions
 {
     public string Symbol { get; init; } = "";
+
+    /// <summary>The instrument's name for traders, such as "Gold" or "Germany 40", which the terminal shows and searches (ADR 0058).</summary>
+    public string? Name { get; init; }
 
     /// <summary>Required. Null only when the configuration lacks it, which stops the start.</summary>
     public InstrumentCategory? Category { get; init; }

@@ -61,6 +61,9 @@ Varje viktigt tekniskt beslut får en egen fil. Filen beskriver sammanhanget, be
 | [0053](0053-detaljer-rapporter-och-incidenter.md) | Detaljer per affär, rapport per regelbrott och incidenter med statussida | Beslutad |
 | [0054](0054-egna-sparrar-for-tradern.md) | Egna spärrar för tradern | Beslutad |
 | [0055](0055-installningar-i-terminalen.md) | Inställningar i terminalen | Föreslagen |
+| [0056](0056-graferna-fyller-glapp-fran-flodets-historik.md) | Graferna fyller glapp från prisflödets historik | Föreslagen |
+| [0057](0057-personalpanel-for-handelsplattformen.md) | Vår personalpanel för handelsplattformen | Föreslagen |
+| [0058](0058-terminalen-som-egen-produkt.md) | Terminalen som egen produkt: en profil per server och en lugnare terminal | Föreslagen |
 
 ## Så skriver du en ny ADR
 

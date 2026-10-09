@@ -38,12 +38,53 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
 
     public Task<User?> FindByEmailAsync(string tenantId, string email, CancellationToken cancellationToken) =>
         FindAsync(
-            "select id, tenant_id, email, password_hash from users where tenant_id = $1 and normalized_email = $2",
+            "select id, tenant_id, email, password_hash, name from users where tenant_id = $1 and normalized_email = $2",
             [tenantId, Emails.Normalize(email)],
             cancellationToken);
 
+    public async Task<IReadOnlyList<User>> FindAllByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            "select id, tenant_id, email, password_hash, name from users where normalized_email = $1 order by tenant_id");
+        command.Parameters.AddWithValue(Emails.Normalize(email));
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var users = new List<User>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            users.Add(ReadUser(reader));
+        }
+
+        return users;
+    }
+
     public Task<User?> FindByIdAsync(Guid userId, CancellationToken cancellationToken) =>
-        FindAsync("select id, tenant_id, email, password_hash from users where id = $1", [userId], cancellationToken);
+        FindAsync("select id, tenant_id, email, password_hash, name from users where id = $1", [userId], cancellationToken);
+
+    public async Task<bool> SetNameAsync(Guid userId, string? name, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand("update users set name = $2 where id = $1");
+        command.Parameters.AddWithValue(userId);
+        command.Parameters.AddWithValue((object?)name ?? DBNull.Value);
+        return await command.ExecuteNonQueryAsync(cancellationToken) == 1;
+    }
+
+    public async Task<IReadOnlyDictionary<string, TraderCount>> CountTradersAsync(DateTimeOffset newSince, CancellationToken cancellationToken)
+    {
+        await schema.EnsureAsync(cancellationToken);
+        await using var command = dataSource.CreateCommand(
+            "select tenant_id, count(*)::int, (count(*) filter (where created_at >= $1))::int from users group by tenant_id");
+        command.Parameters.AddWithValue(newSince);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var counts = new Dictionary<string, TraderCount>(StringComparer.Ordinal);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            counts[reader.GetString(0)] = new TraderCount(reader.GetInt32(1), reader.GetInt32(2));
+        }
+
+        return counts;
+    }
 
     public async Task<bool> SetPasswordHashAsync(Guid userId, string passwordHash, CancellationToken cancellationToken)
     {
@@ -244,8 +285,9 @@ internal sealed class PostgresUserStore(NpgsqlDataSource dataSource, DatabaseSch
         }
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        return await reader.ReadAsync(cancellationToken)
-            ? new User(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3))
-            : null;
+        return await reader.ReadAsync(cancellationToken) ? ReadUser(reader) : null;
     }
+
+    private static User ReadUser(NpgsqlDataReader reader) =>
+        new(reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4));
 }

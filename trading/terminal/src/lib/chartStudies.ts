@@ -10,6 +10,8 @@ export interface Indicator {
   kind: IndicatorKind;
   /** How many candles it works over. MACD always uses 12, 26 and 9, so it has none. */
   period: number;
+  /** Hidden from the chart for a while, kept with its period. */
+  hidden?: boolean;
 }
 
 /** Each kind's name, the period it starts with, and whether it gets a pane of its own under the candles. */
@@ -78,6 +80,7 @@ export function parseIndicators(raw: string | null): Indicator[] {
           i.period >= periodLimits.min &&
           i.period <= periodLimits.max,
       )
+      .map((i) => (i.hidden === true ? { id: i.id, kind: i.kind, period: i.period, hidden: true } : { id: i.id, kind: i.kind, period: i.period }))
       .slice(0, maxIndicators);
   } catch {
     return [];
@@ -97,6 +100,7 @@ interface ChartStudiesState {
   add: (kind: IndicatorKind) => void;
   remove: (id: string) => void;
   setPeriod: (id: string, period: number) => void;
+  setHidden: (id: string, hidden: boolean) => void;
 }
 
 /** The indicators on the chart, the same for every symbol, kept in the browser and on the trader's login (ADR 0052). */
@@ -116,6 +120,8 @@ export const useChartStudies = create<ChartStudiesState>()((set) => {
       ),
     remove: (id) => change((indicators) => indicators.filter((i) => i.id !== id)),
     setPeriod: (id, period) => change((indicators) => indicators.map((i) => (i.id === id ? { ...i, period } : i))),
+    setHidden: (id, hidden) =>
+      change((indicators) => indicators.map((i) => (i.id === id ? (hidden ? { ...i, hidden: true } : { id: i.id, kind: i.kind, period: i.period }) : i))),
   };
 });
 

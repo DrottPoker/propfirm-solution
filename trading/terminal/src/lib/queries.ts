@@ -1,7 +1,7 @@
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, commandResult, markLoggedIn, markLoggedOut, queryResult } from "./api/client";
-import type { Candle, CommandResponse, EventEnvelope, MarketHours, OwnLimits, PlaceOrderRequest, Timeframe } from "./api/types";
+import type { Candle, CommandResponse, EventEnvelope, MarketHours, OwnLimits, PlaceOrderRequest, ServerInfo, Timeframe } from "./api/types";
 import { dayCandleCount, dayTimeframe, summarizeDay } from "./daySummary";
 import type { EventQuery } from "./eventSync";
 import { marketRefreshDelay } from "./marketHours";
@@ -25,12 +25,17 @@ export function useMe() {
   });
 }
 
-/** The servers traders can log in to. Each firm has one, as in MetaTrader. */
-export function useServers() {
+/**
+ * The listed firms whose name holds the search, so a trader finds their firm's login (ADR 0058). No list of every firm
+ * is ever shown. Nothing for a search shorter than two letters.
+ */
+export function useServerSearch(search: string) {
+  const text = search.trim();
   return useQuery({
-    queryKey: ["servers"],
-    queryFn: async () => queryResult(await api.GET("/api/servers"), "the servers"),
-    staleTime: Infinity,
+    queryKey: ["servers", text.toLowerCase()],
+    enabled: text.length >= 2,
+    queryFn: async () => queryResult(await api.GET("/api/servers", { params: { query: { search: text } } }), "the firms"),
+    staleTime: 60_000,
   });
 }
 
@@ -47,21 +52,34 @@ export function useServer(serverId: string | null) {
   });
 }
 
-/** The service said no to the server, email and password, or to too many attempts. */
+/** The service said no to the email and password, or to too many attempts. */
 export class LoginFailedError extends Error {
   constructor(readonly tooManyAttempts: boolean) {
-    super(tooManyAttempts ? "Too many attempts. Wait a minute and try again." : "Wrong server, email or password.");
+    super(tooManyAttempts ? "Too many attempts. Wait a minute and try again." : "Wrong email or password.");
     this.name = "LoginFailedError";
   }
 }
 
+/** The email address and the password fit at several firms: the trader chooses which to log in to. */
+export class ChooseServerError extends Error {
+  constructor(readonly servers: ServerInfo[]) {
+    super("Choose which firm to log in to.");
+    this.name = "ChooseServerError";
+  }
+}
+
+/** Logs in at the named server, or, without one, at the firm the email address and the password fit (ADR 0058). */
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { server: string; email: string; password: string }) => {
+    mutationFn: async (input: { server: string | null; email: string; password: string }) => {
       const result = await api.POST("/api/auth/login", { body: input });
       if (result.response.status === 401 || result.response.status === 429) {
         throw new LoginFailedError(result.response.status === 429);
+      }
+
+      if (result.response.status === 409 && result.error && "servers" in result.error) {
+        throw new ChooseServerError(result.error.servers as ServerInfo[]);
       }
 
       return queryResult(result, "the login");
@@ -194,6 +212,21 @@ export function useAccountRules(accountId: string) {
     queryKey: rulesKey(accountId),
     queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}/rules", accountPath(accountId)), "the rules"),
     staleTime: Infinity,
+  });
+}
+
+/**
+ * Each of the trader's accounts as it stands, its state and balance, for the account menu (ADR 0058). Loaded when the
+ * menu opens; the account on screen comes live from the store instead.
+ */
+export function useAccountSummaries(accountIds: readonly string[], enabled: boolean) {
+  return useQueries({
+    queries: accountIds.map((accountId) => ({
+      queryKey: ["accountSummary", accountId],
+      enabled,
+      staleTime: 30_000,
+      queryFn: async () => queryResult(await api.GET("/api/accounts/{accountId}", accountPath(accountId)), "the account"),
+    })),
   });
 }
 

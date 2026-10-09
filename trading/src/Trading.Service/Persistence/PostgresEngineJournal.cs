@@ -203,6 +203,67 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
             limit,
             cancellationToken);
 
+    public async Task<IReadOnlyList<EventEnvelope>> ReadLatestGroupEventsAsync(
+        IReadOnlyCollection<string> groupIds,
+        string? accountId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            "select sequence, payload from engine_events where group_id = any($1) and ($2::text is null or account_id = $2) order by sequence desc limit $3");
+        command.Parameters.AddWithValue(groupIds.ToArray());
+        command.Parameters.Add(new NpgsqlParameter { Value = (object?)accountId ?? DBNull.Value, NpgsqlDbType = NpgsqlDbType.Text });
+        command.Parameters.AddWithValue(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var events = new List<EventEnvelope>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            events.Add(new EventEnvelope(reader.GetInt64(0), Deserialize<EngineEvent>(reader.GetString(1))));
+        }
+
+        return events;
+    }
+
+    public async Task<IReadOnlyDictionary<string, GroupActivity>> CountGroupActivityAsync(DateTimeOffset since, CancellationToken cancellationToken)
+    {
+        await using var command = dataSource.CreateCommand(
+            """
+            select group_id,
+                   (count(*) filter (where kind = 'PositionOpened'))::int,
+                   (count(*) filter (where kind = 'InputRejected'))::int,
+                   (count(*) filter (where kind = 'InputRejected' and payload ->> 'reason' = 'StalePrice'))::int
+            from engine_events
+            where group_id is not null and occurred_at >= $1 and kind in ('PositionOpened', 'InputRejected')
+            group by group_id
+            """);
+        command.Parameters.AddWithValue(since);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var activity = new Dictionary<string, GroupActivity>(StringComparer.Ordinal);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            activity[reader.GetString(0)] = new GroupActivity(reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3));
+        }
+
+        return activity;
+    }
+
+    public async Task<JournalStats> GetStatsAsync(CancellationToken cancellationToken)
+    {
+        await using var size = dataSource.CreateCommand(
+            "select pg_total_relation_size('engine_inputs') + pg_total_relation_size('engine_events') + pg_total_relation_size('engine_snapshots')");
+        var bytes = (long)(await size.ExecuteScalarAsync(cancellationToken))!;
+
+        await using var command = dataSource.CreateCommand("select input_sequence, created_at from engine_snapshots order by input_sequence desc");
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var snapshots = new List<SnapshotInfo>();
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            snapshots.Add(new SnapshotInfo(reader.GetInt64(0), reader.GetFieldValue<DateTimeOffset>(1)));
+        }
+
+        return new JournalStats(bytes, snapshots);
+    }
+
     public async Task<string?> GetLastQuoteFeedAsync(CancellationToken cancellationToken)
     {
         await using var command = dataSource.CreateCommand("select feed from engine_inputs where kind = 'Quote' order by sequence desc limit 1");

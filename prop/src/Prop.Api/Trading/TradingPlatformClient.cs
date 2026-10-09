@@ -11,9 +11,10 @@ namespace Prop.Api.Trading;
 
 /// <summary>
 /// Our trading platform's admin API v1 over HTTP. The contract is <c>contracts/trading/trading-service.json</c>,
-/// and a test checks that every path and field used here is in it.
+/// and a test checks that every path and field used here is in it. When the platform refuses the firm's key, the key is
+/// renewed and the request tried once more.
 /// </summary>
-internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : ITradingPlatform
+internal sealed class TradingPlatformClient(IHttpClientFactory httpClients, ITradingKeyRenewal keys) : ITradingPlatform
 {
     public const string HttpClientName = "TradingPlatform";
 
@@ -155,6 +156,8 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
                 openPositionBy = rules.OpenPositionBy,
                 consistencyPercent = rules.ConsistencyPercent,
                 bestDayPercent = rules.BestDayPercent,
+                profitSplitPercent = rules.ProfitSplitPercent,
+                payoutAvailable = rules.PayoutAvailable,
             },
             cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
@@ -319,6 +322,79 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         await EnsureSuccessAsync(response, cancellationToken);
     }
 
+    public async Task<TerminalProfile> GetTerminalProfileAsync(FirmTrading firm, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Get, $"{Admin}terminal-profile", null, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+        return ParseProfile(await ReadJsonAsync(response, cancellationToken));
+    }
+
+    public async Task SetTerminalProfileAsync(FirmTrading firm, TerminalProfile profile, CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            kind = profile.Kind.ToString(),
+            modules = new
+            {
+                rulebook = profile.Modules.Rulebook,
+                ownLimits = profile.Modules.OwnLimits,
+                riskSizing = profile.Modules.RiskSizing,
+                tradeDetails = profile.Modules.TradeDetails,
+                breachReports = profile.Modules.BreachReports,
+            },
+            confirmOrders = profile.ConfirmOrders,
+            startingSize = new { kind = profile.StartingSize.Kind.ToString(), value = profile.StartingSize.Value },
+            passwordLogin = profile.PasswordLogin,
+            links = new
+            {
+                help = profile.Links.Help,
+                support = profile.Links.Support,
+                terms = profile.Links.Terms,
+                privacy = profile.Links.Privacy,
+                passwordReset = profile.Links.PasswordReset,
+            },
+            riskWarning = profile.RiskWarning,
+        };
+        using var response = await SendAsync(firm, HttpMethod.Put, $"{Admin}terminal-profile", body, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    public async Task SetUserNameAsync(FirmTrading firm, Guid userId, string? name, CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(firm, HttpMethod.Put, $"{Admin}users/{userId}/name", new { name }, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken);
+    }
+
+    internal static TerminalProfile ParseProfile(JsonElement profile)
+    {
+        var modules = profile.GetProperty("modules");
+        var size = profile.GetProperty("startingSize");
+        var links = profile.GetProperty("links");
+        return new TerminalProfile(
+            Enum.Parse<TerminalKind>(profile.GetProperty("kind").GetString()!),
+            new TerminalModules(
+                modules.GetProperty("rulebook").GetBoolean(),
+                modules.GetProperty("ownLimits").GetBoolean(),
+                modules.GetProperty("riskSizing").GetBoolean(),
+                modules.GetProperty("tradeDetails").GetBoolean(),
+                modules.GetProperty("breachReports").GetBoolean()),
+            profile.GetProperty("confirmOrders").GetBoolean(),
+            new TerminalStartingSize(
+                Enum.Parse<StartingSizeKind>(size.GetProperty("kind").GetString()!),
+                size.GetProperty("value") is { ValueKind: JsonValueKind.Number } value ? value.GetDecimal() : null),
+            profile.GetProperty("passwordLogin").GetBoolean(),
+            new TerminalLinks(
+                LinkOf(links, "help"),
+                LinkOf(links, "support"),
+                LinkOf(links, "terms"),
+                LinkOf(links, "privacy"),
+                LinkOf(links, "passwordReset")),
+            profile.GetProperty("riskWarning") is { ValueKind: JsonValueKind.String } warning ? warning.GetString() : null);
+
+        static Uri? LinkOf(JsonElement links, string name) =>
+            links.GetProperty(name) is { ValueKind: JsonValueKind.String } link ? new Uri(link.GetString()!, UriKind.Absolute) : null;
+    }
+
     /// <summary>Reads one event envelope from the stream. Unknown kinds become <see cref="TradingOtherEvent"/>.</summary>
     internal static TradingEvent ParseEvent(JsonElement envelope)
     {
@@ -416,10 +492,40 @@ internal sealed class TradingPlatformClient(IHttpClientFactory httpClients) : IT
         _ => throw new ArgumentException($"Unknown floor {floor.GetType().Name}.", nameof(floor)),
     };
 
+    // Every call with the firm's key goes through here. A refused key, for example one our staff stopped, is renewed and the
+    // request tried once more with the new key. A refusal that stands is the caller's to handle, as any other answer.
     private async Task<HttpResponseMessage> SendAsync(FirmTrading firm, HttpMethod method, string path, object? body, CancellationToken cancellationToken)
     {
+        var response = await SendWithKeyAsync(firm.ApiKey, method, path, body, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.Unauthorized)
+        {
+            return response;
+        }
+
+        string? apiKey;
+        try
+        {
+            apiKey = await keys.RenewAsync(firm, cancellationToken);
+        }
+        catch (Exception)
+        {
+            response.Dispose();
+            throw;
+        }
+
+        if (apiKey is null)
+        {
+            return response;
+        }
+
+        response.Dispose();
+        return await SendWithKeyAsync(apiKey, method, path, body, cancellationToken);
+    }
+
+    private async Task<HttpResponseMessage> SendWithKeyAsync(string apiKey, HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(method, new Uri(path, UriKind.Relative));
-        request.Headers.Add(ApiKeyHeader, firm.ApiKey);
+        request.Headers.Add(ApiKeyHeader, apiKey);
         if (body is not null)
         {
             request.Content = JsonContent.Create(body);

@@ -146,15 +146,18 @@ export function lockTitle(lock: OwnLock, lockedAt: string | null, timeZone: stri
   return lock.reason === "Trader" ? `You locked the rest of the day${at}` : `Your own ${reachedNames[lock.reason]} was reached${at}`;
 }
 
-/** What the lock means for the trader, in a sentence or two. */
-export function lockDescription(lock: OwnLock, positionsClosed: number | null, timeZone: string): string {
+/**
+ * What the lock means for the trader, in a sentence or two. <paramref name="carriesOn"/> says what goes on, in the words
+ * of the firm's kind of business (ADR 0058), for example "The challenge goes on."
+ */
+export function lockDescription(lock: OwnLock, positionsClosed: number | null, timeZone: string, carriesOn = "The challenge goes on."): string {
   const until = `New orders are locked until the next trading day starts at ${clockText(lock.until, timeZone)}.`;
   if (lock.reason === "Trader") {
     return `${until} You can still close positions and change their stops.`;
   }
 
   const closed = positionsClosed === null || positionsClosed > 0 ? "Every position was closed at that price. " : "";
-  return `${closed}${until} This was your limit, not the firm's: the challenge goes on.`;
+  return `${closed}${until} This was your limit, not the firm's. ${carriesOn}`;
 }
 
 /** Why the order ticket takes no orders while the day is locked. */

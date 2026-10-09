@@ -1,16 +1,47 @@
 // Colors for the chart, which draws on a canvas and needs them as values rather than CSS variables.
 
-/** Kronant's colors from @kronant/design (shared/web/design/tokens.css), the same as the terminal's CSS uses. */
-export const kronant = {
-  panel: "#15171b",
-  raised: "#1c1f25",
-  border: "#272a31",
-  foreground: "#ece7df",
-  muted: "#8f8a81",
-  brass: "#c9a35b",
-  profit: "#34c38f",
-  loss: "#ef5a50",
-} as const;
+/** The colors the chart draws with, the same as the terminal's CSS for the theme. */
+export interface Palette {
+  panel: string;
+  raised: string;
+  border: string;
+  foreground: string;
+  muted: string;
+  brass: string;
+  profit: string;
+  loss: string;
+}
+
+/**
+ * Kronant's colors from @kronant/design (shared/web/design/tokens.css) for the dark theme, and the light theme's
+ * (ADR 0058), the same as in the terminal's globals.css: warm paper surfaces, near-black text, and brass, green and red
+ * a little darker, so they read on white.
+ */
+export const palettes: Record<"dark" | "light", Palette> = {
+  dark: {
+    panel: "#15171b",
+    raised: "#1c1f25",
+    border: "#272a31",
+    foreground: "#ece7df",
+    muted: "#8f8a81",
+    brass: "#c9a35b",
+    profit: "#34c38f",
+    loss: "#ef5a50",
+  },
+  light: {
+    panel: "#fbfaf7",
+    raised: "#efece6",
+    border: "#dfd9cf",
+    foreground: "#1d1c1a",
+    muted: "#6e695f",
+    brass: "#a8823c",
+    profit: "#13895b",
+    loss: "#d4443a",
+  },
+};
+
+/** The dark theme's colors, Kronant's own, for what does not follow the theme. */
+export const kronant = palettes.dark;
 
 function channels(hex: string): [number, number, number] {
   const value = Number.parseInt(hex.slice(1), 16);

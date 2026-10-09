@@ -23,6 +23,7 @@ using Trading.Service.Json;
 using Trading.Service.Persistence;
 using Trading.Service.Realtime;
 using Trading.Service.Reports;
+using Trading.Service.Staff;
 using Trading.Service.Tenancy;
 
 // The build-time OpenAPI generator loads the app only to read its endpoints.
@@ -105,6 +106,18 @@ builder.Services.AddSingleton<TenantProvisioner>();
 builder.Services.AddOptions<TenancyOptions>().Bind(builder.Configuration.GetSection(TenancyOptions.SectionName));
 builder.Services.AddSingleton(sp => new PartnerCatalog(
     sp.GetRequiredService<IConfiguration>().GetSection(PartnerOptions.SectionName).Get<List<PartnerOptions>>() ?? []));
+builder.Services.AddSingleton<PartnerActivity>();
+builder.Services.AddSingleton<TenantActivity>();
+
+// Our staff's panel over the platform (ADR 0057).
+builder.Services.AddOptions<StaffOptions>().Bind(builder.Configuration.GetSection(StaffOptions.SectionName));
+builder.Services.AddSingleton<IStaffStore, PostgresStaffStore>();
+builder.Services.AddSingleton<IPasswordHasher<StaffUser>, PasswordHasher<StaffUser>>();
+builder.Services.AddSingleton<IPlatformLog, PostgresPlatformLog>();
+builder.Services.AddSingleton<PlatformEvents>();
+builder.Services.AddSingleton<EngineMetrics>();
+builder.Services.AddSingleton<PlatformWatcher>();
+builder.Services.AddSingleton<StaffFigures>();
 
 // Login cookies are protected with keys kept in the database, so sessions survive restarts.
 builder.Services.AddDataProtection().SetApplicationName("trading-service");
@@ -134,7 +147,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 });
 builder.Services.AddOptions<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme)
     .Configure<IOptions<LoginOptions>>((options, login) => options.ExpireTimeSpan = login.Value.SessionLifetime);
-builder.Services.AddAuthorization();
+builder.Services.AddStaffAuth();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -174,7 +187,10 @@ if (!isOpenApiGeneration)
     builder.Services.AddHostedService<AccountSeeder>();
     builder.Services.AddHostedService<PriceFeedPump>();
     builder.Services.AddHostedService<ChartRecorder>();
+    builder.Services.AddHostedService<ChartGapFiller>();
     builder.Services.AddHostedService<RealtimePublisher>();
+    builder.Services.AddHostedService<StaffSeeder>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<PlatformWatcher>());
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => EngineJson.Configure(o.SerializerOptions));
@@ -206,6 +222,7 @@ app.MapTradingApi();
 app.MapSettingsApi();
 app.MapAdminApi();
 app.MapPartnerApi();
+app.MapStaffApi();
 app.MapHub<TradingHub>("/hubs/trading").RequireAuthorization();
 
 app.Run();

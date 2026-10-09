@@ -1,7 +1,7 @@
 import type { IChartApi } from "lightweight-charts";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { loadDrawings, moveDrawing, saveDrawings, type ChartPoint, type Drawing, type DrawingPart, type DrawingTool } from "@/lib/drawings";
+import { isTwoPoint, loadDrawings, maxNoteLength, moveDrawing, saveDrawings, type ChartPoint, type Drawing, type DrawingPart, type DrawingTool } from "@/lib/drawings";
 
 import type { DrawingsLayer } from "./DrawingsLayer";
 
@@ -13,11 +13,21 @@ interface Drag {
   pointerId: number;
 }
 
+/** A note being written: where it stands on the chart, and the drawing it changes when it was there already. */
+export interface NoteEditor {
+  id: string | null;
+  at: ChartPoint;
+  /** Where the note stands on the chart, in pixels, when it is opened. */
+  pixel: { x: number; y: number };
+  text: string;
+}
+
 /**
- * The trader's drawings on the symbol's chart and the tool being used. With a tool, a click draws a horizontal line,
- * and two clicks a trend line or a rectangle, after which the tool is put down. Without one, a click selects a
- * drawing, which can then be dragged by an end or as a whole, and Delete removes it. Esc lets go of the tool or the
- * selection. Lines of positions and orders are grabbed before drawings, since their handlers come first.
+ * The trader's drawings on the symbol's chart and the tool being used. With a tool, a click draws a horizontal or a
+ * vertical line or places a note, and two clicks a trend line, an arrow, a rectangle or a Fibonacci retracement, after
+ * which the tool is put down. Without one, a click selects a drawing, which can then be dragged by an end or as a whole,
+ * and Delete removes it; a double click on a note writes it again. Esc lets go of the tool or the selection. Lines of
+ * positions and orders are grabbed before drawings, since their handlers come first.
  */
 export function useDrawingTools({
   containerRef,
@@ -35,6 +45,7 @@ export function useDrawingTools({
   const [tool, setTool] = useState<DrawingTool | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>(() => (symbol ? loadDrawings(symbol) : []));
   const [selected, setSelected] = useState<string | null>(null);
+  const [note, setNote] = useState<NoteEditor | null>(null);
   const [loadedFor, setLoadedFor] = useState(symbol);
 
   // Each symbol has its own drawings.
@@ -43,6 +54,7 @@ export function useDrawingTools({
     setDrawings(symbol ? loadDrawings(symbol) : []);
     setSelected(null);
     setTool(null);
+    setNote(null);
   }
 
   const commit = useCallback(
@@ -83,8 +95,8 @@ export function useDrawingTools({
     // Prices on the instrument's grid, and whole seconds.
     const rounded = (point: ChartPoint): ChartPoint => ({ time: Math.round(point.time), price: Number(point.price.toFixed(latest.current.digits)) });
 
-    const draftOf = (tool: DrawingTool, from: ChartPoint, to: ChartPoint): Drawing =>
-      tool === "horizontal" ? { id: "draft", kind: "horizontal", price: to.price } : { id: "draft", kind: tool, from, to };
+    const draftOf = (tool: DrawingTool, from: ChartPoint, to: ChartPoint): Drawing | null =>
+      isTwoPoint(tool) ? { id: "draft", kind: tool, from, to } : null;
 
     const onPointerDown = (e: PointerEvent) => {
       const chart = chartRef.current;
@@ -109,19 +121,30 @@ export function useDrawingTools({
         e.preventDefault();
         e.stopPropagation();
         const start = draftRef.current;
-        if (tool !== "horizontal" && start === null) {
+        if (isTwoPoint(tool) && start === null) {
           draftRef.current = rounded(point);
           layer.set(drawings, draftOf(tool, rounded(point), rounded(point)), selected);
           return;
         }
 
-        const id = crypto.randomUUID();
         const end = rounded(point);
-        const drawing: Drawing = tool === "horizontal" ? { id, kind: "horizontal", price: end.price } : { id, kind: tool, from: start ?? end, to: end };
         draftRef.current = null;
+        setTool(null);
+        // A note is written first and drawn when it has text.
+        if (tool === "text") {
+          setNote({ id: null, at: end, pixel: { x, y }, text: "" });
+          return;
+        }
+
+        const id = crypto.randomUUID();
+        const drawing: Drawing =
+          tool === "horizontal"
+            ? { id, kind: "horizontal", price: end.price }
+            : tool === "vertical"
+              ? { id, kind: "vertical", time: end.time }
+              : { id, kind: tool, from: start ?? end, to: end };
         commit([...drawings, drawing]);
         setSelected(id);
-        setTool(null);
         return;
       }
 
@@ -218,14 +241,28 @@ export function useDrawingTools({
       }
     };
 
+    // A double click on a note writes it again.
+    const onDoubleClick = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const hit = layerRef.current?.hit(e.clientX - rect.left, e.clientY - rect.top);
+      const drawing = hit ? latest.current.drawings.find((d) => d.id === hit.id) : undefined;
+      if (drawing?.kind === "text") {
+        e.preventDefault();
+        e.stopPropagation();
+        setNote({ id: drawing.id, at: drawing.at, pixel: layerRef.current?.pixelAt(drawing.at) ?? { x: e.clientX - rect.left, y: e.clientY - rect.top }, text: drawing.text });
+      }
+    };
+
     container.addEventListener("pointerdown", onPointerDown, { capture: true });
     container.addEventListener("pointermove", onPointerMove);
     container.addEventListener("pointerup", onPointerUp);
+    container.addEventListener("dblclick", onDoubleClick, { capture: true });
     window.addEventListener("keydown", onKeyDown);
     return () => {
       container.removeEventListener("pointerdown", onPointerDown, { capture: true });
       container.removeEventListener("pointermove", onPointerMove);
       container.removeEventListener("pointerup", onPointerUp);
+      container.removeEventListener("dblclick", onDoubleClick, { capture: true });
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [containerRef, chartRef, layerRef]);
@@ -243,10 +280,45 @@ export function useDrawingTools({
     setSelected(null);
   };
 
-  return { tool, chooseTool, drawings, selected, remove };
+  /** Saves the note being written, or removes it when its text was emptied. */
+  const saveNote = (text: string) => {
+    if (!note) {
+      return;
+    }
+
+    const trimmed = text.trim().slice(0, maxNoteLength);
+    const others = drawings.filter((d) => d.id !== note.id);
+    if (trimmed.length === 0) {
+      commit(others);
+    } else {
+      const id = note.id ?? crypto.randomUUID();
+      commit([...others, { id, kind: "text", at: note.at, text: trimmed }]);
+      setSelected(id);
+    }
+
+    setNote(null);
+  };
+
+  /** Draws a horizontal line at the price, as from the chart's right-click menu. */
+  const addLine = (price: number) => {
+    const id = crypto.randomUUID();
+    commit([...drawings, { id, kind: "horizontal", price: Number(price.toFixed(digits)) }]);
+    setSelected(id);
+  };
+
+  return { tool, chooseTool, drawings, selected, remove, addLine, note, saveNote, cancelNote: () => setNote(null) };
 }
 
 function roundDrawing(drawing: Drawing, digits: number): Drawing {
   const point = (p: ChartPoint): ChartPoint => ({ time: Math.round(p.time), price: Number(p.price.toFixed(digits)) });
-  return drawing.kind === "horizontal" ? { ...drawing, price: Number(drawing.price.toFixed(digits)) } : { ...drawing, from: point(drawing.from), to: point(drawing.to) };
+  switch (drawing.kind) {
+    case "horizontal":
+      return { ...drawing, price: Number(drawing.price.toFixed(digits)) };
+    case "vertical":
+      return { ...drawing, time: Math.round(drawing.time) };
+    case "text":
+      return { ...drawing, at: point(drawing.at) };
+    default:
+      return { ...drawing, from: point(drawing.from), to: point(drawing.to) };
+  }
 }

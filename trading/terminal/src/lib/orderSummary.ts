@@ -72,13 +72,13 @@ export function formatShare(percent: number): string {
   return `${percent < 10 ? percent.toFixed(1) : Math.round(percent).toString()}%`;
 }
 
-/** What the stop loss risks, for example "Risks 18.00 USD, 0.4% of today's room". */
+/** What the room to the limit is called: "today's limit" for the daily one, otherwise for example "the room to the max loss limit". */
+export function roomName(limit: FloorSnapshot): string {
+  return limit.floorId === "daily" ? "today's limit" : `the room to the ${floorLabel(limit.floorId).toLowerCase()}`;
+}
+
+/** What the stop loss risks, for example "Risks 18.00 USD, 0.4% of today's limit". */
 export function riskText(risk: number, currency: string, limit: FloorSnapshot | null): string {
   const amount = `Risks ${formatMoney(risk)} ${currency}`;
-  if (!limit) {
-    return amount;
-  }
-
-  const room = limit.floorId === "daily" ? "today's room" : `the room to the ${floorLabel(limit.floorId).toLowerCase()}`;
-  return `${amount}, ${formatShare(shareOfRoom(risk, limit))} of ${room}`;
+  return limit ? `${amount}, ${formatShare(shareOfRoom(risk, limit))} of ${roomName(limit)}` : amount;
 }

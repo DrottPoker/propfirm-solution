@@ -42,6 +42,25 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
         Assert.NotNull(await users.CreateAsync("firm-b", "a@test.example", "hash", TestContext.Current.CancellationToken));
     }
 
+    // A login that names no server finds the trader at every firm, and the firm can tell the trader's name (ADR 0058).
+    [Fact]
+    public async Task UsersAreFoundAtEveryFirmAndKeepTheirNames()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var users = new PostgresUserStore(dataSource, Schema(dataSource));
+        var atB = await users.CreateAsync("firm-b", "a@test.example", "hash-b", TestContext.Current.CancellationToken);
+        var atA = await users.CreateAsync("firm-a", "A@test.example", "hash-a", TestContext.Current.CancellationToken);
+        await users.CreateAsync("firm-a", "other@test.example", "hash", TestContext.Current.CancellationToken);
+
+        Assert.True(await users.SetNameAsync(atA!.Id, "Maja Lind", TestContext.Current.CancellationToken));
+        Assert.False(await users.SetNameAsync(Guid.NewGuid(), "Nobody", TestContext.Current.CancellationToken));
+
+        var found = await users.FindAllByEmailAsync(" a@TEST.example ", TestContext.Current.CancellationToken);
+        Assert.Equal([("firm-a", "Maja Lind"), ("firm-b", (string?)null)], found.Select(u => (u.TenantId, u.Name)));
+        Assert.Equal(atB, found[1]);
+        Assert.Equal("Maja Lind", (await users.FindByIdAsync(atA.Id, TestContext.Current.CancellationToken))!.Name);
+    }
+
     [Fact]
     public async Task AnAccountHasOneOwner()
     {
@@ -198,6 +217,30 @@ public sealed class PostgresIdentityTests(PostgresFixture postgres) : IClassFixt
         Assert.Equal((new Uri("https://acme.example.com/terminal"), new Uri("https://acme.example.com/logo.png")), (all[0].LoginUrl, all[0].LogoUrl));
         Assert.Equal(["gold", "standard"], all[1].Groups);
         Assert.Equal(("Demo", (string?)null, true), (all[1].Name, all[1].PartnerId, all[1].Listed));
+    }
+
+    // A firm's terminal profile is kept as set, and a configured firm keeps it when its configuration names none (ADR 0058).
+    [Fact]
+    public async Task FirmsKeepTheirTerminalProfiles()
+    {
+        await using var dataSource = await CreateDatabaseAsync();
+        var tenants = new PostgresTenantStore(dataSource, Schema(dataSource));
+        var now = new DateTimeOffset(2026, 10, 5, 10, 0, 0, TimeSpan.Zero);
+        var broker = TerminalProfile.Default(TerminalKind.Broker, passwordLogin: true) with
+        {
+            StartingSize = new StartingSize(StartingSizeKind.Lots, 0.05m),
+            Links = TerminalProfile.NoLinks with { Help = new Uri("https://broker.example.com/help") },
+            RiskWarning = "High risk.",
+        };
+        await tenants.SaveConfiguredAsync(new Tenant("demo-firm", "Demo Firm", ["standard"], [1], null, Listed: true), now, TestContext.Current.CancellationToken);
+        Assert.True(await tenants.CreateAsync(new Tenant("acme", "Acme", ["acme-standard"], [2], "prop-platform", Listed: false), now, TestContext.Current.CancellationToken));
+
+        await tenants.SetTerminalProfileAsync("demo-firm", broker, TestContext.Current.CancellationToken);
+        await tenants.SaveConfiguredAsync(new Tenant("demo-firm", "Demo Firm", ["standard"], [1], null, Listed: true), now, TestContext.Current.CancellationToken);
+
+        var all = await tenants.ListAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(broker, all.Single(t => t.Id == "demo-firm").Terminal);
+        Assert.Equal((null, TerminalProfile.Standard), (all.Single(t => t.Id == "acme").Terminal, all.Single(t => t.Id == "acme").Profile));
     }
 
     [Fact]

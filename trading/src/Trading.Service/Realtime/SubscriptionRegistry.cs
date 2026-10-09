@@ -35,6 +35,30 @@ internal sealed class SubscriptionRegistry
         }
     }
 
+    /// <summary>Open terminals and the accounts they watch, per group, for the staff panel (ADR 0057).</summary>
+    public IReadOnlyDictionary<string, (int Connections, int Accounts)> ByGroup()
+    {
+        lock (_lock)
+        {
+            return _byConnection
+                .SelectMany(c => c.Value.Select(s => (Connection: c.Key, s.AccountId, s.GroupId)))
+                .GroupBy(s => s.GroupId, StringComparer.Ordinal)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (g.Select(s => s.Connection).Distinct(StringComparer.Ordinal).Count(), g.Select(s => s.AccountId).Distinct(StringComparer.Ordinal).Count()),
+                    StringComparer.Ordinal);
+        }
+    }
+
+    /// <summary>Open terminals, counted once even when one watches several accounts.</summary>
+    public int Connections()
+    {
+        lock (_lock)
+        {
+            return _byConnection.Count(c => c.Value.Count > 0);
+        }
+    }
+
     public IReadOnlyList<string> Groups()
     {
         lock (_lock)

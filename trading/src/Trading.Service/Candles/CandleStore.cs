@@ -11,6 +11,12 @@ public enum Timeframe
     H1,
     H4,
     D1,
+
+    /// <summary>A week from Monday 00:00 UTC.</summary>
+    W1,
+
+    /// <summary>A calendar month from its first day 00:00 UTC.</summary>
+    MN,
 }
 
 /// <summary>Bar of bid prices. Time is the start of the bar in UTC.</summary>
@@ -24,7 +30,7 @@ internal sealed class CandleStore(int capacityPerSeries)
 {
     public const int DefaultCapacity = 5_000;
 
-    private readonly ConcurrentDictionary<(string Symbol, Timeframe Timeframe), CandleSeries> _series = new();
+    private ConcurrentDictionary<(string Symbol, Timeframe Timeframe), CandleSeries> _series = new();
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>Completes when the history is loaded at startup. Until then the charts lack their latest part.</summary>
@@ -35,16 +41,21 @@ internal sealed class CandleStore(int capacityPerSeries)
     public void Add(string symbol, decimal bid, DateTimeOffset time) => AddBar(new ChartBar(symbol, Timeframe.M1, new Candle(time, bid, bid, bid, bid, 1)));
 
     /// <summary>Merges the bar into its own timeframe and every longer one. Bars must come in time order.</summary>
-    public void AddBar(ChartBar bar)
+    public void AddBar(ChartBar bar) => AddBar(Volatile.Read(ref _series), bar);
+
+    /// <summary>
+    /// Builds every chart again from the bars, in time order per symbol, and then shows them instead (ADR 0057). Nothing
+    /// may be added meanwhile.
+    /// </summary>
+    public void Replace(IEnumerable<ChartBar> bars)
     {
-        var length = Duration(bar.Resolution);
-        foreach (var timeframe in Enum.GetValues<Timeframe>())
+        var series = new ConcurrentDictionary<(string Symbol, Timeframe Timeframe), CandleSeries>();
+        foreach (var bar in bars)
         {
-            if (Duration(timeframe) >= length)
-            {
-                _series.GetOrAdd((bar.Symbol, timeframe), key => new CandleSeries(key.Timeframe, capacityPerSeries)).Add(bar.Candle);
-            }
+            AddBar(series, bar);
         }
+
+        Volatile.Write(ref _series, series);
     }
 
     /// <summary>
@@ -52,15 +63,16 @@ internal sealed class CandleStore(int capacityPerSeries)
     /// by <paramref name="shift"/>.
     /// </summary>
     public IReadOnlyList<Candle> Get(string symbol, Timeframe timeframe, int count, decimal shift, DateTimeOffset? before = null) =>
-        _series.TryGetValue((symbol, timeframe), out var series) ? series.Latest(count, shift, before) : [];
+        Volatile.Read(ref _series).TryGetValue((symbol, timeframe), out var series) ? series.Latest(count, shift, before) : [];
 
     /// <summary>Every symbol's bars of the timeframe that start in the period.</summary>
     public IReadOnlyList<ChartBar> GetBars(Timeframe timeframe, DateTimeOffset from, DateTimeOffset until) =>
-        [.. _series
+        [.. Volatile.Read(ref _series)
             .Where(s => s.Key.Timeframe == timeframe)
             .OrderBy(s => s.Key.Symbol, StringComparer.Ordinal)
             .SelectMany(s => s.Value.Between(from, until).Select(c => new ChartBar(s.Key.Symbol, timeframe, c)))];
 
+    /// <summary>How long a bar is. A month is counted as its shortest, 28 days, which only orders it after a week.</summary>
     public static TimeSpan Duration(Timeframe timeframe) => timeframe switch
     {
         Timeframe.M1 => TimeSpan.FromMinutes(1),
@@ -70,13 +82,40 @@ internal sealed class CandleStore(int capacityPerSeries)
         Timeframe.H1 => TimeSpan.FromHours(1),
         Timeframe.H4 => TimeSpan.FromHours(4),
         Timeframe.D1 => TimeSpan.FromDays(1),
+        Timeframe.W1 => TimeSpan.FromDays(7),
+        Timeframe.MN => TimeSpan.FromDays(28),
         _ => throw new ArgumentOutOfRangeException(nameof(timeframe), timeframe, null),
     };
 
+    /// <summary>Where the bar the time falls in starts: a whole multiple of its length in UTC, Monday for a week and the first for a month.</summary>
     public static DateTimeOffset BarStart(Timeframe timeframe, DateTimeOffset time)
     {
+        if (timeframe == Timeframe.W1)
+        {
+            var day = BarStart(Timeframe.D1, time);
+            return day.AddDays(-(((int)day.DayOfWeek + 6) % 7));
+        }
+
+        if (timeframe == Timeframe.MN)
+        {
+            var utc = time.UtcDateTime;
+            return new DateTimeOffset(utc.Year, utc.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        }
+
         var utcTicks = time.UtcTicks;
         return new DateTimeOffset(utcTicks - (utcTicks % Duration(timeframe).Ticks), TimeSpan.Zero);
+    }
+
+    private void AddBar(ConcurrentDictionary<(string Symbol, Timeframe Timeframe), CandleSeries> series, ChartBar bar)
+    {
+        var length = Duration(bar.Resolution);
+        foreach (var timeframe in Enum.GetValues<Timeframe>())
+        {
+            if (Duration(timeframe) >= length)
+            {
+                series.GetOrAdd((bar.Symbol, timeframe), key => new CandleSeries(key.Timeframe, capacityPerSeries)).Add(bar.Candle);
+            }
+        }
     }
 
     private sealed class CandleSeries(Timeframe timeframe, int capacity)

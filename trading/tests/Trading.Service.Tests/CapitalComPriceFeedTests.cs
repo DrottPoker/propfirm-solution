@@ -256,6 +256,7 @@ public sealed class CapitalComPriceFeedTests
                 PingInterval = pingInterval ?? TimeSpan.FromMinutes(4),
                 ReconnectDelay = TimeSpan.FromMilliseconds(10),
                 HistoryCallInterval = TimeSpan.Zero,
+                SessionInterval = TimeSpan.Zero,
                 ApiUrl = capital?.ApiUrl ?? new Uri("http://127.0.0.1:9/"),
                 StreamUrl = capital?.StreamUrl ?? new Uri("ws://127.0.0.1:9/connect"),
             },

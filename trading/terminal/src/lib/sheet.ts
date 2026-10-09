@@ -2,9 +2,17 @@ import { create } from "zustand";
 
 /**
  * A panel over the terminal: a trade's details, or the report of a broken loss limit (ADR 0053), or the trader's own
- * limits, or locking the rest of the day (ADR 0054), or the terminal's settings (ADR 0055).
+ * limits, or locking the rest of the day (ADR 0054), or the terminal's settings (ADR 0055), or the keyboard shortcuts
+ * or About (ADR 0058).
  */
-export type Sheet = { kind: "details"; positionId: string } | { kind: "breach" } | { kind: "limits" } | { kind: "lock" } | { kind: "settings" };
+export type Sheet =
+  | { kind: "details"; positionId: string }
+  | { kind: "breach" }
+  | { kind: "limits" }
+  | { kind: "lock" }
+  | { kind: "settings" }
+  | { kind: "shortcuts" }
+  | { kind: "about" };
 
 interface SheetState {
   sheet: Sheet | null;

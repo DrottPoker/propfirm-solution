@@ -95,7 +95,8 @@ internal sealed partial class FirmSeeder(FirmStore store, BillingStore billing, 
                 payments.CheckoutUrl,
                 payments.TermsUrl),
             null,
-            AccountCurrency: options.Trading.Currency);
+            AccountCurrency: options.Trading.Currency,
+            Configured: true);
     }
 
     private static void Require(bool condition, string message)

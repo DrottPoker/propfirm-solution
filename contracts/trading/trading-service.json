@@ -10,6 +10,15 @@
         "tags": [
           "Auth"
         ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -81,6 +90,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChooseServerResponse"
                 }
               }
             }
@@ -1084,6 +1103,39 @@
         }
       }
     },
+    "/api/admin/v1/users/{userId}/name": {
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetNameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
     "/api/admin/v1/users/{userId}/login-links": {
       "post": {
         "tags": [
@@ -1827,6 +1879,52 @@
         }
       }
     },
+    "/api/admin/v1/terminal-profile": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalProfile"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Admin"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminalProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/partner/v1/server-names/{id}": {
       "get": {
         "tags": [
@@ -1992,6 +2090,525 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PriceFeedStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/login": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/logout": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/staff/v1/me": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffMeResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/overview": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffOverviewResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/servers": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffServersResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffCreateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffCreatedServerResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/server-names/{id}": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerNameResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/currencies": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/servers/{id}": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffServerResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffUpdateServerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffServerResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/servers/{id}/admin-key": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffReplaceKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffReplacedKeyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/servers/{id}/events": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "account",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffServerEventsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/accounts/{accountId}": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffAccountResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/search": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/price-feed": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPriceFeedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/price-feed/gaps/{gapId}/retry": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "gapId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/staff/v1/price-feed/history/reload": {
+      "post": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/staff/v1/instruments": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffInstrumentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/exposure": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "parameters": [
+          {
+            "name": "server",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffExposureResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/v1/engine": {
+      "get": {
+        "tags": [
+          "Staff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffEngineResponse"
                 }
               }
             }
@@ -2211,9 +2828,22 @@
               "number"
             ],
             "format": "double"
+          },
+          "profitSplitPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "payoutAvailable": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
-        "description": "The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each\nis null when the account has no such rule. Funded tells a funded account, whose trading days\ncount toward a payout rather than passing the stage. PassBy is when the stage fails unless it was\npassed, and OpenPositionBy when the account ends unless a position is opened before.\nConsistencyPercent is the most of the profit the best trading day may have made for a payout,\nand BestDayPercent what it has made now."
+        "description": "The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Each\nis null when the account has no such rule. Funded tells a funded account, whose trading days\ncount toward a payout rather than passing the stage. PassBy is when the stage fails unless it was\npassed, and OpenPositionBy when the account ends unless a position is opened before.\nConsistencyPercent is the most of the profit the best trading day may have made for a payout,\nand BestDayPercent what it has made now. A funded account's ProfitSplitPercent\nis the trader's share of the profit a payout pays, and PayoutAvailable whether one can be asked for\nnow, at the firm (ADR 0058)."
       },
       "AccountRulesRequest": {
         "type": "object",
@@ -2263,6 +2893,19 @@
               "number"
             ],
             "format": "double"
+          },
+          "profitSplitPercent": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "payoutAvailable": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
         "description": "The account's rules as the firm's system sees them now, which the terminal shows and warns about (ADR 0052). Every\nfield is replaced, and one left out is cleared. See AccountRules."
@@ -2361,6 +3004,37 @@
             "type": "string"
           }
         }
+      },
+      "AdminKeyInfo": {
+        "required": [
+          "heldBy",
+          "madeAt",
+          "lastUsedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "heldBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "madeAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The server's admin key: who holds it, a partner or nobody we know of, when it was made or last replaced, and when it\nwas last used since the service started."
       },
       "BalanceOperationRequest": {
         "required": [
@@ -2589,6 +3263,135 @@
           }
         },
         "description": "Every symbol the group should trade, with its conditions. Symbols left out are removed."
+      },
+      "ChartGapResponse": {
+        "required": [
+          "id",
+          "from",
+          "until",
+          "foundAt",
+          "state",
+          "tries",
+          "finishedAt",
+          "bars",
+          "problem"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "foundAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ChartGapState"
+          },
+          "tries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "finishedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "bars": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problem": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A gap in the charts and what came of it."
+      },
+      "ChartGapState": {
+        "enum": [
+          "Filling",
+          "Filled",
+          "Empty",
+          "NotFilled"
+        ],
+        "description": "What came of a gap in the charts."
+      },
+      "ChartHistoryResponse": {
+        "required": [
+          "loadedAt",
+          "reach",
+          "dayDays",
+          "historyDays",
+          "quarterHourDays",
+          "minuteDays",
+          "reloading"
+        ],
+        "type": "object",
+        "properties": {
+          "loadedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "reach": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "dayDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "historyDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "quarterHourDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minuteDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "reloading": {
+            "type": "boolean"
+          }
+        },
+        "description": "The charts' history: when it was loaded and where it starts, how many whole days it reaches back in day, hour, 15\nminute and minute bars, and whether it is being loaded again now."
+      },
+      "ChooseServerResponse": {
+        "required": [
+          "servers"
+        ],
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerInfo"
+            }
+          }
+        },
+        "description": "The email address and the password fit at several firms: the trader chooses which to log in to."
       },
       "CloseAllPositionsRequest": {
         "type": "object",
@@ -4633,6 +5436,135 @@
         },
         "description": "Stops new positions on the account, for example while the firm's bill is unpaid. Pending orders are\ncancelled. Open positions stay: the owner can close them and change their stops, and stops and floors still hold."
       },
+      "EngineMinuteResponse": {
+        "required": [
+          "start",
+          "inputs",
+          "refused",
+          "maxQueue",
+          "saves",
+          "averageSaveMilliseconds",
+          "slowestSaveMilliseconds"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "refused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxQueue": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "saves": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "averageSaveMilliseconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "slowestSaveMilliseconds": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "One minute of the engine loop. Save times are in milliseconds."
+      },
+      "EngineStartResponse": {
+        "required": [
+          "at",
+          "milliseconds",
+          "replayed",
+          "configurationChanged"
+        ],
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "milliseconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "replayed": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "configurationChanged": {
+            "type": "boolean"
+          }
+        },
+        "description": "How the engine started: when, how long the replay took, the inputs replayed after the snapshot, and whether the configuration had changed."
+      },
+      "EngineSummary": {
+        "required": [
+          "healthy",
+          "queueLength",
+          "maxQueueThisHour",
+          "averageSaveMilliseconds",
+          "slowestSaveMilliseconds",
+          "lastInput",
+          "lastSnapshot",
+          "startedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "healthy": {
+            "type": "boolean"
+          },
+          "queueLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxQueueThisHour": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "averageSaveMilliseconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "slowestSaveMilliseconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "lastInput": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastSnapshot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SnapshotInfo"
+              }
+            ]
+          },
+          "startedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "The engine at a glance. Save times are averaged over the last 5 minutes, and the slowest is this hour's."
+      },
       "EquityFloorRule": {
         "required": [
           "kind"
@@ -4759,6 +5691,39 @@
         },
         "description": "An engine event with a sequence number that orders all events in the service."
       },
+      "EventReadInfo": {
+        "required": [
+          "lastReadAt",
+          "after",
+          "waiting",
+          "stale"
+        ],
+        "type": "object",
+        "properties": {
+          "lastReadAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "after": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "description": "When the firm's system last asked for its events, after which event, how many wait now, at most 1,001, and whether it is late."
+      },
       "FeedPrice": {
         "required": [
           "inputSequence",
@@ -4793,6 +5758,75 @@
           }
         },
         "description": "A raw price from the feed as the journal recorded it, with its entry in the journal."
+      },
+      "FeedSummary": {
+        "required": [
+          "feed",
+          "lastPriceAt",
+          "symbols",
+          "live",
+          "closed",
+          "silent",
+          "pricesPerSecond",
+          "liveSince",
+          "silentSince",
+          "pricesPerMinute"
+        ],
+        "type": "object",
+        "properties": {
+          "feed": {
+            "type": "string"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "symbols": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "live": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "closed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "silent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pricesPerSecond": {
+            "type": "number",
+            "format": "double"
+          },
+          "liveSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "silentSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "pricesPerMinute": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        },
+        "description": "The price feed at a glance. PricesPerMinute covers the last hour, oldest first."
       },
       "FirmEventsResponse": {
         "required": [
@@ -4979,6 +6013,7 @@
       "InstrumentInfo": {
         "required": [
           "symbol",
+          "name",
           "category",
           "baseCurrency",
           "quoteCurrency",
@@ -4994,6 +6029,9 @@
         "type": "object",
         "properties": {
           "symbol": {
+            "type": "string"
+          },
+          "name": {
             "type": "string"
           },
           "category": {
@@ -5038,7 +6076,7 @@
             "format": "double"
           }
         },
-        "description": "An instrument as one group trades it."
+        "description": "An instrument as one group trades it. Name is its name for traders, such as \"Gold\"."
       },
       "JsonElement": { },
       "LinkLoginRequest": {
@@ -5121,7 +6159,7 @@
             ]
           }
         },
-        "description": "Server is the id of the firm's server, as in MetaTrader."
+        "description": "Server is the id of the firm's server, as in MetaTrader, from the firm's own login page. Without it the firm is found\nfrom the email address and the password."
       },
       "MarketHours": {
         "required": [
@@ -5181,6 +6219,7 @@
         "required": [
           "userId",
           "email",
+          "name",
           "server",
           "accounts",
           "accountDetails",
@@ -5194,6 +6233,12 @@
           },
           "email": {
             "type": "string"
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "server": {
             "$ref": "#/components/schemas/ServerInfo"
@@ -5215,7 +6260,7 @@
             "format": "double"
           }
         },
-        "description": "The logged in trader, their firm's server and the accounts they own, with what the firm says about each in\nAccountDetails, in the same order. Orders, closes and stop changes are refused while the latest\nprice is older than MaxPriceAgeSeconds."
+        "description": "The logged in trader, with their name when the firm told it, their firm's server and the accounts they own, with what\nthe firm says about each in AccountDetails, in the same order. Orders, closes and stop changes are\nrefused while the latest price is older than MaxPriceAgeSeconds."
       },
       "ModifyOrderRequest": {
         "required": [
@@ -5277,6 +6322,70 @@
           }
         },
         "description": "A position's stops. With TrailingStop the stop loss follows the price at the distance it is set at."
+      },
+      "NeedsUsItem": {
+        "required": [
+          "kind",
+          "since",
+          "symbol",
+          "serverId",
+          "count",
+          "gap"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/NeedsUsKind"
+          },
+          "since": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "symbol": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "serverId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "count": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "gap": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChartGapResponse"
+              }
+            ]
+          }
+        },
+        "description": "Something that needs our staff. Which fields are set depends on Kind."
+      },
+      "NeedsUsKind": {
+        "enum": [
+          "FeedSilent",
+          "SymbolSilent",
+          "EventsNotRead",
+          "ChartGapNotFilled",
+          "QueueBehind",
+          "SlowSaves"
+        ],
+        "description": "What needs our staff, and how it was made (ADR 0057)."
       },
       "NoticeLevel": {
         "enum": [
@@ -5577,6 +6686,91 @@
         },
         "description": "Places an order. The client creates the order id, so a retry can never place the order twice. With\nTrailingStop the stop loss follows the price at the distance it is set at."
       },
+      "PlatformEventKind": {
+        "enum": [
+          "ServiceStarted",
+          "ServerCreated",
+          "ServerListed",
+          "ServerUnlisted",
+          "AdminKeyReplaced",
+          "SymbolSilent",
+          "SymbolBack",
+          "FeedSilent",
+          "FeedBack",
+          "ChartGapFilled",
+          "ChartGapNotFilled",
+          "ChartHistoryReloaded"
+        ],
+        "description": "What can happen on the platform that our staff see in the staff panel's log (ADR 0057)."
+      },
+      "PlatformFigures": {
+        "required": [
+          "traders",
+          "newTraders",
+          "accountsTrading",
+          "accountsPaused",
+          "accountsClosed",
+          "openPositions",
+          "accountsWithPositions",
+          "positionsOpenedToday",
+          "refusedToday",
+          "refusedForOldPricesToday",
+          "terminalsOpen",
+          "accountsWatched"
+        ],
+        "type": "object",
+        "properties": {
+          "traders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "newTraders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsTrading": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsPaused": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsClosed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsWithPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "positionsOpenedToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "refusedToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "refusedForOldPricesToday": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "terminalsOpen": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsWatched": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "Figures across the whole platform, or one server. Today is the day in UTC, and new traders came in the last 7 days."
+      },
       "PlatformInstrument": {
         "required": [
           "symbol",
@@ -5626,6 +6820,49 @@
         },
         "description": "An instrument on the platform. ContractSize is the units of the base currency in one lot."
       },
+      "PlatformLogEntry": {
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "serverId",
+          "staffEmail",
+          "detail"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PlatformEventKind"
+          },
+          "serverId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "staffEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "detail": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Something that happened on the platform. ServerId is the server it concerns, if any, and\nStaffEmail the staff member who did it, if any. Detail depends on the kind."
+      },
       "PointValue": {
         "required": [
           "symbol",
@@ -5646,6 +6883,49 @@
           }
         },
         "description": "What a one point move on one lot of the symbol is worth in the account currency, at the latest conversion rate.\nProfit is points times volume times PerLot, before rounding and commission."
+      },
+      "PositionExposureResponse": {
+        "required": [
+          "accountId",
+          "serverId",
+          "positionId",
+          "symbol",
+          "side",
+          "lots",
+          "value",
+          "profit"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "positionId": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "side": {
+            "$ref": "#/components/schemas/Side"
+          },
+          "lots": {
+            "type": "number",
+            "format": "double"
+          },
+          "value": {
+            "type": "number",
+            "format": "double"
+          },
+          "profit": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An open position valued in USD."
       },
       "PositionSnapshot": {
         "required": [
@@ -5952,11 +7232,76 @@
         },
         "description": "The balance a disabled account opens again with (ADR 0053)."
       },
+      "ServerCounts": {
+        "required": [
+          "all",
+          "needsUs",
+          "listed",
+          "notListed",
+          "configuration"
+        ],
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "needsUs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "listed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notListed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "configuration": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ServerExposureResponse": {
+        "required": [
+          "serverId",
+          "name",
+          "positions",
+          "netValue",
+          "openProfit"
+        ],
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "positions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "netValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "openProfit": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "What a server's traders hold, net, in USD."
+      },
       "ServerInfo": {
         "required": [
           "id",
           "name",
-          "loginUrl"
+          "loginUrl",
+          "logoUrl",
+          "profile"
         ],
         "type": "object",
         "properties": {
@@ -5979,9 +7324,20 @@
               "string"
             ],
             "format": "uri"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/TerminalProfile"
           }
         },
-        "description": "A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's\ntraders log in there, for example on the firm's portal, which opens the terminal with a one-time link.\nLogoUrl is the firm's logo, when it has one."
+        "description": "A firm's server: the id traders log in with and the firm's name. With LoginUrl, the firm's\ntraders log in there, for example on the firm's portal, which opens the terminal with a one-time link.\nLogoUrl is the firm's logo, when it has one. Profile is how its terminal works\n(ADR 0058)."
+      },
+      "ServerMaker": {
+        "enum": [
+          "Partner",
+          "Staff",
+          "Configuration"
+        ],
+        "description": "Who made a server."
       },
       "ServerNameResponse": {
         "required": [
@@ -6008,6 +7364,21 @@
             "$ref": "#/components/schemas/EquityFloorRule"
           }
         }
+      },
+      "SetNameRequest": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The trader's name as the firm knows it, or nothing to remove it."
       },
       "SetPasswordRequest": {
         "required": [
@@ -6040,6 +7411,1181 @@
           "Buy",
           "Sell"
         ]
+      },
+      "SnapshotInfo": {
+        "required": [
+          "inputSequence",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "inputSequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "A snapshot after the input, and when it was taken, null when the storage does not keep it."
+      },
+      "StaffAccountResponse": {
+        "required": [
+          "accountId",
+          "serverId",
+          "serverName",
+          "groupId",
+          "currency",
+          "status",
+          "balance",
+          "equity",
+          "usedMargin",
+          "openPositions",
+          "pendingOrders"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "balance": {
+            "type": "number",
+            "format": "double"
+          },
+          "equity": {
+            "type": "number",
+            "format": "double"
+          },
+          "usedMargin": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pendingOrders": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "An account as our staff see it: its server and numbers, never who the trader is."
+      },
+      "StaffClosure": {
+        "required": [
+          "hours",
+          "timeZone",
+          "from",
+          "to",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "hours": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "A closure ahead, in the market's local time, with the hours and symbols it closes."
+      },
+      "StaffCreatedServerResponse": {
+        "required": [
+          "id",
+          "name",
+          "adminApiKey"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "adminApiKey": {
+            "type": "string"
+          }
+        },
+        "description": "A new server and the key to its admin API, which is shown only now."
+      },
+      "StaffCreateServerRequest": {
+        "required": [
+          "id",
+          "name",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "A new server made by our staff, for a firm that uses the platform on its own (ADR 0057)."
+      },
+      "StaffEngineResponse": {
+        "required": [
+          "healthy",
+          "journalFailed",
+          "queueLength",
+          "inputsPerSecond",
+          "pricesPerSecond",
+          "minutes",
+          "lastInput",
+          "lastEvent",
+          "journalBytes",
+          "journalBytesPerDay",
+          "snapshots",
+          "snapshotInterval",
+          "snapshotsKept",
+          "start",
+          "version",
+          "terminalsOpen",
+          "accountsWatched",
+          "partners"
+        ],
+        "type": "object",
+        "properties": {
+          "healthy": {
+            "type": "boolean"
+          },
+          "journalFailed": {
+            "type": "boolean"
+          },
+          "queueLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "inputsPerSecond": {
+            "type": "number",
+            "format": "double"
+          },
+          "pricesPerSecond": {
+            "type": "number",
+            "format": "double"
+          },
+          "minutes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineMinuteResponse"
+            }
+          },
+          "lastInput": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastEvent": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "journalBytes": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "journalBytesPerDay": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int64"
+          },
+          "snapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotInfo"
+            }
+          },
+          "snapshotInterval": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "snapshotsKept": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "start": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EngineStartResponse"
+              }
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "terminalsOpen": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsWatched": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "partners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPartner"
+            }
+          }
+        },
+        "description": "The engine, its journal and the terminals in the staff panel (ADR 0057). JournalBytes is null when the\nstorage cannot tell, and JournalBytesPerDay estimates the growth at the last minute's pace."
+      },
+      "StaffExposureResponse": {
+        "required": [
+          "currency",
+          "longValue",
+          "shortValue",
+          "netValue",
+          "openProfit",
+          "margin",
+          "longPositions",
+          "shortPositions",
+          "accounts",
+          "unvalued",
+          "symbols",
+          "largest",
+          "servers"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "longValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "shortValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "netValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "openProfit": {
+            "type": "number",
+            "format": "double"
+          },
+          "margin": {
+            "type": "number",
+            "format": "double"
+          },
+          "longPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "shortPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unvalued": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolExposureResponse"
+            }
+          },
+          "largest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PositionExposureResponse"
+            }
+          },
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerExposureResponse"
+            }
+          }
+        },
+        "description": "What traders hold now, in USD, across every server or one (ADR 0057). Unvalued counts positions\nwithout a rate to USD yet, which are left out of the values."
+      },
+      "StaffGroupResponse": {
+        "required": [
+          "id",
+          "currency",
+          "changeable",
+          "accounts",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "changeable": {
+            "type": "boolean"
+          },
+          "accounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffGroupSymbol"
+            }
+          }
+        },
+        "description": "A server's group. Only groups made for the firm can have their conditions changed by its system."
+      },
+      "StaffGroupSymbol": {
+        "required": [
+          "symbol",
+          "leverage",
+          "spreadMarkupPoints",
+          "commissionPerLotPerSide",
+          "openPositions"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "leverage": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "spreadMarkupPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "commissionPerLotPerSide": {
+            "type": "number",
+            "format": "double"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "A symbol a group trades, with its conditions and the group's open positions in it."
+      },
+      "StaffInstrument": {
+        "required": [
+          "symbol",
+          "category",
+          "baseCurrency",
+          "quoteCurrency",
+          "contractSize",
+          "digits",
+          "volumeMin",
+          "volumeStep",
+          "volumeMax",
+          "hours",
+          "servers",
+          "thisWeek"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InstrumentCategory"
+          },
+          "baseCurrency": {
+            "type": "string"
+          },
+          "quoteCurrency": {
+            "type": "string"
+          },
+          "contractSize": {
+            "type": "number",
+            "format": "double"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "volumeMin": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeStep": {
+            "type": "number",
+            "format": "double"
+          },
+          "volumeMax": {
+            "type": "number",
+            "format": "double"
+          },
+          "hours": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "servers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "thisWeek": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketPeriod"
+            }
+          }
+        },
+        "description": "An instrument on the platform, the name of the trading hours it follows with the current feed, null when always open,\nhow many servers trade it, and when it is open this week, Sunday to Sunday in UTC."
+      },
+      "StaffInstrumentsResponse": {
+        "required": [
+          "feed",
+          "followsTradingHours",
+          "weekStart",
+          "instruments",
+          "hours",
+          "closures"
+        ],
+        "type": "object",
+        "properties": {
+          "feed": {
+            "type": "string"
+          },
+          "followsTradingHours": {
+            "type": "boolean"
+          },
+          "weekStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "instruments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffInstrument"
+            }
+          },
+          "hours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffTradingHours"
+            }
+          },
+          "closures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffClosure"
+            }
+          }
+        },
+        "description": "The instruments and trading hours in the staff panel (ADR 0057). The week starts on WeekStart."
+      },
+      "StaffLoginRequest": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Our staff's email and password."
+      },
+      "StaffMeResponse": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "description": "The logged in staff member."
+      },
+      "StaffOverviewResponse": {
+        "required": [
+          "now",
+          "servers",
+          "listedServers",
+          "needsUs",
+          "figures",
+          "feed",
+          "engine",
+          "topExposure",
+          "latest"
+        ],
+        "type": "object",
+        "properties": {
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "servers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "listedServers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "needsUs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NeedsUsItem"
+            }
+          },
+          "figures": {
+            "$ref": "#/components/schemas/PlatformFigures"
+          },
+          "feed": {
+            "$ref": "#/components/schemas/FeedSummary"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineSummary"
+          },
+          "topExposure": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SymbolExposureResponse"
+            }
+          },
+          "latest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformLogEntry"
+            }
+          }
+        },
+        "description": "The staff panel's overview (ADR 0057)."
+      },
+      "StaffPartner": {
+        "required": [
+          "id",
+          "name",
+          "servers",
+          "lastCallAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "servers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastCallAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "A partner that makes servers, how many it has made, and when it last called since the service started."
+      },
+      "StaffPriceFeedResponse": {
+        "required": [
+          "feed",
+          "hasHistory",
+          "followsTradingHours",
+          "now",
+          "lastPriceAt",
+          "pricesPerSecond",
+          "liveSince",
+          "silentSince",
+          "silentAfterSeconds",
+          "maxPriceAgeSeconds",
+          "pricesPerMinute",
+          "symbols",
+          "gaps",
+          "history"
+        ],
+        "type": "object",
+        "properties": {
+          "feed": {
+            "type": "string"
+          },
+          "hasHistory": {
+            "type": "boolean"
+          },
+          "followsTradingHours": {
+            "type": "boolean"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "pricesPerSecond": {
+            "type": "number",
+            "format": "double"
+          },
+          "liveSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "silentSince": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "silentAfterSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxPriceAgeSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "pricesPerMinute": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSymbolFeed"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChartGapResponse"
+            }
+          },
+          "history": {
+            "$ref": "#/components/schemas/ChartHistoryResponse"
+          }
+        },
+        "description": "The price feed in the staff panel (ADR 0057). HasHistory is false for made-up prices, which have no\ntrue history to fill gaps from. Orders are refused on a price older than MaxPriceAgeSeconds."
+      },
+      "StaffReplacedKeyResponse": {
+        "required": [
+          "adminApiKey",
+          "heldBy"
+        ],
+        "type": "object",
+        "properties": {
+          "adminApiKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "heldBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The new admin key, shown only now, or null when a partner holds the server's key: the partner then gets a new one\nfrom the partner API when the old one is turned away, and nobody sees it here."
+      },
+      "StaffReplaceKeyRequest": {
+        "required": [
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Why our staff replace the server's admin key, for the platform's log."
+      },
+      "StaffSearchResponse": {
+        "required": [
+          "servers",
+          "account"
+        ],
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffSearchServer"
+            }
+          },
+          "account": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/StaffAccountResponse"
+              }
+            ]
+          }
+        },
+        "description": "Servers whose id or name matches the search, and the account with that number, if any."
+      },
+      "StaffSearchServer": {
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffServerEventsResponse": {
+        "required": [
+          "events"
+        ],
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventEnvelope"
+            }
+          }
+        },
+        "description": "The server's latest events, of one account when asked, newest first."
+      },
+      "StaffServerResponse": {
+        "required": [
+          "id",
+          "name",
+          "madeBy",
+          "partnerName",
+          "createdBy",
+          "createdAt",
+          "listed",
+          "listedAt",
+          "loginUrl",
+          "logoUrl",
+          "figures",
+          "groups",
+          "adminKey",
+          "events",
+          "notice",
+          "log"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "madeBy": {
+            "$ref": "#/components/schemas/ServerMaker"
+          },
+          "partnerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "listedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "loginUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "logoUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "figures": {
+            "$ref": "#/components/schemas/PlatformFigures"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffGroupResponse"
+            }
+          },
+          "adminKey": {
+            "$ref": "#/components/schemas/AdminKeyInfo"
+          },
+          "events": {
+            "$ref": "#/components/schemas/EventReadInfo"
+          },
+          "notice": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TerminalNotice"
+              }
+            ]
+          },
+          "log": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformLogEntry"
+            }
+          }
+        },
+        "description": "One server in the staff panel (ADR 0057)."
+      },
+      "StaffServerRow": {
+        "required": [
+          "id",
+          "name",
+          "madeBy",
+          "partnerName",
+          "createdBy",
+          "createdAt",
+          "listed",
+          "currencies",
+          "traders",
+          "accountsTrading",
+          "openPositions",
+          "eventsReadAt",
+          "eventsStale"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "madeBy": {
+            "$ref": "#/components/schemas/ServerMaker"
+          },
+          "partnerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "listed": {
+            "type": "boolean"
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "traders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accountsTrading": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openPositions": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "eventsReadAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "eventsStale": {
+            "type": "boolean"
+          }
+        },
+        "description": "A server in the list. EventsReadAt is when the firm's system last asked for its events since the\nservice started, and EventsStale whether it has not for a while although events wait."
+      },
+      "StaffServersResponse": {
+        "required": [
+          "servers",
+          "counts"
+        ],
+        "type": "object",
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffServerRow"
+            }
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ServerCounts"
+          }
+        }
+      },
+      "StaffSymbolFeed": {
+        "required": [
+          "symbol",
+          "category",
+          "digits",
+          "bid",
+          "ask",
+          "lastPriceAt",
+          "pricesLastMinute",
+          "marketOpen",
+          "alwaysOpen",
+          "nextChange",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InstrumentCategory"
+          },
+          "digits": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "bid": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ask": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastPriceAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "pricesLastMinute": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "marketOpen": {
+            "type": "boolean"
+          },
+          "alwaysOpen": {
+            "type": "boolean"
+          },
+          "nextChange": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/SymbolFeedState"
+          }
+        },
+        "description": "A symbol's raw price from the feed, before any firm's markup, with the symbol's decimals, when it came, how many came\nin the last whole minute, and whether its market is open, with when that changes. A market that never closes has AlwaysOpen."
+      },
+      "StaffTradingHours": {
+        "required": [
+          "name",
+          "timeZone",
+          "sessions",
+          "symbols"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "symbols": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Named trading hours as configured, in the market's time zone, and the symbols that follow them with the current feed."
+      },
+      "StaffUpdateServerRequest": {
+        "required": [
+          "listed"
+        ],
+        "type": "object",
+        "properties": {
+          "listed": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          }
+        },
+        "description": "Whether the server is on the list traders choose from."
+      },
+      "StartingSize": {
+        "required": [
+          "kind",
+          "value"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/StartingSizeKind"
+          },
+          "value": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "How an order ticket starts on a symbol. Value is the lots or the percent of the room, and null for the smallest."
+      },
+      "StartingSizeKind": {
+        "enum": [
+          "Smallest",
+          "Lots",
+          "RiskOfRoom"
+        ],
+        "description": "How an order ticket starts on a symbol the trader has not traded before."
       },
       "SymbolConditions": {
         "required": [
@@ -6080,6 +8626,62 @@
           }
         },
         "description": "Conditions for one symbol within a group."
+      },
+      "SymbolExposureResponse": {
+        "required": [
+          "symbol",
+          "longLots",
+          "shortLots",
+          "netLots",
+          "netValue",
+          "openProfit",
+          "accounts",
+          "positions"
+        ],
+        "type": "object",
+        "properties": {
+          "symbol": {
+            "type": "string"
+          },
+          "longLots": {
+            "type": "number",
+            "format": "double"
+          },
+          "shortLots": {
+            "type": "number",
+            "format": "double"
+          },
+          "netLots": {
+            "type": "number",
+            "format": "double"
+          },
+          "netValue": {
+            "type": "number",
+            "format": "double"
+          },
+          "openProfit": {
+            "type": "number",
+            "format": "double"
+          },
+          "accounts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "positions": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "What traders hold of a symbol: lots long and short, net lots, the net value and open profit in USD, the accounts that\nhold it and the positions."
+      },
+      "SymbolFeedState": {
+        "enum": [
+          "Live",
+          "Silent",
+          "Closed",
+          "Waiting"
+        ],
+        "description": "How a symbol's prices are now."
       },
       "SymbolFeedStatus": {
         "required": [
@@ -6189,6 +8791,96 @@
         },
         "description": "A firm. Only Listed servers are on the list traders choose from. LoginUrl is\nwhere the terminal sends the firm's traders to log in, or null when they log in with a password.\nLogoUrl is the firm's logo, which the terminal shows with its name."
       },
+      "TerminalKind": {
+        "enum": [
+          "Prop",
+          "Broker",
+          "Practice",
+          "Desk"
+        ],
+        "description": "What kind of business runs the server, which decides the terminal's words and which parts it shows to begin with\n(ADR 0058): a prop firm with challenges and rules, a broker with clients' own money, a school or practice platform,\nor a trading desk of its own."
+      },
+      "TerminalLinks": {
+        "required": [
+          "help",
+          "support",
+          "terms",
+          "privacy",
+          "passwordReset"
+        ],
+        "type": "object",
+        "properties": {
+          "help": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "support": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "terms": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "privacy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          },
+          "passwordReset": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri"
+          }
+        },
+        "description": "The firm's own pages the terminal links to, each null when the firm has none."
+      },
+      "TerminalModules": {
+        "required": [
+          "rulebook",
+          "ownLimits",
+          "riskSizing",
+          "tradeDetails",
+          "breachReports"
+        ],
+        "type": "object",
+        "properties": {
+          "rulebook": {
+            "type": "boolean",
+            "description": "The account's rules and limits behind the Rules button, and the warnings about them."
+          },
+          "ownLimits": {
+            "type": "boolean",
+            "description": "The trader's own daily limits and the lock for the rest of the day (ADR 0054)."
+          },
+          "riskSizing": {
+            "type": "boolean",
+            "description": "Sizing an order from what it risks at its stop loss (ADR 0052)."
+          },
+          "tradeDetails": {
+            "type": "boolean",
+            "description": "Each closed trade's details with the feed's prices behind its fills (ADR 0053)."
+          },
+          "breachReports": {
+            "type": "boolean",
+            "description": "The report of a broken loss limit (ADR 0053)."
+          }
+        },
+        "description": "The parts of the terminal that are shown. Each can be turned off for a server that has no use for it."
+      },
       "TerminalNotice": {
         "required": [
           "title",
@@ -6253,6 +8945,45 @@
         },
         "description": "A notice for the firm's terminals (ADR 0053): a short title, the text, how serious it is and where the trader\nreads more, such as the firm's status page."
       },
+      "TerminalProfile": {
+        "required": [
+          "kind",
+          "modules",
+          "confirmOrders",
+          "startingSize",
+          "passwordLogin",
+          "links",
+          "riskWarning"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/TerminalKind"
+          },
+          "modules": {
+            "$ref": "#/components/schemas/TerminalModules"
+          },
+          "confirmOrders": {
+            "type": "boolean"
+          },
+          "startingSize": {
+            "$ref": "#/components/schemas/StartingSize"
+          },
+          "passwordLogin": {
+            "type": "boolean"
+          },
+          "links": {
+            "$ref": "#/components/schemas/TerminalLinks"
+          },
+          "riskWarning": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "How a server's terminal works for its traders (ADR 0058): the kind of business, the parts shown, whether an order\nasks before it is sent and how a ticket starts, whether traders can log in to the terminal with a password, the\nfirm's own pages, and a warning about risk shown at the login, such as a broker must show. Every server has one;\none not set is the default for its kind. The terminal's look is always ours (ADR 0009)."
+      },
       "Timeframe": {
         "enum": [
           "M1",
@@ -6261,7 +8992,9 @@
           "M30",
           "H1",
           "H4",
-          "D1"
+          "D1",
+          "W1",
+          "MN"
         ]
       },
       "TradeReceipt": {
@@ -6469,6 +9202,9 @@
     },
     {
       "name": "Partner"
+    },
+    {
+      "name": "Staff"
     }
   ]
 }

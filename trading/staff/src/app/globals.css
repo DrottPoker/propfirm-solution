@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@import "@kronant/design/tokens.css";
+
+/*
+ * Kronant's own look (ADR 0047) with the teal accent of our staff's views, so the staff panel is never taken for the
+ * terminal or a firm's portal (ADR 0024, ADR 0057). Good news is green, bad news red, and what needs a look orange.
+ */
+:root {
+  color-scheme: dark;
+  --background: var(--kronant-background);
+  --panel: var(--kronant-panel);
+  --raised: var(--kronant-raised);
+  --border: var(--kronant-border);
+  --foreground: var(--kronant-foreground);
+  --muted: var(--kronant-muted);
+  --accent: #2dd4bf;
+  /* Text on the accent color, dark since teal is light. */
+  --accent-foreground: #0b0e14;
+  --brass: var(--kronant-brass);
+  --profit: var(--kronant-profit);
+  --loss: var(--kronant-loss);
+  --warning: var(--kronant-warning);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brass: var(--brass);
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-text);
+  --font-mono: var(--font-code);
+  --font-serif: var(--font-display);
+}
+
+/* Figures line up in columns everywhere. */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A fine grain over the background, so the dark page does not look flat. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--grain);
+  opacity: 0.035;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+
+/* Keyboard focus shows as a teal ring, never as the browser's default outline. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--accent) 80%, transparent);
+    outline-offset: 2px;
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { clampEntry, clampStop, estimatedProfit, priceForAmount, resolveStops, stepAmount, stopKindAt } from "./stops";
+import { clampEntry, clampStop, estimatedProfit, priceForAmount, priceForPips, resolveStops, stepAmount, stopKindAt } from "./stops";
 
 describe("stopKindAt", () => {
   it("is a stop loss below a buy and a take profit above it", () => {
@@ -124,5 +124,21 @@ describe("clampEntry", () => {
     expect(clampEntry("Stop", "Buy", 1.07, quote, 5)).toBe(1.08011);
     expect(clampEntry("Limit", "Sell", 1.07, quote, 5)).toBe(1.08001);
     expect(clampEntry("Stop", "Sell", 1.09, quote, 5)).toBe(1.07999);
+  });
+});
+
+describe("stops in pips", () => {
+  it("puts a buy's stop loss below and take profit above the entry", () => {
+    expect(resolveStops("pips", "20", "40.5", "Buy", 1.12, 1, 5, undefined)).toEqual({ ok: true, stopLoss: 1.118, takeProfit: 1.12405 });
+    expect(resolveStops("pips", "20", "", "Sell", 1.12, 1, 5, undefined)).toEqual({ ok: true, stopLoss: 1.122, takeProfit: null });
+  });
+
+  it("uses the instrument's pip, such as 0.1 on gold", () => {
+    expect(priceForPips("stopLoss", "Buy", 30, 4190.5, 2)).toBe(4187.5);
+  });
+
+  it("refuses more than one decimal and waits for a price", () => {
+    expect(resolveStops("pips", "20.25", "", "Buy", 1.12, 1, 5, undefined).ok).toBe(false);
+    expect(resolveStops("pips", "20", "", "Buy", undefined, 1, 5, undefined).ok).toBe(false);
   });
 });

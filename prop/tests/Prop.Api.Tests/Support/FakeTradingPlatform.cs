@@ -51,6 +51,16 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         }
     }
 
+    /// <summary>Our staff stop the server's key in the trading platform's staff panel. The platform makes a new one that nobody sees.</summary>
+    public void StopKey(string server)
+    {
+        lock (_lock)
+        {
+            var keys = _servers[server].Keys + 1;
+            _servers[server] = ($"key-{server}-{keys}", keys);
+        }
+    }
+
     public Task<bool> IsServerAvailableAsync(string server, CancellationToken cancellationToken) =>
         Call($"server-name {server}", () => !_servers.ContainsKey(server) && !TakenServers.Contains(server));
 
@@ -593,6 +603,78 @@ internal sealed class FakeTradingPlatform(TimeProvider time) : ITradingPlatform,
         lock (_lock)
         {
             return _notices.GetValueOrDefault(server);
+        }
+    }
+
+    // The terminals' profiles and the traders' names are kept up to date in the background (ADR 0058), so they are not
+    // counted among the commands.
+    private readonly Dictionary<string, TerminalProfile> _profiles = new(StringComparer.Ordinal);
+    private readonly Dictionary<Guid, string?> _names = [];
+
+    /// <summary>The profile a server has until it is set, the same as on our trading platform.</summary>
+    public static readonly TerminalProfile StandardProfile = new(
+        TerminalKind.Prop,
+        TerminalModules.All,
+        false,
+        new TerminalStartingSize(StartingSizeKind.Smallest, null),
+        true,
+        new TerminalLinks(null, null, null, null, null),
+        null);
+
+    public Task<TerminalProfile> GetTerminalProfileAsync(FirmTrading firm, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            return Task.FromResult(_profiles.GetValueOrDefault(firm.Server) ?? StandardProfile);
+        }
+    }
+
+    public Task SetTerminalProfileAsync(FirmTrading firm, TerminalProfile profile, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _profiles[firm.Server] = profile;
+            ProfilesSet++;
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>How many times a profile was set, on any server.</summary>
+    public int ProfilesSet { get; private set; }
+
+    /// <summary>The server's terminal profile as last set, or null before that.</summary>
+    public TerminalProfile? ProfileOf(string server)
+    {
+        lock (_lock)
+        {
+            return _profiles.GetValueOrDefault(server);
+        }
+    }
+
+    public Task SetUserNameAsync(FirmTrading firm, Guid userId, string? name, CancellationToken cancellationToken)
+    {
+        lock (_lock)
+        {
+            _names[userId] = name;
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>The user on the platform with the email, or null.</summary>
+    public Guid? UserIdOf(string email)
+    {
+        lock (_lock)
+        {
+            return _users.TryGetValue(email, out var id) ? id : null;
+        }
+    }
+
+    /// <summary>The name the terminal shows for the user, and whether one was ever told.</summary>
+    public (bool Told, string? Name) NameOf(Guid userId)
+    {
+        lock (_lock)
+        {
+            return _names.TryGetValue(userId, out var name) ? (true, name) : (false, null);
         }
     }
 

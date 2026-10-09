@@ -55,6 +55,21 @@ public sealed class RulesAndSettingsTests
         Assert.Contains("consistency", consistency.GetProperty("title").GetString(), StringComparison.Ordinal);
     }
 
+    // A funded trader's share of a payout, and whether one can be asked for now (ADR 0058).
+    [Fact]
+    public async Task AFundedAccountsRulesTellThePayout()
+    {
+        using var factory = new ServiceFactory();
+        using var client = await factory.CreateTraderClientAsync(AccountId);
+
+        var split = await client.PutJsonAsync(Rules, new { funded = true, profitSplitPercent = 0 }, HttpStatusCode.UnprocessableEntity);
+        await client.PutJsonAsync(Rules, new { funded = true, tradingDaysCounted = 3, profitSplitPercent = 80, payoutAvailable = true });
+        var rules = await client.GetJsonAsync($"/api/accounts/{AccountId}/rules");
+
+        Assert.Contains("profit split", split.GetProperty("title").GetString(), StringComparison.Ordinal);
+        Assert.Equal((80m, true), (rules.GetProperty("profitSplitPercent").GetDecimal(), rules.GetProperty("payoutAvailable").GetBoolean()));
+    }
+
     [Fact]
     public async Task SettingsFollowTheTraderAndNobodyElse()
     {

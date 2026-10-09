@@ -17,6 +17,18 @@ describe("parseIndicators", () => {
     expect(parseIndicators("{")).toEqual([]);
   });
 
+  it("keeps a hidden indicator hidden and drops anything else stored with it", () => {
+    const raw = JSON.stringify([
+      { id: "a", kind: "SMA", period: 20, hidden: true, color: "red" },
+      { id: "b", kind: "EMA", period: 9, hidden: "yes" },
+    ]);
+
+    expect(parseIndicators(raw)).toEqual([
+      { id: "a", kind: "SMA", period: 20, hidden: true },
+      { id: "b", kind: "EMA", period: 9 },
+    ]);
+  });
+
   it("keeps at most the limit", () => {
     const many = Array.from({ length: maxIndicators + 3 }, (_, i) => ({ id: `${i}`, kind: "SMA", period: 10 }));
 

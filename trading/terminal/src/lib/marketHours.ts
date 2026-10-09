@@ -50,6 +50,19 @@ export function sessionLines(sessions: readonly MarketPeriod[], timeZone: string
   });
 }
 
+/**
+ * Now, for telling which day a time was: from the first render, since what uses it is only shown in the browser, and
+ * again every minute, so "Today" turns into "Yesterday" after midnight.
+ */
+export function useClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
 /** The time now, updated every period, or null before the page is shown, so the server and the browser render alike. */
 export function useNow(periodMs: number): Date | null {
   const [now, setNow] = useState<Date | null>(null);

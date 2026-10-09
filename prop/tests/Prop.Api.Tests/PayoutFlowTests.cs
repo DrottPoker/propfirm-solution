@@ -52,6 +52,23 @@ public sealed class PayoutFlowTests(PostgresFixture postgres) : IClassFixture<Po
         Assert.Equal("There is no profit to pay out.", afterwards.GetProperty("refusal").GetString());
     }
 
+    // The terminal tells a funded trader their share and when a payout can be asked for (ADR 0058).
+    [Fact]
+    public async Task TheTerminalKnowsTheTradersShareAndWhenAPayoutCanBeAskedFor()
+    {
+        await using var factory = PropFactory.Create(await postgres.CreateDatabaseAsync());
+        var id = await FundedWithProfitAsync(factory, 8_000m);
+        await Eventually.ThatAsync(() => factory.Trading.RulesOf(Funded)?.PayoutAvailable == true, "a payout to be available in the terminal");
+        var available = factory.Trading.RulesOf(Funded)!;
+
+        factory.Trading.OpenPosition(Funded);
+        await Eventually.ThatAsync(() => factory.Trading.RulesOf(Funded)?.PayoutAvailable == false, "an open position to hold the payout back");
+
+        Assert.Equal((true, 80m), (available.Funded, available.ProfitSplitPercent));
+        Assert.Null(factory.Trading.RulesOf("demo-firm-1001-1")?.ProfitSplitPercent);
+        Assert.NotEqual(Guid.Empty, id);
+    }
+
     [Fact]
     public async Task AConsistencyRuleKeepsOneLuckyDayFromAPayout()
     {

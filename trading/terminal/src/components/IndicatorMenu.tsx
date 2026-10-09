@@ -8,7 +8,7 @@ import { CloseIcon } from "./icons";
 
 /**
  * The indicators on the chart: each with its color and period, which can be changed or removed, and the kinds that
- * can be added. Kept on this device for every symbol. Closes on Esc or a click outside.
+ * can be added. Saved on the trader's login, for every symbol. Closes on Esc or a click outside.
  */
 export function IndicatorMenu({ colors, onClose }: { colors: readonly string[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -76,7 +76,7 @@ export function IndicatorMenu({ colors, onClose }: { colors: readonly string[]; 
                     e.target.value = String(period ?? indicator.period);
                   }}
                   onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                  className="w-14 rounded-md border border-border bg-raised px-1.5 py-0.5 text-right font-mono tabular-nums outline-none focus:border-accent"
+                  className="w-14 rounded-md border border-border bg-raised px-1.5 py-0.5 text-right tabular-nums outline-none focus:border-accent"
                 />
               )}
               <button
@@ -109,7 +109,7 @@ export function IndicatorMenu({ colors, onClose }: { colors: readonly string[]; 
             </button>
           ))}
         </div>
-        <span className="text-muted">Worked out from the bid candles, and kept on this device for every symbol.</span>
+        <span className="text-muted">Worked out from the bid candles. Saved on your login, for every symbol.</span>
       </div>
     </div>
   );

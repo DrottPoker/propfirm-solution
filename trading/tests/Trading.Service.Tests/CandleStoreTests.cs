@@ -66,6 +66,9 @@ public sealed class CandleStoreTests
     [InlineData(Timeframe.M15, "2026-10-05T10:44:59Z", "2026-10-05T10:30:00Z")]
     [InlineData(Timeframe.H4, "2026-10-05T10:30:00Z", "2026-10-05T08:00:00Z")]
     [InlineData(Timeframe.D1, "2026-10-05T23:59:59Z", "2026-10-05T00:00:00Z")]
+    [InlineData(Timeframe.W1, "2026-10-11T23:59:59Z", "2026-10-05T00:00:00Z")]
+    [InlineData(Timeframe.W1, "2026-10-05T00:00:00Z", "2026-10-05T00:00:00Z")]
+    [InlineData(Timeframe.MN, "2026-10-31T12:00:00Z", "2026-10-01T00:00:00Z")]
     public void BarsStartOnTheTimeframeBoundaryInUtc(Timeframe timeframe, string time, string expectedStart)
     {
         Assert.Equal(DateTimeOffset.Parse(expectedStart, System.Globalization.CultureInfo.InvariantCulture), CandleStore.BarStart(timeframe, DateTimeOffset.Parse(time, System.Globalization.CultureInfo.InvariantCulture)));
@@ -110,5 +113,26 @@ public sealed class CandleStoreTests
     public void UnknownSymbolHasNoCandles()
     {
         Assert.Empty(new CandleStore(100).Get("EURUSD", Timeframe.M1, 10, 0m));
+    }
+
+    // A week starts on Monday and a month on its first day, and both are made from the day bars of the history (ADR 0058).
+    [Fact]
+    public void DayBarsMakeWeeksAndMonths()
+    {
+        var store = new CandleStore(CandleStore.DefaultCapacity);
+        foreach (var day in new[] { 28, 29, 30 })
+        {
+            store.AddBar(new ChartBar("EURUSD", Timeframe.D1, new Candle(new DateTimeOffset(2026, 9, day, 0, 0, 0, TimeSpan.Zero), 1.1m, 1.1m + (day / 1000m), 1.09m, 1.1m, 0)));
+        }
+
+        store.AddBar(new ChartBar("EURUSD", Timeframe.D1, new Candle(new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), 1.1m, 1.2m, 1.08m, 1.15m, 0)));
+
+        var weeks = store.Get("EURUSD", Timeframe.W1, 10, 0m);
+        var months = store.Get("EURUSD", Timeframe.MN, 10, 0m);
+
+        Assert.Equal([(new DateTimeOffset(2026, 9, 28, 0, 0, 0, TimeSpan.Zero), 1.2m, 1.15m)], weeks.Select(w => (w.Time, w.High, w.Close)));
+        Assert.Equal(
+            [(new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), 1.13m), (new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.Zero), 1.2m)],
+            months.Select(m => (m.Time, m.High)));
     }
 }

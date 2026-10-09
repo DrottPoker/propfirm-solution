@@ -62,6 +62,8 @@ export function useTradingConnection(accountId: string): void {
     connection.on("Notice", (notice: TerminalNotice | null) => {
       queryClient.setQueryData(noticeKey(accountId), notice);
     });
+    // The service filled a time without prices from the feed's history, after it or the feed was down (ADR 0056).
+    connection.on("Charts", () => reloadCandles(queryClient, accountId));
     // Pushed events are new, unlike the ones loaded at the start or after a reconnect, so the trader is told of them.
     connection.on("Events", (events: EventEnvelope[]) => {
       eventSync.received(events);

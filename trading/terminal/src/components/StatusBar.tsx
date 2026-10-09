@@ -3,50 +3,85 @@
 import { useEffect, useState } from "react";
 
 import { productName } from "@/lib/config";
-import { formatDateTime, formatMoney, formatPercent, timeZoneName } from "@/lib/format";
-import { useTradingStore } from "@/lib/store";
+import { formatDateTime, timeZoneName } from "@/lib/format";
+import { layoutPresets, presetOf, useLayout } from "@/lib/layout";
+import { useSettings } from "@/lib/settings";
 import { useTimeZone } from "@/lib/timeZone";
 
 import { ConnectionStatusText, useConnectionStatus } from "./ConnectionStatus";
+import { LayoutIcon } from "./icons";
 import { KronantMark } from "./KronantMark";
+import { Menu } from "./Menu";
 
 /**
  * Our name, the firm's server and whether prices come from it live, the time in the account's time zone like every
- * other time on screen, and the account's margin figures. The account bar above is the firm's; this is where the
- * terminal says it is ours.
+ * other time on screen, and the layout. The account bar above is the firm's; this is where the terminal says it is
+ * ours. The account's figures are in the account bar only, so nothing is said twice (ADR 0058).
  */
-export function StatusBar({ accountId, serverName }: { accountId: string; serverName: string }) {
-  const account = useTradingStore((s) => s.account);
+export function StatusBar({ accountId, serverName, children }: { accountId: string; serverName: string; children?: React.ReactNode }) {
   const connection = useConnectionStatus(accountId);
 
   return (
-    <footer className="flex h-8 shrink-0 items-center gap-6 overflow-x-auto border-t border-border bg-panel px-4 text-xs whitespace-nowrap text-muted">
+    <footer className="flex h-8 shrink-0 items-center gap-5 overflow-x-auto border-t border-border bg-panel px-4 text-xs whitespace-nowrap text-muted">
       <span className="flex items-center gap-1.5 text-foreground">
         <KronantMark className="size-4" />
         {productName}
       </span>
-      <span>
-        Server: <span className="text-foreground">{serverName}</span>
-      </span>
+      <span title="The firm's server you are logged in to">{serverName}</span>
       <ConnectionStatusText status={connection} />
       <Clock />
-      {account && (
-        <span className="ml-auto flex gap-6">
-          <Figure label="Equity" value={`${formatMoney(account.equity)} ${account.currency}`} />
-          <Figure label="Margin" value={formatMoney(account.usedMargin)} />
-          <Figure label="Free margin" value={formatMoney(account.freeMargin)} />
-          <Figure label="Margin level" value={formatPercent(account.marginLevelPercent)} />
-        </span>
-      )}
+      <span className="ml-auto flex items-center gap-1">
+        {children}
+        <LayoutMenu />
+      </span>
     </footer>
   );
 }
 
-function Figure({ label, value }: { label: string; value: string }) {
+/** The ready-made layouts, and the parts that can be shown or hidden. */
+function LayoutMenu() {
+  const layout = useLayout();
+  const preset = presetOf(layout);
+  type Choice = (typeof layoutPresets)[number]["id"] | "watchlist" | "bottom";
+  const items = [
+    ...layoutPresets.map((p) => ({ value: p.id as Choice, label: p.name, hint: p.description })),
+    { value: "watchlist" as Choice, label: layout.watchlistOpen ? "Hide the watchlist" : "Show the watchlist", action: true },
+    { value: "bottom" as Choice, label: layout.bottomOpen ? "Fold the positions down" : "Open the positions", action: true },
+  ];
+
   return (
-    <span>
-      {label}: <span className="font-mono text-foreground tabular-nums">{value}</span>
-    </span>
+    <Menu
+      label="Layout"
+      title="Layout"
+      buttonLabel="Layout"
+      side="above"
+      align="end"
+      button={
+        <span className="flex items-center gap-1.5">
+          <LayoutIcon className="size-3.5" />
+          {preset ? layoutPresets.find((p) => p.id === preset)?.name : "Your layout"}
+        </span>
+      }
+      items={items}
+      value={preset}
+      onChoose={(choice) => {
+        if (choice === "watchlist") {
+          layout.setOpen("watchlist", !layout.watchlistOpen);
+        } else if (choice === "bottom") {
+          layout.setOpen("bottom", !layout.bottomOpen);
+        } else {
+          const chosen = layoutPresets.find((p) => p.id === choice);
+          if (chosen) {
+            layout.apply(chosen.layout);
+            // Active trading also buys and sells from the chart (ADR 0058).
+            if (chosen.id === "trading") {
+              useSettings.getState().change("chartTrading", true);
+            }
+          }
+        }
+      }}
+      className="flex h-6 items-center rounded-md px-2 text-muted transition-colors duration-150 hover:bg-raised hover:text-foreground"
+    />
   );
 }
 
@@ -66,7 +101,7 @@ function Clock() {
 
   return (
     <span title={`Every time in the terminal is in ${timeZone}, the time zone of the account's trading day.`}>
-      Time: <span className="font-mono text-foreground tabular-nums">{now ? formatDateTime(now, timeZone) : "-"}</span> {timeZoneName(timeZone)}
+      <span className="text-foreground">{now ? formatDateTime(now, timeZone) : "-"}</span> {timeZoneName(timeZone)}
     </span>
   );
 }

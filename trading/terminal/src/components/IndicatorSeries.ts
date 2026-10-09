@@ -18,10 +18,18 @@ type StudySeries = ISeriesApi<"Line"> | ISeriesApi<"Histogram">;
 interface Drawn {
   indicator: Indicator;
   series: StudySeries[];
+  /** The latest values of each of its series, one per candle, for the legend. */
+  values: Series[];
 }
 
-// An indicator's pane is a quarter of the main pane's height.
-const paneStretch = 0.25;
+/** An indicator's values at a candle, for the legend: one per line, such as MACD's line, signal and histogram. */
+export interface IndicatorValues {
+  id: string;
+  values: (number | null)[];
+}
+
+// An indicator's pane is a third of the candles' height, and can be dragged larger.
+const paneStretch = 0.35;
 
 /**
  * The indicators on the chart. Moving averages and Bollinger Bands are drawn over the candles, and RSI and MACD each
@@ -64,8 +72,14 @@ export class IndicatorSeries {
     let pane = 1;
     indicators.forEach((indicator, index) => {
       const color = this.colors.lines[index % this.colors.lines.length];
+      // A hidden indicator draws nothing and takes no pane.
+      if (indicator.hidden) {
+        this.drawn.push({ indicator, series: [], values: [] });
+        return;
+      }
+
       const own = indicatorKinds[indicator.kind].ownPane;
-      this.drawn.push({ indicator, series: this.create(indicator, own ? pane : 0, color) });
+      this.drawn.push({ indicator, series: this.create(indicator, own ? pane : 0, color), values: [] });
       if (own) {
         this.chart.panes()[pane]?.setStretchFactor(paneStretch);
         pane++;
@@ -73,6 +87,13 @@ export class IndicatorSeries {
     });
 
     this.render(true);
+  }
+
+  /** Each shown indicator's values at the candle, by its index among the candles. */
+  valuesAt(index: number): IndicatorValues[] {
+    return this.drawn
+      .filter((d) => !d.indicator.hidden)
+      .map((d) => ({ id: d.indicator.id, values: d.values.map((series) => series[index] ?? null) }));
   }
 
   /** The candles changed as a whole, for example a new symbol, timeframe or older history. */
@@ -154,8 +175,14 @@ export class IndicatorSeries {
 
     const closes = this.bars.map((b) => b.close);
     const last = this.bars.length - 1;
-    for (const { indicator, series } of this.drawn) {
+    for (const drawn of this.drawn) {
+      const { indicator, series } = drawn;
+      if (indicator.hidden) {
+        continue;
+      }
+
       const values = this.values(indicator, closes);
+      drawn.values = values;
       series.forEach((s, index) => {
         const histogram = indicator.kind === "MACD" && index === 2;
         const point = (i: number) => {

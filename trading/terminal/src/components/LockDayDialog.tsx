@@ -62,7 +62,7 @@ export function LockDayDialog({ accountId, firmName }: { accountId: string; firm
             <LockIcon className="size-5" />
           </span>
           <div className="flex flex-col gap-1.5">
-            <h2 id={titleId} className="font-serif text-3xl leading-tight">
+            <h2 id={titleId} className="text-xl leading-tight font-semibold">
               Lock trading until {until}?
             </h2>
             <p className="text-sm leading-relaxed text-muted">

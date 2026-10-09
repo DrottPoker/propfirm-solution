@@ -3815,6 +3815,52 @@
         }
       }
     },
+    "/api/portal/admin/terminal": {
+      "get": {
+        "tags": [
+          "Portal"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalSettings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Portal"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminalSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalSettings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/portal/admin/orders": {
       "get": {
         "tags": [
@@ -13523,6 +13569,13 @@
         },
         "description": "Starts a challenge for the trader with the email. Reference is the firm's own id, for\nexample its order number: repeating it returns the account already started instead of a second one."
       },
+      "StartingSizeKind": {
+        "enum": [
+          "Smallest",
+          "Lots",
+          "RiskOfRoom"
+        ]
+      },
       "StatusIncidentResponse": {
         "required": [
           "id",
@@ -14093,6 +14146,30 @@
           }
         },
         "description": "We suspended the firm, for a reason its administrators see."
+      },
+      "TerminalSettings": {
+        "required": [
+          "confirmOrders",
+          "startingSize",
+          "startingValue"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmOrders": {
+            "type": "boolean"
+          },
+          "startingSize": {
+            "$ref": "#/components/schemas/StartingSizeKind"
+          },
+          "startingValue": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        },
+        "description": "How orders start in the firm's terminal: whether each order asks before it is sent, and the size a ticket starts with,\nthe smallest the instrument allows, a number of lots, or what risks a share of what is left of today's loss limit at\nthe order's stop loss. StartingValue is the lots or the percent, and null for the smallest."
       },
       "TestCheckoutRequest": {
         "required": [
