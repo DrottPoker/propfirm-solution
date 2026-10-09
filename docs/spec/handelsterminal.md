@@ -169,7 +169,7 @@ Webbgränssnittet där traders handlar på sitt simulerade konto. Terminalen pra
 
 ## Notiser och ljud
 
-- **Notiser** när en order fylls, en väntande order läggs eller en position stängs, och avvisningar i rött i 8 sekunder. De kommer in nere till vänster över grafens äldsta candles, så att de aldrig täcker orderpanelen, det senaste priset eller positionerna. På en telefon kommer de överst.
+- **Notiser** när en order fylls, en väntande order läggs eller en position stängs, och avvisningar i rött i 8 sekunder, med skälet i klartext, också när tradern skickat för mycket på kort tid ("too many requests at once, wait a moment and try again", ADR 0059). De kommer in nere till vänster över grafens äldsta candles, så att de aldrig täcker orderpanelen, det senaste priset eller positionerna. På en telefon kommer de överst.
 - **Datorns egna notiser** för samma saker, larm och varningar när terminalen ligger i bakgrunden, om tradern slagit på dem.
 - **Ljud** med Web Audio API i traderns volym.
 

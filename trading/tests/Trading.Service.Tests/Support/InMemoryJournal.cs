@@ -23,6 +23,8 @@ internal sealed class InMemoryJournal : IEngineJournal
     private readonly List<(long Sequence, string? AccountId, string? GroupId, string Json, long? InputSequence)> _events = [];
     private readonly List<(JournalSnapshot Snapshot, string StateJson)> _snapshots = [];
     private int _appends;
+    private int _locksTaken;
+    private int _locksReleased;
 
     /// <summary>When set, writes wait until it completes.</summary>
     public TaskCompletionSource? Gate { get; set; }
@@ -55,6 +57,29 @@ internal sealed class InMemoryJournal : IEngineJournal
     }
 
     public Task InitializeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>When set, another service holds the journal, so taking it fails.</summary>
+    public bool HeldByAnother { get; set; }
+
+    /// <summary>How many times a service took the journal and let go of it.</summary>
+    public (int Taken, int Released) WriterLocks => (Volatile.Read(ref _locksTaken), Volatile.Read(ref _locksReleased));
+
+    public Task TakeWriterLockAsync(TimeSpan wait, CancellationToken cancellationToken)
+    {
+        if (HeldByAnother)
+        {
+            throw new InvalidOperationException("Another Trading.Service is writing to this journal.");
+        }
+
+        Interlocked.Increment(ref _locksTaken);
+        return Task.CompletedTask;
+    }
+
+    public Task ReleaseWriterLockAsync()
+    {
+        Interlocked.Increment(ref _locksReleased);
+        return Task.CompletedTask;
+    }
 
     public Task<JournalSnapshot?> LoadLatestSnapshotAsync(CancellationToken cancellationToken)
     {

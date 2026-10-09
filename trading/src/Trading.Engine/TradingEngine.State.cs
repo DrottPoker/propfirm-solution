@@ -82,6 +82,7 @@ public sealed partial class TradingEngine
             Require(day.FindProblem() is null, $"Account {record.AccountId} has an unknown trading day time zone {day.TimeZone}.");
             var account = new AccountState(record.AccountId, group, record.Balance, record.NextDayStart ?? day.NextStart(state.Clock))
             {
+                Order = _accounts.Count,
                 Status = record.Status,
                 TradingDay = day,
                 DayStartBalance = record.DayStartBalance ?? record.Balance,
@@ -120,6 +121,12 @@ public sealed partial class TradingEngine
 
             _accountsById.Add(account.Id, account);
             _accounts.Add(account);
+        }
+
+        // Nothing is known of their last evaluation, so the first price evaluates every account.
+        foreach (var account in _accounts)
+        {
+            AccountChanged(account);
         }
     }
 

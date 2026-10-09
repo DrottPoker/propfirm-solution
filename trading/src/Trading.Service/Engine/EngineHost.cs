@@ -20,7 +20,8 @@ namespace Trading.Service.Engine;
 /// Inputs are applied at once and written to the journal in batches by a separate writer. Nothing that
 /// depends on an input (the command's result, its events, a query that saw it) is released until the
 /// batch holding the input is stored, so a restart never undoes anything a client has seen. If the
-/// journal cannot be written, the service stops.
+/// journal cannot be written, the service stops. Only one service writes to a journal: it takes the journal's lock
+/// before reading it and does not start without it.
 /// </para>
 /// </summary>
 internal sealed partial class EngineHost : BackgroundService
@@ -171,6 +172,9 @@ internal sealed partial class EngineHost : BackgroundService
         var started = _time.GetTimestamp();
         await _journal.InitializeAsync(cancellationToken);
 
+        // Taken before anything is read, so no other service can write after this one has read the state.
+        await _journal.TakeWriterLockAsync(_options.WriterLockWait, cancellationToken);
+
         var snapshot = await _journal.LoadLatestSnapshotAsync(cancellationToken);
         if (snapshot is null)
         {
@@ -305,6 +309,9 @@ internal sealed partial class EngineHost : BackgroundService
 
         _toWrite.Writer.TryComplete();
         await writer;
+
+        // The last batch is written, so a service that starts next can take the journal at once.
+        await _journal.ReleaseWriterLockAsync();
     }
 
     private void CancelQueuedWork()

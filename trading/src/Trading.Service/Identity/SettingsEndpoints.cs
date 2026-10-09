@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 
 using Microsoft.AspNetCore.Http.HttpResults;
 
+using Trading.Service.Api;
+
 namespace Trading.Service.Identity;
 
 /// <summary>
@@ -19,7 +21,7 @@ internal static partial class SettingsEndpoints
 
     public static IEndpointRouteBuilder MapSettingsApi(this IEndpointRouteBuilder app)
     {
-        var settings = app.MapGroup("/api/me/settings").WithTags("Settings").RequireAuthorization();
+        var settings = app.MapGroup("/api/me/settings").WithTags("Settings").RequireAuthorization().RequireRateLimiting(RateLimits.Trader);
         settings.MapGet("", GetSettingsAsync);
         settings.MapPut("/{key}", SetSettingAsync);
         settings.MapDelete("/{key}", DeleteSettingAsync);

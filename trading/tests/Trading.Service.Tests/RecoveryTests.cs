@@ -103,6 +103,35 @@ public sealed class RecoveryTests
         Assert.Contains("not deterministic or the journal is damaged", exception.ToString(), StringComparison.Ordinal);
     }
 
+    // Only one service writes to a journal. A second one does not start, and writes nothing.
+    [Fact]
+    public async Task AServiceDoesNotStartWhileAnotherWritesTheJournal()
+    {
+        using var first = new ServiceFactory();
+        (await TradeAsync(first)).Dispose();
+        var shared = first.Backend.Crashed();
+        shared.Journal.HeldByAnother = true;
+        var appends = shared.Journal.Appends;
+
+        using var second = new ServiceFactory(shared);
+        var exception = Assert.ThrowsAny<Exception>(() => second.CreateClient());
+
+        Assert.Contains("Another Trading.Service is writing to this journal", exception.ToString(), StringComparison.Ordinal);
+        Assert.Equal(appends, shared.Journal.Appends);
+    }
+
+    [Fact]
+    public async Task AServiceLetsGoOfTheJournalOnceItHasStopped()
+    {
+        var first = new ServiceFactory();
+        (await TradeAsync(first)).Dispose();
+        var journal = first.Backend.Journal;
+
+        first.Dispose();
+
+        Assert.Equal((1, 1), journal.WriterLocks);
+    }
+
     [Fact]
     public async Task ChangedConfigurationWithInputsToReplayStopsTheStart()
     {

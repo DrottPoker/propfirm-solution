@@ -19,6 +19,9 @@ internal sealed class PriceBook
     // the configuration, so it is kept as it is found.
     private readonly Dictionary<(string From, string To), string?> _otherRoutes = [];
 
+    // (from, to) -> every symbol whose price a rate can be taken from. Depends only on the configuration.
+    private readonly Dictionary<(string From, string To), HashSet<string>> _rateSymbols = [];
+
     public PriceBook(IEnumerable<Instrument> instruments)
     {
         foreach (var instrument in instruments)
@@ -84,6 +87,46 @@ internal sealed class PriceBook
 
         rate = 0m;
         return false;
+    }
+
+    /// <summary>
+    /// Every symbol whose price <see cref="TryGetRate"/> can take the rate from, on any of its ways: the pair itself,
+    /// through <see cref="CrossCurrency"/> or through the other currency. A price of any other symbol never changes it.
+    /// </summary>
+    public IReadOnlySet<string> SymbolsOfRate(string from, string to)
+    {
+        if (_rateSymbols.TryGetValue((from, to), out var known))
+        {
+            return known;
+        }
+
+        var symbols = new HashSet<string>(StringComparer.Ordinal);
+        if (!string.Equals(from, to, StringComparison.Ordinal))
+        {
+            AddPair(symbols, from, to);
+            if (IsRoute(CrossCurrency, from, to))
+            {
+                AddPair(symbols, from, CrossCurrency);
+                AddPair(symbols, CrossCurrency, to);
+            }
+            else if (!_conversions.ContainsKey((from, to))
+                && _currencies.FirstOrDefault(c => !string.Equals(c, CrossCurrency, StringComparison.Ordinal) && IsRoute(c, from, to)) is { } through)
+            {
+                AddPair(symbols, from, through);
+                AddPair(symbols, through, to);
+            }
+        }
+
+        _rateSymbols[(from, to)] = symbols;
+        return symbols;
+    }
+
+    private void AddPair(HashSet<string> symbols, string from, string to)
+    {
+        if (_conversions.TryGetValue((from, to), out var conversion))
+        {
+            symbols.Add(conversion.Symbol);
+        }
     }
 
     private bool IsRoute(string through, string from, string to) =>

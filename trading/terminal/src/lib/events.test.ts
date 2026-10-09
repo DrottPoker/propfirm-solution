@@ -171,6 +171,10 @@ describe("rejectionText", () => {
     expect(rejectionText("MarketClosed")).toBe("Refused: the market is closed");
     expect(rejectionText("SomethingNew")).toBe("Refused: SomethingNew");
   });
+
+  it("explains a refusal from the service itself, such as asking too often", () => {
+    expect(rejectionText("TooManyRequests")).toBe("Refused: too many requests at once, wait a moment and try again");
+  });
 });
 
 describe("positionCommission", () => {

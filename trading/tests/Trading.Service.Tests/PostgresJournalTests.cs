@@ -290,6 +290,67 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
         Assert.Equal("engine_inputs_feed_only_on_quotes", exception.ConstraintName);
     }
 
+    // One service writes to a journal. A second does not start, and a journal without the lock writes nothing.
+    [Fact]
+    public async Task OnlyOneServiceWritesToAJournal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var journal = await CreateJournalAsync();
+        await using var second = CreateJournal(journal.DataSource);
+        await journal.Value.TakeWriterLockAsync(TimeSpan.Zero, cancellationToken);
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => second.TakeWriterLockAsync(TimeSpan.FromMilliseconds(300), cancellationToken));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => second.AppendAsync(QuoteBatch(1), cancellationToken));
+        await journal.Value.AppendAsync(QuoteBatch(1), cancellationToken);
+
+        // Once the first lets go, the second takes over.
+        await journal.Value.ReleaseWriterLockAsync();
+        await second.TakeWriterLockAsync(TimeSpan.Zero, cancellationToken);
+        await second.AppendAsync(QuoteBatch(2), cancellationToken);
+
+        Assert.Contains("Only one may run against a database at a time", refused.Message, StringComparison.Ordinal);
+        Assert.Equal(2, await second.GetLastInputSequenceAsync(cancellationToken));
+    }
+
+    [Fact]
+    public async Task AStartingServiceWaitsForTheOneBeforeItToStop()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var journal = await CreateJournalAsync();
+        await using var next = CreateJournal(journal.DataSource);
+        await journal.Value.TakeWriterLockAsync(TimeSpan.Zero, cancellationToken);
+
+        var waiting = next.TakeWriterLockAsync(TimeSpan.FromSeconds(20), cancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+        Assert.False(waiting.IsCompleted);
+        await journal.Value.ReleaseWriterLockAsync();
+
+        await waiting.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+        await next.AppendAsync(QuoteBatch(1), cancellationToken);
+    }
+
+    // The lock lives with the writer's connection. If it breaks, the writer takes the lock again before the next batch,
+    // and writes nothing if another service took it in between.
+    [Fact]
+    public async Task AWriterWhoseConnectionBreaksWritesOnlyIfNoOtherTookTheJournal()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var journal = await CreateJournalAsync();
+        await using var other = CreateJournal(journal.DataSource);
+        await journal.Value.AppendAsync(QuoteBatch(1), cancellationToken);
+
+        await TerminateLockHolderAsync(journal.DataSource);
+        await Assert.ThrowsAnyAsync<Exception>(() => journal.Value.AppendAsync(QuoteBatch(2), cancellationToken));
+        await journal.Value.AppendAsync(QuoteBatch(2), cancellationToken);
+
+        await TerminateLockHolderAsync(journal.DataSource);
+        await Assert.ThrowsAnyAsync<Exception>(() => journal.Value.AppendAsync(QuoteBatch(3), cancellationToken));
+        await other.TakeWriterLockAsync(TimeSpan.Zero, cancellationToken);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => journal.Value.AppendAsync(QuoteBatch(3), cancellationToken));
+
+        Assert.Equal(2, await other.GetLastInputSequenceAsync(cancellationToken));
+    }
+
     [Fact]
     public async Task ServiceRecoversFromPostgres()
     {
@@ -326,6 +387,15 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
 
     private static string ToJson(EventEnvelope envelope) => JsonSerializer.Serialize(envelope, Json);
 
+    private static JournalBatch QuoteBatch(long sequence) => new([new JournaledInput(sequence, new Quote(T, "EURUSD", 1.08000m, 1.08010m))], [], null);
+
+    // Ends the session that holds the journal's lock, as a network failure or a restarted database would.
+    private static async Task TerminateLockHolderAsync(NpgsqlDataSource dataSource)
+    {
+        await using var command = dataSource.CreateCommand("select pg_terminate_backend(pid) from pg_locks where locktype = 'advisory' and granted");
+        Assert.Equal(true, await command.ExecuteScalarAsync(TestContext.Current.CancellationToken));
+    }
+
     private static async Task<List<T>> ToListAsync<T>(IAsyncEnumerable<T> items)
     {
         var list = new List<T>();
@@ -343,6 +413,10 @@ public sealed class PostgresJournalTests(PostgresFixture postgres) : IClassFixtu
 
         public NpgsqlDataSource DataSource { get; } = dataSource;
 
-        public ValueTask DisposeAsync() => DataSource.DisposeAsync();
+        public async ValueTask DisposeAsync()
+        {
+            await Value.DisposeAsync();
+            await DataSource.DisposeAsync();
+        }
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 
 using Trading.Engine;
+using Trading.Service.Api;
 using Trading.Service.Tenancy;
 
 namespace Trading.Service.Identity;
@@ -28,9 +29,9 @@ internal static class AuthEndpoints
         auth.MapPost("/login", LoginAsync).RequireRateLimiting(LoginRateLimit);
         auth.MapPost("/link", LinkLoginAsync).RequireRateLimiting(LoginRateLimit);
         auth.MapPost("/logout", (Func<HttpContext, Task<NoContent>>)LogoutAsync);
-        auth.MapGet("/me", MeAsync).RequireAuthorization();
-        app.MapGet("/api/servers", FindServersAsync).WithTags("Auth");
-        app.MapGet("/api/servers/{id}", GetServerAsync).WithTags("Auth");
+        auth.MapGet("/me", MeAsync).RequireAuthorization().RequireRateLimiting(RateLimits.Trader);
+        app.MapGet("/api/servers", FindServersAsync).WithTags("Auth").RequireRateLimiting(RateLimits.Public);
+        app.MapGet("/api/servers/{id}", GetServerAsync).WithTags("Auth").RequireRateLimiting(RateLimits.Public);
         return app;
     }
 

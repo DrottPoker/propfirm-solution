@@ -17,7 +17,7 @@ internal static class PartnerEndpoints
 {
     public static IEndpointRouteBuilder MapPartnerApi(this IEndpointRouteBuilder app)
     {
-        var partner = app.MapGroup("/api/partner/v1").WithTags("Partner").AddEndpointFilter<PartnerApiKeyFilter>();
+        var partner = app.MapGroup("/api/partner/v1").WithTags("Partner").RequireRateLimiting(RateLimits.Partner).AddEndpointFilter<PartnerApiKeyFilter>();
         partner.MapGet("/server-names/{id}", GetServerName);
         partner.MapPost("/tenants", CreateTenantAsync);
         partner.MapGet("/tenants/{id}", GetTenantAsync);

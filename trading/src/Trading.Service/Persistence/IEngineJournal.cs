@@ -13,6 +13,16 @@ public interface IEngineJournal
     /// <summary>Creates or upgrades the storage. Safe to call on every start.</summary>
     Task InitializeAsync(CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Makes this process the journal's only writer until <see cref="ReleaseWriterLockAsync"/>, waiting up to
+    /// <paramref name="wait"/> for another process to let go. Throws when another one still holds it, so a second
+    /// service never starts on the same journal. Nothing is written without it.
+    /// </summary>
+    Task TakeWriterLockAsync(TimeSpan wait, CancellationToken cancellationToken);
+
+    /// <summary>Lets another process take the journal, once this one has written its last batch.</summary>
+    Task ReleaseWriterLockAsync();
+
     Task<JournalSnapshot?> LoadLatestSnapshotAsync(CancellationToken cancellationToken);
 
     /// <summary>Inputs after the sequence number, in order.</summary>
@@ -131,4 +141,10 @@ public sealed class JournalOptions
 
     /// <summary>Snapshots kept. Older ones are deleted. Inputs and events are always kept.</summary>
     public int SnapshotsToKeep { get; init; } = 3;
+
+    /// <summary>
+    /// How long a starting service waits for another one to let go of the journal, for example one still writing its
+    /// last snapshot as it stops. After that it does not start.
+    /// </summary>
+    public TimeSpan WriterLockWait { get; init; } = TimeSpan.FromSeconds(30);
 }

@@ -45,6 +45,7 @@ Tjänsten kör handelsmotorn (se [specen för handelsmotorn](handelsmotor.md)) o
 - Frågor ändrar inget tillstånd, så en fråga som misslyckas påverkar bara den som frågade. Ett kommando eller pris som orsakar ett fel i motorn betyder att tillståndet inte längre går att lita på. Då stoppas tjänsten.
 - Realtidsdelen läser händelser från en egen kö, så nätverket kan aldrig blockera motorn.
 - Tidsstämplar avrundas till hela mikrosekunder, som Postgres lagrar dem, så att en uppspelning ser exakt samma tider.
+- Ett pris värderar bara de konton det kan ändra och de som ett kommando eller en ny handelsdag ändrat sedan sist (ADR 0059). Se [specen för handelsmotorn](handelsmotor.md).
 
 ## Journal och återstart
 
@@ -66,17 +67,22 @@ Se [ADR 0008](../adr/0008-journal-av-indata.md) för besluten.
 
 **Skrivning:** Motorn tillämpar indata direkt. En separat skrivare sparar dem i batcher i en transaktion. Svar på kommandon, händelser i realtid och svar på frågor släpps först när det de bygger på är sparat. Misslyckas en skrivning tre gånger stoppas tjänsten.
 
+**En skrivare (ADR 0059):** bara en tjänst skriver i en journal. Tjänsten tar journalens lås innan den läser något, ett advisory lock i Postgres som hålls av anslutningen batcharna skrivs på. En andra tjänst mot samma databas väntar upp till `Journal:WriterLockWait` (standard 30 sekunder) på att den första ska släppa det och startar sedan inte. Bryts anslutningen följer låset med, och tjänsten tar det igen innan nästa batch. Har en annan tjänst tagit det under tiden skrivs inget, och tjänsten stoppas. Låset släpps när den sista batchen är skriven.
+
 **Start:**
 
 1. Kör migreringar.
-2. Läs den senaste ögonblicksbilden och återställ motorn från den.
-3. Spela upp indata efter den. Har konfigurationen ändrats sedan ögonblicksbilden, till exempel med fler instrument, jämförs varje uppspelad händelse med den sparade. Vägra starta om någon skiljer sig, eftersom indatan då tillämpades med en annan konfiguration än den nya.
-4. Kontrollera att uppspelningen gav lika många händelser som journalen har. Vägra starta annars.
-5. Spara en ny ögonblicksbild med den aktuella konfigurationen.
-6. Låt det syntetiska flödet fortsätta från de senaste priserna.
-7. Fyll graferna med det aktuella flödets priser (ADR 0048). Kommer det senaste sparade priset från ett annat flöde, eller finns inget, har tjänsten bytt flöde, och flödets historik laddas först. Den laddas också när den sparade historiken inte når så långt bakåt som `Charts:History` säger (ADR 0051). Därefter läses flödets sparade staplar, och priserna efter den sista spelas upp från journalen. Ett annat flödes priser kommer aldrig med. `GET /candles` väntar tills graferna är fyllda. En hel minut eller mer utan något pris, mellan de sparade staplarna och de första priserna efter starten eller medan tjänsten kör, fylls från flödets historik när priserna kommer igen (ADR 0056). Säger leverantören nej försöker tjänsten igen efter 2, 10 och 30 sekunder. Graferna håller tillbaka sina priser under tiden, men motorn får dem direkt.
+2. Ta journalens lås, eller vänta på det. Tjänsten startar inte medan en annan skriver.
+3. Läs den senaste ögonblicksbilden och återställ motorn från den.
+4. Spela upp indata efter den. Har konfigurationen ändrats sedan ögonblicksbilden, till exempel med fler instrument, jämförs varje uppspelad händelse med den sparade. Vägra starta om någon skiljer sig, eftersom indatan då tillämpades med en annan konfiguration än den nya.
+5. Kontrollera att uppspelningen gav lika många händelser som journalen har. Vägra starta annars.
+6. Spara en ny ögonblicksbild med den aktuella konfigurationen.
+7. Låt det syntetiska flödet fortsätta från de senaste priserna.
+8. Fyll graferna med det aktuella flödets priser (ADR 0048). Kommer det senaste sparade priset från ett annat flöde, eller finns inget, har tjänsten bytt flöde, och flödets historik laddas först. Den laddas också när den sparade historiken inte når så långt bakåt som `Charts:History` säger (ADR 0051). Därefter läses flödets sparade staplar, och priserna efter den sista spelas upp från journalen. Ett annat flödes priser kommer aldrig med. `GET /candles` väntar tills graferna är fyllda. En hel minut eller mer utan något pris, mellan de sparade staplarna och de första priserna efter starten eller medan tjänsten kör, fylls från flödets historik när priserna kommer igen (ADR 0056). Säger leverantören nej försöker tjänsten igen efter 2, 10 och 30 sekunder. Graferna håller tillbaka sina priser under tiden, men motorn får dem direkt.
 
 **Grafernas historik:** de senaste 2 dagarna och i dag laddas i minutstaplar, som ger M1 och M5. De senaste 30 dagarna laddas i staplar på 15 minuter, som ger M15 och M30, och resten av de 180 dagarna i timstaplar, som ger H1 och längre (ADR 0051). Lägre tidsramar får alltså kortare historik. Terminalen visar 500 staplar och hämtar äldre när tradern bläddrar bakåt. Varje färdig minutstapel sparas några sekunder efter att minuten slutat, och de sista när tjänsten stängs. Går historiken inte att ladda startar tjänsten ändå, och nästa start försöker igen.
+
+**Hur lång en omstart är (ADR 0059):** efter en krasch spelas högst ett intervall upp, 10 000 inputs, cirka fyra minuter av priserna när marknaderna är öppna. Med konton som har två öppna positioner vardera tar det 2,3 sekunder med 1 000 konton, 11 sekunder med 5 000 och 49 sekunder med 20 000. Ögonblicksbilden är då 1, 5 respektive 19 MB. `RestartMeasurementTests` mäter det. Under uppspelningen tas inga order emot. Efter en vanlig avstängning finns inget att spela upp.
 
 **Avstängning:** Arbete som inte hunnit köras avbryts. Den sista batchen sparas tillsammans med en ögonblicksbild, så att nästa start inte behöver spela upp något.
 
@@ -209,6 +215,7 @@ Det som behöver oss (`needsUs`) har ett slag (`kind`) och fälten som hör till
 
 - Ett kommando som godkänns ger `200` med händelserna det orsakade: `{ "events": [{ "sequence": 4, "event": { "kind": "PositionOpened", ... } }] }`.
 - Ett kommando som avvisas ger ett problem-svar med fältet `reason`, till exempel `{ "status": 422, "reason": "StalePrice" }`. Statuskoderna beskrivs i [ADR 0006](../adr/0006-api-mellan-terminal-och-tjanst.md).
+- Den som skickat mer än sin ranson får `429` med `Retry-After` och `reason: "TooManyRequests"` (ADR 0059). Varje anropare har en egen ranson per minut: en trader från alla sina enheter tillsammans på handels-API:t, inställningarna och realtidshubben, en firmas system med sin nyckel på admin-API:t, en partner på partner-API:t och varje IP-adress på sökningen efter servrar. En fjärdedel av minutens ranson får användas på en gång, och resten kommer tillbaka jämnt över minuten. Inloggningen har sin egen gräns per IP-adress.
 
 ## Realtid
 
@@ -235,7 +242,8 @@ Den senaste candlen uppdateras i terminalen med priserna från `Prices`. Vid oml
 | `SyntheticFeed` | Frö, intervall och startpriser per symbol. |
 | `Charts` | Hur många hela dagar historiken når bakåt (`History`, 180, och för dagar, veckor och månader `DayHistory`, 1 095), hur många av dem som laddas i staplar på 15 minuter (`QuarterHourHistory`, 30) och i minutstaplar (`MinuteHistory`, 2). Resten laddas i timstaplar. |
 | `Realtime` | Takt för priser och konto. |
-| `Journal` | Antal indata mellan ögonblicksbilder och hur många som behålls. |
+| `Journal` | `SnapshotInterval`, antal indata mellan ögonblicksbilder (standard 10 000), `SnapshotsToKeep`, hur många som behålls (standard 3), och `WriterLockWait`, hur länge en tjänst som startar väntar på att en annan släpper journalen (standard 30 sekunder). |
+| `RateLimits` | Ransonerna per minut (ADR 0059): `TraderPerMinute` (standard 1 200), `FirmPerMinute` (1 200), `PartnerPerMinute` (600) och `PublicPerMinute` för sökningen efter servrar per IP-adress (60). 0 stänger av en ranson. |
 | `Tenants` | Firmor som sparas i databasen vid varje start, för utveckling och tester: id (servern, till exempel `nordic-prop`), namn, grupper i `Trading:Groups`, SHA-256 av API-nyckeln, valfri `LoginUrl`, firmans portal där traderna loggar in, och valfri `Terminal` med `Kind`, `PasswordLogin` och `ConfirmOrders` (ADR 0058), som ger sortens standardprofil med de valen. Utan `Terminal` behåller firman den profil den har. De listas alltid. |
 | `Partners` | Partnerna som får skapa firmor: `Id`, `Name` och SHA-256 av nyckeln (`ApiKeySha256`). |
 | `Staff` | Vår personal i personalpanelen: `SeedUsers`, med `Email` och `Password`, skapas vid start eller får det angivna lösenordet. Bara för utveckling, tills personal kan bjudas in. |
@@ -288,4 +296,8 @@ De flesta tester använder en journal i minnet som går via JSON som i Postgres.
 
 `AuthTests` täcker inloggning, utloggning, begränsningen av försök, ägarskap, API-nycklar och att firmor inte når varandras grupper, traders eller konton. `IntegrationApiTests` täcker admin-API:t som firmornas system bygger på: versionen, uppslag av traders, byte av lösenord, kontot, det förankrade golvet, uttag som bara dras en gång, händelseströmmen per firma med väntan, och inloggningslänkar som fungerar en gång, går ut och bara gäller firmans traders och deras konton, och konton som pausas och återupptas och kan få samma kommando igen. `TiingoPriceFeedTests` täcker tolkning, avrundning, de senaste priserna och nya anslutningar mot en låtsad Tiingo med riktig WebSocket, och historiken: att den görs om till bid utan oförändrade och ofärdiga staplar, och delas upp i anrop som håller sig inom Tiingos gräns, och att Tiingo bara får valutor och metaller. `CapitalComPriceFeedTests` täcker på samma sätt mot en låtsad Capital.com: inloggning med nyckel och lösenord, de senaste priserna, prenumeration och ping med sessionen, nya försök efter en nekad eller avslutad session, historik i bid utan oförändrade och ofärdiga staplar, perioder om högst 950 staplar, och att för många instrument stoppar starten. Testerna läser aldrig utvecklarens user secrets.
 
-`PostgresJournalTests`, `PostgresChartStoreTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att decimaler, tider och prisflöden kommer tillbaka exakt, att priser kan läsas från ett flöde, att bara priser har ett flöde, att flödet för det senaste priset går att få fram, att ett flödes historik bara ersätter dess egna tidigare staplar, att gamla staplar tas bort, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.
+`RateLimitTests` täcker ransonerna (ADR 0059): en trader som frågar för ofta får vänta med `Retry-After` och `TooManyRequests` medan andra traders fortsätter, en firmas system likadant medan andra firmor fortsätter, partner-API:t och sökningen efter servrar, att standarden rymmer tre omladdningar av terminalen i rad och att 0 stänger av ransonen. `RecoveryTests` visar också att en tjänst inte startar medan en annan skriver journalen, och att en tjänst släpper journalen när den stoppats.
+
+`PostgresJournalTests`, `PostgresChartStoreTests` och `PostgresIdentityTests` kör mot riktig Postgres i en container via Testcontainers och kräver Docker. De visar att bara en tjänst skriver i en journal medan en andra väntar eller inte startar, att en skrivare vars anslutning bryts tar låset igen före nästa batch men inte skriver om en annan tagit det, att decimaler, tider och prisflöden kommer tillbaka exakt, att priser kan läsas från ett flöde, att bara priser har ett flöde, att flödet för det senaste priset går att få fram, att ett flödes historik bara ersätter dess egna tidigare staplar, att gamla staplar tas bort, att ett kontos händelser läses i sidor både framåt och bakåt från de senaste, att hela tjänsten kan startas om mot Postgres, att firmor behåller grupper och nycklar, och att en firmas id och grupper bara kan tas en gång.
+
+`RestartMeasurementTests` mäter en omstart mot riktig Postgres (ADR 0059): journalen har tjänstens egna instrument, konton med två öppna positioner vardera, en ögonblicksbild och sedan ett intervall utom en input, och tjänsten startas som efter en krasch. Med 1 000 konton måste starten ta under 15 sekunder, med god marginal för en långsam maskin. `TRADING_RESTART_ACCOUNTS` mäter andra storlekar, till exempel `1000,5000,20000`, och `TRADING_RESTART_REPORT` sparar siffrorna i en fil.

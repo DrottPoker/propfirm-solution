@@ -97,7 +97,8 @@ public sealed class RulesAndSettingsTests
     [Fact]
     public async Task SettingsHaveLimits()
     {
-        using var factory = new ServiceFactory();
+        // Two hundred settings in a row is more than a trader may ask for at once, which another test covers.
+        using var factory = new ServiceFactory(settings: new Dictionary<string, string> { ["RateLimits:TraderPerMinute"] = "0" });
         using var trader = await factory.CreateTraderClientAsync(AccountId);
         using var anonymous = factory.CreateClient();
 

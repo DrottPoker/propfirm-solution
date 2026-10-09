@@ -21,25 +21,8 @@ public sealed partial class TradingEngine
 
         _prices.Update(quote);
 
-        // A price can change equity through conversion too, so every account with exposure is evaluated. A new trading day
-        // starts on the first price after it began, also on an account without exposure, so its lock ends.
-        foreach (var account in _accounts)
-        {
-            if (account.Status == AccountStatus.Disabled)
-            {
-                continue;
-            }
-
-            StartTradingDayIfDue(account, quote.Timestamp, events);
-            if (!account.HasExposure)
-            {
-                continue;
-            }
-
-            ProcessTriggers(account, instrument, quote.Timestamp, events);
-            EvaluateRisk(account, quote.Timestamp, events);
-        }
-
+        // A price can change equity through conversion too, so every account whose positions it values is evaluated.
+        EvaluateOnPrice(instrument, quote, events);
         return null;
     }
 
@@ -47,6 +30,12 @@ public sealed partial class TradingEngine
     // on the next price.
     private void ProcessTriggers(AccountState account, Instrument instrument, DateTimeOffset now, List<EngineEvent> events)
     {
+        // Many accounts a price concerns hold nothing in its symbol, only something converted with it.
+        if (!Holds(account, instrument))
+        {
+            return;
+        }
+
         foreach (var position in account.Positions.Where(p => IsSymbol(p.Instrument, instrument)).ToList())
         {
             var closePrice = _valuation.CurrentPrice(position.Instrument, position.Conditions).ClosePrice(position.Side);
@@ -82,30 +71,40 @@ public sealed partial class TradingEngine
 
     private void EvaluateRisk(AccountState account, DateTimeOffset now, List<EngineEvent> events)
     {
-        if (account.Status == AccountStatus.Disabled || CheckFloors(account, now, events))
+        if (account.Status == AccountStatus.Disabled)
+        {
+            return;
+        }
+
+        // Valued once, since nothing changes the value until a stop out closes a position.
+        var figures = _valuation.Measure(account);
+        if (CheckFloors(account, figures.Equity, now, events))
         {
             return;
         }
 
         // Commission on stop out closes can push equity below a floor.
-        if (StopOutIfNeeded(account, now, events) && CheckFloors(account, now, events))
+        if (StopOutIfNeeded(account, figures, now, events))
         {
-            return;
+            figures = _valuation.Measure(account);
+            if (CheckFloors(account, figures.Equity, now, events))
+            {
+                return;
+            }
         }
 
         // The firm's limits come first: a price that breaks both breaks the firm's.
-        CheckOwnLimits(account, now, events);
+        CheckOwnLimits(account, figures.Equity, now, events);
     }
 
     // Returns true if a floor was breached and the account was disabled.
-    private bool CheckFloors(AccountState account, DateTimeOffset now, List<EngineEvent> events)
+    private bool CheckFloors(AccountState account, decimal equity, DateTimeOffset now, List<EngineEvent> events)
     {
         if (account.Floors.Count == 0)
         {
             return false;
         }
 
-        var equity = _valuation.Measure(account).Equity;
         foreach (var floor in account.Floors.Values)
         {
             floor.Observe(equity);
@@ -128,7 +127,7 @@ public sealed partial class TradingEngine
     }
 
     // Closes the position with the largest loss until the margin level is back at or above the stop out level.
-    private bool StopOutIfNeeded(AccountState account, DateTimeOffset now, List<EngineEvent> events)
+    private bool StopOutIfNeeded(AccountState account, AccountFigures figures, DateTimeOffset now, List<EngineEvent> events)
     {
         var stopOutLevel = account.Group.StopOutLevelPercent;
         if (stopOutLevel <= 0m || account.Positions.Count == 0)
@@ -136,7 +135,6 @@ public sealed partial class TradingEngine
             return false;
         }
 
-        var figures = _valuation.Measure(account);
         if (figures.MarginLevelPercent is not { } marginLevel || marginLevel >= stopOutLevel)
         {
             return false;
@@ -296,6 +294,27 @@ public sealed partial class TradingEngine
         {
             position.StopLoss = level;
         }
+    }
+
+    private static bool Holds(AccountState account, Instrument instrument)
+    {
+        foreach (var position in account.Positions)
+        {
+            if (IsSymbol(position.Instrument, instrument))
+            {
+                return true;
+            }
+        }
+
+        foreach (var order in account.Orders)
+        {
+            if (IsSymbol(order.Instrument, instrument))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsSymbol(Instrument candidate, Instrument instrument) =>

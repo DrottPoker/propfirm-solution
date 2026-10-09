@@ -90,11 +90,11 @@ public sealed partial class TradingEngine
     // The first input on or after the start of the account's next trading day starts it: the day counts from the balance
     // now, which no trade in between has changed, the trades start again, the limits loosened yesterday apply, and the
     // lock ends. An account without own limits or a lock starts its day without an event.
-    private static void StartTradingDayIfDue(AccountState account, DateTimeOffset now, List<EngineEvent> events)
+    private static bool StartTradingDayIfDue(AccountState account, DateTimeOffset now, List<EngineEvent> events)
     {
         if (account.Status == AccountStatus.Disabled || now < account.NextDayStart)
         {
-            return;
+            return false;
         }
 
         var told = !account.OwnLimits.IsEmpty || account.PendingOwnLimits is not null || account.Lock is not null;
@@ -113,18 +113,23 @@ public sealed partial class TradingEngine
         }
 
         Unlock(account, now, events);
+        return true;
     }
 
     // Reaching the trader's own daily loss limit or profit target closes every position and locks new orders, like a
     // floor but without ending the account.
-    private void CheckOwnLimits(AccountState account, DateTimeOffset now, List<EngineEvent> events)
+    private void CheckOwnLimits(AccountState account, DateTimeOffset now, List<EngineEvent> events) =>
+        CheckOwnLimits(account, null, now, events);
+
+    // With the equity when the caller has just valued the account.
+    private void CheckOwnLimits(AccountState account, decimal? valued, DateTimeOffset now, List<EngineEvent> events)
     {
         if (account.Lock is not null || account.Status == AccountStatus.Disabled)
         {
             return;
         }
 
-        var equity = _valuation.Measure(account).Equity;
+        var equity = valued ?? _valuation.Measure(account).Equity;
         var (reason, level) = account switch
         {
             { LossLevel: { } loss } when equity <= loss => (LockReason.DailyLoss, loss),

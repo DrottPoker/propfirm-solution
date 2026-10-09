@@ -25,6 +25,16 @@ internal sealed class AccountState(string id, GroupState group, decimal balance,
 
     public bool HasExposure => Positions.Count > 0 || Orders.Count > 0;
 
+    // Its place in creation order, which accounts are evaluated in.
+    public int Order { get; init; }
+
+    // The symbols whose prices can change the account now: those of its positions and orders, and those its positions
+    // are converted with. The engine keeps it as positions and orders change (ADR 0059).
+    public HashSet<string> PricedBy { get; } = new(StringComparer.Ordinal);
+
+    // Positions and orders when the account was last filed under its symbols, -1 before it was.
+    public int FiledItems { get; set; } = -1;
+
     // The trader's own limits and the trading day they count in (ADR 0054).
     public TradingDay TradingDay { get; set; } = TradingDay.Utc;
 

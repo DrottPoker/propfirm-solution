@@ -28,6 +28,7 @@ internal static class TradingEndpoints
         var account = app.MapGroup("/api/accounts/{accountId}")
             .WithTags("Trading")
             .RequireAuthorization()
+            .RequireRateLimiting(RateLimits.Trader)
             .AddEndpointFilter<AccountOwnerFilter>();
         account.MapGet("", GetAccountAsync);
         account.MapGet("/instruments", GetInstrumentsAsync);

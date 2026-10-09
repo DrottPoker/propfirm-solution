@@ -31,7 +31,7 @@ internal static class AdminEndpoints
 
     public static IEndpointRouteBuilder MapAdminApi(this IEndpointRouteBuilder app)
     {
-        var admin = app.MapGroup("/api/admin/v1").WithTags("Admin").AddEndpointFilter<AdminApiKeyFilter>();
+        var admin = app.MapGroup("/api/admin/v1").WithTags("Admin").RequireRateLimiting(RateLimits.Firm).AddEndpointFilter<AdminApiKeyFilter>();
         admin.MapPost("/users", CreateUserAsync);
         admin.MapGet("/users", FindUserAsync);
         admin.MapPut("/users/{userId:guid}/password", SetPasswordAsync);

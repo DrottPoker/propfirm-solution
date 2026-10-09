@@ -80,6 +80,11 @@ public sealed partial class TradingEngine
             EvaluateRisk(account, command.Timestamp, events);
         }
 
+        foreach (var account in accounts)
+        {
+            AccountChanged(account);
+        }
+
         return null;
     }
 
@@ -105,7 +110,7 @@ public sealed partial class TradingEngine
             return RejectReason.InvalidAmount;
         }
 
-        var account = new AccountState(command.AccountId, group, command.InitialBalance, TradingDay.Utc.NextStart(command.Timestamp));
+        var account = new AccountState(command.AccountId, group, command.InitialBalance, TradingDay.Utc.NextStart(command.Timestamp)) { Order = _accounts.Count };
         _accountsById.Add(account.Id, account);
         _accounts.Add(account);
         events.Add(new AccountCreated(command.Timestamp, account.Id, group.Id, group.Currency, account.Balance));

@@ -85,9 +85,14 @@ const rejections: Record<RejectReason, string> = {
   InvalidTradingDay: "the trading day is not valid",
 };
 
+/** Refusals from the service itself rather than the engine, such as a trader asking too often (ADR 0059). */
+const serviceRejections: Record<string, string> = {
+  TooManyRequests: "too many requests at once, wait a moment and try again",
+};
+
 /** Why the trading service refused something, for example "not enough free margin". */
 export function rejectionReason(reason: string): string {
-  return (rejections as Record<string, string | undefined>)[reason] ?? reason;
+  return (rejections as Record<string, string | undefined>)[reason] ?? serviceRejections[reason] ?? reason;
 }
 
 /** A refusal from the trading service for the trader, for example "Refused: not enough free margin". */

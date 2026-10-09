@@ -1,3 +1,4 @@
+using System.Data;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
@@ -17,15 +18,75 @@ using Trading.Service.Json;
 
 namespace Trading.Service.Persistence;
 
-/// <summary>The journal in Postgres. Each batch is written in one transaction with COPY.</summary>
+/// <summary>
+/// The journal in Postgres. Each batch is written in one transaction with COPY, on the connection that holds the
+/// journal's lock: a session advisory lock that keeps a second service from ever writing to the same database. If that
+/// connection breaks, its lock goes with it and is taken again before the next batch, or the batch is not written.
+/// </summary>
 internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, DatabaseSchema schema, IOptions<JournalOptions> options)
-    : IEngineJournal
+    : IEngineJournal, IAsyncDisposable
 {
     private const string QuoteKind = nameof(Quote);
 
+    private const string TakeLockSql = "select pg_try_advisory_lock(hashtextextended('trading.engine_journal', 0))";
+
+    private const string LockTaken =
+        "Another Trading.Service is writing to this journal. Only one may run against a database at a time: stop the other one, then start this one.";
+
     private static readonly JsonSerializerOptions Json = EngineJson.CreateOptions();
 
+    // The connection that holds the lock, and the gate that keeps it to one use at a time.
+    private readonly SemaphoreSlim _writerGate = new(1, 1);
+    private NpgsqlConnection? _writer;
+
     public Task InitializeAsync(CancellationToken cancellationToken) => schema.EnsureAsync(cancellationToken);
+
+    public async Task TakeWriterLockAsync(TimeSpan wait, CancellationToken cancellationToken)
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (true)
+        {
+            await _writerGate.WaitAsync(cancellationToken);
+            try
+            {
+                if (await TryHoldLockAsync(cancellationToken))
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                _writerGate.Release();
+            }
+
+            var left = wait - System.Diagnostics.Stopwatch.GetElapsedTime(started);
+            if (left <= TimeSpan.Zero)
+            {
+                throw new InvalidOperationException(LockTaken);
+            }
+
+            await Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken);
+        }
+    }
+
+    public async Task ReleaseWriterLockAsync()
+    {
+        await _writerGate.WaitAsync();
+        try
+        {
+            await DropWriterAsync(unlock: true);
+        }
+        finally
+        {
+            _writerGate.Release();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await ReleaseWriterLockAsync();
+        _writerGate.Dispose();
+    }
 
     public async Task<JournalSnapshot?> LoadLatestSnapshotAsync(CancellationToken cancellationToken)
     {
@@ -63,7 +124,79 @@ internal sealed class PostgresEngineJournal(NpgsqlDataSource dataSource, Databas
 
     public async Task AppendAsync(JournalBatch batch, CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await _writerGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (!await TryHoldLockAsync(cancellationToken))
+            {
+                throw new InvalidOperationException(LockTaken);
+            }
+
+            await AppendOnAsync(_writer!, batch, cancellationToken);
+        }
+        finally
+        {
+            _writerGate.Release();
+        }
+    }
+
+    // Behind the gate. True when this process holds the lock on an open connection, taking it on a new one if needed.
+    private async Task<bool> TryHoldLockAsync(CancellationToken cancellationToken)
+    {
+        if (_writer is { State: ConnectionState.Open })
+        {
+            return true;
+        }
+
+        // A broken connection took its lock with it.
+        await DropWriterAsync(unlock: false);
+        var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            await using var command = new NpgsqlCommand(TakeLockSql, connection);
+            if (await command.ExecuteScalarAsync(cancellationToken) is true)
+            {
+                _writer = connection;
+                return true;
+            }
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
+
+        await connection.DisposeAsync();
+        return false;
+    }
+
+    // Behind the gate. The connection goes back to the pool, so the lock is let go of first rather than kept by it.
+    private async Task DropWriterAsync(bool unlock)
+    {
+        if (_writer is not { } writer)
+        {
+            return;
+        }
+
+        _writer = null;
+        if (unlock && writer.State == ConnectionState.Open)
+        {
+            try
+            {
+                await using var command = new NpgsqlCommand("select pg_advisory_unlock_all()", writer);
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (NpgsqlException)
+            {
+                // A connection that broke just now has let go of its lock already.
+            }
+        }
+
+        await writer.DisposeAsync();
+    }
+
+    private async Task AppendOnAsync(NpgsqlConnection connection, JournalBatch batch, CancellationToken cancellationToken)
+    {
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         if (batch.Inputs.Count > 0)

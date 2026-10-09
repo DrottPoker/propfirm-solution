@@ -60,6 +60,13 @@ builder.Services.AddOptions<LoginOptions>()
         "Login needs a password length of at least 1, attempts per minute of 0 or more and a positive session lifetime.")
     .ValidateOnStart();
 
+builder.Services.AddOptions<RateLimitOptions>()
+    .Bind(builder.Configuration.GetSection(RateLimitOptions.SectionName))
+    .Validate(
+        o => o.TraderPerMinute >= 0 && o.FirmPerMinute >= 0 && o.PartnerPerMinute >= 0 && o.PublicPerMinute >= 0,
+        "RateLimits needs 0 or more requests a minute for traders, firms, partners and the public, where 0 turns the limit off.")
+    .ValidateOnStart();
+
 builder.Services.AddOptions<PriceFeedOptions>()
     .Bind(builder.Configuration.GetSection(PriceFeedOptions.SectionName))
     .Validate(
@@ -159,6 +166,7 @@ builder.Services.AddRateLimiter(options =>
             ? RateLimitPartition.GetNoLimiter(address)
             : RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions { PermitLimit = attempts, Window = TimeSpan.FromMinutes(1) });
     });
+    options.AddApiPolicies();
 });
 builder.Services.AddSingleton(_ => new CandleStore(CandleStore.DefaultCapacity));
 builder.Services.AddSingleton<ChartHistory>();
@@ -223,6 +231,6 @@ app.MapSettingsApi();
 app.MapAdminApi();
 app.MapPartnerApi();
 app.MapStaffApi();
-app.MapHub<TradingHub>("/hubs/trading").RequireAuthorization();
+app.MapHub<TradingHub>("/hubs/trading").RequireAuthorization().RequireRateLimiting(RateLimits.Trader);
 
 app.Run();

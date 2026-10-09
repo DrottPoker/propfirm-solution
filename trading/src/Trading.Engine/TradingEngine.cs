@@ -97,6 +97,12 @@ public sealed partial class TradingEngine
             events.Add(new InputRejected(input.Timestamp, input, reason));
         }
 
+        // The account may have changed, so the next price evaluates it whatever that price is for.
+        if (input is IAccountCommand { AccountId: { } changedId } && _accountsById.TryGetValue(changedId, out var changed))
+        {
+            AccountChanged(changed);
+        }
+
         return events;
     }
 
